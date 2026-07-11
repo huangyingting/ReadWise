@@ -1,9 +1,8 @@
 /**
- * Canonical auth/session public seam.
+ * Canonical auth barrel — `@/lib/auth` resolves here.
  *
- * NOTE: `@/lib/auth` currently resolves to `src/lib/auth.ts` (legacy shim)
- * while that file exists. Use `@/lib/auth/*` for direct canonical module
- * imports during the transition.
+ * Submodules: config · providers · bootstrap · session-core · session-guards
+ * Page-level session facade: `@/lib/session` (re-exports session-guards helpers).
  */
 export { authOptions } from "@/lib/auth/config";
 export { buildProviders, getConfiguredProviders, type ProviderMeta } from "@/lib/auth/providers";
