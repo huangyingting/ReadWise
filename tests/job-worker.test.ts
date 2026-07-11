@@ -56,15 +56,17 @@ test("runJobWorker drains claimed jobs and completes successful ones", async () 
 
   const stats = await runJobWorker({
     once: true,
+    lockTtlMs: 60000,
     logger: silentLogger,
     deps: {
       claimNextJob: async (): Promise<Job | null> => (queue.shift() ?? null) as unknown as Job | null,
-      startJob: async () => null,
+      startJob: async (_id: string, _wid: string) => ({ status: "RUNNING" }) as unknown as Job,
+      heartbeatJob: async () => true,
       completeJob: async (id: string) => {
         completed.push(id);
-        return null;
+        return { id } as never;
       },
-      failJob: async (id: string, err: unknown) => {
+      failJob: async (id: string, _wid: string, err: unknown) => {
         failed.push({ id, error: String(err) });
         return null;
       },
@@ -92,15 +94,17 @@ test("runJobWorker fails a job whose processing step fails (transient)", async (
 
   const stats = await runJobWorker({
     once: true,
+    lockTtlMs: 60000,
     logger: silentLogger,
     deps: {
       claimNextJob: async (): Promise<Job | null> => (queue.shift() ?? null) as unknown as Job | null,
-      startJob: async () => null,
+      startJob: async (_id: string, _wid: string) => ({ status: "RUNNING" }) as unknown as Job,
+      heartbeatJob: async () => true,
       completeJob: async (id: string) => {
         completed.push(id);
         return null;
       },
-      failJob: async (id: string, err: unknown) => {
+      failJob: async (id: string, _wid: string, err: unknown) => {
         failed.push({ id, error: err instanceof Error ? err.message : String(err) });
         return { status: JobStatus.FAILED } as never;
       },
@@ -130,12 +134,14 @@ test("runJobWorker dead-letters a job for a missing article (permanent)", async 
 
   const stats = await runJobWorker({
     once: true,
+    lockTtlMs: 60000,
     logger: silentLogger,
     deps: {
       claimNextJob: async (): Promise<Job | null> => (queue.shift() ?? null) as unknown as Job | null,
-      startJob: async () => null,
+      startJob: async (_id: string, _wid: string) => ({ status: "RUNNING" }) as unknown as Job,
+      heartbeatJob: async () => true,
       completeJob: async () => null,
-      failJob: async (id: string, err: unknown) => {
+      failJob: async (id: string, _wid: string, err: unknown) => {
         failed.push({ id, error: err instanceof Error ? err.message : String(err) });
         return { status: JobStatus.DEAD_LETTER } as never;
       },
@@ -154,10 +160,12 @@ test("runJobWorker stops when the queue is empty in once mode", async () => {
   const { runJobWorker } = await import("@/lib/worker");
   const stats = await runJobWorker({
     once: true,
+    lockTtlMs: 60000,
     logger: silentLogger,
     deps: {
       claimNextJob: async () => null,
       startJob: async () => null,
+      heartbeatJob: async () => true,
       completeJob: async () => null,
       failJob: async () => null,
       processArticle: async (articleId: string): Promise<ArticleProcessResult> => ({
@@ -172,4 +180,101 @@ test("runJobWorker stops when the queue is empty in once mode", async () => {
   });
   assert.equal(stats.claimed, 0);
   assert.equal(stats.completed, 0);
+});
+
+test("runJobWorker heartbeat loss aborts handler and skips complete/fail", async () => {
+  const { runWorkerLoop } = await import("@/lib/worker");
+  const { JobType } = await import("@/lib/jobs");
+  let heartbeatCount = 0;
+  let handlerAborted = false;
+  let claimed = false;
+
+  const stats = await runWorkerLoop(
+    "worker-hb",
+    {
+      [JobType.ARTICLE_PROCESS]: async (_job: unknown, ctx: { signal?: AbortSignal }) => {
+        // Wait for heartbeat to fire and abort us
+        await new Promise<void>((resolve) => {
+          const check = setInterval(() => {
+            if (ctx.signal?.aborted) {
+              handlerAborted = true;
+              clearInterval(check);
+              resolve();
+            }
+          }, 5);
+          // Safety timeout
+          setTimeout(() => { clearInterval(check); resolve(); }, 200);
+        });
+      },
+    } as never,
+    { once: true, heartbeatIntervalMs: 10 },
+    silentLogger,
+    {
+      claimNextJob: async () => {
+        if (claimed) return null;
+        claimed = true;
+        return { id: "hb1", type: "ARTICLE_PROCESS", attempts: 0, payload: {} } as never;
+      },
+      startJob: async () => ({ status: "RUNNING" }) as never,
+      heartbeatJob: async () => {
+        heartbeatCount++;
+        return false; // ownership lost
+      },
+      completeJob: async (id: string) => {
+        completed.push(id);
+        return null;
+      },
+      failJob: async (id: string) => {
+        failed.push({ id, error: "should not be called" });
+        return null;
+      },
+    },
+  );
+
+  assert.ok(heartbeatCount >= 1, "heartbeat was called");
+  assert.ok(handlerAborted, "handler signal was aborted");
+  assert.equal(completed.length, 0, "complete not called after ownership loss");
+  assert.equal(failed.length, 0, "fail not called after ownership loss");
+  assert.equal(stats.completed, 0);
+});
+
+test("runJobWorker global stop signal aborts handler", async () => {
+  const { runWorkerLoop } = await import("@/lib/worker");
+  const { JobType } = await import("@/lib/jobs");
+  const controller = new AbortController();
+  let claimed = false;
+
+  const stats = await runWorkerLoop(
+    "worker-stop",
+    {
+      [JobType.ARTICLE_PROCESS]: async () => {
+        controller.abort();
+        const err = new Error("aborted");
+        err.name = "AbortError";
+        throw err;
+      },
+    } as never,
+    { once: false, signal: controller.signal, heartbeatIntervalMs: 50000 },
+    silentLogger,
+    {
+      claimNextJob: async () => {
+        if (claimed) return null;
+        claimed = true;
+        return { id: "stop1", type: "ARTICLE_PROCESS", attempts: 0, payload: {} } as never;
+      },
+      startJob: async () => ({ status: "RUNNING" }) as never,
+      heartbeatJob: async () => true,
+      completeJob: async (id: string) => {
+        completed.push(id);
+        return null;
+      },
+      failJob: async (id: string) => {
+        failed.push({ id, error: "should not be called" });
+        return null;
+      },
+    },
+  );
+
+  assert.equal(stats.stoppedBySignal, true);
+  assert.equal(completed.length, 0);
 });

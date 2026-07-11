@@ -111,7 +111,7 @@ test("transient failure increments attempts and schedules a backoff retry", asyn
   const before = secondsAgo(1);
   seed({ id: "j1", status: JobStatus.RUNNING, attempts: 0, maxAttempts: 5, runAfter: before, lockedBy: "w" });
   const now = new Date();
-  const updated = await failJob("j1", new Error("provider timeout"), { now });
+  const updated = await failJob("j1", "w", new Error("provider timeout"), { now });
   assert.equal(updated!.status, JobStatus.FAILED);
   assert.equal(updated!.attempts, 1);
   assert.equal(updated!.lastError, "provider timeout");
@@ -122,8 +122,8 @@ test("transient failure increments attempts and schedules a backoff retry", asyn
 
 test("permanent failure dead-letters immediately regardless of attempts", async () => {
   const { failJob, JobError, JobStatus } = await import("@/lib/jobs");
-  seed({ id: "j1", status: JobStatus.RUNNING, attempts: 0, maxAttempts: 5 });
-  const updated = await failJob("j1", new JobError("article gone", { kind: "missing" }));
+  seed({ id: "j1", status: JobStatus.RUNNING, attempts: 0, maxAttempts: 5, lockedBy: "w" });
+  const updated = await failJob("j1", "w", new JobError("article gone", { kind: "missing" }));
   assert.equal(updated!.status, JobStatus.DEAD_LETTER);
   assert.equal(updated!.attempts, 1);
   assert.ok(updated!.deadLetteredAt instanceof Date);
@@ -132,8 +132,8 @@ test("permanent failure dead-letters immediately regardless of attempts", async 
 
 test("exhausting maxAttempts moves the job to DEAD_LETTER", async () => {
   const { failJob, JobStatus } = await import("@/lib/jobs");
-  seed({ id: "j1", status: JobStatus.RUNNING, attempts: 0, maxAttempts: 1 });
-  const updated = await failJob("j1", new Error("boom"));
+  seed({ id: "j1", status: JobStatus.RUNNING, attempts: 0, maxAttempts: 1, lockedBy: "w" });
+  const updated = await failJob("j1", "w", new Error("boom"));
   assert.equal(updated!.status, JobStatus.DEAD_LETTER);
   assert.equal(updated!.attempts, 1);
 });
@@ -170,7 +170,7 @@ test("a fresh lock is NOT reclaimable", async () => {
 test("completeJob marks COMPLETED and releases the lock", async () => {
   const { completeJob, JobStatus } = await import("@/lib/jobs");
   seed({ id: "j1", status: JobStatus.RUNNING, lockedBy: "w", lockedAt: new Date() });
-  const done = await completeJob("j1");
+  const done = await completeJob("j1", "w");
   assert.equal(done!.status, JobStatus.COMPLETED);
   assert.ok(done!.completedAt instanceof Date);
   assert.equal(done!.lockedBy, null);
@@ -221,11 +221,59 @@ test("countJobsByStatus aggregates the queue", async () => {
   assert.equal(counts[JobStatus.DEAD_LETTER], 1);
 });
 
-test("heartbeatJob refreshes the lock only for the owning worker", async () => {
-  const { heartbeatJob } = await import("@/lib/jobs");
+test("heartbeatJob refreshes the lock only for the owning worker with RUNNING status", async () => {
+  const { heartbeatJob, JobStatus } = await import("@/lib/jobs");
   const oldLock = secondsAgo(30);
-  seed({ id: "j1", lockedBy: "worker-A", lockedAt: oldLock });
+  seed({ id: "j1", status: JobStatus.RUNNING, lockedBy: "worker-A", lockedAt: oldLock });
   assert.equal(await heartbeatJob("j1", "worker-B"), false, "non-owner cannot heartbeat");
   assert.equal(await heartbeatJob("j1", "worker-A"), true);
   assert.ok((store.get("j1")!.lockedAt as Date).getTime() > oldLock.getTime());
+});
+
+test("heartbeatJob rejects when job is not RUNNING", async () => {
+  const { heartbeatJob, JobStatus } = await import("@/lib/jobs");
+  seed({ id: "j2", status: JobStatus.CLAIMED, lockedBy: "worker-A", lockedAt: new Date() });
+  assert.equal(await heartbeatJob("j2", "worker-A"), false, "CLAIMED job cannot heartbeat");
+});
+
+test("startJob CAS requires CLAIMED status and correct workerId", async () => {
+  const { startJob, JobStatus } = await import("@/lib/jobs");
+  seed({ id: "cas1", status: JobStatus.CLAIMED, lockedBy: "worker-A", lockedAt: new Date() });
+  assert.equal(await startJob("cas1", "worker-B"), null, "wrong worker rejected");
+  seed({ id: "cas2", status: JobStatus.RUNNING, lockedBy: "worker-A", lockedAt: new Date() });
+  assert.equal(await startJob("cas2", "worker-A"), null, "wrong status rejected");
+  const started = await startJob("cas1", "worker-A");
+  assert.equal(started!.status, JobStatus.RUNNING);
+});
+
+test("completeJob CAS requires RUNNING status and correct workerId", async () => {
+  const { completeJob, JobStatus } = await import("@/lib/jobs");
+  seed({ id: "cas3", status: JobStatus.RUNNING, lockedBy: "worker-A", lockedAt: new Date() });
+  assert.equal(await completeJob("cas3", "worker-B"), null, "wrong worker rejected");
+  const done = await completeJob("cas3", "worker-A");
+  assert.equal(done!.status, JobStatus.COMPLETED);
+});
+
+test("failJob CAS requires RUNNING status and correct workerId", async () => {
+  const { failJob, JobStatus } = await import("@/lib/jobs");
+  seed({ id: "cas4", status: JobStatus.RUNNING, lockedBy: "worker-A", lockedAt: new Date(), attempts: 0, maxAttempts: 5 });
+  assert.equal(await failJob("cas4", "worker-B", new Error("x")), null, "wrong worker rejected");
+  const failed = await failJob("cas4", "worker-A", new Error("oops"));
+  assert.equal(failed!.status, JobStatus.FAILED);
+});
+
+test("cancelJob atomic predicate rejects terminal jobs", async () => {
+  const { cancelJob, JobStatus } = await import("@/lib/jobs");
+  seed({ id: "term1", status: JobStatus.COMPLETED });
+  assert.equal(await cancelJob("term1"), null, "cannot cancel COMPLETED");
+  seed({ id: "term2", status: JobStatus.DEAD_LETTER });
+  assert.equal(await cancelJob("term2"), null, "cannot cancel DEAD_LETTER");
+});
+
+test("retryJob atomic predicate rejects non-retryable statuses", async () => {
+  const { retryJob, JobStatus } = await import("@/lib/jobs");
+  seed({ id: "nr1", status: JobStatus.PENDING });
+  assert.equal(await retryJob("nr1"), null, "cannot retry PENDING");
+  seed({ id: "nr2", status: JobStatus.RUNNING, lockedBy: "w", lockedAt: new Date() });
+  assert.equal(await retryJob("nr2"), null, "cannot retry RUNNING");
 });
