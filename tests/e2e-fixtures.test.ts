@@ -103,10 +103,18 @@ test("E2E_ARTICLES include the critical smoke article", async () => {
 
 test("assertSafeE2eDatabaseUrl rejects when DATABASE_URL is not set", async () => {
   const { assertSafeE2eDatabaseUrl } = await import("@/lib/testing/db-guard");
-  assert.throws(
-    () => assertSafeE2eDatabaseUrl({ databaseUrl: undefined }),
-    /DATABASE_URL is not set/,
-  );
+  // Temporarily remove DATABASE_URL so the destructuring default resolves to
+  // undefined regardless of the ambient CI environment, then restore it.
+  const orig = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  try {
+    assert.throws(
+      () => assertSafeE2eDatabaseUrl({ databaseUrl: undefined }),
+      /DATABASE_URL is not set/,
+    );
+  } finally {
+    if (orig !== undefined) process.env.DATABASE_URL = orig;
+  }
 });
 
 test("assertSafeE2eDatabaseUrl rejects mismatched URLs", async () => {
