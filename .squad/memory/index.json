@@ -18,5 +18,25 @@
     "status": "active",
     "createdAt": "2026-07-09T12:18:42.670Z",
     "updatedAt": "2026-07-09T12:18:42.670Z"
+  },
+  {
+    "id": "3c679c9a-c8e3-4f02-8053-c80f4e3a44b1",
+    "class": "POLICY",
+    "loadGuidance": "ALWAYS",
+    "title": "Branch protection pre-deployment validation required",
+    "path": ".squad/memory/policy-inbox/switch-branch-protection-pre-deployment-validation-required-3c679c9a.md",
+    "status": "active",
+    "createdAt": "2026-07-10T06:06:37.443Z",
+    "updatedAt": "2026-07-10T06:06:37.443Z"
+  },
+  {
+    "id": "59884705-6624-41df-9ae3-1ac69ff227ac",
+    "class": "POLICY",
+    "loadGuidance": "ALWAYS",
+    "title": "Two-move feature-gate extraction pattern",
+    "path": ".squad/memory/policy-inbox/morpheus-two-move-feature-gate-extraction-pattern-59884705.md",
+    "status": "active",
+    "createdAt": "2026-07-10T10:32:38.658Z",
+    "updatedAt": "2026-07-10T10:32:38.658Z"
   }
 ]

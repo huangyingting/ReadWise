@@ -32,6 +32,7 @@ const SOURCE_DERIVED_PROVIDER_KEYS = [
   "hakaimagazine",
   "yalee360",
   "worksinprogress",
+  "newyorker",
 ] as const;
 
 const LONG_FORM_PROVIDER_KEYS = [
@@ -51,6 +52,7 @@ const LONG_FORM_PROVIDER_KEYS = [
   "hakaimagazine",
   "yalee360",
   "worksinprogress",
+  "newyorker",
 ] as const;
 
 const NEWS_LEARNING_PROVIDER_KEYS = ["time", "huffpost"] as const;
@@ -104,7 +106,7 @@ test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
 });
 
-test("registry holds exactly the 20 active providers (aeon, voa, bbc news, nbc, publicdomainreview, grist removed)", () => {
+test("registry holds exactly the 21 active providers (aeon, voa, bbc news, nbc, publicdomainreview, grist removed)", () => {
   const keys = PROVIDERS.map((p) => p.key).sort();
   assert.deepEqual(keys, [
     "atlasobscura",
@@ -116,6 +118,7 @@ test("registry holds exactly the 20 active providers (aeon, voa, bbc news, nbc, 
     "knowable",
     "natgeo",
     "nautilus",
+    "newyorker",
     "noema",
     "propublica",
     "scientificamerican",
@@ -128,7 +131,7 @@ test("registry holds exactly the 20 active providers (aeon, voa, bbc news, nbc, 
     "worksinprogress",
     "yalee360",
   ]);
-  assert.equal(PROVIDERS.length, 20);
+  assert.equal(PROVIDERS.length, 21);
   assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
   assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
   assert.equal(getProvider("publicdomainreview"), null, "publicdomainreview must be unregistered");
@@ -309,6 +312,8 @@ test("source-derived provider URL patterns match article URLs", () => {
     ["undark", "https://undark.org/shreds-of-evidence-edna/"],
     ["undark", "https://race.undark.org/articles/good-blood-bad-policy-the-red-cross-and-jim-crow"],
     ["wired", "https://www.wired.com/story/prediction-markets-let-you-bet-wildfire/"],
+    ["newyorker", "https://www.newyorker.com/news/the-lede/an-inconvenient-moment-for-an-extreme-global-heat-wave"],
+    ["newyorker", "https://www.newyorker.com/magazine/1925/03/07/the-critics"],
   ]);
 });
 
@@ -449,6 +454,12 @@ test("source-derived URL filters reject non-article pages", () => {
   assert.equal(wired.articleUrlFilter?.("https://www.wired.com/story/dell-coupon-code/"), false);
   assert.equal(wired.articleUrlFilter?.("https://www.wired.com/story/best-july-fourth-mattress-deals-2026/"), false);
   assert.equal(wired.articleUrlFilter?.("https://www.wired.com/story/security-roundup-apples-hide-my-email-service-fails-to-hide-your-email/"), true);
+
+  const newYorker = getProviderOrFail("newyorker");
+  assert.equal(newYorker.articleUrlFilter?.("https://www.newyorker.com/puzzles-and-games-dept/crossword/2026/07/08"), false);
+  assert.equal(newYorker.articleUrlFilter?.("https://www.newyorker.com/podcast/political-scene/example-episode"), false);
+  assert.equal(newYorker.articleUrlFilter?.("https://www.newyorker.com/news/the-lede/example-story"), true);
+  assert.equal(newYorker.articleUrlFilter?.("https://www.newyorker.com/magazine/1925/03/07/the-critics"), true);
 });
 
 test("smithsonian paginates category seeds with page query", () => {
@@ -665,6 +676,26 @@ test("wired categoryFor maps sections and story slugs across major verticals", (
   assert.equal(
     p.categoryFor!(new URL("https://www.wired.com/story/google-deepmind-unionization-talks-are-off-to-a-rocky-start/"), "Business"),
     "business",
+  );
+});
+
+test("newyorker categoryFor maps major editorial desks", () => {
+  const p = getProviderOrFail("newyorker");
+  assert.equal(
+    p.categoryFor!(new URL("https://www.newyorker.com/news/annals-of-a-warming-planet/example"), null),
+    "environment",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://www.newyorker.com/tech/annals-of-technology/example"), null),
+    "tech",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://www.newyorker.com/culture/the-front-row/example"), null),
+    "entertainment",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://www.newyorker.com/books/page-turner/example"), "Books"),
+    "culture",
   );
 });
 

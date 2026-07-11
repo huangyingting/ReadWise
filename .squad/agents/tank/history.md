@@ -34,3 +34,5 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-09T23:20:17.074+00:00 — Implemented `deterministic-cefr/hybrid-calibrated-v4` as threshold-only cutoffs `[9,18,27,36,50]`, kept NC data gated via `--enable-nc`, preserved OneStop ordinal anchors, and left Lexile-like scoring unchanged.
+
+- 2026-07-10T03:07:51.970+00:00 — Updated PR #938 for Node 24 and dependency/runtime alignment, including tests and docs; pushed commit `d01d485a384ad1bd8232f164f889003608a7c1d6`, which was independently approved and merged.

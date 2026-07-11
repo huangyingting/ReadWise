@@ -787,3 +787,98 @@ test("WIRED extractor falls back to RSS and seed pages when sitemap index is una
     [fromRss, fromSeed],
   );
 });
+
+test("New Yorker extractor combines news, monthly archive, RSS, and section discovery", async () => {
+  const provider = (await import("@/lib/scraper/providers/newyorker")).default;
+  assert.ok(provider.urlExtractor);
+
+  const fromNews = "https://www.newyorker.com/news/the-lede/current-story";
+  const fromArchive = "https://www.newyorker.com/magazine/1925/03/07/the-critics";
+  const fromRss = "https://www.newyorker.com/culture/the-front-row/recent-review";
+  const fromSeed = "https://www.newyorker.com/books/page-turner/archive-essay";
+  const result = await provider.urlExtractor({
+    limit: 10,
+    fetch: async (url) => {
+      if (url === "https://www.newyorker.com/feed/google-news-sitemap-feed/sitemap-google-news") {
+        return sitemap([fromNews, "https://www.newyorker.com/puzzles-and-games-dept/crossword/2026/07/08"]);
+      }
+      if (url === "https://www.newyorker.com/sitemap.xml") {
+        return sitemap(["https://www.newyorker.com/sitemap-1925-02.xml"]);
+      }
+      if (url === "https://www.newyorker.com/sitemap-1925-02.xml") {
+        return sitemap([fromArchive]);
+      }
+      if (url === "https://www.newyorker.com/feed/rss") return rss([fromRss]);
+      if (url === provider.seeds[0]) return `<a href="${fromSeed}?source=home#top">Seed story</a>`;
+      throw new Error("supplementary section unavailable");
+    },
+  });
+
+  assert.deepEqual(extractorUrls(result), [fromNews, fromArchive, fromRss, fromSeed]);
+});
+
+test("New Yorker exhaustive sitemap generation spans the full monthly archive", async () => {
+  const { newYorkerMonthlySitemapUrls } = await import("@/lib/scraper/providers/newyorker");
+  const urls = newYorkerMonthlySitemapUrls(new Date("2026-07-10T00:00:00.000Z"));
+
+  assert.equal(urls.length, 1218);
+  assert.equal(urls[0], "https://www.newyorker.com/sitemap-2026-07.xml");
+  assert.equal(urls.at(-1), "https://www.newyorker.com/sitemap-1925-02.xml");
+  assert.equal(urls.includes("https://www.newyorker.com/sitemap-1925-01.xml"), false);
+});
+
+test("New Yorker exhaustive discovery reaches the oldest archive with bounded concurrency", async () => {
+  const provider = (await import("@/lib/scraper/providers/newyorker")).default;
+  assert.ok(provider.urlExtractor);
+
+  const oldestArticle = "https://www.newyorker.com/magazine/1925/03/07/the-critics";
+  let active = 0;
+  let maxActive = 0;
+  let monthlyFetches = 0;
+  const result = await provider.urlExtractor({
+    limit: Number.POSITIVE_INFINITY,
+    fetch: async (url) => {
+      if (/\/sitemap-\d{4}-\d{2}\.xml$/.test(url)) {
+        monthlyFetches++;
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        active--;
+        return url.endsWith("/sitemap-1925-02.xml") ? sitemap([oldestArticle]) : sitemap([]);
+      }
+      if (url.endsWith("/feed/rss")) return rss([]);
+      return "";
+    },
+  });
+
+  assert.deepEqual(extractorUrls(result), [oldestArticle]);
+  assert.equal(monthlyFetches >= 1218, true);
+  assert.equal(maxActive > 1, true);
+  assert.equal(maxActive <= 6, true);
+});
+
+test("New Yorker extractor is resilient: invalid sitemap URLs are skipped, index-down falls back to generated, and individual sitemap fetch failures are non-fatal", async () => {
+  const provider = (await import("@/lib/scraper/providers/newyorker")).default;
+  assert.ok(provider.urlExtractor);
+
+  const goodArticle = "https://www.newyorker.com/news/the-lede/good-story";
+  const fromRss = "https://www.newyorker.com/culture/the-front-row/rss-story";
+
+  const result = await provider.urlExtractor({
+    limit: 5,
+    fetch: async (url) => {
+      // Google news sitemap: one malformed <loc> entry (exercises normalizeCandidateUrl catch,
+      // lines 40-41 of newyorker.ts) and one valid article.
+      if (url.includes("google-news")) return sitemap(["http://[::1", goodArticle]);
+      // Sitemap index throws → exercises newYorkerUrlExtractor catch (lines 179-180).
+      if (url === "https://www.newyorker.com/sitemap.xml") throw new Error("index unavailable");
+      // Generated monthly sitemaps throw → exercises fetchSitemapEntries catch (lines 124-125).
+      if (/sitemap-\d{4}-\d{2}\.xml/.test(url)) throw new Error("monthly down");
+      // RSS provides one fallback article.
+      if (url.includes("/feed/rss")) return rss([fromRss]);
+      return "";
+    },
+  });
+
+  assert.deepEqual(extractorUrls(result), [goodArticle, fromRss]);
+});
