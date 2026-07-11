@@ -1,6 +1,6 @@
 import { processArticle } from "@/lib/processing/processor";
 import { createLogger } from "@/lib/observability/logger";
-import { claimNextJob, completeJob, failJob, startJob, type JobType } from "@/lib/jobs";
+import { claimNextJob, completeJob, failJob, heartbeatJob, startJob, type JobType } from "@/lib/jobs";
 import { sleep } from "./sleep";
 import { createDefaultRegistry } from "./registry";
 import { runWorkerLoop } from "./loop";
@@ -35,6 +35,7 @@ function buildWorkerDeps(options: JobWorkerOptions): WorkerLoopDeps {
   return {
     claimNextJob: options.deps?.claimNextJob ?? claimNextJob,
     startJob: options.deps?.startJob ?? startJob,
+    heartbeatJob: options.deps?.heartbeatJob ?? heartbeatJob,
     completeJob: options.deps?.completeJob ?? completeJob,
     failJob: options.deps?.failJob ?? failJob,
     sleep: options.deps?.sleep ?? sleep,

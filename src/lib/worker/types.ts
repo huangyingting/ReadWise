@@ -3,6 +3,7 @@ import type {
   claimNextJob,
   completeJob,
   failJob,
+  heartbeatJob,
   startJob,
   Job,
   JobType,
@@ -17,6 +18,7 @@ export type WorkerLogger = {
 type JobWorkerDeps = {
   claimNextJob?: typeof claimNextJob;
   startJob?: typeof startJob;
+  heartbeatJob?: typeof heartbeatJob;
   completeJob?: typeof completeJob;
   failJob?: typeof failJob;
   processArticle?: typeof processArticle;
