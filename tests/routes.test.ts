@@ -78,7 +78,7 @@ before(() => {
       articleHtmlToReaderText: (html: string) => html,
     },
   });
-  mock.module("@/lib/vocabulary", {
+  mock.module("@/lib/vocabulary/service", {
     namedExports: {
       getOrCreateArticleVocabulary: async () => vocabularyResult,
     },

@@ -83,7 +83,7 @@ label, so cached derived content and existing tests stay valid.
 | Feature | Active version | `maxOutputTokens` | Helper |
 | --- | --- | --- | --- |
 | `translation` | `translation/v1` | provider default | `src/lib/translation.ts` |
-| `vocabulary` | `vocabulary/v1` | provider default | `src/lib/vocabulary.ts` |
+| `vocabulary` | `vocabulary/v1` | provider default | `src/lib/vocabulary/service.ts` |
 | `quiz` | `quiz/v1` | provider default | `src/lib/quiz.ts` |
 | `tags` | `tags/v1` | provider default | `src/lib/article-library/collections/index.ts` |
 | `grammar` | `grammar/v1` | 256 | `src/lib/grammar.ts` |

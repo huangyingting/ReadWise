@@ -33,7 +33,8 @@ const MODULES: ModuleBoundaryConfig[] = [
     dir: resolve(ROOT_DIR, "src/lib/lexical"),
     disallowedInternalImportPrefixes: [
       "@/lib/learning",
-      "@/lib/vocabulary",
+      "@/lib/vocabulary/service",
+      "@/lib/vocabulary/schemas",
       "@/lib/content-pipeline",
       "@/lib/processing/processor",
     ],
@@ -41,6 +42,7 @@ const MODULES: ModuleBoundaryConfig[] = [
 ];
 
 const BARREL_SUFFIXES = new Set(["", "/index"]);
+const AMBIGUOUS_VOCAB_ALIAS = ["@/lib", "vocabulary"].join("/");
 
 function walkFiles(dir: string, out: string[] = []): string[] {
   const entries = readdirSync(dir, { withFileTypes: true });
@@ -240,6 +242,32 @@ test("study schemas module exposes only route validation contracts", async () =>
     "parseClozeQuery",
     "parseWordsQuery",
   ]);
+});
+
+test("vocabulary service/schema modules stay explicit and no bare alias imports remain", async () => {
+  const service = await import("@/lib/vocabulary/service");
+  assert.deepEqual(Object.keys(service).sort(), ["getOrCreateArticleVocabulary"]);
+
+  const schemas = await import("@/lib/vocabulary/schemas");
+  assert.deepEqual(Object.keys(schemas).sort(), [
+    "eraseSavedWordContextBody",
+    "parseExportQuery",
+    "saveWordBody",
+    "unsaveBatchBody",
+    "unsaveWordBody",
+  ]);
+
+  const violations: string[] = [];
+  for (const file of [...walkFiles(resolve(ROOT_DIR, "src")), ...walkFiles(resolve(ROOT_DIR, "tests"))]) {
+    const rel = relPath(file);
+    for (const specifier of parseModuleSpecifiers(readFileSync(file, "utf8"))) {
+      if (specifier === AMBIGUOUS_VOCAB_ALIAS) {
+        violations.push(`${rel} -> ${specifier}`);
+      }
+    }
+  }
+
+  assert.deepEqual(violations, []);
 });
 
 for (const config of MODULES) {
