@@ -12,7 +12,7 @@
  *   saved-words — getSavedWordSet, getSavedWords, saveWord, unsaveWord, …
  *
  * Structural relationship:
- *   `@/lib/vocabulary.ts` (AI extraction service) depends on lexical saved-word
+ *   `@/lib/vocabulary/service` (AI extraction service) depends on lexical saved-word
  *   APIs for "saved/not saved" joins; lexical does not depend on vocabulary.
  *
  * Import individual sub-modules for feature-specific behavior.

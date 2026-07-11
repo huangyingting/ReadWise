@@ -9,8 +9,8 @@ description: "Documents lexical provider seam, word normalization, dictionary lo
 
 The lexical subsystem connects reader word selection, dictionary lookup,
 normalization, explicit saved words, word mastery, and study review. It is
-separate from AI-generated article vocabulary (`src/lib/vocabulary.ts`), but the
-two share saved-word state in the UI.
+separate from AI-generated article vocabulary (`src/lib/vocabulary/service.ts`),
+but the two share saved-word state in the UI.
 
 ## Code map
 
