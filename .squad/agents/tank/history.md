@@ -36,3 +36,6 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - 2026-07-09T23:20:17.074+00:00 — Implemented `deterministic-cefr/hybrid-calibrated-v4` as threshold-only cutoffs `[9,18,27,36,50]`, kept NC data gated via `--enable-nc`, preserved OneStop ordinal anchors, and left Lexile-like scoring unchanged.
 
 - 2026-07-10T03:07:51.970+00:00 — Updated PR #938 for Node 24 and dependency/runtime alignment, including tests and docs; pushed commit `d01d485a384ad1bd8232f164f889003608a7c1d6`, which was independently approved and merged.
+
+
+- 2026-07-11T08:08:13.000+00:00 — Authored PR #1005 clearing native debt 12→0 and route debt 6→0 with 12 native script/analytics test suites and 6 direct route test suites. Commit 1823774f passed local validation. Initial CI failure diagnosed by Mouse as async/global-console race in test helpers. Mouse fixed in commit d1ba414; all subsequent validations passed. PR #1005 merged at 2ebbe57d3754f8def00c501ae9ad81599a7861b4; issues #1000/#1001 closed.
