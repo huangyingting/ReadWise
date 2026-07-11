@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { GrammarResult } from "@/components/GrammarPopover";
 
 type ContextSentenceProvider = (phrase: string) => string;
@@ -32,8 +32,10 @@ export function useGrammarExplanation(
   const [grammarError, setGrammarError] = useState<string | null>(null);
   const [grammarPhrase, setGrammarPhrase] = useState<string>("");
   const [grammarSelectionRect, setGrammarSelectionRect] = useState<DOMRect | null>(null);
+  const requestRef = useRef(0);
 
   const resetGrammar = useCallback(() => {
+    ++requestRef.current;
     setGrammarLoading(false);
     setGrammarResult(null);
     setGrammarError(null);
@@ -42,16 +44,20 @@ export function useGrammarExplanation(
   }, []);
 
   const runGrammarExplain = useCallback(async (phrase: string) => {
+    const reqId = ++requestRef.current;
     setGrammarLoading(true);
     setGrammarResult(null);
     setGrammarError(null);
     try {
       const contextSentence = contextSentenceFor(phrase);
-      setGrammarResult(await requestGrammarExplanation(articleId, phrase, contextSentence));
+      const data = await requestGrammarExplanation(articleId, phrase, contextSentence);
+      if (requestRef.current !== reqId) return;
+      setGrammarResult(data);
     } catch {
+      if (requestRef.current !== reqId) return;
       setGrammarError(GRAMMAR_ERROR_MESSAGE);
     } finally {
-      setGrammarLoading(false);
+      if (requestRef.current === reqId) setGrammarLoading(false);
     }
   }, [articleId, contextSentenceFor]);
 
