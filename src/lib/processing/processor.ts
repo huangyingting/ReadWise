@@ -15,7 +15,7 @@
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus } from "@prisma/client";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
-import { DIFFICULTY_ALGORITHM_VERSION } from "@/lib/difficulty-version";
+import { DIFFICULTY_ALGORITHM_VERSION } from "@/lib/difficulty/version";
 import { getOrCreateArticleVocabulary } from "@/lib/vocabulary/service";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
 import { getOrCreateArticleTags } from "@/lib/article-library/collections/tags";
