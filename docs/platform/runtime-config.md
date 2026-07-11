@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-06"
+last_updated: "2026-07-11"
 description: "Documents server-side runtime-config ownership, direct process.env allowlist, and typed environment variable helpers. Captures current env-var ownership tables, feature switches, optional-provider config, and server-only import boundaries."
 ---
 
@@ -27,7 +27,7 @@ Covered by `process.env.NODE_ENV`.
 | --- | --- |
 | `src/components/ServiceWorkerRegister.tsx` | Skip SW registration outside production. |
 | `src/lib/api-handler.ts` | Suppress internal error details in production responses. |
-| `src/lib/auth.ts` | Secure-cookie posture for NextAuth session cookies. |
+| `src/lib/auth/config.ts` | Secure-cookie posture for NextAuth session cookies. |
 | `src/lib/observability/errors.ts` | Tag Sentry events with the runtime environment name. |
 | `src/lib/prisma.ts` | Prisma query logging verbosity (dev vs. prod). |
 | `src/lib/security/headers.ts` | Security header defaults differ between dev and prod. |
@@ -74,10 +74,14 @@ thin infrastructure check, not a business config read; the authoritative
 validation of `DATABASE_URL` and its `PRISMA_SCHEMA_PATH` provider match lives
 in `src/lib/runtime-config/runtime.ts`.
 
+`db-utils.ts` also exports the pure `hasPostgresUrlPrefix(url)` predicate used
+by `runtime-config/database.ts` for provider detection, keeping the URL-prefix
+constant in one place.
+
 | File | Purpose |
 | --- | --- |
-| `src/lib/db-utils.ts` | `isPostgresDatabase()` — dialect selection for raw SQL queries. |
-| `src/lib/runtime-config/database.ts` | `prismaSchemaMismatchIssue()` and production startup assertion for database/schema provider safety. |
+| `src/lib/db-utils.ts` | `isPostgresDatabase()` — dialect selection for raw SQL queries; `hasPostgresUrlPrefix(url)` — pure URL-prefix predicate shared with runtime-config. |
+| `src/lib/runtime-config/database.ts` | `databaseProviderFromUrl()`, `prismaSchemaMismatchIssue()`, and production startup assertion for database/schema provider safety. Delegates PostgreSQL URL recognition to `db-utils`. |
 
 ### 6. Testing and CI guards (`src/lib/testing/`)
 

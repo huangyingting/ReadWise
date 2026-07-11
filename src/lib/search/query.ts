@@ -7,7 +7,6 @@
  */
 import { type Prisma } from "@prisma/client";
 import { isPostgresDatabase } from "@/lib/db-utils";
-export { isPostgresDatabase };
 
 /** Default and maximum page sizes for the user-facing global search. */
 export const SEARCH_PAGE_SIZE = 20;

@@ -198,6 +198,8 @@ before(() => {
   mock.module("@/lib/db-utils", {
     namedExports: {
       isPostgresDatabase: () => postgresEnabled,
+      hasPostgresUrlPrefix: (url: string) =>
+        url.startsWith("postgresql://") || url.startsWith("postgres://"),
     },
   });
   mock.module("@/lib/prisma", {
