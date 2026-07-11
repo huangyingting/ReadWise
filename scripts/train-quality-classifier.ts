@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 import { ARTICLE_SAMPLES, AD_SAMPLES } from "@/lib/scraper/quality-classifier-corpus";
+import { isMain } from "./lib/cli";
 
 const require = createRequire(import.meta.url);
 
@@ -36,7 +37,7 @@ const ARTICLE_LABEL = "article";
 const AD_LABEL = "ad";
 const MODEL_OUTPUT_PATH = "../src/lib/scraper/quality-classifier-model.json";
 
-function trainClassifier(natural: NaturalModule): BayesClassifier {
+export function trainClassifier(natural: NaturalModule): BayesClassifier {
   const classifier = new natural.BayesClassifier();
 
   for (const sample of ARTICLE_SAMPLES) classifier.addDocument(sample, ARTICLE_LABEL);
@@ -46,12 +47,12 @@ function trainClassifier(natural: NaturalModule): BayesClassifier {
   return classifier;
 }
 
-function resolveOutputPath(): string {
+export function resolveOutputPath(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(here, MODEL_OUTPUT_PATH);
 }
 
-function main(): void {
+export function main(): void {
   const natural = require("natural") as NaturalModule;
   const classifier = trainClassifier(natural);
   const outPath = resolveOutputPath();
@@ -66,4 +67,10 @@ function main(): void {
   );
 }
 
-main();
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    main();
+  }
+}
+
+runAsCli();

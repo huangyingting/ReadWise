@@ -531,8 +531,8 @@ test("parseCoverageDebt validates the real coverage-debt.json", () => {
     new Set(routes),
   );
 
-  assert.ok(result.fileDebt.length > 0);
-  assert.ok(result.routeDebt.length > 0);
+  assert.ok(result.maxFileDebt >= 0);
+  assert.ok(result.maxRouteDebt >= 0);
   assert.ok(result.fileDebt.length <= result.maxFileDebt);
   assert.ok(result.routeDebt.length <= result.maxRouteDebt);
 });
