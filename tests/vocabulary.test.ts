@@ -69,7 +69,7 @@ beforeEach(() => {
 });
 
 async function importVocabulary() {
-  return import("@/lib/vocabulary");
+  return import("@/lib/vocabulary/service");
 }
 
 async function importSavedWords() {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { getOrCreateArticleVocabulary } from "@/lib/vocabulary";
+import { getOrCreateArticleVocabulary } from "@/lib/vocabulary/service";
 import { requireReadableArticleForAI } from "@/lib/reader/route-guard";
 import { frequencyTier } from "@/lib/frequency";
 

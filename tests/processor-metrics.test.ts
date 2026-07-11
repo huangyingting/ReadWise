@@ -37,7 +37,7 @@ before(() => {
       getOrCreateArticleDifficulty: async () => ({ level: "B1", source: "deterministic" }),
     },
   });
-  mock.module("@/lib/vocabulary", {
+  mock.module("@/lib/vocabulary/service", {
     namedExports: {
       getOrCreateArticleVocabulary: async () => ({ items: [{ word: "metric" }], fallback: false }),
     },
