@@ -38,3 +38,6 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-09T23:20:17.074+00:00 — Derived v4 hybrid CEFR calibration targets using legal-approved NC UniversalCEFR A1-C2 aggregate labels plus OneStopEnglish ordinal article anchors, with provider guardrails and no raw calibration data committed.
+
+
+- 2026-07-11T08:08:13.000+00:00 — Diagnosed and fixed PR #1005 CI failure: root cause was async/global-console test helper race in tests/check-schema-parity.test.ts and scripts/check-schema-parity.ts. Helper wrapping global console state around async callbacks was not awaiting restoration in finally block. Fixed with async/await + finally pattern and injectable output. Commit d1ba414. Stress-validated in exact CI environment: 571 files, 110/110 routes, zero debt. All checks passed. PR #1005 merged; issues #1000/#1001 closed.

@@ -198,3 +198,49 @@ The difficulty calibration harness is accepted as a read-only evaluation path fo
 3. Lazy provider: same singleton identity, improved error semantics (caller-visible vs import-time), no test leakage, no privacy change.
 4. Frozen files untouched, #948 open, #972 exact/deduplicated.
 **Gate:** Merge when "Unit tests + native coverage" CI passes green. If fails, Mouse locked, Switch revises.
+
+
+## Recent Strategic Decisions (Post-Refactor)
+
+### 2026-07-10T05-51-36: Repository-wide refactor program: dev-first staged flow with 6-wave dependency-aware sequencing
+**By:** Morpheus
+**What:** Repository-wide refactor program: dev-first staged flow with 6-wave dependency-aware sequencing
+**References:** #939, #940, #941, #942, #943, #944, #945, #946, #947, #948, #949, #950, #951, #952, #953, #954
+**Why:** ## Decision
+
+Adopted a 6-wave, dependency-aware refactor program (#939) using the git-workflow skill's dev-first model. Remote `dev` must be bootstrapped from `main` (#940) before any subsystem work begins.
+
+## Branch strategy
+- Bootstrap `dev` from current `main` HEAD (one-time, #940)
+- All subsystem PRs target `dev` using `squad/{issue-number}-{slug}` branches
+- PR #937 (Dependabot ESLint) remains targeting `main` independently
+- Final promotion: reviewed PR `dev` → `main` (#954) after all waves complete
+
+## Wave ordering (13 subsystem issues)
+- Wave 1: Foundation — shared primitives/errors (#941), runtime-config/observability (#942)
+- Wave 2: Platform — auth consolidation (#943), API handler/security patterns (#944)
+- Wave 3: Domain services — AI boundaries (#945), scraper/content-pipeline dedup (#946), speech/push/jobs (#947)
+- Wave 4: Product domain — learning/vocabulary (#948), article/reader/difficulty (#949), classroom/org/analytics (#950)
+- Wave 5: UI — primitives/shared (#951), reader state (#952)
+- Wave 6: Cross-cutting — scripts/hooks/test-infra (#953)
+
+## Concurrency rule
+No two agents edit the same shared file concurrently. Shared files (api-handler, prisma.ts, test helpers, runtime-config barrel) are frozen unless coordinated through Morpheus.
+
+## Termination condition
+Program complete when all subsystem issues closed, `dev` passes full CI, and promotion PR merges to `main`.
+
+## Rollback
+Each subsystem PR is independently revertable on `dev`. Main is never force-pushed.
+
+### 2026-07-06T04-03-51: Keep DB performance telemetry privacy-safe by default
+**By:** Scribe
+**What:** Keep DB performance telemetry privacy-safe by default
+**References:** Tank, Switch, DB query performance work
+**Why:** Slow-query warnings and DB tracing should report timing/operation metadata without logging SQL text, bind values, prompts, article text, selected text, or raw database error text. Performance observability is needed, but it must preserve the repository privacy rule against logging user-private content or secrets.
+
+### 2026-07-06T04-03-51: Refuse DB benchmarks against remote databases by default
+**By:** Scribe
+**What:** Refuse DB benchmarks against remote databases by default
+**References:** Tank, Switch, DB query performance work
+**Why:** The benchmark command should refuse remote database URLs by default and do so before importing Prisma/runtime database code. Benchmarking should not accidentally exercise production-like or remote databases, and early refusal keeps the safety check lightweight and independent of Prisma initialization.
