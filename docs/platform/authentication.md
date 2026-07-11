@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-11"
 description: "Documents NextAuth provider registry, session persistence, local sign-in and test-session onboarding, first-user bootstrap, cookies, and auth guard layering. Captures current OAuth/provider fallbacks, database sessions, admin bootstrap, cookie posture, and route/session helpers."
 ---
 
@@ -14,11 +14,13 @@ small at the framework boundary and capability-based everywhere else.
 
 | Area | Code | Purpose |
 | --- | --- | --- |
-| NextAuth config | `src/lib/auth.ts` | Adapter, providers, database-session strategy, cookies, callbacks, first-user event. |
-| Provider registry | `src/lib/auth-providers.ts` | Env-driven Google/Azure AD provider construction and sign-in metadata. |
-| Bootstrap | `src/lib/auth-bootstrap.ts` | Promote the first user to global `Admin`. |
-| Shared core | `src/lib/auth-core.ts` | Load session and check capabilities with no redirects/responses. |
-| Page guards | `src/lib/session.ts` | Redirect missing sessions to `/signin` and unauthorized users to `/forbidden`. |
+| NextAuth config | `src/lib/auth/config.ts` | Adapter, providers, database-session strategy, cookies, callbacks, first-user event. |
+| Auth barrel | `src/lib/auth/index.ts` | Canonical re-export barrel for auth config (`authOptions`). |
+| Provider registry | `src/lib/auth/providers.ts` | Env-driven Google/Azure AD provider construction and sign-in metadata. |
+| Bootstrap | `src/lib/auth/bootstrap.ts` | Promote the first user to global `Admin`. |
+| Session core | `src/lib/auth/session-core.ts` | Load session and check capabilities with no redirects/responses. |
+| Session guards | `src/lib/auth/session-guards.ts` | Redirect missing sessions to `/signin` and unauthorized users to `/forbidden`. |
+| Page-level session facade | `src/lib/session.ts` | Re-exports session guards for page/layout-level ownership; keeps page imports short. |
 | API guards | `src/lib/api-auth.ts` | Return `401`/`403` responses for route handlers. |
 | Auth route | `src/app/api/auth/[...nextauth]/route.ts` | NextAuth-owned route handler. |
 
@@ -166,5 +168,5 @@ unconfigured independently in `/api/ready`; see
 ## Tests
 
 Relevant tests include `tests/auth-core.test.ts`, `tests/auth-providers.test.ts`,
-`tests/auth-bootstrap.test.ts`, `tests/api-handler.test.ts`, `tests/rbac.test.ts`,
-and admin/tenant route tests.
+`tests/auth-bootstrap.test.ts`, `tests/auth-security-backend.test.ts`,
+`tests/api-handler.test.ts`, `tests/rbac.test.ts`, and admin/tenant route tests.

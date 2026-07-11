@@ -8,6 +8,7 @@
  */
 import { dirname, isAbsolute, join } from "node:path";
 import { envValue, positiveIntEnv, type ConfigIssue } from "./env";
+import { hasPostgresUrlPrefix } from "@/lib/db-utils";
 
 export const SQLITE_PRISMA_SCHEMA_PATH = "prisma/schema.prisma";
 export const POSTGRES_PRISMA_SCHEMA_PATH = "prisma/postgresql/schema.prisma";
@@ -15,7 +16,6 @@ export const POSTGRES_PRISMA_SCHEMA_PATH = "prisma/postgresql/schema.prisma";
 const DEFAULT_PRISMA_SCHEMA_PATH = SQLITE_PRISMA_SCHEMA_PATH;
 const DATABASE_SCHEMA_MISMATCH_CODE = "database_prisma_schema_mismatch";
 const UNKNOWN_PRISMA_SCHEMA_PATH_CODE = "unknown_prisma_schema_path";
-const POSTGRES_DATABASE_URL_PREFIXES = ["postgresql://", "postgres://"] as const;
 const DB_QUERY_TIMING_DISABLED_VALUES = new Set(["0", "false", "off", "no"]);
 const DEFAULT_DB_SLOW_QUERY_THRESHOLD_MS = 250;
 
@@ -33,7 +33,7 @@ function normalizePath(path: string): string {
 export function databaseProviderFromUrl(databaseUrl: string | null = envValue("DATABASE_URL")): DatabaseProvider | null {
   if (!databaseUrl) return null;
   if (databaseUrl.startsWith("file:")) return "sqlite";
-  if (POSTGRES_DATABASE_URL_PREFIXES.some((prefix) => databaseUrl.startsWith(prefix))) {
+  if (hasPostgresUrlPrefix(databaseUrl)) {
     return "postgresql";
   }
   return null;

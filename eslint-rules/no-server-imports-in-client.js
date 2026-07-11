@@ -51,10 +51,6 @@ const SERVER_ONLY_EXACT = new Set([
   // Prisma database client
   "@/lib/prisma",
   // Auth modules (NextAuth config, session guards, API auth)
-  "@/lib/auth",
-  "@/lib/auth-core",
-  "@/lib/auth-bootstrap",
-  "@/lib/auth-providers",
   "@/lib/session",
   "@/lib/api-auth",
   // Logging / observability (structured JSON logs, request context)
@@ -95,6 +91,7 @@ const SERVER_ONLY_EXACT = new Set([
  *   import "@/lib/runtime-config/ai"
  */
 const SERVER_ONLY_PREFIXES = [
+  "@/lib/auth",
   "@/lib/runtime-config",
   "@/lib/observability",
   "@/lib/security",
