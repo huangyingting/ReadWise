@@ -1,5 +1,19 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import {
+  buildRouteInventory,
+  discoverEligibleFiles,
+  discoverRoutes,
+  mergeWithCoverage,
+  normalizePath,
+  parseCoverageDebt,
+  type CoverageDebtConfig,
+  type DiscoveryResult,
+  type RouteInventoryResult,
+  type StaticDenominatorResult,
+} from "./coverage-static-discovery";
 
 export type CoverageRow = {
   file: string;
@@ -17,6 +31,7 @@ export type CliOptions = {
   inputFile: string | null;
   inputFromStdin: boolean;
   showReport: boolean;
+  skipStatic: boolean;
   testArgs: string[];
 };
 
@@ -60,6 +75,13 @@ type CoverageOutput = {
   error: (message: string) => void;
 };
 
+type StaticDenominatorDeps = {
+  rootDir?: string;
+  debtFile?: string;
+  today?: string;
+  skipStatic?: boolean;
+};
+
 type CoverageGateDeps = {
   readCoverageInput?: (
     inputFile: string | null,
@@ -70,6 +92,7 @@ type CoverageGateDeps = {
     showReport: boolean,
   ) => { text: string; status: number };
   output?: CoverageOutput;
+  static?: StaticDenominatorDeps;
 };
 
 type ParsedCoverageLine = {
@@ -195,6 +218,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
     inputFile: null,
     inputFromStdin: false,
     showReport: true,
+    skipStatic: false,
     testArgs: [],
   };
 
@@ -242,6 +266,10 @@ export function parseCliArgs(argv: string[]): CliOptions {
     }
     if (arg === "--summary-only" || arg === "--quiet") {
       opts.showReport = false;
+      continue;
+    }
+    if (arg === "--skip-static") {
+      opts.skipStatic = true;
       continue;
     }
     opts.testArgs.push(arg);
@@ -374,11 +402,120 @@ export function runCoverageGate(argv: string[], deps: CoverageGateDeps = {}): nu
     printGateResult(rows, failures, opts.threshold, opts.includePrefixes, output);
 
     if (run.status !== 0) return run.status;
-    return failures.length === 0 ? 0 : 1;
+    if (failures.length > 0) return 1;
+
+    // Static denominator integration
+    const staticDeps = deps.static ?? {};
+    if (staticDeps.skipStatic || opts.skipStatic) return 0;
+
+    const rootDir = staticDeps.rootDir ?? process.cwd();
+    const debtFile = staticDeps.debtFile ?? resolve(rootDir, "coverage-debt.json");
+    const today = staticDeps.today ?? new Date().toISOString().slice(0, 10);
+
+    const staticResult = runStaticDenominator(
+      rootDir,
+      debtFile,
+      today,
+      rows,
+      opts.threshold,
+      opts.includePrefixes,
+      output,
+    );
+
+    return staticResult;
   } catch (err) {
     output.error(err instanceof Error ? err.message : String(err));
     return 1;
   }
+}
+
+function runStaticDenominator(
+  rootDir: string,
+  debtFile: string,
+  today: string,
+  rows: CoverageRow[],
+  threshold: number,
+  includePrefixes: string[],
+  output: CoverageOutput,
+): number {
+  // Discover eligible files
+  const discovery = discoverEligibleFiles(rootDir);
+
+  // Load debt config
+  if (!existsSync(debtFile)) {
+    output.error(`Static denominator: coverage-debt.json not found at ${debtFile}`);
+    return 1;
+  }
+  const debtContent = readFileSync(debtFile, "utf8");
+
+  // Discover routes for validation
+  const allRoutes = discoverRoutes(rootDir);
+  const existingFileSet = new Set(discovery.eligible);
+  const existingRouteSet = new Set(allRoutes);
+
+  const debt = parseCoverageDebt(debtContent, today, existingFileSet, existingRouteSet);
+
+  // Get measured file set from coverage rows
+  const measuredFiles = new Set(
+    rows
+      .filter((row) => includePrefixes.some((p) => row.file.startsWith(p)))
+      .map((row) => row.file),
+  );
+
+  // Merge discovery with coverage
+  const debtFileSet = new Set(debt.fileDebt.map((d) => d.file));
+  const { syntheticZeroFiles, debtExcusedFiles } = mergeWithCoverage(
+    discovery.eligible,
+    measuredFiles,
+    debtFileSet,
+  );
+
+  // Build route inventory
+  const routeDebtSet = new Set(debt.routeDebt.map((d) => d.route));
+  const coveredRoutesInTests = new Set(
+    rows.filter((row) => row.file.startsWith("src/app/api/")).map((row) => row.file),
+  );
+  const routeInventory = buildRouteInventory(allRoutes, coveredRoutesInTests, debt.routeDebt);
+
+  // Print summary
+  output.log(`\nStatic denominator summary:`);
+  output.log(`  Eligible executable files: ${discovery.eligible.length}`);
+  output.log(`  Excluded (type-only): ${discovery.excluded.filter((e) => e.reason === "type-only").length}`);
+  output.log(`  Excluded (pure-barrel): ${discovery.excluded.filter((e) => e.reason === "pure-barrel").length}`);
+  output.log(`  Excluded (client-only): ${discovery.excluded.filter((e) => e.reason === "client-only").length}`);
+  output.log(`  Measured by tests: ${measuredFiles.size}`);
+  output.log(`  Debt-excused files: ${debtExcusedFiles.length}/${debt.maxFileDebt} max`);
+  output.log(`  Synthetic 0% (unimported, no debt): ${syntheticZeroFiles.length}`);
+  output.log(`\nRoute inventory:`);
+  output.log(`  Total routes: ${routeInventory.allRoutes.length}`);
+  output.log(`  Covered by tests: ${routeInventory.coveredRoutes.length}`);
+  output.log(`  Debt-excused routes: ${routeInventory.debtRoutes.length}/${debt.maxRouteDebt} max`);
+  output.log(`  Uncovered routes (no debt): ${routeInventory.uncoveredRoutes.length}`);
+
+  // Fail if there are unimported files with no debt
+  let failed = false;
+  if (syntheticZeroFiles.length > 0) {
+    output.error(
+      `\nStatic denominator failed: ${syntheticZeroFiles.length} eligible file(s) have 0% coverage with no debt entry:`,
+    );
+    for (const file of syntheticZeroFiles) {
+      output.error(`- 0.00% ${file} (synthetic — not loaded by tests)`);
+    }
+    failed = true;
+  }
+
+  // Fail if there are uncovered routes with no debt
+  if (routeInventory.uncoveredRoutes.length > 0) {
+    output.error(
+      `\nRoute inventory failed: ${routeInventory.uncoveredRoutes.length} route(s) have no test coverage and no debt entry:`,
+    );
+    for (const route of routeInventory.uncoveredRoutes) {
+      output.error(`- ${route}`);
+    }
+    failed = true;
+  }
+
+  return failed ? 1 : 0;
 }
 
 function main(): void {
