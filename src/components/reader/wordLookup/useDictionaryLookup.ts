@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { DictionaryResult } from "@/lib/lexical/provider";
 
 const DICTIONARY_ENDPOINT = "/api/dictionary";
@@ -11,14 +11,17 @@ export function useDictionaryLookup() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<DictionaryResult | null>(null);
   const [dictError, setDictError] = useState<string | null>(null);
+  const requestRef = useRef(0);
 
   const resetDictionary = useCallback(() => {
+    ++requestRef.current;
     setResult(null);
     setDictError(null);
     setLoading(false);
   }, []);
 
   const runLookup = useCallback(async (term: string) => {
+    const reqId = ++requestRef.current;
     setLoading(true);
     setDictError(null);
     setResult(null);
@@ -29,11 +32,13 @@ export function useDictionaryLookup() {
         body: JSON.stringify({ word: term }),
       });
       if (!res.ok) throw new Error("Lookup failed");
+      if (requestRef.current !== reqId) return;
       setResult((await res.json()) as DictionaryResult);
     } catch {
+      if (requestRef.current !== reqId) return;
       setDictError(DICTIONARY_ERROR_MESSAGE);
     } finally {
-      setLoading(false);
+      if (requestRef.current === reqId) setLoading(false);
     }
   }, []);
 
