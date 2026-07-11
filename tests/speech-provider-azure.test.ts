@@ -18,7 +18,9 @@ type SpeechMode =
   | "constructor-throws"
   | "speak-throws"
   | "timeout"
-  | "deferred";
+  | "deferred"
+  | "close-throws"
+  | "close-throws-deferred";
 
 let mode: SpeechMode;
 let timeoutMs: number;
@@ -74,6 +76,9 @@ before(() => {
 
     close() {
       closedCount++;
+      if (mode === "close-throws" || mode === "close-throws-deferred") {
+        throw new Error("close exploded");
+      }
     }
 
     speakTextAsync(
@@ -81,8 +86,8 @@ before(() => {
       onSuccess: (result: { reason: string; audioData?: Uint8Array }) => void,
       onError: (message: string) => void,
     ) {
-      if (mode === "timeout") return;
-      if (mode === "deferred") {
+      if (mode === "timeout" || mode === "close-throws") return;
+      if (mode === "deferred" || mode === "close-throws-deferred") {
         deferredOnSuccess = onSuccess;
         deferredOnError = onError;
         return;
@@ -312,4 +317,84 @@ test("constructor failure does not leak a timer", async () => {
     (l) => l.level === "error" && l.meta.reason === "timeout",
   );
   assert.equal(timeoutLog, undefined, "constructor failure must cancel the timer");
+});
+
+test("close() throwing on timeout still settles null without unhandled exception", async () => {
+  const { synthesize } = await import("@/lib/speech/provider-azure");
+
+  mode = "close-throws";
+  timeoutMs = 5;
+  process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
+  closedCount = 0;
+  logCalls.length = 0;
+
+  const result = await synthesize("hello", AZURE_CONFIG, "article-close-throw-timeout");
+
+  assert.equal(result, null, "must resolve null even when close() throws");
+  assert.equal(closedCount, 1, "close was attempted once");
+
+  const closeWarn = logCalls.find(
+    (l) => l.level === "warn" && l.msg === "speech.close_failure",
+  );
+  assert.ok(closeWarn, "should warn on close failure");
+  assert.equal(closeWarn!.meta.articleId, "article-close-throw-timeout");
+  assert.equal(closeWarn!.meta.errorType, "Error");
+  assert.equal((closeWarn!.meta as Record<string, unknown>).message, undefined, "must not log error message content");
+
+  const timeoutLog = logCalls.find(
+    (l) => l.level === "error" && l.meta.reason === "timeout",
+  );
+  assert.ok(timeoutLog, "timeout log still emitted before close");
+});
+
+test("close() throwing on success callback still settles with audio result", async () => {
+  const { synthesize } = await import("@/lib/speech/provider-azure");
+
+  mode = "close-throws-deferred";
+  timeoutMs = 200;
+  process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
+  closedCount = 0;
+  logCalls.length = 0;
+
+  const resultPromise = synthesize("hello world", AZURE_CONFIG, "article-close-throw-success");
+
+  // Wait for deferred mode to store callbacks, then invoke success
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok(deferredOnSuccess, "deferred success callback should be stored");
+  deferredOnSuccess!({ reason: "completed", audioData: new Uint8Array([7, 8, 9]) });
+
+  const result = await resultPromise;
+  assert.ok(result, "must still resolve with audio result");
+  assert.equal(result!.audio.toString("hex"), "070809");
+  assert.equal(closedCount, 1, "close was attempted once");
+
+  const closeWarn = logCalls.find(
+    (l) => l.level === "warn" && l.msg === "speech.close_failure",
+  );
+  assert.ok(closeWarn, "should warn on close failure in success path");
+});
+
+test("close() throwing on error callback still settles null", async () => {
+  const { synthesize } = await import("@/lib/speech/provider-azure");
+
+  mode = "close-throws-deferred";
+  timeoutMs = 200;
+  process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
+  closedCount = 0;
+  logCalls.length = 0;
+
+  const resultPromise = synthesize("hello world", AZURE_CONFIG, "article-close-throw-error");
+
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok(deferredOnError, "deferred error callback should be stored");
+  deferredOnError!("sdk went boom");
+
+  const result = await resultPromise;
+  assert.equal(result, null, "must resolve null on error path even when close throws");
+  assert.equal(closedCount, 1, "close was attempted once");
+
+  const closeWarn = logCalls.find(
+    (l) => l.level === "warn" && l.msg === "speech.close_failure",
+  );
+  assert.ok(closeWarn, "should warn on close failure in error path");
 });
