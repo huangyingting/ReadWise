@@ -45,25 +45,86 @@ export type ValidationReport<T> = {
 const TITLE_CASE_MINOR_WORDS = new Set(["and", "or", "of", "the", "a", "an", "to", "in", "on", "for", "with"]);
 
 /**
- * Recovers the first top-level JSON array from a model response, tolerating
- * markdown code fences and surrounding prose. Returns null when no parseable
- * array is found.
+ * Recovers the first syntactically valid JSON array from a model response,
+ * tolerating markdown code fences and surrounding prose. Uses a bounded scanner
+ * that tracks bracket nesting and JSON string escape state to find balanced
+ * array candidates. Invalid balanced candidates (e.g. bracketed prose) are
+ * skipped; the first candidate that parses as a JSON array is returned.
+ * Returns null when no parseable array is found.
  */
 export function extractJsonArray(raw: string): unknown[] | null {
   if (typeof raw !== "string") return null;
-  const fenced = raw.replace(/```(?:json)?/gi, "").trim();
-  const start = fenced.indexOf("[");
-  const end = fenced.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) {
-    return null;
+  const text = raw.replace(/```(?:json)?/gi, "").trim();
+
+  let pos = 0;
+  while (pos < text.length) {
+    const start = text.indexOf("[", pos);
+    if (start === -1) break;
+
+    // Scan forward from this '[' tracking depth and string state.
+    const end = findMatchingBracket(text, start);
+    if (end === -1) {
+      // No balanced close found from this position; no further candidates.
+      break;
+    }
+
+    const candidate = text.slice(start, end + 1);
+    try {
+      const parsed: unknown = JSON.parse(candidate);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Not valid JSON — skip past this candidate and try next '['.
+    }
+    pos = start + 1;
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fenced.slice(start, end + 1));
-  } catch {
-    return null;
+
+  return null;
+}
+
+/**
+ * Scans from an opening '[' at `start` and returns the index of the matching
+ * ']', respecting nested brackets/braces and JSON string escaping. Returns -1
+ * if the input is unbalanced or malformed beyond recovery.
+ */
+function findMatchingBracket(text: string, start: number): number {
+  let depth = 0;
+  let inString = false;
+  const len = text.length;
+
+  for (let i = start; i < len; i++) {
+    const ch = text.charCodeAt(i);
+
+    if (inString) {
+      if (ch === 0x5c /* backslash */) {
+        // Skip the escaped character (handles \\, \", \/, \n, \uXXXX, etc.)
+        i++;
+        continue;
+      }
+      if (ch === 0x22 /* " */) {
+        inString = false;
+      }
+      continue;
+    }
+
+    // Outside a string
+    switch (ch) {
+      case 0x22: // "
+        inString = true;
+        break;
+      case 0x5b: // [
+      case 0x7b: // {
+        depth++;
+        break;
+      case 0x5d: // ]
+      case 0x7d: // }
+        depth--;
+        if (depth === 0) return i;
+        if (depth < 0) return -1;
+        break;
+    }
   }
-  return Array.isArray(parsed) ? parsed : null;
+
+  return -1;
 }
 
 function asTrimmedString(value: unknown): string {
