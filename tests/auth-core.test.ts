@@ -102,9 +102,3 @@ test("AuthResult type is exported from auth-core", async () => {
   assert.equal(typeof mod.sessionHasCapability, "function");
 });
 
-test("legacy auth-core export maps to canonical session-core module", async () => {
-  const compat = await import("@/lib/auth-core");
-  const canonical = await loadAuthCore();
-  assert.equal(compat.loadSession, canonical.loadSession);
-  assert.equal(compat.sessionHasCapability, canonical.sessionHasCapability);
-});

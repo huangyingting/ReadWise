@@ -107,7 +107,11 @@ export async function importPrismaModule(options: PrismaImportOptions) {
     namedExports: { PrismaClient: FakePrismaClient },
   });
   mock.module("@/lib/db-utils", {
-    namedExports: { isPostgresDatabase: () => options.postgres },
+    namedExports: {
+      isPostgresDatabase: () => options.postgres,
+      hasPostgresUrlPrefix: (url: string) =>
+        url.startsWith("postgresql://") || url.startsWith("postgres://"),
+    },
   });
 
   importCounter += 1;
