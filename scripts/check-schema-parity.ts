@@ -153,10 +153,16 @@ export async function checkMigrationParity(): Promise<boolean> {
 type ParityCheckFn = () => Promise<boolean>;
 type ExitFn = (code: number) => never;
 
+type MainOutput = {
+  log: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+};
+
 export async function main(
   schemaParity: ParityCheckFn = checkSchemaParity,
   migrationParity: ParityCheckFn = checkMigrationParity,
   exit: ExitFn = process.exit,
+  output: MainOutput = console,
 ): Promise<void> {
   const [schemaOk, migrationOk] = await Promise.all([
     schemaParity(),
@@ -164,13 +170,13 @@ export async function main(
   ]);
 
   if (!schemaOk || !migrationOk) {
-    console.error(
+    output.error(
       "\nSee docs/platform/database.md §Schema governance for the schema-change workflow.",
     );
     exit(1);
   }
 
-  console.log("\n✔ All schema parity checks passed.");
+  output.log("\n✔ All schema parity checks passed.");
 }
 
 if (isMain(import.meta.url)) {
