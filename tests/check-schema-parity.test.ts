@@ -83,53 +83,61 @@ test("listMigrationNames returns sorted timestamped migration names from real di
 
 // ── validateSchemaContents ───────────────────────────────────────────────
 
-function silenceConsole<T>(fn: () => T): T {
+/**
+ * Silences console.log and console.error for the duration of `fn`, including
+ * any async work it performs. Must be awaited so that console is restored only
+ * after the returned Promise resolves/rejects — otherwise async functions that
+ * call console inside their body (e.g. checkSchemaParity after file reads) would
+ * emit through the live, intercepted console and trigger test-runner IPC writes
+ * that race against the worker exit, causing "Unable to deserialize" crashes.
+ */
+async function silenceConsole<T>(fn: () => T | Promise<T>): Promise<T> {
   const origError = console.error;
   const origLog = console.log;
   console.error = () => {};
   console.log = () => {};
   try {
-    return fn();
+    return await fn();
   } finally {
     console.error = origError;
     console.log = origLog;
   }
 }
 
-test("validateSchemaContents returns true when schemas match", () => {
+test("validateSchemaContents returns true when schemas match", async () => {
   const base = 'provider = "{{PROVIDER}}"\nrest';
   const sqlite = 'provider = "sqlite"\nrest';
   const pg = 'provider = "postgresql"\nrest';
-  const result = silenceConsole(() => validateSchemaContents(base, sqlite, pg));
+  const result = await silenceConsole(() => validateSchemaContents(base, sqlite, pg));
   assert.equal(result, true);
 });
 
-test("validateSchemaContents returns false when base lacks placeholder", () => {
-  const result = silenceConsole(() =>
+test("validateSchemaContents returns false when base lacks placeholder", async () => {
+  const result = await silenceConsole(() =>
     validateSchemaContents("no placeholder", "sqlite", "pg"),
   );
   assert.equal(result, false);
 });
 
-test("validateSchemaContents returns false when SQLite schema mismatches", () => {
+test("validateSchemaContents returns false when SQLite schema mismatches", async () => {
   const base = 'provider = "{{PROVIDER}}"\nrest';
   const badSqlite = 'provider = "sqlite"\nwrong content';
   const goodPg = 'provider = "postgresql"\nrest';
-  const result = silenceConsole(() => validateSchemaContents(base, badSqlite, goodPg));
+  const result = await silenceConsole(() => validateSchemaContents(base, badSqlite, goodPg));
   assert.equal(result, false);
 });
 
-test("validateSchemaContents returns false when PostgreSQL schema mismatches", () => {
+test("validateSchemaContents returns false when PostgreSQL schema mismatches", async () => {
   const base = 'provider = "{{PROVIDER}}"\nrest';
   const goodSqlite = 'provider = "sqlite"\nrest';
   const badPg = 'provider = "postgresql"\nwrong content';
-  const result = silenceConsole(() => validateSchemaContents(base, goodSqlite, badPg));
+  const result = await silenceConsole(() => validateSchemaContents(base, goodSqlite, badPg));
   assert.equal(result, false);
 });
 
-test("validateSchemaContents returns false when both schemas mismatch", () => {
+test("validateSchemaContents returns false when both schemas mismatch", async () => {
   const base = 'provider = "{{PROVIDER}}"\noriginal';
-  const result = silenceConsole(() =>
+  const result = await silenceConsole(() =>
     validateSchemaContents(base, "wrong-sqlite", "wrong-pg"),
   );
   assert.equal(result, false);
@@ -137,30 +145,30 @@ test("validateSchemaContents returns false when both schemas mismatch", () => {
 
 // ── validateMigrationParity ──────────────────────────────────────────────
 
-test("validateMigrationParity returns true when migrations are identical", () => {
+test("validateMigrationParity returns true when migrations are identical", async () => {
   const migrations = ["20240101_init", "20240201_users"];
-  const result = silenceConsole(() => validateMigrationParity(migrations, [...migrations]));
+  const result = await silenceConsole(() => validateMigrationParity(migrations, [...migrations]));
   assert.equal(result, true);
 });
 
-test("validateMigrationParity returns false when SQLite has extra migration", () => {
+test("validateMigrationParity returns false when SQLite has extra migration", async () => {
   const sqlite = ["20240101_init", "20240201_extra"];
   const pg = ["20240101_init"];
-  const result = silenceConsole(() => validateMigrationParity(sqlite, pg));
+  const result = await silenceConsole(() => validateMigrationParity(sqlite, pg));
   assert.equal(result, false);
 });
 
-test("validateMigrationParity returns false when PostgreSQL has extra migration", () => {
+test("validateMigrationParity returns false when PostgreSQL has extra migration", async () => {
   const sqlite = ["20240101_init"];
   const pg = ["20240101_init", "20240201_pg_only"];
-  const result = silenceConsole(() => validateMigrationParity(sqlite, pg));
+  const result = await silenceConsole(() => validateMigrationParity(sqlite, pg));
   assert.equal(result, false);
 });
 
-test("validateMigrationParity returns false when both sides have unique entries", () => {
+test("validateMigrationParity returns false when both sides have unique entries", async () => {
   const sqlite = ["20240101_init", "20240201_sqlite_only"];
   const pg = ["20240101_init", "20240301_pg_only"];
-  const result = silenceConsole(() => validateMigrationParity(sqlite, pg));
+  const result = await silenceConsole(() => validateMigrationParity(sqlite, pg));
   assert.equal(result, false);
 });
 
@@ -179,56 +187,55 @@ test("checkMigrationParity passes with real migration directories", async () => 
 // ── main() orchestration ─────────────────────────────────────────────────
 
 test("main() logs success when all checks pass", async () => {
-  let logged = "";
-  const origLog = console.log;
-  console.log = (msg: string) => { logged += msg; };
-  const origError = console.error;
-  console.error = () => {};
-  try {
-    await main(
-      async () => true,
-      async () => true,
-      (_code: number) => { throw new Error("unexpected exit"); },
-    );
-  } finally {
-    console.log = origLog;
-    console.error = origError;
-  }
-  assert.ok(logged.includes("All schema parity checks passed"), "should log success");
+  const logs: string[] = [];
+  await main(
+    async () => true,
+    async () => true,
+    (_code: number) => { throw new Error("unexpected exit"); },
+    { log: (msg: unknown) => { logs.push(String(msg)); }, error: () => {} },
+  );
+  assert.ok(logs.join("\n").includes("All schema parity checks passed"), "should log success");
 });
 
 test("main() calls exit(1) when schema parity fails", async () => {
   let exitCode: number | undefined;
-  const origError = console.error;
-  console.error = () => {};
   try {
     await main(
       async () => false,
       async () => true,
       (code: number) => { exitCode = code; throw new Error("exit"); },
+      { log: () => {}, error: () => {} },
     );
   } catch (e) {
     if ((e as Error).message !== "exit") throw e;
-  } finally {
-    console.error = origError;
   }
   assert.equal(exitCode, 1);
 });
 
 test("main() calls exit(1) when migration parity fails", async () => {
   let exitCode: number | undefined;
-  const origError = console.error;
-  console.error = () => {};
   try {
     await main(
       async () => true,
       async () => false,
       (code: number) => { exitCode = code; throw new Error("exit"); },
+      { log: () => {}, error: () => {} },
     );
   } catch (e) {
     if ((e as Error).message !== "exit") throw e;
-  } finally {
-    console.error = origError;
   }
   assert.equal(exitCode, 1);
+});
+
+test("main() does not mutate global console — output is injected", async () => {
+  const originalLog = console.log;
+  const originalError = console.error;
+  await main(
+    async () => true,
+    async () => true,
+    (_code: number) => { throw new Error("unexpected exit"); },
+    { log: () => {}, error: () => {} },
+  );
+  assert.strictEqual(console.log, originalLog, "console.log must be unchanged after main()");
+  assert.strictEqual(console.error, originalError, "console.error must be unchanged after main()");
 });
