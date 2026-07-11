@@ -31,6 +31,7 @@ let updateResult: UpdateResult = { ok: true, role: "Reader", previousRole: "Admi
 let deleteResult: DeleteResult = { ok: true, role: "Reader", ownedArticleCount: 0 };
 let updateCallArgs: { id: string; role: string } | null = null;
 let deleteCallArgs: { id: string } | null = null;
+let auditInputs: Array<Record<string, unknown>> = [];
 let securityEvents: Array<{ type: string }> = [];
 
 const MEMBER_URL = "http://test/api/admin/members/member-1";
@@ -58,12 +59,34 @@ before(() => {
 
   mock.module("@/lib/account-lifecycle", {
     namedExports: {
-      updateMemberRole: async (id: string, role: string) => {
+      updateMemberRole: async (
+        id: string,
+        role: string,
+        auditCallback?: (result: { previousRole: string; role: string; changed: boolean }) => unknown,
+      ) => {
         updateCallArgs = { id, role };
+        if (updateResult.ok && auditCallback) {
+          const input = auditCallback({
+            previousRole: updateResult.previousRole,
+            role: updateResult.role,
+            changed: updateResult.changed,
+          });
+          auditInputs.push(input as Record<string, unknown>);
+        }
         return updateResult;
       },
-      deleteMember: async (id: string) => {
+      deleteMember: async (
+        id: string,
+        auditCallback?: (result: { role: string; ownedArticleCount: number }) => unknown,
+      ) => {
         deleteCallArgs = { id };
+        if (deleteResult.ok && auditCallback) {
+          const input = auditCallback({
+            role: deleteResult.role,
+            ownedArticleCount: deleteResult.ownedArticleCount,
+          });
+          auditInputs.push(input as Record<string, unknown>);
+        }
         return deleteResult;
       },
     },
@@ -118,6 +141,7 @@ beforeEach(() => {
   deleteResult = { ok: true, role: "Reader", ownedArticleCount: 0 };
   updateCallArgs = null;
   deleteCallArgs = null;
+  auditInputs = [];
   securityEvents = [];
 });
 
@@ -191,6 +215,47 @@ test("PATCH /api/admin/members/[id] returns ok with new role on success", async 
 });
 
 // ---------------------------------------------------------------------------
+// PATCH: Audit callback
+// ---------------------------------------------------------------------------
+
+test("PATCH /api/admin/members/[id] invokes audit callback with role transition metadata", async () => {
+  updateResult = { ok: true, role: "Reader", previousRole: "Admin", changed: true };
+  const { PATCH } = await loadHandlers();
+  await PATCH(patchRole({ role: "Reader" }), withParams({ id: "member-1" }));
+  assert.equal(auditInputs.length, 1);
+  const audit = auditInputs[0];
+  assert.equal(audit.action, "admin.member.role_update");
+  assert.equal(audit.targetType, "user");
+  assert.equal(audit.targetId, "member-1");
+  const meta = audit.metadata as Record<string, unknown>;
+  assert.equal(meta.previousRole, "Admin");
+  assert.equal(meta.role, "Reader");
+  assert.equal(meta.changed, true);
+});
+
+test("PATCH /api/admin/members/[id] audit callback records unchanged role correctly", async () => {
+  updateResult = { ok: true, role: "Admin", previousRole: "Admin", changed: false };
+  const { PATCH } = await loadHandlers();
+  await PATCH(patchRole({ role: "Admin" }), withParams({ id: "member-1" }));
+  assert.equal(auditInputs.length, 1);
+  const meta = auditInputs[0].metadata as Record<string, unknown>;
+  assert.equal(meta.changed, false);
+  assert.equal(meta.previousRole, "Admin");
+  assert.equal(meta.role, "Admin");
+});
+
+test("PATCH /api/admin/members/[id] audit metadata contains no private content", async () => {
+  const { PATCH } = await loadHandlers();
+  await PATCH(patchRole({ role: "Reader" }), withParams({ id: "member-1" }));
+  const audit = auditInputs[0];
+  const meta = audit.metadata as Record<string, unknown>;
+  assert.equal(Object.keys(meta).length, 3);
+  assert.ok(!("email" in meta));
+  assert.ok(!("name" in meta));
+  assert.ok(!("password" in meta));
+});
+
+// ---------------------------------------------------------------------------
 // PATCH: Not found / conflict
 // ---------------------------------------------------------------------------
 
@@ -250,6 +315,35 @@ test("DELETE /api/admin/members/[id] returns ok on successful deletion", async (
   const body = await res.json();
   assert.equal(body.ok, true);
   assert.deepEqual(deleteCallArgs, { id: "member-1" });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE: Audit callback
+// ---------------------------------------------------------------------------
+
+test("DELETE /api/admin/members/[id] invokes audit callback with role and ownedArticleCount", async () => {
+  deleteResult = { ok: true, role: "Reader", ownedArticleCount: 7 };
+  const { DELETE } = await loadHandlers();
+  await DELETE(deleteReq(MEMBER_URL), withParams({ id: "member-1" }));
+  assert.equal(auditInputs.length, 1);
+  const audit = auditInputs[0];
+  assert.equal(audit.action, "admin.member.delete");
+  assert.equal(audit.targetType, "user");
+  assert.equal(audit.targetId, "member-1");
+  const meta = audit.metadata as Record<string, unknown>;
+  assert.equal(meta.role, "Reader");
+  assert.equal(meta.ownedArticleCount, 7);
+});
+
+test("DELETE /api/admin/members/[id] audit metadata contains no private content", async () => {
+  deleteResult = { ok: true, role: "Admin", ownedArticleCount: 0 };
+  const { DELETE } = await loadHandlers();
+  await DELETE(deleteReq(MEMBER_URL), withParams({ id: "member-1" }));
+  const audit = auditInputs[0];
+  const meta = audit.metadata as Record<string, unknown>;
+  assert.equal(Object.keys(meta).length, 2);
+  assert.ok(!("email" in meta));
+  assert.ok(!("name" in meta));
 });
 
 // ---------------------------------------------------------------------------

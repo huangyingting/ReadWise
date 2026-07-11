@@ -25,6 +25,7 @@ type MergeResult = { ok: true; moved: number } | { ok: false; error: string; sta
 let mergeResult: MergeResult = { ok: true, moved: 5 };
 let mergeCallArgs: { sourceId: string; targetId: string } | null = null;
 let auditCalls: Array<{ action: string }> = [];
+let auditInputs: Array<Record<string, unknown>> = [];
 let securityEvents: Array<{ type: string }> = [];
 let cacheRevalidated = false;
 
@@ -55,9 +56,13 @@ before(() => {
       mergeTags: async (
         sourceId: string,
         targetId: string,
-        _audit: unknown,
+        auditCallback?: (result: { moved: number }) => unknown,
       ) => {
         mergeCallArgs = { sourceId, targetId };
+        if (mergeResult.ok && auditCallback) {
+          const input = auditCallback({ moved: mergeResult.moved });
+          auditInputs.push(input as Record<string, unknown>);
+        }
         return mergeResult;
       },
     },
@@ -119,6 +124,7 @@ beforeEach(() => {
   mergeResult = { ok: true, moved: 5 };
   mergeCallArgs = null;
   auditCalls = [];
+  auditInputs = [];
   securityEvents = [];
   cacheRevalidated = false;
 });
@@ -207,6 +213,43 @@ test("POST /api/admin/tags/[id]/merge passes correct source and target ids", asy
   const POST = await loadPost();
   await POST(mergeRequest({ targetId: "target-42" }), withParams({ id: "src-99" }));
   assert.deepEqual(mergeCallArgs, { sourceId: "src-99", targetId: "target-42" });
+});
+
+// ---------------------------------------------------------------------------
+// Audit callback
+// ---------------------------------------------------------------------------
+
+test("POST /api/admin/tags/[id]/merge invokes audit callback with merge metadata", async () => {
+  mergeResult = { ok: true, moved: 8 };
+  const POST = await loadPost();
+  await POST(mergeRequest({ targetId: "target-1" }), withParams({ id: "source-1" }));
+  assert.equal(auditInputs.length, 1);
+  const audit = auditInputs[0];
+  assert.equal(audit.action, "admin.tag.merge");
+  assert.equal(audit.targetType, "tag");
+  assert.equal(audit.targetId, "target-1");
+  const meta = audit.metadata as Record<string, unknown>;
+  assert.equal(meta.sourceTagId, "source-1");
+  assert.equal(meta.moved, 8);
+});
+
+test("POST /api/admin/tags/[id]/merge audit metadata contains no private content", async () => {
+  mergeResult = { ok: true, moved: 2 };
+  const POST = await loadPost();
+  await POST(mergeRequest({ targetId: "target-1" }), withParams({ id: "source-1" }));
+  const audit = auditInputs[0];
+  const meta = audit.metadata as Record<string, unknown>;
+  assert.equal(Object.keys(meta).length, 2);
+  assert.ok(!("userId" in meta));
+  assert.ok(!("email" in meta));
+  assert.ok(!("tagName" in meta));
+});
+
+test("POST /api/admin/tags/[id]/merge does not invoke audit callback on failure", async () => {
+  mergeResult = { ok: false, error: "Source tag not found", status: 404 };
+  const POST = await loadPost();
+  await POST(mergeRequest({ targetId: "target-1" }), withParams({ id: "missing" }));
+  assert.equal(auditInputs.length, 0);
 });
 
 test("POST /api/admin/tags/[id]/merge does not revalidate cache on failure", async () => {
