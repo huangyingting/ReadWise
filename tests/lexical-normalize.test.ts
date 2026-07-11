@@ -40,12 +40,11 @@ test("normalizeCandidates: contractions resolve to base word first", () => {
   assert.equal(normalizeCandidates("I'm")[0], "i");
 });
 
-test("normalizeCandidates: smart/curly apostrophe is NOT normalized by the current implementation", () => {
-  // The current implementation handles straight apostrophe, left/right curly quote
-  // in the regex, and backtick — but NOT Unicode curly quotes U+2018/U+2019.
-  // This documents actual behavior so tests remain accurate to the current module.
-  // "don't" with straight apostrophe resolves correctly:
-  assert.ok(normalizeCandidates("don't").includes("do"), "straight apostrophe works");
+test("normalizeCandidates: typographic apostrophe U+2019 is normalized to straight apostrophe", () => {
+  // U+2019 RIGHT SINGLE QUOTATION MARK (curly/smart apostrophe) must normalize
+  // identically to the straight apostrophe U+0027.
+  assert.ok(normalizeCandidates("don\u2019t").includes("do"), "U+2019 contraction resolves");
+  assert.deepEqual(normalizeCandidates("don\u2019t"), normalizeCandidates("don't"));
 });
 
 // ---------------------------------------------------------------------------
@@ -239,4 +238,31 @@ test("lemmaFor: inflections of the same word share a lemma prefix", () => {
   assert.equal(lemmaFor("Test"), lemmaFor("test"));
   assert.equal(lemmaFor("test."), lemmaFor("test"));
   assert.equal(lemmaFor("dog's"), lemmaFor("dog"));
+});
+
+// ---------------------------------------------------------------------------
+// Apostrophe normalization — U+0027, U+0060, U+2019 canonical equivalence
+// ---------------------------------------------------------------------------
+
+test("normalizeCandidates: backtick normalizes to straight apostrophe", () => {
+  assert.deepEqual(normalizeCandidates("don`t"), normalizeCandidates("don't"));
+});
+
+test("normalizeCandidates: all three apostrophe forms produce identical candidates", () => {
+  const straight = normalizeCandidates("it's");
+  const curly = normalizeCandidates("it\u2019s");
+  const backtick = normalizeCandidates("it`s");
+  assert.deepEqual(curly, straight);
+  assert.deepEqual(backtick, straight);
+});
+
+test("lemmaFor: curly and straight apostrophe contractions produce same lemma", () => {
+  assert.equal(lemmaFor("don\u2019t"), lemmaFor("don't"));
+  assert.equal(lemmaFor("won\u2019t"), lemmaFor("won't"));
+  assert.equal(lemmaFor("it\u2019s"), lemmaFor("it's"));
+  assert.equal(lemmaFor("they\u2019re"), lemmaFor("they're"));
+});
+
+test("lemmaFor: curly apostrophe possessive normalizes same as straight", () => {
+  assert.equal(lemmaFor("dog\u2019s"), lemmaFor("dog's"));
 });

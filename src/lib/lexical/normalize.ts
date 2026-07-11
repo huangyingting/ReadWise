@@ -236,7 +236,7 @@ export const IRREGULAR_BASES: Record<string, string[]> = {
   women: ["woman"],
 };
 
-const APOSTROPHE_NORMALIZATION_RE = /[''`]/g;
+const APOSTROPHE_NORMALIZATION_RE = /['\u2019`]/g;
 const TOKEN_BOUNDARY_RE = /^[^a-z']+|[^a-z']+$/g;
 const DOUBLED_TRAILING_CHAR_RE = /(.)\1$/;
 
