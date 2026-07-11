@@ -1,6 +1,6 @@
 {
-  "maxFileDebt": 18,
-  "maxRouteDebt": 12,
+  "maxFileDebt": 12,
+  "maxRouteDebt": 6,
   "fileDebt": [
     {
       "file": "scripts/analyze-speech-alignment.ts",
@@ -11,13 +11,6 @@
     },
     {
       "file": "scripts/build-quality-corpus.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "CLI utility script not imported by test suite; needs dedicated script tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "file": "scripts/check-schema-parity.ts",
       "issue": "#983",
       "owner": "Switch",
       "reason": "CLI utility script not imported by test suite; needs dedicated script tests",
@@ -92,41 +85,6 @@
       "owner": "Switch",
       "reason": "Learner analytics module not imported by test suite; needs coverage",
       "deadline": "2026-09-30"
-    },
-    {
-      "file": "src/lib/observability/tracing-node.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Node tracing instrumentation not imported by test suite; needs coverage",
-      "deadline": "2026-09-30"
-    },
-    {
-      "file": "src/lib/reader/page-loader.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Reader page loader not imported by test suite; needs coverage",
-      "deadline": "2026-09-30"
-    },
-    {
-      "file": "src/lib/scraper/quality-classifier-corpus.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Quality classifier corpus builder not imported by test suite; needs coverage",
-      "deadline": "2026-09-30"
-    },
-    {
-      "file": "src/lib/scraper/quality-classifier-seed-corpus.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Quality classifier seed corpus not imported by test suite; needs coverage",
-      "deadline": "2026-09-30"
-    },
-    {
-      "file": "src/lib/testing/e2e-fixtures.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "E2E test fixture helpers not imported by unit test suite; intentionally E2E-only",
-      "deadline": "2026-09-30"
     }
   ],
   "routeDebt": [
@@ -145,13 +103,6 @@
       "deadline": "2026-09-30"
     },
     {
-      "route": "src/app/api/bookmarks/membership/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Bookmark membership route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
       "route": "src/app/api/classrooms/[id]/article-options/route.ts",
       "issue": "#983",
       "owner": "Switch",
@@ -166,13 +117,6 @@
       "deadline": "2026-09-30"
     },
     {
-      "route": "src/app/api/health/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Health check route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
       "route": "src/app/api/highlights/[id]/review-card/route.ts",
       "issue": "#983",
       "owner": "Switch",
@@ -184,34 +128,6 @@
       "issue": "#983",
       "owner": "Switch",
       "reason": "Organizations route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/push/vapid-public-key/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "VAPID public key route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/study/plan/history/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Study plan history route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/vocabulary/export/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Vocabulary export route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/vocabulary/unsave/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Vocabulary unsave route not directly tested; needs dedicated route tests",
       "deadline": "2026-09-30"
     }
   ]
