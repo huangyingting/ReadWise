@@ -1,6 +1,6 @@
 {
   "maxFileDebt": 26,
-  "maxRouteDebt": 23,
+  "maxRouteDebt": 18,
   "fileDebt": [
     {
       "file": "scripts/analyze-speech-alignment.ts",
@@ -194,20 +194,6 @@
       "deadline": "2026-09-30"
     },
     {
-      "route": "src/app/api/admin/articles/ingest/route.ts",
-      "issue": "#995",
-      "owner": "Switch",
-      "reason": "High-risk write: admin article ingest; first of five #995 priority routes",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/admin/members/[id]/route.ts",
-      "issue": "#995",
-      "owner": "Switch",
-      "reason": "High-risk write: admin member mutation; #995 priority route",
-      "deadline": "2026-09-30"
-    },
-    {
       "route": "src/app/api/admin/reports/[id]/route.ts",
       "issue": "#983",
       "owner": "Switch",
@@ -219,13 +205,6 @@
       "issue": "#983",
       "owner": "Switch",
       "reason": "Admin reports listing route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/admin/tags/[id]/merge/route.ts",
-      "issue": "#995",
-      "owner": "Switch",
-      "reason": "High-risk write: admin tag merge; #995 priority route",
       "deadline": "2026-09-30"
     },
     {
@@ -313,13 +292,6 @@
       "deadline": "2026-09-30"
     },
     {
-      "route": "src/app/api/study/cloze/route.ts",
-      "issue": "#995",
-      "owner": "Switch",
-      "reason": "High-risk write: study cloze mutation; #995 priority route",
-      "deadline": "2026-09-30"
-    },
-    {
       "route": "src/app/api/study/plan/history/route.ts",
       "issue": "#983",
       "owner": "Switch",
@@ -331,13 +303,6 @@
       "issue": "#983",
       "owner": "Switch",
       "reason": "Vocabulary export route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/vocabulary/unsave-batch/route.ts",
-      "issue": "#995",
-      "owner": "Switch",
-      "reason": "High-risk write: batch vocabulary unsave; #995 priority route",
       "deadline": "2026-09-30"
     },
     {
