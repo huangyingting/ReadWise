@@ -1,0 +1,351 @@
+{
+  "maxFileDebt": 26,
+  "maxRouteDebt": 23,
+  "fileDebt": [
+    {
+      "file": "scripts/analyze-speech-alignment.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI utility script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "scripts/build-quality-corpus.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI utility script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "scripts/check-schema-parity.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI utility script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "scripts/eval.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI utility script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "scripts/generate-api-catalog.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI utility script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "scripts/generate-schemas.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI utility script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "scripts/generate-wordfreq-ranks.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI utility script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "scripts/migrate-speech-timing.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI migration script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "scripts/prune-local-dictionary.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI utility script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "scripts/seed.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI seed script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "scripts/train-quality-classifier.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "CLI ML script not imported by test suite; needs dedicated script tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/admin/overview.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Admin overview service not imported by any test; needs unit tests for statusBadgeVariant and queries",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/analytics/admin.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Analytics admin module not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/analytics/learner.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Learner analytics module not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/bookmarkChanges.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Bookmark change notifications not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/learning/placement-passage.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Placement passage selection not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/observability/tracing-node.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Node tracing instrumentation not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/progress-helpers.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Progress computation helpers not imported by test suite; needs unit tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/reader-referrer.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Reader referrer extraction not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/reader/page-loader.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Reader page loader not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/scraper/quality-classifier-corpus.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Quality classifier corpus builder not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/scraper/quality-classifier-seed-corpus.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Quality classifier seed corpus not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/search/semantic.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Semantic search provider not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/testing/e2e-fixtures.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "E2E test fixture helpers not imported by unit test suite; intentionally E2E-only",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/translate-lang.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Translation language mapping not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    },
+    {
+      "file": "src/lib/visited.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Visited article tracking not imported by test suite; needs coverage",
+      "deadline": "2026-09-30"
+    }
+  ],
+  "routeDebt": [
+    {
+      "route": "src/app/api/admin/articles/[id]/rebuild/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Admin article rebuild route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/admin/articles/ingest/route.ts",
+      "issue": "#995",
+      "owner": "Switch",
+      "reason": "High-risk write: admin article ingest; first of five #995 priority routes",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/admin/members/[id]/route.ts",
+      "issue": "#995",
+      "owner": "Switch",
+      "reason": "High-risk write: admin member mutation; #995 priority route",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/admin/reports/[id]/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Admin report detail route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/admin/reports/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Admin reports listing route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/admin/tags/[id]/merge/route.ts",
+      "issue": "#995",
+      "owner": "Switch",
+      "reason": "High-risk write: admin tag merge; #995 priority route",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/admin/tags/[id]/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Admin tag detail route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/articles/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Articles listing route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/auth/[...nextauth]/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "NextAuth catch-all route; auth tested via integration but not direct route import",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/bookmarks/membership/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Bookmark membership route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/classrooms/[id]/article-options/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Classroom article options route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/classrooms/[id]/student-candidates/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Classroom student candidates route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/health/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Health check route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/highlights/[id]/review-card/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Highlight review card route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/orgs/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Organizations route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/push/preferences/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Push preferences route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/push/vapid-public-key/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "VAPID public key route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/reports/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "User reports route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/study/cloze/route.ts",
+      "issue": "#995",
+      "owner": "Switch",
+      "reason": "High-risk write: study cloze mutation; #995 priority route",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/study/plan/history/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Study plan history route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/vocabulary/export/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Vocabulary export route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/vocabulary/unsave-batch/route.ts",
+      "issue": "#995",
+      "owner": "Switch",
+      "reason": "High-risk write: batch vocabulary unsave; #995 priority route",
+      "deadline": "2026-09-30"
+    },
+    {
+      "route": "src/app/api/vocabulary/unsave/route.ts",
+      "issue": "#983",
+      "owner": "Switch",
+      "reason": "Vocabulary unsave route not directly tested; needs dedicated route tests",
+      "deadline": "2026-09-30"
+    }
+  ]
+}
