@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-11"
 description: "Documents security subsystem boundaries for client IP, CSRF, security events, audit logs, redaction, and rate limiting. Captures current trusted-proxy strategies, same-origin enforcement, event monitoring, redaction policy, and audit-log relationship."
 ---
 
@@ -167,7 +167,7 @@ CSRF_ENFORCE=false              # disable (only if a separate CSRF layer fronts 
 
 ### Session cookie settings
 
-`authOptions` (`src/lib/auth.ts`) sets the session cookie explicitly so the
+`authOptions` (`src/lib/auth/config.ts`) sets the session cookie explicitly so the
 posture is not left to defaults:
 
 - `httpOnly: true` — never readable from JavaScript,

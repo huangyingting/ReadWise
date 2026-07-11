@@ -129,7 +129,7 @@ function buildSeedOptions(args: Args): SeedOptions {
   };
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
 
   if (args.help) {
@@ -147,6 +147,10 @@ async function main(): Promise<number> {
   return stats.failed > 0 && stats.published === 0 ? 1 : 0;
 }
 
-if (isMain(import.meta.url)) {
-  runCli(main);
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    runCli(main);
+  }
 }
+
+runAsCli();

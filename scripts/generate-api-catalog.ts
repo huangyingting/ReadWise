@@ -20,20 +20,37 @@ import { resolve, join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildCatalog, buildCatalogMarkdown } from "@/tools/api-catalog";
 import type { ApiCatalog } from "@/tools/api-catalog";
+import { isMain, runScript } from "./lib/cli";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const CATALOG_JSON = join(ROOT, "docs", "platform", "api-catalog.json");
 const CATALOG_MD = join(ROOT, "docs", "platform", "api-catalog.md");
 
-const args = process.argv.slice(2);
-const dryRun = args.includes("--dry-run");
-const jsonOnly = args.includes("--json-only");
-const mdOnly = args.includes("--md-only");
+export type GenerateApiCatalogOptions = {
+  dryRun: boolean;
+  jsonOnly: boolean;
+  mdOnly: boolean;
+};
 
-const catalog = buildCatalog();
+type GenerateApiCatalogDeps = {
+  readFileSync: typeof readFileSync;
+  writeFileSync: typeof writeFileSync;
+  buildCatalog: typeof buildCatalog;
+  buildCatalogMarkdown: typeof buildCatalogMarkdown;
+  log: (...args: unknown[]) => void;
+};
+
 const generatedLinePattern = /^> Last generated: .+$/m;
 const lastUpdatedPattern = /^last_updated: ".+"$/m;
+
+export function parseArgs(argv: string[]): GenerateApiCatalogOptions {
+  return {
+    dryRun: argv.includes("--dry-run"),
+    jsonOnly: argv.includes("--json-only"),
+    mdOnly: argv.includes("--md-only"),
+  };
+}
 
 /**
  * Returns the JSON catalog with `generatedAt` removed, serialised
@@ -41,58 +58,83 @@ const lastUpdatedPattern = /^last_updated: ".+"$/m;
  * generator is idempotent: if nothing changed we reuse the existing timestamp
  * and avoid a spurious git diff.
  */
-function contentHash(c: ApiCatalog): string {
-  const { generatedAt: _, ...rest } = c;
+export function contentHash(catalog: ApiCatalog): string {
+  const { generatedAt: _generatedAt, ...rest } = catalog;
   return JSON.stringify(rest);
 }
 
-function normalizeMarkdown(s: string): string {
-  return s.replace(generatedLinePattern, "").replace(lastUpdatedPattern, "");
+export function normalizeMarkdown(markdown: string): string {
+  return markdown.replace(generatedLinePattern, "").replace(lastUpdatedPattern, "");
 }
 
-function relativeCatalogPath(pathname: string): string {
+export function relativeCatalogPath(pathname: string): string {
   return relative(ROOT, pathname);
 }
 
-if (!dryRun) {
-  if (!mdOnly) {
+export function generateApiCatalog(
+  options: GenerateApiCatalogOptions,
+  deps: GenerateApiCatalogDeps = {
+    readFileSync,
+    writeFileSync,
+    buildCatalog,
+    buildCatalogMarkdown,
+    log: console.log,
+  },
+): void {
+  const catalog = deps.buildCatalog();
+
+  if (options.dryRun) {
+    deps.log(JSON.stringify(catalog, null, 2));
+    return;
+  }
+
+  if (!options.mdOnly) {
     // Only write (and update the timestamp) when route content has changed.
     let skipJson = false;
     try {
-      const existing: ApiCatalog = JSON.parse(readFileSync(CATALOG_JSON, "utf8"));
+      const existing: ApiCatalog = JSON.parse(deps.readFileSync(CATALOG_JSON, "utf8"));
       if (contentHash(existing) === contentHash(catalog)) {
         skipJson = true;
-        console.log(`✓ ${relativeCatalogPath(CATALOG_JSON)} is up to date (no route changes)`);
+        deps.log(`✓ ${relativeCatalogPath(CATALOG_JSON)} is up to date (no route changes)`);
       }
     } catch {
       // File missing or unparseable — write unconditionally.
     }
     if (!skipJson) {
-      writeFileSync(CATALOG_JSON, JSON.stringify(catalog, null, 2) + "\n");
-      console.log(
+      deps.writeFileSync(CATALOG_JSON, JSON.stringify(catalog, null, 2) + "\n");
+      deps.log(
         `✓ wrote ${relativeCatalogPath(CATALOG_JSON)} (${catalog.routeCount} routes, ${catalog.methodCount} methods)`,
       );
     }
   }
-  if (!jsonOnly) {
-    const freshMd = buildCatalogMarkdown(catalog);
+
+  if (!options.jsonOnly) {
+    const freshMd = deps.buildCatalogMarkdown(catalog);
+
     // Same idempotency: skip writing the MD when only the timestamp line differs.
     let skipMd = false;
     try {
-      const existingMd = readFileSync(CATALOG_MD, "utf8");
+      const existingMd = deps.readFileSync(CATALOG_MD, "utf8");
       // Strip volatile generated-date lines before comparing.
       if (normalizeMarkdown(existingMd) === normalizeMarkdown(freshMd)) {
         skipMd = true;
-        console.log(`✓ ${relativeCatalogPath(CATALOG_MD)} is up to date (no route changes)`);
+        deps.log(`✓ ${relativeCatalogPath(CATALOG_MD)} is up to date (no route changes)`);
       }
     } catch {
       // File missing — write unconditionally.
     }
     if (!skipMd) {
-      writeFileSync(CATALOG_MD, freshMd);
-      console.log(`✓ wrote ${relativeCatalogPath(CATALOG_MD)}`);
+      deps.writeFileSync(CATALOG_MD, freshMd);
+      deps.log(`✓ wrote ${relativeCatalogPath(CATALOG_MD)}`);
     }
   }
-} else {
-  console.log(JSON.stringify(catalog, null, 2));
+}
+
+export function main(argv: string[] = process.argv.slice(2)): number {
+  generateApiCatalog(parseArgs(argv));
+  return 0;
+}
+
+if (isMain(import.meta.url)) {
+  runScript(async () => main(), "generate-api-catalog failed");
 }

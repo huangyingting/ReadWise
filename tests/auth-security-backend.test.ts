@@ -154,7 +154,7 @@ beforeEach(() => {
 });
 
 test("auth options enrich sessions and bootstrap first users", async () => {
-  const { authOptions } = await import("@/lib/auth");
+  const { authOptions } = await import("@/lib/auth/index");
 
   assert.equal(authOptions.session?.strategy, "database");
   assert.equal(authOptions.cookies?.sessionToken?.name, "dev-session");

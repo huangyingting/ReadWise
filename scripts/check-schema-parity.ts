@@ -32,17 +32,17 @@ const SQLITE_MIGRATIONS = "prisma/migrations";
 const POSTGRES_MIGRATIONS = "prisma/postgresql/migrations";
 const PLACEHOLDER = '{{PROVIDER}}';
 
-function renderSchema(base: string, provider: "sqlite" | "postgresql"): string {
+export function renderSchema(base: string, provider: "sqlite" | "postgresql"): string {
   return base.replace(PLACEHOLDER, provider);
 }
 
 /** Lists timestamped migration directory names from a migrations directory. */
-async function listMigrationNames(dir: string): Promise<string[]> {
+export async function listMigrationNames(dir: string): Promise<string[]> {
   const entries = await readdir(dir);
   return entries.filter((e) => /^\d{14}_/.test(e)).sort();
 }
 
-function migrationNamesMissingFrom(source: string[], target: string[]): string[] {
+export function migrationNamesMissingFrom(source: string[], target: string[]): string[] {
   return source.filter((m) => !target.includes(m));
 }
 
@@ -66,13 +66,16 @@ function reportGeneratedSchemaDifference(path: string, expected: string, actual:
   reportFirstSchemaDifference(expected, actual);
 }
 
-async function checkSchemaParity(): Promise<boolean> {
-  const [baseSchema, sqliteSchema, postgresSchema] = await Promise.all([
-    readFile(BASE_SCHEMA, "utf8"),
-    readFile(SQLITE_SCHEMA, "utf8"),
-    readFile(POSTGRES_SCHEMA, "utf8"),
-  ]);
-
+/**
+ * Validates that the generated SQLite and PostgreSQL schemas match those that
+ * would be produced by rendering the base schema with each provider token.
+ * Pure function — accepts content strings directly for testability.
+ */
+export function validateSchemaContents(
+  baseSchema: string,
+  sqliteSchema: string,
+  postgresSchema: string,
+): boolean {
   if (!baseSchema.includes(PLACEHOLDER)) {
     console.error("❌ Schema parity check FAILED");
     console.error(
@@ -83,9 +86,7 @@ async function checkSchemaParity(): Promise<boolean> {
 
   const expectedSqlite = renderSchema(baseSchema, "sqlite");
   const expectedPostgres = renderSchema(baseSchema, "postgresql");
-  const generatedSchemasMatch =
-    sqliteSchema === expectedSqlite && postgresSchema === expectedPostgres;
-  if (generatedSchemasMatch) {
+  if (sqliteSchema === expectedSqlite && postgresSchema === expectedPostgres) {
     console.log("✔ Schema parity: OK");
     return true;
   }
@@ -100,20 +101,16 @@ async function checkSchemaParity(): Promise<boolean> {
   return false;
 }
 
-async function checkMigrationParity(): Promise<boolean> {
-  const [sqliteMigrations, postgresMigrations] = await Promise.all([
-    listMigrationNames(SQLITE_MIGRATIONS),
-    listMigrationNames(POSTGRES_MIGRATIONS),
-  ]);
-
-  const onlyInSqlite = migrationNamesMissingFrom(
-    sqliteMigrations,
-    postgresMigrations,
-  );
-  const onlyInPostgres = migrationNamesMissingFrom(
-    postgresMigrations,
-    sqliteMigrations,
-  );
+/**
+ * Validates that the SQLite and PostgreSQL migration histories are aligned.
+ * Pure function — accepts the migration name arrays directly for testability.
+ */
+export function validateMigrationParity(
+  sqliteMigrations: string[],
+  postgresMigrations: string[],
+): boolean {
+  const onlyInSqlite = migrationNamesMissingFrom(sqliteMigrations, postgresMigrations);
+  const onlyInPostgres = migrationNamesMissingFrom(postgresMigrations, sqliteMigrations);
 
   if (onlyInSqlite.length === 0 && onlyInPostgres.length === 0) {
     console.log("✔ Migration parity: OK");
@@ -136,20 +133,50 @@ async function checkMigrationParity(): Promise<boolean> {
   return false;
 }
 
-async function main() {
+export async function checkSchemaParity(): Promise<boolean> {
+  const [baseSchema, sqliteSchema, postgresSchema] = await Promise.all([
+    readFile(BASE_SCHEMA, "utf8"),
+    readFile(SQLITE_SCHEMA, "utf8"),
+    readFile(POSTGRES_SCHEMA, "utf8"),
+  ]);
+  return validateSchemaContents(baseSchema, sqliteSchema, postgresSchema);
+}
+
+export async function checkMigrationParity(): Promise<boolean> {
+  const [sqliteMigrations, postgresMigrations] = await Promise.all([
+    listMigrationNames(SQLITE_MIGRATIONS),
+    listMigrationNames(POSTGRES_MIGRATIONS),
+  ]);
+  return validateMigrationParity(sqliteMigrations, postgresMigrations);
+}
+
+type ParityCheckFn = () => Promise<boolean>;
+type ExitFn = (code: number) => never;
+
+type MainOutput = {
+  log: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+};
+
+export async function main(
+  schemaParity: ParityCheckFn = checkSchemaParity,
+  migrationParity: ParityCheckFn = checkMigrationParity,
+  exit: ExitFn = process.exit,
+  output: MainOutput = console,
+): Promise<void> {
   const [schemaOk, migrationOk] = await Promise.all([
-    checkSchemaParity(),
-    checkMigrationParity(),
+    schemaParity(),
+    migrationParity(),
   ]);
 
   if (!schemaOk || !migrationOk) {
-    console.error(
+    output.error(
       "\nSee docs/platform/database.md §Schema governance for the schema-change workflow.",
     );
-    process.exit(1);
+    exit(1);
   }
 
-  console.log("\n✔ All schema parity checks passed.");
+  output.log("\n✔ All schema parity checks passed.");
 }
 
 if (isMain(import.meta.url)) {

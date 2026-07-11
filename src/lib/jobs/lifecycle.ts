@@ -1,6 +1,13 @@
 /**
  * Job lifecycle transitions: start, heartbeat, complete, fail, retry, cancel,
- * and archive (RW-015).
+ * and archive (RW-015 / RW-993).
+ *
+ * Worker-owned transitions (start, heartbeat, complete, fail) use atomic CAS
+ * via `updateMany` with both workerId and expected status predicates so a stale
+ * owner can never overwrite a reclaimed job.
+ *
+ * Admin transitions (retry, cancel, archive) use atomic expected-status
+ * predicates to prevent overwriting terminal or in-flight state.
  */
 import { prisma } from "@/lib/prisma";
 import { Prisma, JobStatus, type Job } from "@prisma/client";
@@ -8,11 +15,18 @@ import { createLogger } from "@/lib/observability/logger";
 import { recordJobQueueEvent } from "@/lib/metrics";
 import { retryPolicyFor, jobBackoffDelay, type RetryPolicy } from "./retry-policy";
 import { classifyJobError, type JobErrorKind } from "./errors";
+import { ACTIVE_STATUSES, TERMINAL_STATUSES } from "./types";
 
 const log = createLogger("jobs");
 
 /** How many error-history entries to retain (bounded growth). */
 const MAX_ERROR_HISTORY = 25;
+
+/** Statuses from which admin retry is allowed. */
+const RETRYABLE_STATUSES: JobStatus[] = [JobStatus.FAILED, JobStatus.DEAD_LETTER];
+
+/** Non-terminal statuses that admin cancel is allowed from. */
+const CANCELLABLE_STATUSES: JobStatus[] = ACTIVE_STATUSES;
 
 export type TransitionOptions = { now?: Date };
 
@@ -32,30 +46,33 @@ function releaseLockData(): { lockedBy: null; lockedAt: null } {
   return { lockedBy: null, lockedAt: null };
 }
 
-/** Marks a claimed job as RUNNING and refreshes its lock (heartbeat anchor). */
+/**
+ * Atomically transitions a CLAIMED job owned by `workerId` to RUNNING.
+ * Returns the updated Job, or null if the CAS fails (ownership lost or wrong status).
+ */
 export async function startJob(
   jobId: string,
   workerId: string,
   opts: TransitionOptions = {},
 ): Promise<Job | null> {
   const now = transitionNow(opts);
-  try {
-    return await prisma.job.update({
-      where: { id: jobId },
-      data: {
-        status: JobStatus.RUNNING,
-        lockedBy: workerId,
-        lockedAt: now,
-        startedAt: now,
-        updatedAt: now,
-      },
-    });
-  } catch {
-    return null;
-  }
+  const res = await prisma.job.updateMany({
+    where: { id: jobId, lockedBy: workerId, status: JobStatus.CLAIMED },
+    data: {
+      status: JobStatus.RUNNING,
+      lockedAt: now,
+      startedAt: now,
+      updatedAt: now,
+    },
+  });
+  if (res.count === 0) return null;
+  return prisma.job.findUnique({ where: { id: jobId } });
 }
 
-/** Refreshes a job's lock so a long-running task is not reclaimed as stale. */
+/**
+ * Refreshes a job's lock so a long-running task is not reclaimed as stale.
+ * Requires active ownership (workerId match) AND RUNNING status.
+ */
 export async function heartbeatJob(
   jobId: string,
   workerId: string,
@@ -63,19 +80,24 @@ export async function heartbeatJob(
 ): Promise<boolean> {
   const now = transitionNow(opts);
   const res = await prisma.job.updateMany({
-    where: { id: jobId, lockedBy: workerId },
+    where: { id: jobId, lockedBy: workerId, status: JobStatus.RUNNING },
     data: { lockedAt: now, updatedAt: now },
   });
   return res.count > 0;
 }
 
-/** Marks a job COMPLETED and releases its lock. */
-export async function completeJob(jobId: string, opts: TransitionOptions = {}): Promise<Job | null> {
+/**
+ * Atomically completes a RUNNING job owned by `workerId`.
+ * Returns the updated Job, or null if the CAS fails (ownership lost or wrong status).
+ */
+export async function completeJob(
+  jobId: string,
+  workerId: string,
+  opts: TransitionOptions = {},
+): Promise<Job | null> {
   const now = transitionNow(opts);
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
-  if (!job) return null;
-  const done = await prisma.job.update({
-    where: { id: jobId },
+  const res = await prisma.job.updateMany({
+    where: { id: jobId, lockedBy: workerId, status: JobStatus.RUNNING },
     data: {
       status: JobStatus.COMPLETED,
       completedAt: now,
@@ -84,22 +106,29 @@ export async function completeJob(jobId: string, opts: TransitionOptions = {}): 
       updatedAt: now,
     },
   });
-  recordJobQueueEvent({ event: "completed", type: job.type });
-  return done;
+  if (res.count === 0) return null;
+  const job = await prisma.job.findUnique({ where: { id: jobId } });
+  if (job) recordJobQueueEvent({ event: "completed", type: job.type });
+  return job;
 }
 
 /**
- * Records a job failure (RW-015). Increments `attempts`, appends to
- * `errorHistory`, and either schedules a retry (status FAILED, `runAfter` =
- * now + backoff) or — when the failure is permanent or attempts are exhausted —
- * moves the job to DEAD_LETTER with `lastError` preserved.
+ * Records a job failure (RW-015). Atomically transitions a RUNNING job owned
+ * by `workerId`. Increments `attempts`, appends to `errorHistory`, and either
+ * schedules a retry (status FAILED, `runAfter` = now + backoff) or — when the
+ * failure is permanent or attempts are exhausted — moves to DEAD_LETTER.
+ *
+ * Returns null if CAS fails (ownership lost or wrong status).
  */
 export async function failJob(
   jobId: string,
+  workerId: string,
   error: unknown,
   opts: FailJobOptions = {},
 ): Promise<Job | null> {
   const now = transitionNow(opts);
+
+  // Read the job to compute retry logic; the CAS protects the write.
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return null;
 
@@ -116,8 +145,8 @@ export async function failJob(
   const exhausted = attempts >= job.maxAttempts;
 
   if (permanent || exhausted) {
-    const dead = await prisma.job.update({
-      where: { id: jobId },
+    const res = await prisma.job.updateMany({
+      where: { id: jobId, lockedBy: workerId, status: JobStatus.RUNNING },
       data: {
         status: JobStatus.DEAD_LETTER,
         attempts,
@@ -129,6 +158,7 @@ export async function failJob(
         updatedAt: now,
       },
     });
+    if (res.count === 0) return null;
     recordJobQueueEvent({ event: "dead_letter", type: job.type });
     log.error("job dead-lettered", {
       jobId,
@@ -137,12 +167,12 @@ export async function failJob(
       reason: permanent ? `permanent:${classified.kind}` : "attempts_exhausted",
       lastError: classified.message,
     });
-    return dead;
+    return prisma.job.findUnique({ where: { id: jobId } });
   }
 
   const delay = jobBackoffDelay(attempts, policy.baseBackoffMs, policy.maxBackoffMs);
-  const failed = await prisma.job.update({
-    where: { id: jobId },
+  const res = await prisma.job.updateMany({
+    where: { id: jobId, lockedBy: workerId, status: JobStatus.RUNNING },
     data: {
       status: JobStatus.FAILED,
       attempts,
@@ -154,6 +184,7 @@ export async function failJob(
       updatedAt: now,
     },
   });
+  if (res.count === 0) return null;
   recordJobQueueEvent({ event: "retry", type: job.type });
   log.warn("job failed, scheduled retry", {
     jobId,
@@ -162,19 +193,18 @@ export async function failJob(
     nextRetryInMs: delay,
     error: classified.message,
   });
-  return failed;
+  return prisma.job.findUnique({ where: { id: jobId } });
 }
 
 /**
- * Re-queues a failed or dead-lettered job: resets it to PENDING, clears attempts
- * and error state, and makes it immediately runnable.
+ * Re-queues a failed or dead-lettered job (admin action): resets it to PENDING,
+ * clears attempts and error state, and makes it immediately runnable.
+ * Uses atomic expected-status predicate to avoid overwriting active jobs.
  */
 export async function retryJob(jobId: string, opts: TransitionOptions = {}): Promise<Job | null> {
   const now = transitionNow(opts);
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
-  if (!job) return null;
-  return prisma.job.update({
-    where: { id: jobId },
+  const res = await prisma.job.updateMany({
+    where: { id: jobId, status: { in: RETRYABLE_STATUSES } },
     data: {
       status: JobStatus.PENDING,
       attempts: 0,
@@ -188,18 +218,21 @@ export async function retryJob(jobId: string, opts: TransitionOptions = {}): Pro
       updatedAt: now,
     },
   });
+  if (res.count === 0) return null;
+  return prisma.job.findUnique({ where: { id: jobId } });
 }
 
-/** Cancels a job by moving it to DEAD_LETTER with a reason (admin action). */
+/**
+ * Cancels a job by moving it to DEAD_LETTER (admin action).
+ * Uses atomic expected-status predicate — only cancellable (non-terminal) jobs.
+ */
 export async function cancelJob(
   jobId: string,
   opts: TransitionOptions & { reason?: string } = {},
 ): Promise<Job | null> {
   const now = transitionNow(opts);
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
-  if (!job) return null;
-  return prisma.job.update({
-    where: { id: jobId },
+  const res = await prisma.job.updateMany({
+    where: { id: jobId, status: { in: CANCELLABLE_STATUSES } },
     data: {
       status: JobStatus.DEAD_LETTER,
       lastError: opts.reason ?? "cancelled by admin",
@@ -208,6 +241,8 @@ export async function cancelJob(
       updatedAt: now,
     },
   });
+  if (res.count === 0) return null;
+  return prisma.job.findUnique({ where: { id: jobId } });
 }
 
 /**
@@ -219,6 +254,7 @@ export async function cancelJob(
 export async function archiveJob(jobId: string): Promise<Job | null> {
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return null;
+  if (!TERMINAL_STATUSES.includes(job.status)) return null;
   await prisma.job.delete({ where: { id: jobId } });
   return job;
 }

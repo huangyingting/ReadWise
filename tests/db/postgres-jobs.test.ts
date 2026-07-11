@@ -173,7 +173,7 @@ test("claimNextJob recovers a stale lock once the TTL elapses", { skip: !enabled
 test("failJob moves an exhausted job to the dead-letter queue", { skip: !enabled }, async () => {
   requirePostgres();
 
-  const { enqueueJob, claimNextJob, failJob, JobError, listDeadLetterJobs } = await import("@/lib/jobs");
+  const { enqueueJob, claimNextJob, startJob, failJob, JobError, listDeadLetterJobs } = await import("@/lib/jobs");
 
   const job = await enqueueJob(JobType.PUSH_REMINDER, { boom: true }, {
     dedupeKey: id("job_dlq"),
@@ -182,8 +182,9 @@ test("failJob moves an exhausted job to the dead-letter queue", { skip: !enabled
 
   const claimed = await claimNextJob("worker-dlq");
   assertPresent(claimed, "should claim the job");
+  await startJob(claimed.id, "worker-dlq");
 
-  const failed = await failJob(claimed.id, new JobError("provider exploded", { kind: "provider" }));
+  const failed = await failJob(claimed.id, "worker-dlq", new JobError("provider exploded", { kind: "provider" }));
   assertPresent(failed, "failJob should return the updated job");
   assert.equal(failed.status, JobStatus.DEAD_LETTER, "exhausted attempts must dead-letter");
   assert.equal(failed.lastError, "provider exploded");

@@ -1,14 +1,17 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-09"
+last_updated: "2026-07-11"
 description: "Privacy-safe CEFR, OneStop-style ordinal, Lexile-like, provider drift, and vocabulary penalty calibration workflow."
 ---
 
 # Difficulty calibration and aggregate evaluation
 
-ReadWise article difficulty uses `deterministic-cefr/hybrid-calibrated-v4`.
-CEFR output remains heuristic/hybrid-calibrated. v4 uses project-approved,
+ReadWise article difficulty uses `deterministic-cefr/hybrid-calibrated-v5`.
+CEFR output remains heuristic/hybrid-calibrated. v5 corrects typographic
+apostrophe (U+2019) normalization so curly-apostrophe contractions receive the
+same lexical band as their straight-apostrophe equivalents. Thresholds,
+weights, and calibration data are unchanged from v4. v4 uses project-approved,
 explicitly opted-in UniversalCEFR/elg_cefr_en NC evidence as full A1-C2 input
 plus OneStopEnglish-style article data as three-level ordinal anchors.
 `lexileApprox` is Lexile-like and is not an official Lexile measure.
