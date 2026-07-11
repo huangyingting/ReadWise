@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createPublicHandler } from "@/lib/api-handler";
 import { object, nonEmptyString, optional, string } from "@/lib/validation";
-import { checkRateLimitByKey, clientIpKey } from "@/lib/security/rate-limit/index";
+import {
+  clientIpRateLimitPolicy,
+  enforceRateLimitPolicy,
+} from "@/lib/security/rate-limit/index";
 import { captureError } from "@/lib/observability/errors";
 
 /**
@@ -65,16 +68,20 @@ function noContent(): NextResponse {
   return new NextResponse(null, { status: 204 });
 }
 
+const CLIENT_ERROR_REPORT_RATE_LIMIT = clientIpRateLimitPolicy("public", {
+  onExceeded: () => noContent(),
+});
+
 export const POST = createPublicHandler(
   { body: bodySchema },
   async ({ body, log, req }) => {
     // IP-based rate limit: silently absorbs excess but still returns 204
     // (best-effort, keep returning 204 to avoid leaking the limit to clients).
-    try {
-      await checkRateLimitByKey(clientIpKey(req), "public");
-    } catch {
-      return noContent();
-    }
+    const rateLimitedResponse = await enforceRateLimitPolicy(
+      CLIENT_ERROR_REPORT_RATE_LIMIT,
+      { req },
+    );
+    if (rateLimitedResponse) return rateLimitedResponse;
     const report = scrubClientReport(body);
     log.error("client.error", {
       clientMessage: report.message,

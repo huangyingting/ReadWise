@@ -40,6 +40,20 @@ before(() => {
       },
     },
   });
+  mock.module("@/lib/ai/facade", {
+    namedExports: {
+      isAiConfigured: () => aiConfigured,
+      aiModelName: () => (aiConfigured ? "gpt-test" : null),
+      chatComplete: async (
+        msgs: Array<{ role: string; content: string }>,
+        opts: { maxOutputTokens?: number; feature?: string } = {},
+      ) => {
+        lastChatMessages = msgs;
+        lastChatOptions = opts;
+        return aiReply;
+      },
+    },
+  });
 
   mock.module("@/lib/prisma", {
     namedExports: {

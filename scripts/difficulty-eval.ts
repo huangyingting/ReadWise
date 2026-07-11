@@ -1232,6 +1232,13 @@ export {
   vocabularyRecordFromRow,
 };
 
+export const __difficultyEvalTest = {
+  main,
+  printHelp,
+  printMetricSummary,
+  printConsoleReport,
+};
+
 if (isMain(import.meta.url)) {
   runScript(main, "difficulty evaluation failed");
 }

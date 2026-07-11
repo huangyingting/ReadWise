@@ -44,6 +44,10 @@ function toView(tag: { id: string; name: string; slug: string; scope: TagScope }
   return { id: tag.id, name: tag.name, slug: tag.slug, scope: tag.scope };
 }
 
+function tagPromptSource(content: string): string {
+  return boundedSampleForFeature(articleHtmlToReaderText(content), "tags");
+}
+
 /** Reads an article's currently-stored tags, alphabetically by name. */
 export async function getArticleTags(articleId: string): Promise<TagView[]> {
   const rows = await prisma.articleTag.findMany({
@@ -173,7 +177,7 @@ export async function getOrCreateArticleTags(
         return tags.length > 0 ? tags : null;
       },
       buildMessages: (article) => {
-        const source = boundedSampleForFeature(articleHtmlToReaderText(article.content), "tags");
+        const source = tagPromptSource(article.content);
         return renderPrompt("tags", { title: article.title, source });
       },
       parse: (completion) => validateTags(completion, slugifyTag).items.slice(0, TARGET_TAGS),

@@ -7,10 +7,10 @@
  * DENIED sentinel via the real policy module), cascade/side-effect clearing,
  * and audit invocation.
  *
- * `@/lib/prisma`, `@/lib/security/audit`, and `@/lib/processing/state` are
- * mocked via node:test module mocking. The real `./policy` and `./mapper`
- * modules are used so the access-control WHERE builders are genuinely
- * exercised. No real DB or network is touched.
+ * `@/lib/prisma` and `@/lib/security/audit` are mocked via node:test module
+ * mocking. The real `./policy` and `./mapper` modules are used so the
+ * access-control WHERE builders are genuinely exercised. No real DB or network
+ * is touched.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -136,6 +136,7 @@ before(() => {
       deleteMany: recordDeleteMany("mediaAsset"),
     },
     articleProcessingStep: {
+      findMany: async () => processingStepsResult,
       deleteMany: recordDeleteMany("articleProcessingStep"),
     },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma),
@@ -148,12 +149,6 @@ before(() => {
       recordAuditFromRequest: async (input: { action: string }) => {
         auditCalls.push({ action: input.action });
       },
-    },
-  });
-
-  mock.module("@/lib/processing/state", {
-    namedExports: {
-      getArticleProcessingSteps: async () => processingStepsResult,
     },
   });
 });

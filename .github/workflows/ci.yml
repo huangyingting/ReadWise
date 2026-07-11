@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   # Nightly full run (fast checks + unit/coverage + build + db + E2E + UI audit) for release-readiness.
   schedule:
     - cron: "0 6 * * *"
@@ -30,7 +30,7 @@ concurrency:
 #   db-integration    — PostgreSQL migrate/test   (every PR)
 #   supply-chain      — lockfile + npm audit      (every PR; blocks on HIGH/CRITICAL)
 #   dependency-review — new-dep vulnerability scan (PRs only, blocks on HIGH)
-#   e2e-smoke         — Playwright smoke          (push to main + nightly + manual; NOT on PRs)
+#   e2e-smoke         — Playwright smoke          (push to main/dev + nightly + manual; NOT on PRs)
 #   e2e-ui-audit      — 500-case Playwright audit (nightly + manual full_ui_audit; sharded)
 #   ci-summary        — writes a pass/fail digest to the run summary
 #
@@ -39,6 +39,7 @@ concurrency:
 # dependency-review is PR-only but does NOT feed ci-summary (it runs in parallel).
 # E2E is intentionally tiered off PRs so a slower/flakier browser run can never
 # block a merge — it still runs post-merge, nightly, and on demand.
+# Both main and dev are integration branches covered by all gates.
 
 jobs:
   # ---------------------------------------------------------------------------

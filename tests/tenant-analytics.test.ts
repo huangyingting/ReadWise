@@ -2,9 +2,10 @@
  * Tenant analytics & privacy tests (RW-063).
  *
  * Exercises the PURE access model, aggregation and redaction in
- * `@/lib/analytics/tenant`. `@/lib/org` and `@/lib/classroom` are mocked to the
- * minimum the module imports (so the heavy prisma/auth chain isn't loaded); the
- * functions under test take plain data and return plain data.
+ * `@/lib/analytics/tenant`. `@/lib/org/guards` and
+ * `@/lib/classroom/progress` are mocked to the minimum the module imports (so
+ * the heavy prisma/auth chain isn't loaded); the functions under test take plain
+ * data and return plain data.
  */
 import { test, before, mock } from "node:test";
 import assert from "node:assert/strict";
@@ -14,13 +15,13 @@ type TA = typeof import("@/lib/analytics/tenant");
 let ta: TA;
 
 before(async () => {
-  mock.module("@/lib/org", {
+  mock.module("@/lib/org/guards", {
     namedExports: {
       isSystemAdmin: (role: string | null | undefined) =>
         role === "Admin" || role === "System",
     },
   });
-  mock.module("@/lib/classroom", {
+  mock.module("@/lib/classroom/progress", {
     namedExports: {
       getClassroomProgressData: async () => null,
     },
@@ -28,7 +29,7 @@ before(async () => {
   ta = await import("@/lib/analytics/tenant");
 });
 
-function sampleData(): import("@/lib/classroom").ClassroomProgressData {
+function sampleData(): import("@/lib/classroom/progress").ClassroomProgressData {
   return {
     classroom: { id: "c1", name: "Class 1", orgId: "o1", teacherId: "t1" },
     students: [

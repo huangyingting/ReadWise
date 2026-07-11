@@ -53,7 +53,9 @@ to a few seconds, so the signal clarity is worth the small extra cost.
 | Event | Fast checks | Unit + coverage | Build | DB integration | Supply-chain / dependency review | E2E smoke | Full UI audit |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | **Pull request → `main`** | ✅ | ✅ | ✅ | ✅ | ✅ (both) | — | — |
+| **Pull request → `dev`** | ✅ | ✅ | ✅ | ✅ | ✅ (both) | — | — |
 | **Push to `main`** (post-merge) | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | — |
+| **Push to `dev`** (post-merge) | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | — |
 | **Nightly schedule** (`0 6 * * *` UTC) | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | ✅ (4 shards) |
 | **Manual `workflow_dispatch`** | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | Optional (`full_ui_audit`) |
 
@@ -61,12 +63,14 @@ to a few seconds, so the signal clarity is worth the small extra cost.
   PostgreSQL migrate/integration, supply-chain lockfile integrity, and dependency
   review. `npm audit` blocks when the installed graph contains HIGH/CRITICAL
   advisories; dependency review separately blocks PRs that add or update
-  HIGH/CRITICAL vulnerable packages.
+  HIGH/CRITICAL vulnerable packages. These gates apply to PRs targeting both
+  `main` and `dev`.
 - **E2E is tiered off PRs.** Browser runs are slower and more prone to flakiness,
-  so smoke runs **after merge** (push to `main`), **nightly** (release readiness),
-  and **on demand** (the *Run workflow* button). Because the E2E jobs are excluded
-  from pull-request events, they can **never block a merge**. A failure on `main`
-  is visible (not silenced) so it gets noticed, but it does not gate PRs.
+  so smoke runs **after merge** (push to `main` or `dev`), **nightly** (release
+  readiness), and **on demand** (the *Run workflow* button). Because the E2E jobs
+  are excluded from pull-request events, they can **never block a merge**. A
+  failure on `main` or `dev` is visible (not silenced) so it gets noticed, but it
+  does not gate PRs.
 - **Full UI audit is opt-in outside the nightly.** The 500-case audit runs on the
   nightly schedule and on manual `workflow_dispatch` only when `full_ui_audit` is
   set to true. CI splits it into four shards.
@@ -75,10 +79,12 @@ to a few seconds, so the signal clarity is worth the small extra cost.
 
 E2E smoke is **non-blocking for PRs by tiering**, not by `continue-on-error`. The
 job is excluded from pull-request events entirely, so it cannot turn a PR red. It
-*does* run for real on push-to-`main`, nightly, and manual dispatch, and it is
-expected to be **green** there (it passes locally and in CI with cached Chromium).
-If it ever starts flaking on `main`, fix it or, as a last resort, gate it behind
-`workflow_dispatch`/`schedule` only — do **not** add it to the required PR checks.
+*does* run for real on push-to-`main` or push-to-`dev`, nightly, and manual
+dispatch, and it is expected to be **green** there (it passes locally and in CI
+with cached Chromium).
+If it ever starts flaking on `main` or `dev`, fix it or, as a last resort, gate
+it behind `workflow_dispatch`/`schedule` only — do **not** add it to the required
+PR checks.
 
 The 500-case UI audit is separate from smoke:
 

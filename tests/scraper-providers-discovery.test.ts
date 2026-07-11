@@ -177,6 +177,46 @@ test("Harvard Business Review extractor combines latest service, page links, and
   assert.equal(isHarvardBusinessReviewArticleUrl(legacyArchiveArticle), true);
 });
 
+test("Harvard Business Review extractor gracefully degrades when latest, seeds, scripts, or archive pages fail", async () => {
+  const hbr = (await import("@/lib/scraper/providers/harvardbusinessreview")).default;
+  assert.ok(hbr.urlExtractor);
+
+  const latestService =
+    "https://hbr.org/service/components/external-list/latest/0/8?format=json&id=page.external-list.the-latest";
+  const fallbackHomeArticle = "https://hbr.org/2026/05/fallback-home-article";
+  const archiveRecoveryArticle = "https://hbr.org/2026/06/archive-recovery-article";
+  const fetched: string[] = [];
+
+  const urls = extractorUrls(
+    await hbr.urlExtractor({
+      limit: 10,
+      fetch: async (url) => {
+        fetched.push(url);
+        if (url === latestService) throw new Error("latest unavailable");
+        if (url === "https://hbr.org/") {
+          return `<a href="/2026/05/fallback-home-article">home</a><a href="http://[::1">bad-url</a><a href="/archive-toc/202406">legacy-issue</a><script src="/resources/js/pages/topic_deadbeef.js"></script>`;
+        }
+        if (url === "https://hbr.org/the-latest") throw new Error("seed unavailable");
+        if (url === "https://hbr.org/topic/subject/strategy") {
+          return `<a href="/archive-toc/BR2604">modern-issue</a>`;
+        }
+        if (url === "https://hbr.org/resources/js/pages/topic_deadbeef.js") throw new Error("script blocked");
+        if (url === "https://hbr.org/archive-toc/202406") throw new Error("legacy archive blocked");
+        if (url === "https://hbr.org/archive-toc/BR2604") {
+          return `<a href="/2026/06/archive-recovery-article">archive</a>`;
+        }
+        return "<html></html>";
+      },
+    }),
+  );
+
+  assert.ok(urls.includes(fallbackHomeArticle));
+  assert.ok(urls.includes(archiveRecoveryArticle));
+  assert.ok(fetched.includes("https://hbr.org/the-latest"));
+  assert.ok(fetched.includes("https://hbr.org/resources/js/pages/topic_deadbeef.js"));
+  assert.ok(fetched.includes("https://hbr.org/archive-toc/202406"));
+});
+
 test("reading-source providers discover non-sports article URLs from their strongest indexes", async () => {
   const { atlasObscura } = await import("@/lib/scraper/providers/atlasobscura");
   const { hakaiMagazine } = await import("@/lib/scraper/providers/hakaimagazine");
@@ -815,4 +855,30 @@ test("New Yorker exhaustive discovery reaches the oldest archive with bounded co
   assert.equal(monthlyFetches >= 1218, true);
   assert.equal(maxActive > 1, true);
   assert.equal(maxActive <= 6, true);
+});
+
+test("New Yorker extractor is resilient: invalid sitemap URLs are skipped, index-down falls back to generated, and individual sitemap fetch failures are non-fatal", async () => {
+  const provider = (await import("@/lib/scraper/providers/newyorker")).default;
+  assert.ok(provider.urlExtractor);
+
+  const goodArticle = "https://www.newyorker.com/news/the-lede/good-story";
+  const fromRss = "https://www.newyorker.com/culture/the-front-row/rss-story";
+
+  const result = await provider.urlExtractor({
+    limit: 5,
+    fetch: async (url) => {
+      // Google news sitemap: one malformed <loc> entry (exercises normalizeCandidateUrl catch,
+      // lines 40-41 of newyorker.ts) and one valid article.
+      if (url.includes("google-news")) return sitemap(["http://[::1", goodArticle]);
+      // Sitemap index throws → exercises newYorkerUrlExtractor catch (lines 179-180).
+      if (url === "https://www.newyorker.com/sitemap.xml") throw new Error("index unavailable");
+      // Generated monthly sitemaps throw → exercises fetchSitemapEntries catch (lines 124-125).
+      if (/sitemap-\d{4}-\d{2}\.xml/.test(url)) throw new Error("monthly down");
+      // RSS provides one fallback article.
+      if (url.includes("/feed/rss")) return rss([fromRss]);
+      return "";
+    },
+  });
+
+  assert.deepEqual(extractorUrls(result), [goodArticle, fromRss]);
 });

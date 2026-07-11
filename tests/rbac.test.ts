@@ -4,7 +4,7 @@
  * Section A exercises the PURE capability model in `@/lib/rbac` (no mocks): role
  * → capability resolution, allow/deny, and that the full near-term + future role
  * set is defined. Section B imports the REAL `@/lib/api-auth` and `@/lib/session`
- * guards with only `next-auth`, `@/lib/auth`, profile-preferences repository,
+ * guards with only `next-auth`, `@/lib/auth/config`, profile-preferences repository,
  * and `next/navigation`
  * mocked, proving the capability-backed guards preserve the former
  * Admin-access behavior without raw role checks.
@@ -155,7 +155,7 @@ before(() => {
   mock.module("next-auth", {
     namedExports: { getServerSession: async () => sessionState },
   });
-  mock.module("@/lib/auth", { namedExports: { authOptions: {} } });
+  mock.module("@/lib/auth/config", { namedExports: { authOptions: {} } });
   mock.module("@/lib/profile", {
     namedExports: { isUserOnboarded: async () => true },
   });
@@ -245,4 +245,13 @@ test("requireCapability with admin.access gates admin pages", async () => {
   sessionState = makeSession("Admin", "a1");
   const session = await requireCapability(CAPABILITIES.adminAccess, "/admin");
   assert.equal(session.user.id, "a1");
+});
+
+test("legacy session export maps to canonical session-guards module", async () => {
+  const compat = await import("@/lib/session");
+  const canonical = await import("@/lib/auth/session-guards");
+
+  assert.equal(compat.requireSession, canonical.requireSession);
+  assert.equal(compat.requireOnboardedSession, canonical.requireOnboardedSession);
+  assert.equal(compat.requireCapability, canonical.requireCapability);
 });

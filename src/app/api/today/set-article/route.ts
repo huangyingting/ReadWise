@@ -6,7 +6,7 @@ import {
   SetTodayArticleError,
   loadTodayViewModel,
 } from "@/lib/engagement/today-session";
-import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
 
 /**
  * POST /api/today/set-article
@@ -51,9 +51,7 @@ function apiErrorForSetArticleError(err: SetTodayArticleError): ApiError {
 export const POST = createHandler(
   { body: setArticleBody },
   async ({ body, session }) => {
-    if (!isTodaySessionFeatureEnabled()) {
-      throw new ApiError(404, "Not found");
-    }
+    enforceTodayGate();
 
     try {
       await setTodayPrimaryArticle({

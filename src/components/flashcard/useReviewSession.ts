@@ -8,12 +8,17 @@
  * Uses a pure reducer (reviewSessionReducer) for all sync state transitions.
  */
 import { useReducer, useState, useRef, useEffect, useCallback } from "react";
-import type { DueCard, ReviewMode } from "./types";
+import type { ReviewMode } from "./types";
 import type { Grade } from "@/lib/learning/srs";
 import {
   reviewSessionReducer,
-  type ReviewAction,
 } from "./reviewSessionReducer";
+import {
+  fetchReviewCards,
+  isAbortError,
+  submitReviewGrade,
+} from "./reviewSessionTransport";
+import { useDeferredCallbackQueue } from "./useDeferredCallbackQueue";
 
 interface UseReviewSessionOptions {
   initialDueCount: number;
@@ -29,31 +34,6 @@ interface UseReviewSessionOptions {
   onAfterGradeAdvance?: () => void;
 }
 
-interface LoadedReviewCards {
-  cards: DueCard[];
-  dueCount: number;
-}
-
-function reviewEndpointForMode(mode: ReviewMode): string {
-  return mode === "cloze" ? "/api/study/cloze" : "/api/study/flashcards";
-}
-
-async function fetchReviewCards(mode: ReviewMode): Promise<LoadedReviewCards> {
-  const res = await fetch(reviewEndpointForMode(mode));
-  if (!res.ok) throw new Error("fetch failed");
-
-  if (mode === "cloze") {
-    const data = (await res.json()) as { items: DueCard[] };
-    return { cards: data.items, dueCount: data.items.length };
-  }
-
-  const data = (await res.json()) as {
-    cards: DueCard[];
-    dueCount: number;
-  };
-  return { cards: data.cards, dueCount: data.dueCount };
-}
-
 export function useReviewSession({
   initialDueCount,
   onSessionStart,
@@ -66,6 +46,11 @@ export function useReviewSession({
     phase: "idle",
   });
   const [dueCount, setDueCount] = useState(initialDueCount);
+  const scheduleDeferred = useDeferredCallbackQueue();
+
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const loadRequestIdRef = useRef(0);
+  const gradeControllersRef = useRef<Set<AbortController>>(new Set());
 
   // Always-fresh ref so stable callbacks can read the latest state.
   const appStateRef = useRef(appState);
@@ -85,20 +70,62 @@ export function useReviewSession({
     }
   }, [appState.phase, onSessionStart, onSessionEnd]);
 
+  const abortPendingLoad = useCallback(() => {
+    loadControllerRef.current?.abort();
+    loadControllerRef.current = null;
+  }, []);
+
+  const abortPendingGrades = useCallback(() => {
+    for (const controller of gradeControllersRef.current) {
+      controller.abort();
+    }
+    gradeControllersRef.current.clear();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      abortPendingLoad();
+      abortPendingGrades();
+    };
+  }, [abortPendingLoad, abortPendingGrades]);
+
   // ── Actions ──────────────────────────────────────────────────────────────
 
   const startSession = useCallback(
     async (mode: ReviewMode) => {
       dispatch({ type: "START_LOADING" });
+      abortPendingLoad();
+      const controller = new AbortController();
+      loadControllerRef.current = controller;
+      const requestId = ++loadRequestIdRef.current;
+
       try {
-        const { cards, dueCount: loadedDueCount } = await fetchReviewCards(mode);
+        const { cards, dueCount: loadedDueCount } = await fetchReviewCards(
+          mode,
+          controller.signal,
+        );
+        if (
+          controller.signal.aborted ||
+          requestId !== loadRequestIdRef.current
+        ) return;
+
         setDueCount(loadedDueCount);
         dispatch({ type: "SESSION_LOADED", mode, cards });
-      } catch {
+      } catch (error) {
+        if (
+          controller.signal.aborted ||
+          requestId !== loadRequestIdRef.current ||
+          isAbortError(error)
+        ) return;
+
         dispatch({ type: "LOAD_FAILED" });
+      } finally {
+        if (loadControllerRef.current === controller) {
+          loadControllerRef.current = null;
+        }
       }
     },
-    [],
+    [abortPendingLoad],
   );
 
   const flipCard = useCallback(() => {
@@ -106,8 +133,8 @@ export function useReviewSession({
     if (s.phase !== "session" || s.flipped) return;
     dispatch({ type: "FLIP" });
     announce("Answer revealed");
-    setTimeout(() => onAfterFlip?.(), 0);
-  }, [announce, onAfterFlip]);
+    scheduleDeferred(onAfterFlip);
+  }, [announce, onAfterFlip, scheduleDeferred]);
 
   const setClozeInput = useCallback((input: string) => {
     dispatch({ type: "CLOZE_INPUT", input });
@@ -122,9 +149,9 @@ export function useReviewSession({
         input.trim().toLowerCase() === card.word.toLowerCase();
       dispatch({ type: "CLOZE_SUBMIT", correct });
       announce(correct ? "Correct!" : "Incorrect.");
-      setTimeout(() => onAfterFlip?.(), 0);
+      scheduleDeferred(onAfterFlip);
     },
-    [announce, onAfterFlip],
+    [announce, onAfterFlip, scheduleDeferred],
   );
 
   const submitGrade = useCallback(
@@ -138,34 +165,33 @@ export function useReviewSession({
       const currentIndex = s.index;
 
       dispatch({ type: "GRADE_OPTIMISTIC" });
+      const controller = new AbortController();
+      gradeControllersRef.current.add(controller);
 
       try {
-        const res = await fetch("/api/study/flashcards/grade", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ savedWordId: cardId, grade }),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as {
-            dueAt: string | null;
-            dueCount: number;
-          };
+        const data = await submitReviewGrade(cardId, grade, controller.signal);
+        if (!controller.signal.aborted && data) {
           setDueCount(data.dueCount);
         }
-      } catch {
+      } catch (error) {
+        if (controller.signal.aborted || isAbortError(error)) return;
         // Network error: still advance optimistically
+      } finally {
+        gradeControllersRef.current.delete(controller);
       }
+
+      if (controller.signal.aborted) return;
 
       const nextIndex = currentIndex + 1;
       if (nextIndex >= total) {
         announce("Session complete.");
       } else {
         announce(`Marked ${grade}. Card ${nextIndex + 1} of ${total}.`);
-        setTimeout(() => onAfterGradeAdvance?.(), 0);
+        scheduleDeferred(onAfterGradeAdvance);
       }
       dispatch({ type: "GRADE_ADVANCE", grade });
     },
-    [announce, onAfterGradeAdvance],
+    [announce, onAfterGradeAdvance, scheduleDeferred],
   );
 
   const endSession = useCallback(() => {

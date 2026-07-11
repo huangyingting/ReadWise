@@ -7,6 +7,7 @@ import ConfirmAction from "@/components/ConfirmAction";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { useMutation } from "@/hooks/useMutation";
 
 type TagOption = { id: string; name: string };
 type Panel = "rename" | "merge" | "delete" | null;
@@ -20,8 +21,7 @@ export default function AdminTagActions({
 }) {
   const router = useRouter();
   const [openPanel, setOpenPanel] = useState<Panel>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run, setError } = useMutation();
 
   // Rename state
   const [newName, setNewName] = useState(tagName);
@@ -36,27 +36,27 @@ export default function AdminTagActions({
     fallbackMessage: string,
     onSuccess?: () => void,
   ) {
-    setBusy(true);
-    setError(null);
-    try {
+    const succeeded = await run(async () => {
       await action();
-      onSuccess?.();
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : fallbackMessage);
-    } finally {
-      setBusy(false);
-    }
+      return true;
+    }, { fallbackMessage });
+    if (!succeeded) return;
+    onSuccess?.();
+    router.refresh();
+  }
+
+  function clearError() {
+    setError(null);
   }
 
   function openRename() {
     setNewName(tagName);
-    setError(null);
+    clearError();
     setOpenPanel(openPanel === "rename" ? null : "rename");
   }
 
   async function openMerge() {
-    setError(null);
+    clearError();
     if (openPanel === "merge") {
       setOpenPanel(null);
       return;
@@ -138,7 +138,7 @@ export default function AdminTagActions({
           disabled={busy}
           open={openPanel === "delete"}
           onOpenChange={(v) => {
-            setError(null);
+            clearError();
             setOpenPanel(v ? "delete" : null);
           }}
         />

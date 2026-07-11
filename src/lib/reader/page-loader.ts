@@ -10,14 +10,24 @@
  */
 import type { Session } from "next-auth";
 import type { Article, ReadingProgress } from "@prisma/client";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-library";
 import { getProgress, getProgressMap } from "@/lib/engagement";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
-import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/article-library";
-import type { TagView } from "@/lib/article-library";
-import { listCategoryPage, readingMinutesFor } from "@/lib/article-library";
-import { getArticleListMembership } from "@/lib/article-library";
-import { sanitizeArticleHtml, articleHtmlToReaderText } from "@/lib/content-pipeline";
+import {
+  articleAccessContext,
+  getReadableArticleById,
+} from "@/lib/article-library/policy";
+import {
+  getOrCreateArticleTags,
+  listRelatedArticles,
+  type TagView,
+} from "@/lib/article-library/collections/tags";
+import { getArticleListMembership } from "@/lib/article-library/collections/membership";
+import { listCategoryPage } from "@/lib/article-library/listings";
+import { readingMinutesFor } from "@/lib/article-library/mapper";
+import {
+  sanitizeArticleHtml,
+  articleHtmlToReaderTextFromSanitized,
+} from "@/lib/content-pipeline";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { prisma } from "@/lib/prisma";
 import { CEFR_LEVELS, type CefrLevel } from "@/lib/option-registries";
@@ -48,6 +58,11 @@ export type ReaderPageData = {
 type DifficultyVote = ReaderPageData["userDifficultyVote"];
 type ListMembership = Awaited<ReturnType<typeof getArticleListMembership>>;
 
+/**
+ * Reader keeps this orchestration because the "keep reading" fallback is page
+ * UX policy: it blends related-article relevance with category fallback sizing
+ * and ordering for this specific surface.
+ */
 async function resolveKeepReadingArticles(
   article: Article,
   relatedArticles: Article[],
@@ -72,6 +87,14 @@ function isDefaultListBookmarked(membership: ListMembership): boolean {
 
 function difficultyVoteFromFeedback(feedback: { vote: string } | null): DifficultyVote {
   return (feedback?.vote as DifficultyVote) ?? null;
+}
+
+function readerBody(content: string): Pick<ReaderPageData, "cleanBody" | "articlePlainText"> {
+  const cleanBody = sanitizeArticleHtml(content);
+  return {
+    cleanBody,
+    articlePlainText: articleHtmlToReaderTextFromSanitized(cleanBody),
+  };
 }
 
 /**
@@ -136,6 +159,7 @@ export async function loadReaderPageData(
   const tags = tagsResult?.tags ?? [];
   const isValidCefrLevel =
     difficultyLevel !== null && (CEFR_LEVELS as readonly string[]).includes(difficultyLevel);
+  const { cleanBody, articlePlainText } = readerBody(article.content);
 
   return {
     article,
@@ -149,8 +173,8 @@ export async function loadReaderPageData(
     isCompleted: progress?.completed ?? false,
     userDifficultyVote: difficultyVoteFromFeedback(existingFeedback),
     readingMinutes: readingMinutesFor(article),
-    cleanBody: sanitizeArticleHtml(article.content),
-    articlePlainText: articleHtmlToReaderText(article.content),
+    cleanBody,
+    articlePlainText,
     hadRelated,
   };
 }

@@ -2,12 +2,11 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
-import { authOptions } from "@/lib/auth";
-import { getConfiguredProviders } from "@/lib/auth-providers";
+import { authOptions } from "@/lib/auth/config";
+import { getConfiguredProviders } from "@/lib/auth/providers";
 import { friendlySignInError, sanitizeCallbackUrl } from "@/lib/signin-helpers";
 import { defaultLandingPath } from "@/lib/learner-landing";
-import { Wordmark } from "@/components/marketing/Wordmark";
-import { Wordmark as AppWordmark } from "@/components/Wordmark";
+import { Wordmark, WordmarkLink } from "@/components/Wordmark";
 import ThemeToggle from "@/components/shell/ThemeToggle";
 import { Card, PageShell, Stack } from "@/components/ui";
 import { cn, focusRing } from "@/lib/cn";
@@ -79,7 +78,7 @@ function AuthTopBar() {
       density="compact"
       className="flex min-h-[var(--marketing-header-h)] items-center justify-between px-[var(--space-6)] py-0"
     >
-      <Wordmark />
+      <WordmarkLink href="/" ariaLabel="ReadWise home" size="marketing" />
       <ThemeToggle />
     </PageShell>
   );
@@ -88,7 +87,7 @@ function AuthTopBar() {
 function SignInIntro() {
   return (
     <Stack gap="2" align="center" className="text-center">
-      <AppWordmark size="large" />
+      <Wordmark size="large" />
       <h1 className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-2xl)] leading-[var(--leading-snug)] text-text">
         Sign in to ReadWise
       </h1>

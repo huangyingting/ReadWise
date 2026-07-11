@@ -357,5 +357,12 @@ export function createDefaultDictionaryProvider(): DictionaryProvider {
   return new FreeDictionaryProvider();
 }
 
-/** Default provider instance (runtime-configured dictionary backend). */
-export const defaultProvider: DictionaryProvider = createDefaultDictionaryProvider();
+let defaultProvider: DictionaryProvider | null = null;
+
+/** Lazily resolves the runtime-configured default dictionary provider. */
+export function getDefaultDictionaryProvider(): DictionaryProvider {
+  if (!defaultProvider) {
+    defaultProvider = createDefaultDictionaryProvider();
+  }
+  return defaultProvider;
+}

@@ -67,11 +67,15 @@ function configureLimits(env: {
   store?: string;
   aiRequests?: string;
   lookupRequests?: string;
+  publicRequests?: string;
   windowMs?: string;
 }): void {
   if (env.store !== undefined) process.env.RATE_LIMIT_STORE = env.store;
   if (env.aiRequests !== undefined) process.env.RATE_LIMIT_AI_REQUESTS = env.aiRequests;
   if (env.lookupRequests !== undefined) process.env.RATE_LIMIT_LOOKUP_REQUESTS = env.lookupRequests;
+  if (env.publicRequests !== undefined) {
+    process.env.RATE_LIMIT_PUBLIC_REQUESTS = env.publicRequests;
+  }
   process.env.RATE_LIMIT_WINDOW_MS = env.windowMs ?? DEFAULT_WINDOW_MS;
 }
 
@@ -100,6 +104,7 @@ beforeEach(async () => {
   delete process.env.RATE_LIMIT_STORE;
   delete process.env.RATE_LIMIT_AI_REQUESTS;
   delete process.env.RATE_LIMIT_LOOKUP_REQUESTS;
+  delete process.env.RATE_LIMIT_PUBLIC_REQUESTS;
   delete process.env.RATE_LIMIT_WINDOW_MS;
 });
 
@@ -180,6 +185,33 @@ test("checkRateLimit delegates to checkRateLimitByKey using userId", async () =>
   const userId = `u-${uniqueKey("rl")}`;
   await checkRateLimit(userId, "ai");
   await assertRateLimitError(() => checkRateLimit(userId, "ai"));
+});
+
+test("sessionUserRateLimitPolicy enforces by session.user.id", async () => {
+  configureLimits({ aiRequests: "1" });
+  const { sessionUserRateLimitPolicy, enforceRateLimitPolicy } = await loadRateLimit();
+  const policy = sessionUserRateLimitPolicy("ai");
+  const ctx = { session: { user: { id: uniqueKey("session-policy") } } };
+
+  await assert.doesNotReject(() => enforceRateLimitPolicy(policy, ctx));
+  await assertRateLimitError(() => enforceRateLimitPolicy(policy, ctx));
+});
+
+test("clientIpRateLimitPolicy supports route-specific onExceeded behavior", async () => {
+  configureLimits({ publicRequests: "1" });
+  const { clientIpRateLimitPolicy, enforceRateLimitPolicy } = await loadRateLimit();
+  const policy = clientIpRateLimitPolicy("public", {
+    onExceeded: () => new Response(null, { status: 204 }),
+  });
+  const ctx = {
+    req: new Request("http://test.local/api/client-errors", {
+      headers: { "x-forwarded-for": "10.0.0.1" },
+    }),
+  };
+
+  await assert.doesNotReject(() => enforceRateLimitPolicy(policy, ctx));
+  const fallbackResponse = await enforceRateLimitPolicy(policy, ctx);
+  assert.equal(fallbackResponse?.status, 204);
 });
 
 // ---- shared (DB-backed) store path ------------------------------------------

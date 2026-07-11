@@ -34,14 +34,14 @@
  * the current user can access it.
  */
 
-import { aiModelName, chatComplete, isAiConfigured } from "@/lib/ai";
-import { promptVersionFor } from "@/lib/ai/chunking";
-import type { AiChatMessage } from "@/lib/ai/provider";
+import { aiModelName, chatComplete, isAiConfigured } from "./facade";
+import { promptVersionFor } from "./chunking";
+import type { AiChatMessage } from "./provider";
 import {
   recordAiCacheHit,
   recordAiFallback,
-} from "@/lib/ai/ledger";
-import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
+} from "./ledger";
+import type { AiFallbackReason } from "./fallback-reasons";
 import {
   loadAiProcessableArticleText,
   isArticleOperator,

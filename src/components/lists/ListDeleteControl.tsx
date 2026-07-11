@@ -9,7 +9,7 @@
  */
 
 import { cn } from "@/lib/cn";
-import { useReadingListMutations } from "@/hooks/useReadingListMutations";
+import { useReadingListMutations } from "./useReadingListMutations";
 import ConfirmAction from "@/components/ConfirmAction";
 
 type TriggerVariant = "danger" | "danger-ghost" | "secondary" | "outline";

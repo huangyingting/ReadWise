@@ -136,6 +136,8 @@ test("returns 404 when the feature flag is disabled", async () => {
   process.env[FLAG] = "false";
   const res = await GET();
   assert.equal(res.status, 404);
+  const body = (await res.json()) as { error: string };
+  assert.equal(body.error, "Not found");
 });
 
 test("returns the privacy-safe Today view model for the session user", async () => {
