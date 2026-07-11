@@ -14,6 +14,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { normalizeCandidates } from "@/lib/lexical/normalize";
+import { isMain } from "./lib/cli";
 
 type CompactMeaning = [partOfSpeech: string, definitions: string[]];
 type CompactEntry = [phonetic: string, meanings: CompactMeaning[]];
@@ -85,7 +86,7 @@ const EXPLICIT_INFLECTION_BASES = new Map<string, string>([
   ["women", "woman"],
 ]);
 
-function flattenText(value: unknown): string {
+export function flattenText(value: unknown): string {
   if (!value) return "";
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value.map(flattenText).join("\n");
@@ -95,7 +96,7 @@ function flattenText(value: unknown): string {
   return String(value);
 }
 
-function extractQuotedBases(text: string): string[] {
+export function extractQuotedBases(text: string): string[] {
   const out: string[] = [];
   const re = /\b(?:of|from)\s+["'“‘]([a-z][a-z'-]{1,})["'”’]/gi;
   let match: RegExpExecArray | null;
@@ -108,7 +109,7 @@ function extractQuotedBases(text: string): string[] {
   return out;
 }
 
-function baseCandidates(word: string, text: string, keys: Set<string>): string[] {
+export function baseCandidates(word: string, text: string, keys: Set<string>): string[] {
   const out: string[] = [];
   const add = (candidate: string) => {
     const normalized = candidate.toLowerCase().trim();
@@ -151,7 +152,7 @@ function removalForInflection(
   return null;
 }
 
-function pruneDictionary(
+export function pruneDictionary(
   dictionary: DictionaryJson,
   sharedRemovals: Map<string, string> = new Map(),
 ): PruneResult {
@@ -183,7 +184,7 @@ function writeJson(fileName: string, data: DictionaryJson): void {
   writeFileSync(path.join(DICTIONARY_DIR, fileName), `${JSON.stringify(data)}\n`, "utf-8");
 }
 
-function main(): void {
+export function main(): void {
   const dryRun = process.argv.includes("--dry-run");
   const prunedByFile = new Map<string, DictionaryJson>();
   const remainingWords = new Set<string>();
@@ -231,4 +232,10 @@ function main(): void {
   writeFileSync(path.join(DICTIONARY_DIR, WORD_LIST_FILE), `${words.join("\n")}\n`, "utf-8");
 }
 
-main();
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    main();
+  }
+}
+
+runAsCli();

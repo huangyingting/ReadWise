@@ -125,7 +125,7 @@ function printConsoleReport(report: EvalReport): void {
   );
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     printHelp();
@@ -169,6 +169,10 @@ async function main(): Promise<number> {
 
 export { parseArgs };
 
-if (isMain(import.meta.url)) {
-  runScript(main, "eval failed");
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    runScript(main, "eval failed");
+  }
 }
+
+runAsCli();

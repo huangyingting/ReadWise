@@ -31,11 +31,11 @@ const OUTPUT_SCHEMAS = [
   { path: POSTGRES_SCHEMA, provider: "postgresql", label: "PostgreSQL" },
 ] as const;
 
-function renderSchema(base: string, provider: string): string {
+export function renderSchema(base: string, provider: string): string {
   return base.replace(PLACEHOLDER, provider);
 }
 
-async function generateSchemas(): Promise<void> {
+export async function generateSchemas(): Promise<void> {
   const base = await readFile(BASE_SCHEMA, "utf8");
 
   if (!base.includes(PLACEHOLDER)) {
@@ -55,7 +55,7 @@ async function generateSchemas(): Promise<void> {
   }
 }
 
-async function main() {
+export async function main() {
   await generateSchemas();
   console.log("\n✔ Schema generation complete.");
   console.log(
@@ -63,6 +63,10 @@ async function main() {
   );
 }
 
-if (isMain(import.meta.url)) {
-  runScript(main, "Fatal error");
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    runScript(main, "Fatal error");
+  }
 }
+
+runAsCli();
