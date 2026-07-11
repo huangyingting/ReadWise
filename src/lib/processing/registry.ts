@@ -15,7 +15,7 @@
  *   3. Add tests.
  */
 import type { Prisma } from "@prisma/client";
-import { DIFFICULTY_ALGORITHM_VERSION } from "@/lib/difficulty-version";
+import { DIFFICULTY_ALGORITHM_VERSION } from "@/lib/difficulty/version";
 
 /** All feature keys supported by the processing pipeline, in processing order. */
 export const FEATURE_KEYS = [

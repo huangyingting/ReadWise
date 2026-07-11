@@ -16,7 +16,7 @@ import {
 } from "@/lib/article-library";
 import { normalizeCandidates } from "@/lib/lexical/normalize";
 import { wordFrequencyBand, type WordFrequencyBand } from "@/lib/frequency-ranks";
-import { DIFFICULTY_ALGORITHM_VERSION } from "@/lib/difficulty-version";
+import { DIFFICULTY_ALGORITHM_VERSION } from "./version";
 
 /**
  * Difficulty / English level assessment for articles. Levels reuse the CEFR
@@ -33,7 +33,10 @@ export type DifficultyLevel = EnglishLevel;
 
 export const DIFFICULTY_LEVELS = ENGLISH_LEVELS;
 
-export { DIFFICULTY_ALGORITHM_VERSION, DIFFICULTY_CALIBRATION_CAVEAT } from "@/lib/difficulty-version";
+export {
+  DIFFICULTY_ALGORITHM_VERSION,
+  DIFFICULTY_CALIBRATION_CAVEAT,
+} from "./version";
 
 export type DifficultySource = "cache" | "deterministic";
 export type DifficultyConfidence = "low" | "medium" | "high";
@@ -94,7 +97,7 @@ type DifficultyPersistenceFields = {
 
 const SCORE_LEVEL_THRESHOLDS: Array<{ max: number; level: DifficultyLevel }> = [
   // v4 thresholds blend opt-in NC A1-C2 labels with OneStopEnglish ordinal
-  // article anchors; see difficulty-version.ts for license/caveat details.
+  // article anchors; see difficulty/version.ts for license/caveat details.
   { max: 9, level: "A1" },
   { max: 18, level: "A2" },
   { max: 27, level: "B1" },
