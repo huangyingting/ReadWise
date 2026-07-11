@@ -244,28 +244,31 @@ export async function runWorkerLoop(
         heartbeat?.stop();
         heartbeat = null;
 
-        if (isAbort(err) || handlerAbort.signal.aborted) {
-          if (signal?.aborted || ownershipLost) {
-            // Global stop or heartbeat loss triggered the abort.
-            if (signal?.aborted) {
-              stats.stoppedBySignal = true;
-              recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
-              break;
-            }
-            // Ownership lost via heartbeat abort — do not call fail.
-            recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
-            logger.warn("handler aborted (ownership lost)", { jobId: job.id });
-          } else {
-            // AbortError from handler itself (no global signal, no heartbeat loss).
-            // Treat as a stop signal (preserves old behavior).
+        if (ownershipLost) {
+          // Ownership lost (via heartbeat) — never call fail as stale owner.
+          if (signal?.aborted) {
             stats.stoppedBySignal = true;
             recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
             break;
           }
-        } else if (ownershipLost) {
-          // Handler threw a real error but we lost ownership — cannot call fail.
           recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
-          logger.warn("handler error after ownership loss, skipping fail", { jobId: job.id });
+          if (isAbort(err)) {
+            logger.warn("handler aborted (ownership lost)", { jobId: job.id });
+          } else {
+            logger.warn("handler error after ownership loss, skipping fail", { jobId: job.id });
+          }
+        } else if (isAbort(err) || handlerAbort.signal.aborted) {
+          if (signal?.aborted) {
+            // Global stop triggered the abort.
+            stats.stoppedBySignal = true;
+            recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
+            break;
+          }
+          // AbortError from handler itself (no global signal, no heartbeat loss).
+          // Treat as a stop signal (preserves old behavior).
+          stats.stoppedBySignal = true;
+          recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
+          break;
         } else {
           const updated = await failFn(job.id, workerId, err);
           if (updated) {
