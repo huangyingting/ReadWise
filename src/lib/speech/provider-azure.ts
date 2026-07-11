@@ -126,6 +126,11 @@ function wordTimingFromBoundary(text: string, event: AzureWordBoundaryEvent): Sp
  * Synthesizes `text` via Azure Speech, collecting word-boundary timings.
  * Resolves null on any failure so callers can degrade gracefully.
  * Includes a configurable timeout (SPEECH_TIMEOUT_MS) to prevent hangs.
+ *
+ * Resource ownership: a single `settled` flag gates all resolve/close paths.
+ * Whichever branch (success, error, timeout) wins sets `settled = true`,
+ * closes the synthesizer exactly once, and cancels any live timer. Late
+ * callbacks after settlement perform idempotent cleanup only.
  */
 export function synthesize(
   text: string,
@@ -136,8 +141,35 @@ export function synthesize(
   const synthesizeTimeoutMs = speechTimeoutMs();
   log.info("speech.synthesis_start", { articleId, textLength: text.length });
 
-  const inner = new Promise<SynthesisOutput | null>((resolve) => {
+  return new Promise<SynthesisOutput | null>((resolve) => {
+    let settled = false;
     let synthesizer: sdk.SpeechSynthesizer | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    function settle(result: SynthesisOutput | null): void {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      resolve(result);
+    }
+
+    function closeSynthesizer(): void {
+      if (synthesizer !== null) {
+        try {
+          synthesizer.close();
+        } catch (closeErr) {
+          log.warn("speech.close_failure", {
+            articleId,
+            errorType: closeErr instanceof Error ? closeErr.constructor.name : "unknown",
+          });
+        }
+        synthesizer = null;
+      }
+    }
+
     try {
       const speechConfig = sdk.SpeechConfig.fromSubscription(
         config.key,
@@ -152,18 +184,35 @@ export function synthesize(
 
       const words: SpeechWord[] = [];
       synthesizer.wordBoundary = (_s, e) => {
+        if (settled) return;
         const timing = wordTimingFromBoundary(text, e as AzureWordBoundaryEvent);
         if (timing) words.push(timing);
       };
 
+      timer = setTimeout(() => {
+        timer = null;
+        if (settled) return;
+        log.error("speech.synthesis_failure", {
+          articleId,
+          reason: "timeout",
+          timeoutMs: synthesizeTimeoutMs,
+          durationMs: Date.now() - start,
+        });
+        closeSynthesizer();
+        settle(null);
+      }, synthesizeTimeoutMs);
+
       synthesizer.speakTextAsync(
         text,
         (result) => {
+          if (settled) {
+            closeSynthesizer();
+            return;
+          }
           const ok =
             result.reason === sdk.ResultReason.SynthesizingAudioCompleted;
           const audioData = result.audioData;
-          synthesizer?.close();
-          synthesizer = null;
+          closeSynthesizer();
           if (ok && audioData && audioData.byteLength > 0) {
             words.sort((a, b) => a.startMs - b.startMs);
             log.info("speech.synthesis_success", {
@@ -172,7 +221,7 @@ export function synthesize(
               audioBytes: audioData.byteLength,
               wordCount: words.length,
             });
-            resolve({ audio: Buffer.from(audioData), provider: "azure", words });
+            settle({ audio: Buffer.from(audioData), provider: "azure", words });
           } else {
             log.warn("speech.synthesis_failure", {
               articleId,
@@ -180,45 +229,33 @@ export function synthesize(
               resultReason: result.reason,
               durationMs: Date.now() - start,
             });
-            resolve(null);
+            settle(null);
           }
         },
         (errorMessage) => {
-          synthesizer?.close();
-          synthesizer = null;
+          if (settled) {
+            closeSynthesizer();
+            return;
+          }
+          closeSynthesizer();
           log.error("speech.synthesis_failure", {
             articleId,
             reason: "error_callback",
             error: String(errorMessage),
             durationMs: Date.now() - start,
           });
-          resolve(null);
+          settle(null);
         },
       );
     } catch (err) {
-      synthesizer?.close();
+      closeSynthesizer();
       log.error("speech.synthesis_failure", {
         articleId,
         reason: "exception",
         error: String(err),
         durationMs: Date.now() - start,
       });
-      resolve(null);
+      settle(null);
     }
   });
-
-  const timeout = new Promise<SynthesisOutput | null>((resolve) => {
-    const timer = setTimeout(() => {
-      log.error("speech.synthesis_failure", {
-        articleId,
-        reason: "timeout",
-        timeoutMs: synthesizeTimeoutMs,
-        durationMs: Date.now() - start,
-      });
-      resolve(null);
-    }, synthesizeTimeoutMs);
-    inner.then(() => clearTimeout(timer)).catch(() => clearTimeout(timer));
-  });
-
-  return Promise.race([inner, timeout]);
 }
