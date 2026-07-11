@@ -856,3 +856,29 @@ test("New Yorker exhaustive discovery reaches the oldest archive with bounded co
   assert.equal(maxActive > 1, true);
   assert.equal(maxActive <= 6, true);
 });
+
+test("New Yorker extractor is resilient: invalid sitemap URLs are skipped, index-down falls back to generated, and individual sitemap fetch failures are non-fatal", async () => {
+  const provider = (await import("@/lib/scraper/providers/newyorker")).default;
+  assert.ok(provider.urlExtractor);
+
+  const goodArticle = "https://www.newyorker.com/news/the-lede/good-story";
+  const fromRss = "https://www.newyorker.com/culture/the-front-row/rss-story";
+
+  const result = await provider.urlExtractor({
+    limit: 5,
+    fetch: async (url) => {
+      // Google news sitemap: one malformed <loc> entry (exercises normalizeCandidateUrl catch,
+      // lines 40-41 of newyorker.ts) and one valid article.
+      if (url.includes("google-news")) return sitemap(["http://[::1", goodArticle]);
+      // Sitemap index throws → exercises newYorkerUrlExtractor catch (lines 179-180).
+      if (url === "https://www.newyorker.com/sitemap.xml") throw new Error("index unavailable");
+      // Generated monthly sitemaps throw → exercises fetchSitemapEntries catch (lines 124-125).
+      if (/sitemap-\d{4}-\d{2}\.xml/.test(url)) throw new Error("monthly down");
+      // RSS provides one fallback article.
+      if (url.includes("/feed/rss")) return rss([fromRss]);
+      return "";
+    },
+  });
+
+  assert.deepEqual(extractorUrls(result), [goodArticle, fromRss]);
+});
