@@ -1,5 +1,5 @@
 {
-  "maxFileDebt": 26,
+  "maxFileDebt": 18,
   "maxRouteDebt": 18,
   "fileDebt": [
     {
@@ -80,13 +80,6 @@
       "deadline": "2026-09-30"
     },
     {
-      "file": "src/lib/admin/overview.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Admin overview service not imported by any test; needs unit tests for statusBadgeVariant and queries",
-      "deadline": "2026-09-30"
-    },
-    {
       "file": "src/lib/analytics/admin.ts",
       "issue": "#983",
       "owner": "Switch",
@@ -101,38 +94,10 @@
       "deadline": "2026-09-30"
     },
     {
-      "file": "src/lib/bookmarkChanges.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Bookmark change notifications not imported by test suite; needs coverage",
-      "deadline": "2026-09-30"
-    },
-    {
-      "file": "src/lib/learning/placement-passage.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Placement passage selection not imported by test suite; needs coverage",
-      "deadline": "2026-09-30"
-    },
-    {
       "file": "src/lib/observability/tracing-node.ts",
       "issue": "#983",
       "owner": "Switch",
       "reason": "Node tracing instrumentation not imported by test suite; needs coverage",
-      "deadline": "2026-09-30"
-    },
-    {
-      "file": "src/lib/progress-helpers.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Progress computation helpers not imported by test suite; needs unit tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "file": "src/lib/reader-referrer.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Reader referrer extraction not imported by test suite; needs coverage",
       "deadline": "2026-09-30"
     },
     {
@@ -157,31 +122,10 @@
       "deadline": "2026-09-30"
     },
     {
-      "file": "src/lib/search/semantic.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Semantic search provider not imported by test suite; needs coverage",
-      "deadline": "2026-09-30"
-    },
-    {
       "file": "src/lib/testing/e2e-fixtures.ts",
       "issue": "#983",
       "owner": "Switch",
       "reason": "E2E test fixture helpers not imported by unit test suite; intentionally E2E-only",
-      "deadline": "2026-09-30"
-    },
-    {
-      "file": "src/lib/translate-lang.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Translation language mapping not imported by test suite; needs coverage",
-      "deadline": "2026-09-30"
-    },
-    {
-      "file": "src/lib/visited.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Visited article tracking not imported by test suite; needs coverage",
       "deadline": "2026-09-30"
     }
   ],
