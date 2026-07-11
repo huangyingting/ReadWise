@@ -12,7 +12,7 @@ type SpeechTimingLike = {
   word: string;
 };
 
-type Args = {
+export type Args = {
   ids: string[];
   batchSize: number;
   progressRows: number;
@@ -100,7 +100,7 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
-function parseArgs(argv: string[]): Args {
+export function parseArgs(argv: string[]): Args {
   const args: Args = {
     ids: [],
     batchSize: DEFAULT_BATCH_SIZE,
@@ -175,7 +175,7 @@ Options:
   --help              Show this help`);
 }
 
-function timingWordsFromJson(value: unknown): SpeechTimingLike[] {
+export function timingWordsFromJson(value: unknown): SpeechTimingLike[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((entry) => {
@@ -186,7 +186,7 @@ function timingWordsFromJson(value: unknown): SpeechTimingLike[] {
     .filter((entry): entry is SpeechTimingLike => Boolean(entry));
 }
 
-function coverage(tokens: ComparableToken[], words: SpeechTimingLike[]): CoverageResult {
+export function coverage(tokens: ComparableToken[], words: SpeechTimingLike[]): CoverageResult {
   const { alignment, spanLengths } = buildTokenAlignment(tokens, words);
   const covered = new Uint8Array(tokens.length);
   let aligned = 0;
@@ -209,7 +209,7 @@ function coverage(tokens: ComparableToken[], words: SpeechTimingLike[]): Coverag
   return { covered: coveredCount, aligned };
 }
 
-function coverageBucket(value: number): CoverageBucket {
+export function coverageBucket(value: number): CoverageBucket {
   if (value === 1) return "full";
   if (value >= 0.99) return "gte99";
   if (value >= 0.95) return "gte95";
@@ -244,7 +244,7 @@ function compareWorstCoverage(
   return a.coverage - b.coverage || b.uncovered - a.uncovered;
 }
 
-function buildArticleStats(row: ArticleSpeechAlignmentRow): ArticleAlignmentStats {
+export function buildArticleStats(row: ArticleSpeechAlignmentRow): ArticleAlignmentStats {
   const tokens = extractSpeechBoundaryTokens(articleHtmlToReaderText(row.content));
   const words = timingWordsFromJson(row.speech?.words);
   const result = coverage(tokens, words);
@@ -275,7 +275,7 @@ function pushWorst(
   if (worst.length > limit) worst.pop();
 }
 
-async function analyzeIds(ids: string[]): Promise<ArticleAlignmentStats[]> {
+export async function analyzeIds(ids: string[]): Promise<ArticleAlignmentStats[]> {
   const rows: ArticleSpeechAlignmentRow[] = await prisma.article.findMany({
     where: { id: { in: ids } },
     select: ARTICLE_ALIGNMENT_SELECT,
@@ -327,7 +327,7 @@ async function deleteSelectedArticleSpeech(
   })).count;
 }
 
-async function analyzeAll(args: Args): Promise<AnalyzeAllResult> {
+export async function analyzeAll(args: Args): Promise<AnalyzeAllResult> {
   const buckets = emptyCoverageBuckets();
   const worst: ArticleAlignmentStats[] = [];
   const deletionCandidates: ArticleAlignmentStats[] = [];
@@ -423,7 +423,7 @@ async function analyzeAll(args: Args): Promise<AnalyzeAllResult> {
   };
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
 
   if (args.help) {
@@ -448,6 +448,10 @@ async function main(): Promise<number> {
   }
 }
 
-if (isMain(import.meta.url)) {
-  runCli(main);
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    runCli(main);
+  }
 }
+
+runAsCli();
