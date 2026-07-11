@@ -1,5 +1,5 @@
 import type { Session } from "next-auth";
-import { ApiError } from "@/lib/api-handler";
+import { ApiError } from "@/lib/errors/api-error";
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus, Prisma } from "@prisma/client";
 import { sanitizeArticleHtml } from "@/lib/content-pipeline";

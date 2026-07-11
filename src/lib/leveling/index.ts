@@ -9,6 +9,9 @@
  *
  * DB-backed readers ({@link getLevelEvidence}, {@link getAdaptiveLevelRecommendation})
  * live in this file so the pure engine remains Prisma-free.
+ *
+ * Contract note: this module owns shared CEFR level/rank primitives consumed by
+ * difficulty and recommendations.
  */
 
 import { prisma } from "@/lib/prisma";

@@ -10,6 +10,8 @@ import { test, beforeEach, afterEach, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import {
   isFeatureEnabled,
+  defineFeatureGate,
+  enforceFeatureGate,
   isAiFeatureEnabled,
   isTtsFeatureEnabled,
   isPushFeatureEnabled,
@@ -141,6 +143,24 @@ test("convenience helpers match isFeatureEnabled", () => {
   assert.equal(isPushFeatureEnabled(), false);
   assert.equal(isScraperFeatureEnabled(), false);
   assert.equal(isTodaySessionFeatureEnabled(), false);
+});
+
+test("enforceFeatureGate runs the disabled branch only when the feature is off", () => {
+  let disabledCalls = 0;
+  const gate = defineFeatureGate<null, string>({
+    feature: "todaySession",
+    whenDisabled: () => {
+      disabledCalls += 1;
+      return "disabled";
+    },
+  });
+
+  assert.equal(enforceFeatureGate(gate, null), undefined);
+  assert.equal(disabledCalls, 0);
+
+  process.env.FEATURE_TODAY_SESSION_ENABLED = "false";
+  assert.equal(enforceFeatureGate(gate, null), "disabled");
+  assert.equal(disabledCalls, 1);
 });
 
 // ---------------------------------------------------------------------------

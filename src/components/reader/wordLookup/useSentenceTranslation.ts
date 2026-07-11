@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
-import type { TranslateSentenceResult } from "@/components/SentenceTranslatePopover";
+import type { TranslateSentenceResult } from "./sentenceTranslationTypes";
 
 const DEFAULT_TRANSLATE_LANG = "zh-Hans";
 const TRANSLATE_ERROR_MESSAGE = "Couldn't translate that. Try again.";

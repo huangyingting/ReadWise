@@ -11,15 +11,27 @@ import { ArticleStatus, type Article, type Prisma } from "@prisma/client";
 import { readingMinutesFor } from "./mapper";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 import {
-  getArticleProcessingSteps,
-  type StepRow,
-} from "@/lib/processing/state";
-import {
   SYSTEM_ARTICLE_CONTEXT,
   adminVisibleArticleWhere,
   getAdminVisibleArticleById,
   type ArticleAccessContext,
 } from "./policy";
+
+type ProcessingStepRow = {
+  id: string;
+  articleId: string;
+  step: string;
+  status: string;
+  attempts: number;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  modelName: string | null;
+  promptVersion: string | null;
+  fallbackReason: string | null;
+  lastError: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 /** Page size for the admin article listing. */
 export const ADMIN_ARTICLES_PAGE_SIZE = 20;
@@ -195,8 +207,19 @@ export type AdminArticleDetail = {
   article: Article;
   counts: AdminArticleAiCounts;
   difficultyFeedback: DifficultyFeedbackCounts;
-  processingSteps: StepRow[];
+  processingSteps: ProcessingStepRow[];
 };
+
+async function listArticleProcessingSteps(articleId: string): Promise<ProcessingStepRow[]> {
+  try {
+    return (await prisma.articleProcessingStep.findMany({
+      where: { articleId },
+      orderBy: { step: "asc" },
+    })) as ProcessingStepRow[];
+  } catch {
+    return [];
+  }
+}
 
 function buildDifficultyFeedbackCounts(
   feedbackRows: Array<{ vote: string }>,
@@ -252,7 +275,7 @@ export async function getAdminArticleDetail(
       where: { articleId: id },
       select: { vote: true },
     }),
-    getArticleProcessingSteps(id),
+    listArticleProcessingSteps(id),
   ]);
 
   return {

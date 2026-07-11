@@ -24,7 +24,7 @@ import {
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { validateListName } from "@/lib/list-name-validation";
-import { useReadingListMutations, type CreatedList } from "@/hooks/useReadingListMutations";
+import { useReadingListMutations, type CreatedList } from "./useReadingListMutations";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 

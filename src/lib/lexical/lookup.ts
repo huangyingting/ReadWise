@@ -10,7 +10,7 @@
 import { createLogger } from "@/lib/observability/logger";
 import { normalizeCandidates } from "@/lib/lexical/normalize";
 import {
-  defaultProvider,
+  getDefaultDictionaryProvider,
   type DictionaryProvider,
   type DictionaryResult,
 } from "@/lib/lexical/provider";
@@ -31,14 +31,15 @@ function notFoundResult(word: string): DictionaryResult {
  * matches or the dictionary provider is unreachable.
  *
  * An optional `provider` can be supplied for testing or alternative backends;
- * defaults to the Free Dictionary API provider.
+ * otherwise the runtime-configured default provider is resolved lazily.
  */
 export async function lookupWord(
   raw: string,
-  provider: DictionaryProvider = defaultProvider,
+  provider?: DictionaryProvider,
 ): Promise<DictionaryResult> {
   const display = raw.trim();
   const candidates = normalizeCandidates(raw);
+  const resolvedProvider = provider ?? getDefaultDictionaryProvider();
   const start = Date.now();
 
   log.info("lexical.lookup_start", { candidateCount: candidates.length });
@@ -53,7 +54,7 @@ export async function lookupWord(
   }
 
   for (const candidate of candidates) {
-    const entry = await provider.fetchEntry(candidate);
+    const entry = await resolvedProvider.fetchEntry(candidate);
     if (entry) {
       log.info("lexical.lookup_outcome", {
         found: true,

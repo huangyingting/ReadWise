@@ -1,4 +1,4 @@
-import { ApiError } from "@/lib/api-handler";
+import { ApiError } from "@/lib/errors/api-error";
 import { prisma } from "@/lib/prisma";
 import { ownedArticleWhere } from "@/lib/article-library/policy";
 

@@ -129,7 +129,12 @@ export async function sendDueReminders(): Promise<ReminderResult> {
     if (delivered > 0) result.sent++;
   }
 
-  log.info("sendDueReminders complete", result as unknown as Record<string, unknown>);
+  log.info("sendDueReminders complete", {
+    usersWithDue: result.usersWithDue,
+    sent: result.sent,
+    skipped: result.skipped,
+    suppressed: result.suppressed,
+  });
   return result;
 }
 

@@ -2,7 +2,9 @@
  * Recommendations subsystem — public barrel.
  *
  * Exposes the stable surface of the recommendations engine. Internal modules
- * (`diversity.ts`, `explanations.ts`) remain private to the subsystem.
+ * (`diversity.ts`, `explanations.ts`) remain private to the subsystem. This is
+ * a domain service boundary (not a leaf utility): app routes and engagement
+ * orchestration consume the picks API.
  *
  * Sub-module layout:
  *   types.ts        — domain types and weights (RecommendationCandidate, ScoredRecommendation, …)

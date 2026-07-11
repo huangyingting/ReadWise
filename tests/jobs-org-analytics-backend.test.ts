@@ -216,6 +216,11 @@ before(() => {
       getClassroomProgressData: async () => classroomProgressData,
     },
   });
+  mock.module("@/lib/classroom/progress", {
+    namedExports: {
+      getClassroomProgressData: async () => classroomProgressData,
+    },
+  });
   mock.module("@/lib/org", {
     namedExports: {
       isSystemAdmin: (role: string | null | undefined) => role === "Admin" || role === "System",
@@ -438,6 +443,89 @@ test("enqueue helpers and lifecycle edge branches cover dedupe races and admin a
   jobById = makeJob({ id: "job-archive", status: JobStatus.COMPLETED });
   assert.equal((await lifecycle.archiveJob("job-archive"))?.id, "job-archive");
   assert.deepEqual(jobDeletes.at(-1), { where: { id: "job-archive" } });
+});
+
+test("enqueue payload guards and failJob history normalization keep JSON boundaries strict", async () => {
+  const enqueue = await import("@/lib/jobs/enqueue");
+  const lifecycle = await import("@/lib/jobs/lifecycle");
+  const now = new Date("2026-01-02T00:00:00.000Z");
+
+  await enqueue.enqueueJob(JobType.ARTICLE_PROCESS, {
+    articleId: "json-1",
+    nested: { retry: 1, flags: ["fast", "safe"] },
+    nullable: null,
+  });
+  assert.deepEqual(jobCreateArgs.at(-1)?.data.errorHistory, []);
+  assert.deepEqual(jobCreateArgs.at(-1)?.data.payload, {
+    articleId: "json-1",
+    nested: { retry: 1, flags: ["fast", "safe"] },
+    nullable: null,
+  });
+
+  const scheduledAt = new Date("2026-01-03T12:00:00.000Z");
+  await enqueue.enqueueJob(JobType.ARTICLE_PROCESS, {
+    articleId: "json-2",
+    scheduledAt,
+  });
+  assert.equal((jobCreateArgs.at(-1)?.data.payload as { scheduledAt?: Date }).scheduledAt, scheduledAt);
+
+  await assert.rejects(
+    () =>
+      enqueue.enqueueJob(JobType.ARTICLE_PROCESS, {
+        articleId: "json-3",
+        invalid: () => "not-json",
+      } as unknown as Record<string, unknown>),
+    /not JSON-serializable/,
+  );
+
+  jobById = makeJob({
+    id: "job-history-mixed",
+    attempts: 1,
+    maxAttempts: 5,
+    errorHistory: [
+      {
+        at: "2026-01-01T00:00:00.000Z",
+        attempt: 1,
+        kind: "provider",
+        message: "old provider error",
+      },
+      { at: 123, attempt: 0, kind: "provider", message: "invalid" },
+      { at: "2026-01-01T01:00:00.000Z", attempt: 2, kind: "invalid-kind", message: "invalid" },
+      "invalid-row",
+    ],
+  });
+
+  await lifecycle.failJob("job-history-mixed", new Error("new provider error"), { now });
+  assert.deepEqual(jobUpdates.at(-1)?.data.errorHistory, [
+    {
+      at: "2026-01-01T00:00:00.000Z",
+      attempt: 1,
+      kind: "provider",
+      message: "old provider error",
+    },
+    {
+      at: now.toISOString(),
+      attempt: 2,
+      kind: "provider",
+      message: "new provider error",
+    },
+  ]);
+
+  jobById = makeJob({
+    id: "job-history-object",
+    attempts: 0,
+    maxAttempts: 5,
+    errorHistory: { old: "shape" },
+  });
+  await lifecycle.failJob("job-history-object", new Error("transient"), { now });
+  assert.deepEqual(jobUpdates.at(-1)?.data.errorHistory, [
+    {
+      at: now.toISOString(),
+      attempt: 1,
+      kind: "provider",
+      message: "transient",
+    },
+  ]);
 });
 
 test("organization queries, slug generation, profiles, and guards use scoped lookups", async () => {

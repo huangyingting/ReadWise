@@ -181,7 +181,7 @@ before(() => {
       },
     },
   });
-  mock.module("@/lib/vocabulary", {
+  mock.module("@/lib/vocabulary/service", {
     namedExports: {
       getOrCreateArticleVocabulary: async () => {
         if (helperFailure === "vocabulary") throw new Error("vocabulary failed");

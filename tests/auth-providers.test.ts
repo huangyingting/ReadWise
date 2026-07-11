@@ -6,8 +6,8 @@
  * Under Node native ESM (the `node --experimental-strip-types` harness used for CLI
  * scripts), CJS default imports like `next-auth/providers/google` resolve to a namespace
  * object `{ default: fn }` rather than the function directly. The fix in
- * `src/lib/auth-providers.ts` applies an interop pattern so both runtimes get the
- * callable function.
+ * `src/lib/auth/providers.ts` applies an interop pattern so both runtimes get
+ * the callable function.
  *
  * Also verifies that `getConfiguredProviders()` returns correct metadata for
  * the sign-in UI, and that `src/lib/auth` still exports `authOptions` with
@@ -57,7 +57,7 @@ async function withAzureAdOnly<T>(callback: () => Promise<T>): Promise<T> {
 }
 
 before(() => {
-  // Stub the Prisma singleton — auth.ts and auth-bootstrap.ts import it at module level.
+  // Stub the Prisma singleton used by auth config/bootstrap at module level.
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
@@ -66,7 +66,7 @@ before(() => {
     },
   });
 
-  // Stub PrismaAdapter — auth.ts calls PrismaAdapter(prisma) at module level.
+  // Stub PrismaAdapter — auth config calls PrismaAdapter(prisma) at module level.
   mock.module("@auth/prisma-adapter", {
     namedExports: {
       PrismaAdapter: () => ({}),
@@ -76,7 +76,7 @@ before(() => {
 
 test("buildProviders returns non-empty array when Google credentials are set", async () => {
   await withGoogleOnly(async () => {
-    const { buildProviders } = await import("@/lib/auth-providers");
+    const { buildProviders } = await import("@/lib/auth/providers");
     const providers = buildProviders();
 
     assert.ok(Array.isArray(providers), "providers must be an array");
@@ -89,7 +89,7 @@ test("buildProviders returns non-empty array when Google credentials are set", a
 
 test("buildProviders includes Azure AD when Azure credentials are set", async () => {
   await withAzureAdOnly(async () => {
-    const { buildProviders } = await import("@/lib/auth-providers");
+    const { buildProviders } = await import("@/lib/auth/providers");
     const providers = buildProviders();
 
     assert.ok(Array.isArray(providers), "providers must be an array");
@@ -101,7 +101,7 @@ test("buildProviders includes Azure AD when Azure credentials are set", async ()
 test("buildProviders returns empty array when no credentials are set", async () => {
   clearProviderEnv();
 
-  const { buildProviders } = await import("@/lib/auth-providers");
+  const { buildProviders } = await import("@/lib/auth/providers");
   const providers = buildProviders();
 
   assert.ok(Array.isArray(providers), "providers must be an array");
@@ -110,7 +110,7 @@ test("buildProviders returns empty array when no credentials are set", async () 
 
 test("getConfiguredProviders returns metadata for configured providers", async () => {
   await withGoogleOnly(async () => {
-    const { getConfiguredProviders } = await import("@/lib/auth-providers");
+    const { getConfiguredProviders } = await import("@/lib/auth/providers");
     const meta = getConfiguredProviders();
 
     assert.ok(Array.isArray(meta));
@@ -122,7 +122,7 @@ test("getConfiguredProviders returns metadata for configured providers", async (
 
 test("authOptions.providers is non-empty when Google credentials are set", async () => {
   await withGoogleOnly(async () => {
-    const { authOptions } = await import("@/lib/auth");
+    const { authOptions } = await import("@/lib/auth/index");
 
     assert.ok(Array.isArray(authOptions.providers), "providers must be an array");
     assert.ok(
@@ -130,4 +130,18 @@ test("authOptions.providers is non-empty when Google credentials are set", async
       `Expected at least 1 provider but got ${authOptions.providers.length} — GoogleProvider was likely not called as a function`,
     );
   });
+});
+
+test("legacy auth/auth-providers exports map to canonical modules", async () => {
+  const compatProviders = await import("@/lib/auth-providers");
+  const canonicalProviders = await import("@/lib/auth/providers");
+  const compatAuth = await import("@/lib/auth");
+  const canonicalAuth = await import("@/lib/auth/index");
+
+  assert.equal(compatProviders.buildProviders, canonicalProviders.buildProviders);
+  assert.equal(
+    compatProviders.getConfiguredProviders,
+    canonicalProviders.getConfiguredProviders,
+  );
+  assert.equal(compatAuth.authOptions, canonicalAuth.authOptions);
 });

@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { ArticleStatus, JobStatus, JobType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { DIFFICULTY_ALGORITHM_VERSION } from "@/lib/difficulty/version";
 
 import { enabled, isPostgres } from "./support/db-config";
 import { id, registerIntegrationCleanup } from "./support/db-helpers";
@@ -69,6 +70,8 @@ test("worker/processor selection uses article state for the derived queue", { sk
         createdAt: new Date(now.getTime() - 15_000),
         difficulty: "B1",
         difficultyScore: 42,
+        lexileApprox: 840,
+        difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
       },
     ],
   });

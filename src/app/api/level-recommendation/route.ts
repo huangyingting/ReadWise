@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
-import { checkRateLimit } from "@/lib/security/rate-limit/index";
+import {
+  enforceRateLimitPolicy,
+  sessionUserRateLimitPolicy,
+} from "@/lib/security/rate-limit/index";
+
+const LEVEL_RECOMMENDATION_RATE_LIMIT = sessionUserRateLimitPolicy("lookup");
 
 type LevelRecommendation = NonNullable<
   Awaited<ReturnType<typeof getAdaptiveLevelRecommendation>>
 >;
 
 async function getRecommendationOrThrow(userId: string): Promise<LevelRecommendation> {
-  await checkRateLimit(userId, "lookup");
-
   const recommendation = await getAdaptiveLevelRecommendation(userId);
   if (!recommendation) {
     throw new ApiError(404, "Profile not found");
@@ -53,6 +56,7 @@ function toLevelRecommendationPayload(recommendation: LevelRecommendation) {
  * Errors: 401 unauthenticated, 404 profile not found.
  */
 export const GET = createHandler({}, async ({ session }) => {
+  await enforceRateLimitPolicy(LEVEL_RECOMMENDATION_RATE_LIMIT, { session });
   const recommendation = await getRecommendationOrThrow(session.user.id);
   return NextResponse.json(toLevelRecommendationPayload(recommendation));
 });

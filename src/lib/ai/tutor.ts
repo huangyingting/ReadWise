@@ -12,15 +12,15 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { chatComplete, isAiConfigured } from "@/lib/ai";
+import { chatComplete, isAiConfigured } from "./facade";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
-import { moderateText, MODERATION_FALLBACK_MESSAGE } from "@/lib/ai/output/moderation";
-import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
+import { moderateText, MODERATION_FALLBACK_MESSAGE } from "./output/moderation";
+import { renderPrompt, promptModelParams, activePromptVersion } from "./prompts";
 import { getProfile } from "@/lib/profile";
 import { buildTutorContext } from "@/lib/learning/coach-memory";
 import { bestEffortMastery } from "@/lib/learning/primitives";
-import { recordAiFallback } from "@/lib/ai/ledger";
-import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
+import { recordAiFallback } from "./ledger";
+import type { AiFallbackReason } from "./fallback-reasons";
 import {
   getAiProcessableArticleById,
   isArticleOperator,

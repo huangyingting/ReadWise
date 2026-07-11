@@ -5,7 +5,11 @@
  * For API route handlers only. See ADR-0010.
  */
 import type { Capability } from "@/lib/rbac";
-import { loadSession, sessionHasCapability, type AuthResult } from "@/lib/auth-core";
+import {
+  loadSession,
+  sessionHasCapability,
+  type AuthResult,
+} from "@/lib/auth/session-core";
 import { NextResponse } from "next/server";
 
 export type { AuthResult };

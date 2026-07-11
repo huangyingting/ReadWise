@@ -2,18 +2,21 @@
  * Lexical subsystem — public barrel (REF-048).
  *
  * Packages dictionary provider, word normalization, and saved words into a
- * single cohesive namespace.  Cloze review helpers are owned by the learning
- * subsystem (REF-028) and re-exported here for convenience.
+ * single cohesive namespace. Learning cloze helpers stay owned by
+ * `@/lib/learning/cloze` (no cross-domain re-export).
  *
  * Module layout:
  *   normalize   — CONTRACTIONS, morphCandidates, normalizeCandidates, lemmaFor
- *   provider    — DictionaryProvider interface, FreeDictionaryProvider, types
+ *   provider    — DictionaryProvider interface + dictionary result contracts
  *   lookup      — lookupWord (provider-backed dictionary service)
  *   saved-words — getSavedWordSet, getSavedWords, saveWord, unsaveWord, …
- *   (cloze)     — re-exported from @/lib/learning/cloze (single source of truth)
  *
- * Import individual sub-modules for tree-shaking in client bundles.
- * Import this barrel for server-side code that needs multiple sub-modules.
+ * Structural relationship:
+ *   `@/lib/vocabulary/service` (AI extraction service) depends on lexical saved-word
+ *   APIs for "saved/not saved" joins; lexical does not depend on vocabulary.
+ *
+ * Import individual sub-modules for feature-specific behavior.
+ * Import this barrel for lexical contracts + high-level lookup/saved-word APIs.
  */
 
 export {
@@ -28,16 +31,7 @@ export type {
   DictionaryDefinition,
   DictionaryMeaning,
   DictionaryResult,
-  DictionaryEntry,
   DictionaryProvider,
-} from "@/lib/lexical/provider";
-
-export {
-  FallbackDictionaryProvider,
-  FreeDictionaryProvider,
-  LocalDictionaryProvider,
-  createDefaultDictionaryProvider,
-  defaultProvider,
 } from "@/lib/lexical/provider";
 
 export { lookupWord } from "@/lib/lexical/lookup";
@@ -55,7 +49,3 @@ export {
   saveWord,
   unsaveWord,
 } from "@/lib/lexical/saved-words";
-
-export type { ClozeCard, ClozeResult } from "@/lib/learning/cloze";
-
-export { buildCloze, gradeCloze } from "@/lib/learning/cloze";

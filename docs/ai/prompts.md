@@ -83,14 +83,14 @@ label, so cached derived content and existing tests stay valid.
 | Feature | Active version | `maxOutputTokens` | Helper |
 | --- | --- | --- | --- |
 | `translation` | `translation/v1` | provider default | `src/lib/translation.ts` |
-| `vocabulary` | `vocabulary/v1` | provider default | `src/lib/vocabulary.ts` |
+| `vocabulary` | `vocabulary/v1` | provider default | `src/lib/vocabulary/service.ts` |
 | `quiz` | `quiz/v1` | provider default | `src/lib/quiz.ts` |
 | `tags` | `tags/v1` | provider default | `src/lib/article-library/collections/index.ts` |
 | `grammar` | `grammar/v1` | 256 | `src/lib/grammar.ts` |
 | `tutor` | `tutor/v1` | 2048 | `src/lib/tutor.ts` |
 | `sentence-translation` | `sentence-translation/v1` | 256 | `src/lib/sentence-translation.ts` |
 
-Article difficulty (`src/lib/difficulty.ts`) is deterministic and is not an AI
+Article difficulty (`src/lib/difficulty/index.ts`) is deterministic and is not an AI
 prompt feature.
 
 ---

@@ -12,10 +12,10 @@ import {
   type ConfigCheckReport,
   type ConfigIssue,
   type RuntimeConfigReport,
-} from "@/lib/runtime-config/env";
-import { isValidVapidSubject } from "@/lib/runtime-config/push";
-import { prismaSchemaMismatchIssue } from "@/lib/runtime-config/database";
-import { azureStorageConfig } from "@/lib/runtime-config/storage";
+} from "./env";
+import { isValidVapidSubject } from "./push";
+import { prismaSchemaMismatchIssue } from "./database";
+import { azureStorageConfig } from "./storage";
 
 const SUPPORTED_SPEECH_OUTPUT_FORMATS = new Set([
   "audio-16khz-32kbitrate-mono-mp3",

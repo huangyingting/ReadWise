@@ -16,6 +16,7 @@ import type { Session } from "next-auth";
 // `@/lib/api-auth`'s exports don't fail ESM named-binding resolution. The
 // capability path is only invoked for capability-gated routes.
 import * as apiAuth from "@/lib/api-auth";
+import { ApiError } from "@/lib/errors/api-error";
 import { CAPABILITIES, type Capability } from "@/lib/rbac";
 import type { Schema } from "@/lib/validation";
 import {
@@ -37,14 +38,7 @@ const UUID_V4_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** Throw from a handler to return a controlled, client-safe error response. */
-export class ApiError extends Error {
-  readonly status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-  }
-}
+export { ApiError };
 
 /** Request-scoped logger handed to every handler (see {@link createLogger}). */
 export type RequestLogger = StructuredLogger;

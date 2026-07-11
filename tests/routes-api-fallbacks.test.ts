@@ -285,6 +285,20 @@ before(() => {
         if (rateLimitThrows) throw new Error("limited");
       },
       clientIpKey: () => "ip:test",
+      sessionUserRateLimitPolicy: (_scope: string) => ({}),
+      clientIpRateLimitPolicy: (
+        _scope: string,
+        options?: { onExceeded?: (ctx: unknown, error: MockApiError) => unknown },
+      ) => ({ onExceeded: options?.onExceeded }),
+      enforceRateLimitPolicy: async (policy: {
+        onExceeded?: (ctx: unknown, error: MockApiError) => unknown;
+      }) => {
+        if (!rateLimitThrows) return undefined;
+        if (policy.onExceeded) {
+          return policy.onExceeded({ req }, new MockApiError(429, "limited"));
+        }
+        throw new MockApiError(429, "limited");
+      },
     },
   });
   mock.module("@/lib/engagement/today-session/comprehension", {
@@ -298,6 +312,17 @@ before(() => {
   mock.module("@/lib/runtime-config/feature-flags", {
     namedExports: {
       isTodaySessionFeatureEnabled: () => todayFeatureEnabled,
+      isFeatureEnabled: (feature: string) =>
+        feature === "todaySession" ? todayFeatureEnabled : true,
+      defineFeatureGate: <C, D>(gate: { feature: string; whenDisabled: (ctx: C) => D }) => gate,
+      enforceFeatureGate: <C, D>(
+        gate: { feature: string; whenDisabled: (ctx: C) => D },
+        ctx: C,
+      ): D | undefined => {
+        const enabled = gate.feature === "todaySession" ? todayFeatureEnabled : true;
+        if (!enabled) return gate.whenDisabled(ctx);
+        return undefined;
+      },
     },
   });
   mock.module("@/lib/engagement/today-session", {

@@ -4,7 +4,7 @@
  * provider stack or require secrets.
  */
 
-import { activePromptVersion } from "@/lib/ai/prompts";
+import { activePromptVersion } from "../prompts";
 import type {
   EvalDataset,
   EvalCaseResult,
@@ -13,13 +13,13 @@ import type {
   EvalPropertyResult,
   EvalModelCaller,
   RunOptions,
-} from "@/lib/ai/evals/types";
-import { EVALUATORS } from "@/lib/ai/evals/registry";
+} from "./types";
+import { EVALUATORS } from "./registry";
 
 /** Default LIVE model caller — messages are sent through the real chat client. */
 const defaultCallModel: EvalModelCaller = async (messages, feature) => {
   // Imported lazily so OFFLINE runs (and CI) never pull the provider stack.
-  const { chatComplete } = await import("@/lib/ai");
+  const { chatComplete } = await import("../facade");
   return chatComplete(messages, {
     feature,
     promptVersion: activePromptVersion(feature),

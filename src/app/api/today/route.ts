@@ -3,7 +3,10 @@ import { createHandler } from "@/lib/api-handler";
 import type { ValidationResult } from "@/lib/validation";
 import { queryString } from "@/lib/validation";
 import { loadTodayViewModel } from "@/lib/engagement/today-session";
-import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+import {
+  defineFeatureGate,
+  enforceFeatureGate,
+} from "@/lib/runtime-config/feature-flags";
 
 /**
  * GET /api/today
@@ -22,6 +25,10 @@ import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags
 type TodayQuery = { timezone: string };
 
 const MAX_TIMEZONE_LENGTH = 100;
+const TODAY_ROUTE_FEATURE_GATE = defineFeatureGate<null, Response>({
+  feature: "todaySession",
+  whenDisabled: () => NextResponse.json({ error: "Not found" }, { status: 404 }),
+});
 
 function parseTodayQuery(params: URLSearchParams): ValidationResult<TodayQuery> {
   const timezone = queryString(params, "timezone");
@@ -38,9 +45,8 @@ function toRequestTimezone(timezone: string): string | null {
 export const GET = createHandler(
   { query: parseTodayQuery },
   async ({ query, session }) => {
-    if (!isTodaySessionFeatureEnabled()) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const disabledResponse = enforceFeatureGate(TODAY_ROUTE_FEATURE_GATE, null);
+    if (disabledResponse) return disabledResponse;
 
     const view = await loadTodayViewModel({
       user: { id: session.user.id, role: session.user.role },

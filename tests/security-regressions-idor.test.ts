@@ -6,7 +6,7 @@
  * information-disclosure via private foreign article IDs.
  *
  * Mocks: @/lib/api-auth, @/lib/article-library, @/lib/security/rate-limit/index,
- *        @/lib/translation, @/lib/vocabulary, @/lib/quiz, @/lib/speech, @/lib/grammar,
+ *        @/lib/translation, @/lib/vocabulary/service, @/lib/quiz, @/lib/speech, @/lib/grammar,
  *        @/lib/ai/tutor, @/lib/pronunciation, @/lib/prisma.
  */
 process.env.LOG_LEVEL = "error";
@@ -101,6 +101,10 @@ before(() => {
       checkRateLimitByKey: (key: string, scope: string) => {
         rateLimitCalls.push({ userId: key, scope });
       },
+      sessionUserRateLimitPolicy: (scope: string) => ({ scope, resolveKey: ({ session }: { session: { user: { id: string } } }) => session.user.id }),
+      enforceRateLimitPolicy: async (policy: { resolveKey: (ctx: { session: { user: { id: string } } }) => string; scope: string }, ctx: { session: { user: { id: string } } }) => {
+        rateLimitCalls.push({ userId: policy.resolveKey(ctx), scope: policy.scope });
+      },
       clientIpKey: () => "ip:test",
     },
   });
@@ -116,7 +120,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/vocabulary", {
+  mock.module("@/lib/vocabulary/service", {
     namedExports: {
       getOrCreateArticleVocabulary: async () => {
         helperCalls.push("vocabulary");

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/cn";
+import { cn, focusRing } from "@/lib/cn";
 
 const baseInputClasses = cn(
   "w-full bg-surface text-text rounded-[var(--radius-md)] border",
@@ -29,7 +29,7 @@ const inputVariants = cva(
         false: cn(
           "border-border-strong hover:border-text-subtle",
           "focus-visible:border-primary",
-          "focus-visible:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--focus-ring)]",
+          focusRing,
         ),
       },
     },

@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { isSpeechConfigured } from "@/lib/speech";
 import { speechConfig } from "@/lib/runtime-config/speech";
-import { checkRateLimit } from "@/lib/security/rate-limit/index";
+import {
+  enforceRateLimitPolicy,
+  sessionUserRateLimitPolicy,
+} from "@/lib/security/rate-limit/index";
 import { providerFetch } from "@/lib/http/provider-client";
 
 // Azure Speech SDK has Node-only native bindings.
@@ -12,6 +15,8 @@ const SPEECH_SERVICE_UNAVAILABLE = {
   configured: true,
   error: "Speech service unavailable",
 } as const;
+
+const SPEECH_TOKEN_RATE_LIMIT = sessionUserRateLimitPolicy("lookup");
 
 function unconfiguredResponse() {
   return NextResponse.json({ configured: false });
@@ -49,7 +54,7 @@ async function issueSpeechToken(key: string, region: string): Promise<Response> 
  * are absent so the client can hide the pronunciation feature rather than 500.
  */
 export const GET = createHandler({}, async ({ session }) => {
-  await checkRateLimit(session.user.id, "lookup");
+  await enforceRateLimitPolicy(SPEECH_TOKEN_RATE_LIMIT, { session });
   if (!isSpeechConfigured()) {
     return unconfiguredResponse();
   }

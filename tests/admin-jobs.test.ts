@@ -3,7 +3,7 @@
  *
  * Covers the read-side listing (filter → Prisma `where` mapping, pagination) and
  * the admin action guards in `runJobAction` (which transitions are allowed for a
- * given job status). `@/lib/prisma` and `@/lib/jobs` are mocked — no DB.
+ * given job status). `@/lib/prisma` is mocked — no DB.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -38,35 +38,27 @@ before(() => {
       prisma: {
         job: {
           count: async () => countResult,
+          findUnique: async (args: { where: { id: string } }) =>
+            stubJob && args.where.id === stubJob.id ? stubJob : null,
           findMany: async (args: FindManyArgs) => {
             findManyArgs = args;
             return findManyResult;
           },
+          update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+            const status = args.data.status;
+            if (status === "PENDING") {
+              retryCalls.push(args.where.id);
+            } else if (status === "DEAD_LETTER" && args.data.lastError === "cancelled by admin") {
+              cancelCalls.push(args.where.id);
+            }
+            return { id: args.where.id, status: status ?? "PENDING", type: "ARTICLE_PROCESS" };
+          },
+          delete: async (args: { where: { id: string } }) => {
+            archiveCalls.push(args.where.id);
+            return { id: args.where.id, status: "COMPLETED", type: "ARTICLE_PROCESS" };
+          },
         },
       },
-    },
-  });
-
-  mock.module("@/lib/jobs", {
-    namedExports: {
-      DEFAULT_LOCK_TTL_MS: 600_000,
-      TERMINAL_STATUSES: ["COMPLETED", "DEAD_LETTER"],
-      getJob: async () => stubJob,
-      retryJob: async (id: string) => {
-        retryCalls.push(id);
-        return { id, status: "PENDING", type: "ARTICLE_PROCESS" };
-      },
-      cancelJob: async (id: string) => {
-        cancelCalls.push(id);
-        return { id, status: "DEAD_LETTER", type: "ARTICLE_PROCESS" };
-      },
-      archiveJob: async (id: string) => {
-        archiveCalls.push(id);
-        return { id, status: "COMPLETED", type: "ARTICLE_PROCESS" };
-      },
-      countJobsByStatus: async () => ({ PENDING: 2, FAILED: 1 }),
-      countJobsByType: async () => ({ ARTICLE_PROCESS: 3 }),
-      listJobs: async () => [],
     },
   });
 });

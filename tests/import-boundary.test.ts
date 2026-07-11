@@ -134,6 +134,12 @@ import { createLogger } from "@/lib/observability/logger";
 export default function Widget() { return null; }
 `.trim();
 
+const CLIENT_IMPORTS_OBSERVABILITY_BARREL = `
+"use client";
+import { createLogger } from "@/lib/observability";
+export default function Widget() { return null; }
+`.trim();
+
 const CLIENT_IMPORTS_SECURITY = `
 "use client";
 import { recordAuditEvent } from "@/lib/security/audit";
@@ -238,6 +244,10 @@ describe("readwise/no-server-imports-in-client", () => {
 
   test("reports error when 'use client' file imports @/lib/observability/logger", () => {
     expectViolationFor(CLIENT_IMPORTS_OBSERVABILITY, "@/lib/observability/logger");
+  });
+
+  test("reports error when 'use client' file imports @/lib/observability", () => {
+    expectViolationFor(CLIENT_IMPORTS_OBSERVABILITY_BARREL, "@/lib/observability");
   });
 
   test("reports error when 'use client' file imports @/lib/security/audit", () => {

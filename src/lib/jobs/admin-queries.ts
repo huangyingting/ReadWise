@@ -9,11 +9,12 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, JobStatus, JobType, type Job } from "@prisma/client";
 import {
   DEFAULT_LOCK_TTL_MS,
-  TERMINAL_STATUSES,
+} from "./types";
+import {
   countJobsByStatus,
   countJobsByType,
   listJobs,
-} from "@/lib/jobs";
+} from "./queries";
 
 export { JobStatus, JobType };
 
