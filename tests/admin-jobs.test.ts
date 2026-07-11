@@ -53,6 +53,15 @@ before(() => {
             }
             return { id: args.where.id, status: status ?? "PENDING", type: "ARTICLE_PROCESS" };
           },
+          updateMany: async (args: { where?: Record<string, unknown>; data: Record<string, unknown> }) => {
+            const status = args.data.status;
+            if (status === "PENDING") {
+              retryCalls.push((args.where?.id as string) ?? "unknown");
+            } else if (status === "DEAD_LETTER" && args.data.lastError === "cancelled by admin") {
+              cancelCalls.push((args.where?.id as string) ?? "unknown");
+            }
+            return { count: 1 };
+          },
           delete: async (args: { where: { id: string } }) => {
             archiveCalls.push(args.where.id);
             return { id: args.where.id, status: "COMPLETED", type: "ARTICLE_PROCESS" };
