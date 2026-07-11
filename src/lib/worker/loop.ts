@@ -5,9 +5,11 @@ import {
   claimNextJob,
   completeJob,
   failJob,
+  heartbeatJob,
   startJob,
   JobError,
   JobStatus,
+  DEFAULT_LOCK_TTL_MS,
   type JobType,
 } from "@/lib/jobs";
 import { sleep, isAbort } from "./sleep";
@@ -17,6 +19,8 @@ import type { WorkerLogger, JobHandler, JobWorkerStats } from "./types";
 export type WorkerLoopOptions = {
   pollIntervalMs?: number;
   lockTtlMs?: number;
+  /** Override heartbeat interval (default: lockTtlMs/2, min 1000ms). Testing only. */
+  heartbeatIntervalMs?: number;
   types?: JobType[];
   once?: boolean;
   signal?: AbortSignal;
@@ -27,6 +31,7 @@ export type WorkerLoopOptions = {
 export type WorkerLoopDeps = {
   claimNextJob?: typeof claimNextJob;
   startJob?: typeof startJob;
+  heartbeatJob?: typeof heartbeatJob;
   completeJob?: typeof completeJob;
   failJob?: typeof failJob;
   sleep?: typeof sleep;
@@ -58,9 +63,72 @@ function errorMessage(err: unknown): string {
 }
 
 /**
+ * Computes heartbeat interval: half the lock TTL, capped at a sensible minimum
+ * so we heartbeat well before the lock expires.
+ */
+function heartbeatIntervalMs(lockTtlMs: number): number {
+  return Math.max(1000, Math.floor(lockTtlMs / 2));
+}
+
+/**
+ * Starts a non-overlapping recursive-timeout heartbeat that refreshes the job
+ * lock. Returns a cleanup function. If heartbeat fails (ownership lost or DB
+ * error), the handler-scoped AbortController is aborted.
+ */
+function startHeartbeat(
+  jobId: string,
+  workerId: string,
+  intervalMs: number,
+  handlerAbort: AbortController,
+  heartbeatFn: typeof heartbeatJob,
+  logger: WorkerLogger,
+): { stop: () => void } {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
+
+  async function tick(): Promise<void> {
+    if (stopped || handlerAbort.signal.aborted) return;
+    try {
+      const ok = await heartbeatFn(jobId, workerId);
+      if (!ok) {
+        logger.warn("heartbeat ownership lost", { jobId, workerId });
+        if (!handlerAbort.signal.aborted) {
+          handlerAbort.abort();
+        }
+        return;
+      }
+    } catch (err) {
+      logger.warn("heartbeat error", { jobId, workerId, error: errorMessage(err) });
+      if (!handlerAbort.signal.aborted) {
+        handlerAbort.abort();
+      }
+      return;
+    }
+    if (!stopped && !handlerAbort.signal.aborted) {
+      timer = setTimeout(() => void tick(), intervalMs);
+    }
+  }
+
+  timer = setTimeout(() => void tick(), intervalMs);
+
+  return {
+    stop() {
+      stopped = true;
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    },
+  };
+}
+
+/**
  * Core runtime loop: claims, starts, dispatches, completes, and fails jobs
  * until the queue is drained or the signal fires. The loop knows nothing about
  * specific job types — it only calls the handler looked up from the registry.
+ *
+ * Each handler execution runs with a composed AbortSignal (global stop +
+ * heartbeat loss). Heartbeat uses recursive setTimeout (no overlap risk).
  */
 export async function runWorkerLoop(
   workerId: string,
@@ -70,13 +138,16 @@ export async function runWorkerLoop(
   deps: WorkerLoopDeps = {},
 ): Promise<JobWorkerStats> {
   const pollIntervalMs = options.pollIntervalMs ?? 5000;
+  const lockTtlMs = options.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
   const signal = options.signal;
   const claimFn = deps.claimNextJob ?? claimNextJob;
   const startFn = deps.startJob ?? startJob;
+  const heartbeatFn = deps.heartbeatJob ?? heartbeatJob;
   const completeFn = deps.completeJob ?? completeJob;
   const failFn = deps.failJob ?? failJob;
   const sleepFn = deps.sleep ?? sleep;
 
+  const hbInterval = options.heartbeatIntervalMs ?? heartbeatIntervalMs(lockTtlMs);
   const stats = initialStats();
 
   try {
@@ -105,43 +176,125 @@ export async function runWorkerLoop(
       const startedAt = Date.now();
       const attempts = job.attempts + 1;
 
+      // Handler-scoped AbortController: composed with global stop signal.
+      const handlerAbort = new AbortController();
+      let ownershipLost = false;
+
+      // If the global signal fires, abort the handler scope too.
+      const onGlobalAbort = () => {
+        if (!handlerAbort.signal.aborted) handlerAbort.abort();
+      };
+      signal?.addEventListener("abort", onGlobalAbort, { once: true });
+
+      // Track ownership loss from heartbeat.
+      const onHandlerAbort = () => {
+        if (!signal?.aborted) ownershipLost = true;
+      };
+      handlerAbort.signal.addEventListener("abort", onHandlerAbort, { once: true });
+
+      let heartbeat: { stop: () => void } | null = null;
+
       try {
-        await startFn(job.id, workerId);
+        const started = await startFn(job.id, workerId);
+        if (!started) {
+          // CAS failed — job was reclaimed between claim and start. Skip.
+          signal?.removeEventListener("abort", onGlobalAbort);
+          continue;
+        }
+
         const handler = handlers[job.type as JobType];
         if (!handler) {
           throw new JobError(`no handler registered for job type ${job.type}`, {
             kind: "validation",
           });
         }
+
+        // Start heartbeat after successful start transition.
+        heartbeat = startHeartbeat(job.id, workerId, hbInterval, handlerAbort, heartbeatFn, logger);
+
         await withSpan(
           "worker.job",
           { "readwise.job_type": job.type, "readwise.attempt": attempts },
-          () => handler(job, { logger, signal, process: options.process }),
+          () => handler(job, { logger, signal: handlerAbort.signal, process: options.process }),
         );
-        await completeFn(job.id);
-        stats.completed++;
-        recordWorkerJob({ outcome: "success", attempts, durationMs: Date.now() - startedAt });
+
+        // Stop heartbeat before completing.
+        heartbeat.stop();
+        heartbeat = null;
+
+        if (ownershipLost) {
+          // Handler completed but we lost ownership — do not call complete.
+          recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
+          logger.warn("handler completed after ownership loss, skipping complete", {
+            jobId: job.id,
+          });
+        } else {
+          const completed = await completeFn(job.id, workerId);
+          if (completed) {
+            stats.completed++;
+            recordWorkerJob({ outcome: "success", attempts, durationMs: Date.now() - startedAt });
+          } else {
+            // CAS rejected — another worker owns it now.
+            recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
+            logger.warn("complete CAS rejected (ownership lost)", { jobId: job.id });
+          }
+        }
       } catch (err) {
-        if (isAbort(err)) {
+        // Ensure heartbeat is stopped.
+        heartbeat?.stop();
+        heartbeat = null;
+
+        if (ownershipLost) {
+          // Ownership lost (via heartbeat) — never call fail as stale owner.
+          if (signal?.aborted) {
+            stats.stoppedBySignal = true;
+            recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
+            break;
+          }
+          recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
+          if (isAbort(err)) {
+            logger.warn("handler aborted (ownership lost)", { jobId: job.id });
+          } else {
+            logger.warn("handler error after ownership loss, skipping fail", { jobId: job.id });
+          }
+        } else if (isAbort(err) || handlerAbort.signal.aborted) {
+          if (signal?.aborted) {
+            // Global stop triggered the abort.
+            stats.stoppedBySignal = true;
+            recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
+            break;
+          }
+          // AbortError from handler itself (no global signal, no heartbeat loss).
+          // Treat as a stop signal (preserves old behavior).
           stats.stoppedBySignal = true;
           recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
           break;
+        } else {
+          const updated = await failFn(job.id, workerId, err);
+          if (updated) {
+            const deadLettered = updated.status === JobStatus.DEAD_LETTER;
+            recordFailureStats(stats, deadLettered);
+            recordWorkerJob({ outcome: "failed", attempts, durationMs: Date.now() - startedAt });
+            captureError(err, {
+              source: "worker",
+              severity: deadLettered ? "fatal" : "warning",
+              extra: { jobId: job.id, jobType: job.type, attempts, deadLettered },
+            });
+            logger.warn("job handler failed", {
+              jobId: job.id,
+              type: job.type,
+              deadLettered,
+              error: errorMessage(err),
+            });
+          } else {
+            // Fail CAS rejected — ownership lost during error handling.
+            recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
+            logger.warn("fail CAS rejected (ownership lost)", { jobId: job.id });
+          }
         }
-        const updated = await failFn(job.id, err);
-        const deadLettered = updated?.status === JobStatus.DEAD_LETTER;
-        recordFailureStats(stats, deadLettered);
-        recordWorkerJob({ outcome: "failed", attempts, durationMs: Date.now() - startedAt });
-        captureError(err, {
-          source: "worker",
-          severity: deadLettered ? "fatal" : "warning",
-          extra: { jobId: job.id, jobType: job.type, attempts, deadLettered },
-        });
-        logger.warn("job handler failed", {
-          jobId: job.id,
-          type: job.type,
-          deadLettered,
-          error: errorMessage(err),
-        });
+      } finally {
+        heartbeat?.stop();
+        signal?.removeEventListener("abort", onGlobalAbort);
       }
     }
   } catch (err) {
