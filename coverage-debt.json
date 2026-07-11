@@ -1,6 +1,6 @@
 {
   "maxFileDebt": 18,
-  "maxRouteDebt": 18,
+  "maxRouteDebt": 12,
   "fileDebt": [
     {
       "file": "scripts/analyze-speech-alignment.ts",
@@ -131,34 +131,6 @@
   ],
   "routeDebt": [
     {
-      "route": "src/app/api/admin/articles/[id]/rebuild/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Admin article rebuild route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/admin/reports/[id]/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Admin report detail route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/admin/reports/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Admin reports listing route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/admin/tags/[id]/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Admin tag detail route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
       "route": "src/app/api/articles/route.ts",
       "issue": "#983",
       "owner": "Switch",
@@ -215,24 +187,10 @@
       "deadline": "2026-09-30"
     },
     {
-      "route": "src/app/api/push/preferences/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "Push preferences route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
       "route": "src/app/api/push/vapid-public-key/route.ts",
       "issue": "#983",
       "owner": "Switch",
       "reason": "VAPID public key route not directly tested; needs dedicated route tests",
-      "deadline": "2026-09-30"
-    },
-    {
-      "route": "src/app/api/reports/route.ts",
-      "issue": "#983",
-      "owner": "Switch",
-      "reason": "User reports route not directly tested; needs dedicated route tests",
       "deadline": "2026-09-30"
     },
     {
