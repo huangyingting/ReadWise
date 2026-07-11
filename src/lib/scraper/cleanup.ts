@@ -20,6 +20,7 @@
 import sanitizeHtml from "sanitize-html";
 import { parseHTML } from "linkedom";
 import type { Provider } from "@/lib/scraper/types";
+import { normalizeForTextMatch as normalizeText } from "@/lib/text/normalize-match";
 
 /** Shape of the per-provider cleanup configuration. */
 export type ProviderCleanup = NonNullable<Provider["cleanup"]>;
@@ -237,10 +238,6 @@ function dropLinkHrefBlockMatches(html: string, keywords: string[]): string {
   } catch {
     return html;
   }
-}
-
-function normalizeText(value: string): string {
-  return value.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 function normalizeKeywords(keywords: readonly string[]): string[] {
