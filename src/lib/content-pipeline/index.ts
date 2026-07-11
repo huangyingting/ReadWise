@@ -106,6 +106,21 @@ export type ArticleReaderText = {
   blocks: string[];
 };
 
+function readerTextFromSanitizedHtml(sanitized: string): ArticleReaderText {
+  const { document } = parseHTML(`<main id="readwise-reader-text-root">${sanitized}</main>`);
+  const root = document.getElementById("readwise-reader-text-root");
+  if (!root) return { plainText: "", blocks: [] };
+
+  const blocks: string[] = [];
+  const inlineParts: string[] = [];
+
+  walkReaderChildren(root, blocks, inlineParts);
+  flushInlineParts(blocks, inlineParts);
+
+  const plainText = normalizeReaderText(blocks.join(" "));
+  return { plainText, blocks };
+}
+
 function normalizeReaderText(input: string): string {
   return input
     .replace(/\s+/g, " ")
@@ -190,21 +205,20 @@ function walkReaderChildren(parent: Node, blocks: string[], inlineParts: string[
  * helpers so that word-boundary positions are consistent across features.
  */
 export function articleHtmlToReaderBlocks(html: string): ArticleReaderText {
-  const sanitized = _sanitizeArticleHtml(html);
-  const { document } = parseHTML(`<main id="readwise-reader-text-root">${sanitized}</main>`);
-  const root = document.getElementById("readwise-reader-text-root");
-  if (!root) return { plainText: "", blocks: [] };
-
-  const blocks: string[] = [];
-  const inlineParts: string[] = [];
-
-  walkReaderChildren(root, blocks, inlineParts);
-  flushInlineParts(blocks, inlineParts);
-
-  const plainText = normalizeReaderText(blocks.join(" "));
-  return { plainText, blocks };
+  return readerTextFromSanitizedHtml(_sanitizeArticleHtml(html));
 }
 
 export function articleHtmlToReaderText(html: string): string {
   return articleHtmlToReaderBlocks(html).plainText;
+}
+
+/**
+ * Converts already-sanitized article HTML into canonical reader plain text.
+ * Useful when the caller also needs the sanitized HTML and wants to avoid
+ * running the sanitizer twice.
+ */
+export function articleHtmlToReaderTextFromSanitized(
+  sanitizedHtml: string,
+): string {
+  return readerTextFromSanitizedHtml(sanitizedHtml).plainText;
 }

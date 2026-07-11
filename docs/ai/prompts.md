@@ -90,7 +90,7 @@ label, so cached derived content and existing tests stay valid.
 | `tutor` | `tutor/v1` | 2048 | `src/lib/tutor.ts` |
 | `sentence-translation` | `sentence-translation/v1` | 256 | `src/lib/sentence-translation.ts` |
 
-Article difficulty (`src/lib/difficulty.ts`) is deterministic and is not an AI
+Article difficulty (`src/lib/difficulty/index.ts`) is deterministic and is not an AI
 prompt feature.
 
 ---

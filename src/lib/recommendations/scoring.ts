@@ -32,10 +32,7 @@ import {
 import type { WeakWordReexposure } from "./types";
 import { applyGoalPathAdjustment } from "@/lib/learning/goal-path";
 import { readingSuitabilityRank } from "@/lib/categories";
-import {
-  getProviderByName,
-  isProviderCategoryReadingSuitable,
-} from "@/lib/scraper/providers";
+import { isSourceCategoryReadingSuitable } from "@/lib/scraper/provider-reading-suitability";
 import { headlineReason, buildExplanationLines } from "./explanations";
 
 // ---------------------------------------------------------------------------
@@ -265,11 +262,7 @@ export function readingSuitabilityDeltaForSource(
   category: string | null,
   source: string | null,
 ): number {
-  const provider = source != null ? getProviderByName(source) : null;
-  if (
-    provider?.readingCategories != null &&
-    isProviderCategoryReadingSuitable(provider, category)
-  ) {
+  if (isSourceCategoryReadingSuitable(source, category)) {
     return suitabilityDeltaFromScore(READING_SUITABILITY_HIGH);
   }
   return readingSuitabilityDelta(category);

@@ -64,7 +64,12 @@ describe("sanitizeArticleHtml", async () => {
 // ---------------------------------------------------------------------------
 
 describe("articleHtmlToReaderText", async () => {
-  const { articleHtmlToReaderBlocks, articleHtmlToReaderText } = await import("@/lib/content-pipeline");
+  const {
+    sanitizeArticleHtml,
+    articleHtmlToReaderBlocks,
+    articleHtmlToReaderText,
+    articleHtmlToReaderTextFromSanitized,
+  } = await import("@/lib/content-pipeline");
 
   test("strips tags and normalises whitespace", () => {
     assert.equal(articleHtmlToReaderText("<p>Hello</p><p>World</p>"), "Hello World");
@@ -97,6 +102,15 @@ describe("articleHtmlToReaderText", async () => {
     );
     assert.doesNotMatch(text, /PROMO/);
     assert.match(text, /Article body/);
+  });
+
+  test("extracts reader text from pre-sanitized HTML with identical output", () => {
+    const html = '<div class="advertisement">PROMO</div><p>Read <strong>widely</strong>.</p>';
+    const sanitized = sanitizeArticleHtml(html);
+    assert.equal(
+      articleHtmlToReaderTextFromSanitized(sanitized),
+      articleHtmlToReaderText(html),
+    );
   });
 
   test("extracts DOM-order reader blocks for batch speech", () => {

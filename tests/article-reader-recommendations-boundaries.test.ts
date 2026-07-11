@@ -183,6 +183,42 @@ test("article-library barrel preserves public identity for query/commands/collec
   assert.equal("listScoredPicksPage" in articleLibrary, false);
 });
 
+test("article-library internals do not back-import processing orchestration", () => {
+  const articleLibraryFiles = walkFiles(resolve(ROOT_DIR, "src/lib/article-library")).filter((file) =>
+    relPath(file).endsWith(".ts"),
+  );
+  const violations: string[] = [];
+
+  for (const file of articleLibraryFiles) {
+    const rel = relPath(file);
+    for (const specifier of parseModuleSpecifiers(readFileSync(file, "utf8"))) {
+      if (specifier === "@/lib/processing" || specifier.startsWith("@/lib/processing/")) {
+        violations.push(`${rel} -> ${specifier}`);
+      }
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
+test("article-library content-pipeline dependency is isolated to tag prompt extraction", () => {
+  const articleLibraryFiles = walkFiles(resolve(ROOT_DIR, "src/lib/article-library")).filter((file) =>
+    relPath(file).endsWith(".ts"),
+  );
+  const imports: string[] = [];
+
+  for (const file of articleLibraryFiles) {
+    const rel = relPath(file);
+    for (const specifier of parseModuleSpecifiers(readFileSync(file, "utf8"))) {
+      if (specifier === "@/lib/content-pipeline" || specifier.startsWith("@/lib/content-pipeline/")) {
+        imports.push(`${rel} -> ${specifier}`);
+      }
+    }
+  }
+
+  assert.deepEqual(imports, ["src/lib/article-library/collections/tags.ts -> @/lib/content-pipeline"]);
+});
+
 test("recommendations barrel preserves public identity and keeps internal helpers private", async () => {
   const [recommendations, context, picks, scoring, types] = await Promise.all([
     import("@/lib/recommendations"),
@@ -234,9 +270,26 @@ test("recommendations context/type seams depend on leveling contracts, not diffi
   assert.deepEqual(violations, []);
 });
 
+test("recommendations scoring uses source/category suitability contract, not scraper provider internals", () => {
+  const scoringPath = resolve(ROOT_DIR, "src/lib/recommendations/scoring.ts");
+  const imports = parseModuleSpecifiers(readFileSync(scoringPath, "utf8"));
+
+  assert.ok(
+    imports.includes("@/lib/scraper/provider-reading-suitability"),
+    "scoring should depend on the source/category suitability contract",
+  );
+
+  const providerInternalImports = imports.filter(
+    (specifier) =>
+      specifier === "@/lib/scraper/providers" ||
+      specifier.startsWith("@/lib/scraper/providers/"),
+  );
+  assert.deepEqual(providerInternalImports, []);
+});
+
 test("difficulty and leveling stay one-way dependencies (no import from recommendations)", () => {
   const files = [
-    resolve(ROOT_DIR, "src/lib/difficulty.ts"),
+    resolve(ROOT_DIR, "src/lib/difficulty/index.ts"),
     ...walkFiles(resolve(ROOT_DIR, "src/lib/leveling")).filter((file) => relPath(file).endsWith(".ts")),
   ];
   const violations: string[] = [];
