@@ -158,7 +158,14 @@ export function synthesize(
 
     function closeSynthesizer(): void {
       if (synthesizer !== null) {
-        synthesizer.close();
+        try {
+          synthesizer.close();
+        } catch (closeErr) {
+          log.warn("speech.close_failure", {
+            articleId,
+            errorType: closeErr instanceof Error ? closeErr.constructor.name : "unknown",
+          });
+        }
         synthesizer = null;
       }
     }
