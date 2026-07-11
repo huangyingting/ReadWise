@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { ArticleStatus, JobStatus, JobType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { DIFFICULTY_ALGORITHM_VERSION } from "@/lib/difficulty-version";
+import { DIFFICULTY_ALGORITHM_VERSION } from "@/lib/difficulty/version";
 
 import { enabled, isPostgres } from "./support/db-config";
 import { id, registerIntegrationCleanup } from "./support/db-helpers";
