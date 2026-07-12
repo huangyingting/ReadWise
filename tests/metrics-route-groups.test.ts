@@ -52,6 +52,10 @@ test("admin sub-resource ids are replaced with [id]", () => {
     routeGroupFromPath("/api/admin/articles/some-article-id-12345/tags"),
     "/api/admin/articles/[id]/tags",
   );
+  assert.equal(
+    routeGroupFromPath("/api/admin/series/abc/reorder"),
+    "/api/admin/series/[id]/reorder",
+  );
 });
 
 // ─── known static segments kept intact ─────────────────────────────────────
