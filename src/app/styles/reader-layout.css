@@ -55,6 +55,7 @@
   background: var(--reading-bg, var(--bg));
   color: var(--reading-text, var(--text));
   min-height: 100vh;
+  min-height: 100dvh;
   --reader-mini-player-height: calc(var(--header-height) + env(safe-area-inset-bottom, 0px));
   --reader-bottom-clearance: calc(var(--reader-mini-player-height) + var(--space-8));
 }
