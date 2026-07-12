@@ -72,9 +72,13 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function afterMutation(onSuccess?: () => void) {
+  async function afterMutation<T>(result: T | undefined, onSuccess?: () => void) {
+    if (result === undefined) {
+      throw new Error("Mutation failed");
+    }
     onSuccess?.();
     router.refresh();
+    return result;
   }
 
   async function handleEditSubmit(e: React.FormEvent) {
@@ -96,32 +100,32 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
       { fallbackMessage: "Failed to update series" },
     );
     if (result !== undefined) {
-      await afterMutation(() => setActivePanel(null));
+      await afterMutation(result, () => setActivePanel(null));
     }
   }
 
   async function handleActivate() {
-    await run(
+    const result = await run(
       () => patchJson(`/api/admin/series/${series.id}`, { status: "active" }),
       { fallbackMessage: "Failed to activate series" },
     );
-    await afterMutation(() => setActivePanel(null));
+    await afterMutation(result, () => setActivePanel(null));
   }
 
   async function handleArchive() {
-    await run(
+    const result = await run(
       () => patchJson(`/api/admin/series/${series.id}`, { status: "archived" }),
       { fallbackMessage: "Failed to archive series" },
     );
-    await afterMutation(() => setActivePanel(null));
+    await afterMutation(result, () => setActivePanel(null));
   }
 
   async function handleDelete() {
-    await run(
+    const result = await run(
       () => deleteJson(`/api/admin/series/${series.id}`),
       { fallbackMessage: "Failed to delete series" },
     );
-    await afterMutation();
+    await afterMutation(result);
   }
 
   const canActivate = series.status === "draft";

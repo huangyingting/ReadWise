@@ -681,6 +681,7 @@ const ORIGINAL_ROUTE_ORDER = [
   "admin-tags",
   "admin-sources",
   "admin-security",
+  "admin-series",
   "admin-analytics",
   "admin-ai-ops",
   "privacy-public",
@@ -702,8 +703,8 @@ export const SCENARIOS: Scenario[] = ROUTES.flatMap((route) =>
   caseId: `audit-case-${String(index + 1).padStart(3, "0")}`,
 }));
 
-if (SCENARIOS.length !== 510) {
-  throw new Error(`UI audit must register exactly 510 scenarios; got ${SCENARIOS.length}`);
+if (SCENARIOS.length !== 520) {
+  throw new Error(`UI audit must register exactly 520 scenarios; got ${SCENARIOS.length}`);
 }
 
 function regexSource(value: string | RegExp): string {

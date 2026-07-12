@@ -16,6 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { ADMIN_OPERATIONS_ROUTES, scenariosForRoutes } from "../e2e/support/ui-audit";
 
 const WORKTREE = resolve(import.meta.dirname, "..");
 
@@ -203,5 +204,14 @@ test("ui-audit ADMIN_OPERATIONS_ROUTES includes admin-series", () => {
   assert.ok(
     src.includes("Reading series") || src.includes("New series") || src.includes("series"),
     "ui-audit admin-series entry must have expectedText matching the page",
+  );
+});
+
+test("ui-audit admin operations split still registers 150 scenarios", () => {
+  const scenarios = scenariosForRoutes(ADMIN_OPERATIONS_ROUTES);
+  assert.equal(scenarios.length, 150);
+  assert.ok(
+    scenarios.some((scenario) => scenario.route.id === "admin-series"),
+    "admin-series route must be part of the admin operations UI-audit split",
   );
 });
