@@ -38,5 +38,35 @@
     "status": "active",
     "createdAt": "2026-07-10T10:32:38.658Z",
     "updatedAt": "2026-07-10T10:32:38.658Z"
+  },
+  {
+    "id": "aaccc938-80f0-49f4-8dcf-a2b30b595ac9",
+    "class": "DECISION",
+    "loadGuidance": "ALWAYS",
+    "title": "Keep classroom membership teacher-managed",
+    "path": ".squad/decisions/inbox/copilot-keep-classroom-membership-teacher-managed-aaccc938.md",
+    "status": "active",
+    "createdAt": "2026-07-12T00:17:54.674Z",
+    "updatedAt": "2026-07-12T00:17:54.674Z"
+  },
+  {
+    "id": "5f167fcd-b571-4232-a986-7eca3c2a4ef7",
+    "class": "DECISION",
+    "loadGuidance": "ALWAYS",
+    "title": "Prefer evidence-backed autonomous defaults",
+    "path": ".squad/decisions/inbox/copilot-prefer-evidence-backed-autonomous-defaults-5f167fcd.md",
+    "status": "active",
+    "createdAt": "2026-07-12T00:18:04.827Z",
+    "updatedAt": "2026-07-12T00:18:04.827Z"
+  },
+  {
+    "id": "fa8c0576-642e-4316-b3de-97ba98e0c764",
+    "class": "DECISION",
+    "loadGuidance": "ALWAYS",
+    "title": "Defer topology and corpus dependent automation",
+    "path": ".squad/decisions/inbox/copilot-defer-topology-and-corpus-dependent-automation-fa8c0576.md",
+    "status": "active",
+    "createdAt": "2026-07-12T00:18:20.145Z",
+    "updatedAt": "2026-07-12T00:18:20.145Z"
   }
 ]
