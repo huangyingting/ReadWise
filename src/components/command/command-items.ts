@@ -6,7 +6,7 @@ import {
   Target,
   type LucideIcon,
 } from "lucide-react";
-import { PRIMARY_NAV } from "@/components/shell/nav-items";
+import { PRIMARY_NAV, filterNavForUser } from "@/components/shell/nav-items";
 import { toggleTheme } from "@/lib/theme";
 import type { ListingArticle } from "@/lib/article-library";
 
@@ -60,8 +60,8 @@ const ADMIN_PAGE: PageItem = {
 };
 
 /** Build the Pages list, optionally including the Admin entry. */
-export function getPageItems(role?: string | null): PageItem[] {
-  const nav = PRIMARY_NAV.map(
+export function getPageItems(role?: string | null, showTodayNav = false): PageItem[] {
+  const nav = filterNavForUser(PRIMARY_NAV, showTodayNav).map(
     (item): PageItem => ({
       kind: "page",
       id: `page-${item.href.slice(1)}`,
