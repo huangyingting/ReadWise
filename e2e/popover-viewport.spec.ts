@@ -53,6 +53,7 @@ async function popoverMetrics(page: Page, label: string) {
   });
 }
 
+test.describe("@high-risk", () => {
 for (const theme of THEMES) {
   test(`reader display settings popover fits viewport or scrolls (${theme}, 667x375)`, async ({
     readerPage: page,
@@ -114,3 +115,5 @@ for (const theme of THEMES) {
     });
   }
 }
+
+});

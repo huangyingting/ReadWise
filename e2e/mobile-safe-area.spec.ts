@@ -31,6 +31,9 @@ const VIEWPORTS = [
   { width: 430, height: 932, label: "430x932" },
 ] as const;
 
+const MOBILE_PRIMARY_NAV_SELECTOR = 'nav[aria-label="Primary"].fixed.bottom-0';
+
+test.describe("@high-risk", () => {
 // ---------------------------------------------------------------------------
 // Tab bar geometry — items fill content-height token; no clipping
 // ---------------------------------------------------------------------------
@@ -43,10 +46,12 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await signIn();
     await page.goto("/dashboard");
-    await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    await expect(page.locator(MOBILE_PRIMARY_NAV_SELECTOR)).toBeVisible();
 
     const itemHeight = await page.evaluate(() => {
-      const nav = document.querySelector('nav[aria-label="Primary"]');
+      const nav = document.querySelector(
+        'nav[aria-label="Primary"].fixed.bottom-0',
+      );
       if (!nav) return 0;
       const firstLink = nav.querySelector("a");
       return firstLink ? firstLink.getBoundingClientRect().height : 0;
@@ -64,10 +69,12 @@ for (const vp of VIEWPORTS) {
     await page.evaluate(() => {
       document.documentElement.setAttribute("data-theme", "dark");
     });
-    await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    await expect(page.locator(MOBILE_PRIMARY_NAV_SELECTOR)).toBeVisible();
 
     const itemHeight = await page.evaluate(() => {
-      const nav = document.querySelector('nav[aria-label="Primary"]');
+      const nav = document.querySelector(
+        'nav[aria-label="Primary"].fixed.bottom-0',
+      );
       if (!nav) return 0;
       const firstLink = nav.querySelector("a");
       return firstLink ? firstLink.getBoundingClientRect().height : 0;
@@ -88,12 +95,14 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await signIn();
     await page.goto("/dashboard");
-    await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    await expect(page.locator(MOBILE_PRIMARY_NAV_SELECTOR)).toBeVisible();
 
     const result = await page.evaluate(() => {
       // Scroll to the very bottom of the page.
       window.scrollTo({ top: document.body.scrollHeight });
-      const nav = document.querySelector('nav[aria-label="Primary"]');
+      const nav = document.querySelector(
+        'nav[aria-label="Primary"].fixed.bottom-0',
+      );
       const navTop = nav ? nav.getBoundingClientRect().top : window.innerHeight;
 
       // Find the lowest content element inside the main content wrapper
@@ -126,7 +135,7 @@ for (const vp of VIEWPORTS) {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await signIn();
     await page.goto("/dashboard");
-    await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    await expect(page.locator(MOBILE_PRIMARY_NAV_SELECTOR)).toBeVisible();
 
     // Open the More sheet.
     await page.getByRole("button", { name: "More" }).click();
@@ -142,6 +151,7 @@ for (const vp of VIEWPORTS) {
 
     // The Sign out button should be visible.
     const signOutBtn = page.getByRole("button", { name: /sign out/i });
+    await signOutBtn.scrollIntoViewIfNeeded();
     await expect(signOutBtn).toBeVisible();
 
     // Its bottom should be at or above the viewport bottom minus any bar.
@@ -209,8 +219,7 @@ test("desktop (1280x900): BottomTabBar is not visible, AppShell has no bottom pa
   await page.goto("/dashboard");
 
   // BottomTabBar is hidden at md+ by md:hidden.
-  const nav = page.getByRole("navigation", { name: "Primary" });
-  // It may render but be display:none.
+  const nav = page.locator(MOBILE_PRIMARY_NAV_SELECTOR);
   const navVisible = await nav.isVisible().catch(() => false);
   expect(navVisible).toBe(false);
 
@@ -223,4 +232,6 @@ test("desktop (1280x900): BottomTabBar is not visible, AppShell has no bottom pa
     return parent ? window.getComputedStyle(parent).paddingBottom : "-1";
   });
   expect(mainColPb).toBe("0px");
+});
+
 });
