@@ -6,14 +6,14 @@ import { requireClassroomManageApi } from "@/lib/tenant-api";
 
 const classroomMemberParams = object({
   id: nonEmptyString(200),
-  userId: nonEmptyString(200),
+  userid: nonEmptyString(200),
 });
 
 export const DELETE = createHandler(
   { params: classroomMemberParams },
   async ({ params, session }) => {
     await requireClassroomManageApi(session, params.id);
-    await removeClassroomMember(params.id, params.userId);
+    await removeClassroomMember(params.id, params.userid);
     return NextResponse.json({ ok: true });
   },
 );

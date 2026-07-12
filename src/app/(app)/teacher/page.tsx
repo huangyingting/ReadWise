@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { GraduationCap, Users } from "lucide-react";
 import { requireSession } from "@/lib/session";
-import { listUserOrganizations, hasOrgCapability } from "@/lib/org";
+import {
+  listOrgMembers,
+  listUserOrganizations,
+  hasOrgCapability,
+} from "@/lib/org";
 import { listClassroomsForTeacher } from "@/lib/classroom";
 import { CAPABILITIES } from "@/lib/rbac";
 import {
@@ -17,14 +21,21 @@ import {
 } from "@/components/ui";
 import CreateOrgForm from "@/components/teacher/CreateOrgForm";
 import CreateClassroomForm from "@/components/teacher/CreateClassroomForm";
+import OrgMembersCard from "@/components/teacher/OrgMembersCard";
 
 type OrganizationMembership = Awaited<
   ReturnType<typeof listUserOrganizations>
 >[number];
+type OrganizationMember = Awaited<ReturnType<typeof listOrgMembers>>[number];
 type TeacherClassroom = Awaited<
   ReturnType<typeof listClassroomsForTeacher>
 >[number];
 type TeachableOrg = { id: string; name: string };
+type ManageableOrganization = {
+  id: string;
+  name: string;
+  members: OrganizationMember[];
+};
 
 function getTeachableOrgs(
   memberships: OrganizationMembership[],
@@ -36,6 +47,22 @@ function getTeachableOrgs(
 
 function getOrgNameById(memberships: OrganizationMembership[]) {
   return new Map(memberships.map((m) => [m.org.id, m.org.name]));
+}
+
+async function getManageableOrganizations(
+  memberships: OrganizationMembership[],
+): Promise<ManageableOrganization[]> {
+  const manageable = memberships.filter((membership) =>
+    hasOrgCapability(membership, CAPABILITIES.orgMembersManage),
+  );
+
+  return Promise.all(
+    manageable.map(async (membership) => ({
+      id: membership.org.id,
+      name: membership.org.name,
+      members: await listOrgMembers(membership.org.id),
+    })),
+  );
 }
 
 function ClassroomList({
@@ -117,6 +144,7 @@ export default async function TeacherPage() {
 
   const teachableOrgs = getTeachableOrgs(memberships);
   const orgNameById = getOrgNameById(memberships);
+  const manageableOrganizations = await getManageableOrganizations(memberships);
 
   return (
     <PageShell>
@@ -126,17 +154,38 @@ export default async function TeacherPage() {
       />
 
       <div className="grid gap-[var(--space-6)] md:grid-cols-[2fr_1fr]">
-        <Section title="Your classrooms">
-          {classrooms.length === 0 ? (
-            <EmptyState
-              icon={GraduationCap}
-              title="No classrooms yet"
-              description="Create a classroom to start assigning readings to your students."
-            />
-          ) : (
-            <ClassroomList classrooms={classrooms} orgNameById={orgNameById} />
-          )}
-        </Section>
+        <div className="flex flex-col gap-[var(--space-6)]">
+          <Section title="Your classrooms">
+            {classrooms.length === 0 ? (
+              <EmptyState
+                icon={GraduationCap}
+                title="No classrooms yet"
+                description="Create a classroom to start assigning readings to your students."
+              />
+            ) : (
+              <ClassroomList classrooms={classrooms} orgNameById={orgNameById} />
+            )}
+          </Section>
+
+          {manageableOrganizations.length > 0 ? (
+            <Section
+              title="Organization members"
+              description="Manage member roles and removals for organizations you administer."
+            >
+              <div className="flex flex-col gap-[var(--space-3)]">
+                {manageableOrganizations.map((org) => (
+                  <OrgMembersCard
+                    key={org.id}
+                    orgId={org.id}
+                    orgName={org.name}
+                    viewerUserId={userId}
+                    initialMembers={org.members}
+                  />
+                ))}
+              </div>
+            </Section>
+          ) : null}
+        </div>
 
         <aside className="flex flex-col gap-[var(--space-4)]">
           <TeacherSidebar teachableOrgs={teachableOrgs} />
