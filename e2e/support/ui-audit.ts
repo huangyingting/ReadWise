@@ -596,6 +596,15 @@ export const ADMIN_OPERATIONS_ROUTES: RouteProfile[] = [
   },
 
   {
+    id: "admin-series",
+    subsystem: "admin",
+    session: "admin",
+    path: "/admin/series",
+    heading: "Reading series",
+    expectedText: /New series|No series yet|Reading series/i,
+  },
+
+  {
     id: "admin-analytics",
     subsystem: "admin",
     session: "admin",
