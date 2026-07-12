@@ -171,22 +171,22 @@ async function patchOrgMember(
   memberId = "u2",
   body: Record<string, unknown> = { role: "Teacher" },
 ) {
-  const { PATCH } = (await import("@/app/api/orgs/[id]/members/[memberId]/route")) as {
+  const { PATCH } = (await import("@/app/api/orgs/[id]/members/[memberid]/route")) as {
     PATCH: RouteHandler;
   };
   return PATCH(
     jsonPatch(`http://test/api/orgs/org-1/members/${memberId}`, body),
-    withParams({ id: "org-1", memberId }),
+    withParams({ id: "org-1", memberid: memberId }),
   );
 }
 
 async function deleteOrgMember(memberId = "u2") {
-  const { DELETE } = (await import("@/app/api/orgs/[id]/members/[memberId]/route")) as {
+  const { DELETE } = (await import("@/app/api/orgs/[id]/members/[memberid]/route")) as {
     DELETE: RouteHandler;
   };
   return DELETE(
     deleteReq(`http://test/api/orgs/org-1/members/${memberId}`),
-    withParams({ id: "org-1", memberId }),
+    withParams({ id: "org-1", memberid: memberId }),
   );
 }
 

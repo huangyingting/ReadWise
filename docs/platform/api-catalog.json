@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-12T02:01:32.794Z",
+  "generatedAt": "2026-07-12T03:37:46.623Z",
   "routeCount": 115,
   "methodCount": 133,
   "routes": [
@@ -1264,8 +1264,8 @@
       ]
     },
     {
-      "path": "/api/classrooms/{id}/members/{userId}",
-      "file": "src/app/api/classrooms/[id]/members/[userId]/route.ts",
+      "path": "/api/classrooms/{id}/members/{userid}",
+      "file": "src/app/api/classrooms/[id]/members/[userid]/route.ts",
       "runtime": "default",
       "methods": [
         {
@@ -1814,8 +1814,8 @@
       ]
     },
     {
-      "path": "/api/orgs/{id}/members/{memberId}",
-      "file": "src/app/api/orgs/[id]/members/[memberId]/route.ts",
+      "path": "/api/orgs/{id}/members/{memberid}",
+      "file": "src/app/api/orgs/[id]/members/[memberid]/route.ts",
       "runtime": "default",
       "methods": [
         {

@@ -9,7 +9,7 @@ import { requireOrgCapabilityApi } from "@/lib/tenant-api";
 
 const memberParams = object({
   id: nonEmptyString(200),
-  memberId: nonEmptyString(200),
+  memberid: nonEmptyString(200),
 });
 
 const updateRoleBody = object({
@@ -27,7 +27,7 @@ export const PATCH = createHandler(
   { params: memberParams, body: updateRoleBody },
   async ({ params, body, session }) => {
     await requireMemberManagement(session, params.id);
-    const result = await updateMemberRole(params.id, params.memberId, body.role);
+    const result = await updateMemberRole(params.id, params.memberid, body.role);
     throwIfFailed(result);
     return NextResponse.json({ ok: true, role: result.role });
   },
@@ -37,7 +37,7 @@ export const DELETE = createHandler(
   { params: memberParams },
   async ({ params, session }) => {
     await requireMemberManagement(session, params.id);
-    const result = await removeMember(params.id, params.memberId);
+    const result = await removeMember(params.id, params.memberid);
     throwIfFailed(result);
     return NextResponse.json({ ok: true });
   },
