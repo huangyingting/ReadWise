@@ -92,7 +92,7 @@ The 500-case UI audit is separate from smoke:
 # Small frequent signal
 npm run test:e2e:smoke
 
-# High-risk routes only (reader/today/admin article flows)
+# High-risk browser regressions (reader/today/admin article flows + mobile viewport probes)
 npm run test:e2e:ui-audit:high-risk
 
 # Full audit, locally sharded the same way CI shards it
