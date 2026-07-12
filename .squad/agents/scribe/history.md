@@ -105,7 +105,7 @@ All four recent decisions are complete, evidence-backed, and coordination-comple
 | **Move 1** | Extract helper function (`defineFeatureGate`, `enforceFeatureGate`) | Typecheck clean, no barrel cycle |
 | **Move 2** | Extract policy configuration object to canonical domain module | No duplication; all callers import shared object |
 
-**Cycle 1 anti-pattern:** ✅ Move 1, ❌ Move 2 → Duplication anti-pattern  
+**Cycle 1 anti-pattern:** ✅ Move 1, ❌ Move 2 → Duplication anti-pattern
 **Cycle 2 correction:** ✅ Move 1 + Move 2 → Architecturally sound, but measurement cascade exposed pre-existing coverage gap
 
 ### Assessment: Is Cycle-2 Rejection a Blocker?
@@ -147,3 +147,5 @@ All four recent decisions are complete, evidence-backed, and coordination-comple
 Ceremony end: 2026-07-10T10:48:29Z
 - 2026-07-12T02:41:59.148+00:00 — Inbox drains must process every decision key; archive gates now depend on exact UTF-8 byte counts and age thresholds before/after merge.
 - 2026-07-11T22:31:57.145+00:00 — Epic #1008 finalization reinforced that canonical E2E discovery is mandatory, isolated ports/DB/.next are required for sequential local Playwright, formal-review comments are the accepted verdict mechanism under shared identity, and reviewer lockout chains must be preserved.
+
+- 2026-07-11T22:31:57.145+00:00 — Final promotion closure stayed under the decisions archive gate by keeping the ledger entry concise and avoiding raw CI output.
