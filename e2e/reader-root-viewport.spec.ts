@@ -31,6 +31,7 @@ async function probeRootGeometry(page: Page) {
   });
 }
 
+test.describe("@high-risk", () => {
 for (const orientation of ORIENTATIONS) {
   test(`reader root viewport sizing stays stable on ${orientation.name}`, async ({
     signIn,
@@ -81,3 +82,5 @@ for (const orientation of ORIENTATIONS) {
     expect(after.bodyOverflowStyle).toBe("");
   });
 }
+
+});
