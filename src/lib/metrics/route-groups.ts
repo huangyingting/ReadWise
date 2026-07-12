@@ -22,7 +22,7 @@ const POSITIONAL_DYNAMIC_PARENTS = new Set<string>([
   "lists",
   "items",
 ]);
-const ADMIN_DYNAMIC_RESOURCES = new Set<string>(["articles", "tags", "members"]);
+const ADMIN_DYNAMIC_RESOURCES = new Set<string>(["articles", "tags", "members", "series"]);
 
 function isKnownDynamicSlot(previous: string | undefined, beforePrevious: string | undefined): boolean {
   if (previous && POSITIONAL_DYNAMIC_PARENTS.has(previous)) return true;
