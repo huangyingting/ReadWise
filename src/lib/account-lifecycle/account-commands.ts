@@ -246,6 +246,23 @@ async function readUserExport(userId: string, client: AccountClient = prisma) {
         orderBy: { skill: "asc" },
       },
 
+      // #1013: weekly study-plan snapshots (derived metadata only). Keep
+      // ordering stable and export no ids, user ids, or raw source content.
+      studyPlanSnapshots: {
+        select: {
+          weekStart: true,
+          weekEnd: true,
+          generatedAt: true,
+          summary: true,
+          isStarter: true,
+          weakAreas: true,
+          items: true,
+          sourceVersion: true,
+          createdAt: true,
+        },
+        orderBy: { weekStart: "asc" },
+      },
+
       difficultyFeedback: {
         select: {
           articleId: true,
