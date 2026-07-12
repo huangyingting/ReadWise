@@ -78,18 +78,22 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       className,
       children,
       type = "button",
-      ...props
+      ...unsafeProps
     },
     ref,
   ) {
-   const isDisabled = disabled || loading;
-   const leadingContent = loading ? (
+    const props = {
+      ...unsafeProps,
+    } as typeof unsafeProps & { invalid?: unknown };
+    delete props.invalid;
+    const isDisabled = disabled || loading;
+    const leadingContent = loading ? (
      <Spinner size={16} />
-   ) : (
+    ) : (
      leadingIcon && <span className={iconSlotClass}>{leadingIcon}</span>
-   );
+    );
 
-   return (
+    return (
      <button
        ref={ref}
        type={type}
