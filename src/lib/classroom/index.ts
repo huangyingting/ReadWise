@@ -25,10 +25,12 @@ export {
   canManageClassroom,
 } from "./guards";
 export {
+  type AssignmentClassroomRow,
   type ClassroomMemberRow,
   type ClassroomStudentCandidateRow,
   type AssignableArticleOptionRow,
   getClassroom,
+  getAssignmentClassroom,
   listClassroomsForOrg,
   listClassroomsForTeacher,
   listClassroomsForStudent,

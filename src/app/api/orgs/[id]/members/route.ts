@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import type { MembershipRole } from "@prisma/client";
-import { createHandler } from "@/lib/api-handler";
+import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, oneOf, nonEmptyString } from "@/lib/validation";
 import { MEMBERSHIP_ROLES, CAPABILITIES } from "@/lib/rbac";
-import { addMember } from "@/lib/org";
+import { addMember, getOrganization, listOrgMembers } from "@/lib/org";
 import { requireOrgCapabilityApi } from "@/lib/tenant-api";
 
 const CREATED_RESPONSE_INIT = { status: 201 } as const;
@@ -20,9 +20,27 @@ async function requireMemberManagement(session: OrgSession, orgId: string) {
   await requireOrgCapabilityApi(session, orgId, CAPABILITIES.orgMembersManage);
 }
 
+async function assertOrgExists(orgId: string): Promise<void> {
+  const organization = await getOrganization(orgId);
+  if (!organization) throw new ApiError(404, "Organization not found");
+}
+
 function memberCreatedResponse(membership: OrgMembership) {
   return NextResponse.json({ ok: true, membership }, CREATED_RESPONSE_INIT);
 }
+
+/**
+ * Lists organization members. Requires `org.members.manage`.
+ */
+export const GET = createHandler(
+  { params: idParams },
+  async ({ params, session }) => {
+    await requireMemberManagement(session, params.id);
+    await assertOrgExists(params.id);
+    const members = await listOrgMembers(params.id);
+    return NextResponse.json({ members });
+  },
+);
 
 /**
  * Adds (or re-roles) a member of an organization (RW-060). Requires the caller
