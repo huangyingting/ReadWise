@@ -13,7 +13,7 @@
     "coverage:node": "node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings scripts/check-node-coverage.ts",
     "benchmark:listings": "node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings scripts/benchmark-listings.ts",
     "test:db": "NODE_ENV=test RUN_DB_INTEGRATION=1 node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test-concurrency=1 --test \"tests/db/**/*.test.ts\"",
-    "test:e2e:smoke": "playwright test --config=playwright.config.ts e2e/smoke.spec.ts",
+    "test:e2e:smoke": "playwright test --config=playwright.config.ts e2e/smoke.spec.ts e2e/onboarding-wizard.spec.ts",
     "test:e2e:ui-audit:high-risk": "playwright test --config=playwright.config.ts e2e/ui-audit-public-auth.spec.ts e2e/ui-audit-reader-learning.spec.ts e2e/ui-audit-classroom.spec.ts e2e/ui-audit-admin-operations.spec.ts --grep @high-risk",
     "test:e2e:ui-audit:full": "playwright test --config=playwright.config.ts e2e/ui-audit-public-auth.spec.ts e2e/ui-audit-reader-learning.spec.ts e2e/ui-audit-classroom.spec.ts e2e/ui-audit-admin-operations.spec.ts",
     "test:e2e:visual": "PLAYWRIGHT_VISUAL_REGRESSION=1 playwright test --config=playwright.config.ts e2e/visual-regression.spec.ts",
