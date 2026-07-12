@@ -268,12 +268,12 @@ async function postClassroomMember(id: string, body: Record<string, unknown>) {
 }
 
 async function deleteClassroomMember(id: string, userId: string) {
-  const { DELETE } = (await import("@/app/api/classrooms/[id]/members/[userId]/route")) as {
+  const { DELETE } = (await import("@/app/api/classrooms/[id]/members/[userid]/route")) as {
     DELETE: RouteHandler;
   };
   return DELETE(
     deleteReq(`http://test/api/classrooms/${id}/members/${userId}`),
-    withParams({ id, userId }),
+    withParams({ id, userid: userId }),
   );
 }
 
@@ -577,12 +577,12 @@ test("DELETE /api/classrooms/[id]/members/[userId] returns 401 when unauthentica
 
 test("DELETE /api/classrooms/[id]/members/[userId] validates route params", async () => {
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
-  const { DELETE } = (await import("@/app/api/classrooms/[id]/members/[userId]/route")) as {
+  const { DELETE } = (await import("@/app/api/classrooms/[id]/members/[userid]/route")) as {
     DELETE: RouteHandler;
   };
   const res = await DELETE(
     deleteReq("http://test/api/classrooms/c1/members/"),
-    withParams({ id: "c1", userId: "" }),
+    withParams({ id: "c1", userid: "" }),
   );
   assert.equal(res.status, 400);
 });
