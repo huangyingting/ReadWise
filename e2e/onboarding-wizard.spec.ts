@@ -11,7 +11,7 @@
  *  2. Placement — answer all 3 quiz questions; confirm no forced level change
  *  3. Topics    — toggle two topic chips
  *  4. About     — select age range and gender (both optional)
- *  5. Review    — verify summary rows; click Finish setup; assert /welcome
+ *  5. Review    — verify summary rows; keyboard-activate Finish setup; assert /welcome
  *
  * Design constraints:
  *  - Uses the existing non-onboarded reader fixture (signIn({ onboarded: false }))
@@ -48,13 +48,10 @@ test("completes the five-step onboarding wizard and reaches the welcome screen",
   await page.locator("label:has(input[value='B1'])").click();
   await expect(nextButton).toBeEnabled();
 
-  // Keyboard reachability: Next button has no tabindex barrier after selection
-  const nextTabIndex = await nextButton.evaluate(
-    (el) => (el as HTMLButtonElement).tabIndex,
-  );
-  expect(nextTabIndex).toBeGreaterThanOrEqual(0);
-
-  await nextButton.click();
+  // Keyboard reachability: focus lands on the Next button and Enter activates it
+  await nextButton.focus();
+  await expect(nextButton).toBeFocused();
+  await page.keyboard.press("Enter");
 
   // ──────────────────────────────────────────────────────────────────────────
   // Step 2 · Placement — "Confirm your level"
@@ -67,10 +64,8 @@ test("completes the five-step onboarding wizard and reaches the welcome screen",
   const backButton = page.getByRole("button", { name: "Back" });
   await expect(backButton).toBeVisible();
   await expect(backButton).not.toBeDisabled();
-  const backTabIndex = await backButton.evaluate(
-    (el) => (el as HTMLButtonElement).tabIndex,
-  );
-  expect(backTabIndex).toBeGreaterThanOrEqual(0);
+  await backButton.focus();
+  await expect(backButton).toBeFocused();
 
   // Skip is available on this step
   const skipButton = page.getByRole("button", { name: /Skip/ });
@@ -135,20 +130,18 @@ test("completes the five-step onboarding wizard and reaches the welcome screen",
   await expect(page.getByText("25-34")).toBeVisible();
   await expect(page.getByText("Male")).toBeVisible();
 
-  // Finish setup button is present and keyboard-reachable
+  // Finish setup button is present; focus lands on it and Enter activates it
   const finishButton = page.getByRole("button", { name: "Finish setup" });
   await expect(finishButton).toBeVisible();
   await expect(finishButton).not.toBeDisabled();
-  const finishTabIndex = await finishButton.evaluate(
-    (el) => (el as HTMLButtonElement).tabIndex,
-  );
-  expect(finishTabIndex).toBeGreaterThanOrEqual(0);
+  await finishButton.focus();
+  await expect(finishButton).toBeFocused();
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Submit — assert the user leaves /onboarding for /welcome
+  // Submit — keyboard Enter activates Finish; assert the user leaves /onboarding for /welcome
   // ──────────────────────────────────────────────────────────────────────────
 
-  await finishButton.click();
+  await page.keyboard.press("Enter");
 
   // Wait for the API POST to complete and router.push("/welcome") to fire
   await expect(page).toHaveURL(/\/welcome$/, { timeout: 15_000 });
