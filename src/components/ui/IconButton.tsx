@@ -85,10 +85,14 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
       className,
       style,
       type = "button",
-      ...props
+      ...unsafeProps
     },
     ref,
   ) {
+    const props = {
+      ...unsafeProps,
+    } as typeof unsafeProps & { invalid?: unknown };
+    delete props.invalid;
     return (
       <button
         ref={ref}
