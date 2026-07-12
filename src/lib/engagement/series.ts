@@ -27,14 +27,29 @@
 import { prisma } from "@/lib/prisma";
 import { getPublicListableArticleById } from "@/lib/article-library/policy";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
+import {
+  type DomainResult,
+  ok,
+  notFound,
+  conflict,
+  validationError,
+} from "@/lib/result";
 
 // ---------------------------------------------------------------------------
 // Controlled value sets
 // ---------------------------------------------------------------------------
 
-/** Lifecycle of a `ReadingSeries`. `archived` hides it from learners. */
-export const SERIES_STATUSES = ["active", "archived"] as const;
+/** Lifecycle of a `ReadingSeries`. `draft/archived` are hidden from learners. */
+export const SERIES_STATUSES = ["draft", "active", "archived"] as const;
 export type SeriesStatus = (typeof SERIES_STATUSES)[number];
+
+const SERIES_STATUS_SET = new Set<SeriesStatus>(SERIES_STATUSES);
+const SERIES_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SERIES_SLUG_MAX = 120;
+const SERIES_TITLE_MAX = 200;
+const SERIES_DESCRIPTION_MAX = 2000;
+const SERIES_TOPIC_MAX = 120;
+const SERIES_LEVEL_MAX = 16;
 
 /** Lifecycle of a `SeriesEnrollment`. */
 export const ENROLLMENT_STATUSES = ["active", "paused", "completed"] as const;
@@ -76,6 +91,56 @@ export interface ResolvedSeriesArticle {
   index: number;
 }
 
+/** Admin-safe list row for curated series management. */
+export interface AdminSeriesRow {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  topic: string | null;
+  targetLevelMin: string | null;
+  targetLevelMax: string | null;
+  status: SeriesStatus;
+  public: boolean;
+  articleCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Admin-safe detail row for single-series inspection/editing. */
+export interface AdminSeriesDetail extends AdminSeriesRow {
+  articleIds: string[];
+}
+
+type OptionalText = string | null | undefined;
+
+export interface CreateReadingSeriesInput {
+  slug: string;
+  title: string;
+  description?: OptionalText;
+  topic?: OptionalText;
+  targetLevelMin?: OptionalText;
+  targetLevelMax?: OptionalText;
+  articleIds?: string[];
+  public?: boolean;
+  status?: SeriesStatus;
+}
+
+export interface UpdateReadingSeriesInput {
+  slug?: string;
+  title?: string;
+  description?: OptionalText;
+  topic?: OptionalText;
+  targetLevelMin?: OptionalText;
+  targetLevelMax?: OptionalText;
+  articleIds?: string[];
+  public?: boolean;
+  status?: SeriesStatus;
+}
+
+export type ReadingSeriesMutationResult = DomainResult<{ series: AdminSeriesDetail }>;
+export type DeleteReadingSeriesResult = DomainResult;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -83,7 +148,122 @@ export interface ResolvedSeriesArticle {
 /** Coerce a Prisma `Json` `articleIds` value into a clean `string[]`. */
 function toArticleIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((v): v is string => typeof v === "string" && v.length > 0);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "string") continue;
+    const id = raw.trim();
+    if (id.length === 0 || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+function toSeriesStatus(status: string): SeriesStatus {
+  return SERIES_STATUS_SET.has(status as SeriesStatus)
+    ? (status as SeriesStatus)
+    : "draft";
+}
+
+type SeriesRowLike = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  topic: string | null;
+  targetLevelMin: string | null;
+  targetLevelMax: string | null;
+  articleIds: unknown;
+  status: string;
+  public: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function toAdminSeriesDetail(row: SeriesRowLike): AdminSeriesDetail {
+  const articleIds = toArticleIds(row.articleIds);
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    description: row.description,
+    topic: row.topic,
+    targetLevelMin: row.targetLevelMin,
+    targetLevelMax: row.targetLevelMax,
+    status: toSeriesStatus(row.status),
+    public: row.public,
+    articleIds,
+    articleCount: articleIds.length,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function toAdminSeriesRow(row: SeriesRowLike): AdminSeriesRow {
+  const detail = toAdminSeriesDetail(row);
+  return {
+    id: detail.id,
+    slug: detail.slug,
+    title: detail.title,
+    description: detail.description,
+    topic: detail.topic,
+    targetLevelMin: detail.targetLevelMin,
+    targetLevelMax: detail.targetLevelMax,
+    status: detail.status,
+    public: detail.public,
+    articleCount: detail.articleCount,
+    createdAt: detail.createdAt,
+    updatedAt: detail.updatedAt,
+  };
+}
+
+function normalizeOptionalText(
+  value: OptionalText,
+  field: string,
+  max: number,
+): DomainResult<{ value: string | null }> {
+  if (value === undefined || value === null) return ok({ value: null });
+  const normalized = value.trim();
+  if (normalized.length === 0) return ok({ value: null });
+  if (normalized.length > max) {
+    return validationError(`${field} must be at most ${max} characters`);
+  }
+  return ok({ value: normalized });
+}
+
+function normalizeRequiredText(
+  value: string,
+  field: string,
+  max: number,
+): DomainResult<{ value: string }> {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return validationError(`${field} is required`);
+  }
+  if (normalized.length > max) {
+    return validationError(`${field} must be at most ${max} characters`);
+  }
+  return ok({ value: normalized });
+}
+
+function normalizeSlug(slug: string): DomainResult<{ value: string }> {
+  const required = normalizeRequiredText(slug, "slug", SERIES_SLUG_MAX);
+  if (!required.ok) return required;
+  const value = required.value.toLowerCase();
+  if (!SERIES_SLUG_RE.test(value)) {
+    return validationError(
+      "slug must contain only lowercase letters, numbers, and single hyphens between segments",
+    );
+  }
+  return ok({ value });
+}
+
+function canTransitionSeriesStatus(from: SeriesStatus, to: SeriesStatus): boolean {
+  if (from === to) return true;
+  if (from === "draft") return to === "active";
+  if (from === "active") return to === "archived";
+  return false;
 }
 
 function toEnrollmentSummary(
@@ -181,6 +361,251 @@ export async function listPublicSeriesForUser(
     articleCount: toArticleIds(r.articleIds).length,
     enrollment: toEnrollmentSummary(bySeries.get(r.id) ?? null),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Admin curation (typed service seam for /api/admin/series*)
+// ---------------------------------------------------------------------------
+
+/** Lists ALL curated series for admin curation, newest edits first. */
+export async function listSeriesForAdmin(): Promise<AdminSeriesRow[]> {
+  const rows = await prisma.readingSeries.findMany({
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "asc" }],
+  });
+  return rows.map(toAdminSeriesRow);
+}
+
+/** Fetches one curated series for admin detail/editing, or null when missing. */
+export async function getSeriesForAdmin(seriesId: string): Promise<AdminSeriesDetail | null> {
+  const row = await prisma.readingSeries.findUnique({ where: { id: seriesId } });
+  return row ? toAdminSeriesDetail(row) : null;
+}
+
+/** Creates a new curated series. Lifecycle starts at `draft` only. */
+export async function createReadingSeries(
+  input: CreateReadingSeriesInput,
+): Promise<ReadingSeriesMutationResult> {
+  const slug = normalizeSlug(input.slug);
+  if (!slug.ok) return slug;
+
+  const title = normalizeRequiredText(input.title, "title", SERIES_TITLE_MAX);
+  if (!title.ok) return title;
+
+  const description = normalizeOptionalText(
+    input.description,
+    "description",
+    SERIES_DESCRIPTION_MAX,
+  );
+  if (!description.ok) return description;
+
+  const topic = normalizeOptionalText(input.topic, "topic", SERIES_TOPIC_MAX);
+  if (!topic.ok) return topic;
+
+  const targetLevelMin = normalizeOptionalText(
+    input.targetLevelMin,
+    "targetLevelMin",
+    SERIES_LEVEL_MAX,
+  );
+  if (!targetLevelMin.ok) return targetLevelMin;
+
+  const targetLevelMax = normalizeOptionalText(
+    input.targetLevelMax,
+    "targetLevelMax",
+    SERIES_LEVEL_MAX,
+  );
+  if (!targetLevelMax.ok) return targetLevelMax;
+
+  if (input.status !== undefined && input.status !== "draft") {
+    return validationError("status must be draft on create");
+  }
+
+  const slugTaken = await prisma.readingSeries.findUnique({
+    where: { slug: slug.value },
+    select: { id: true },
+  });
+  if (slugTaken) return conflict("slug already exists");
+
+  const created = await prisma.readingSeries.create({
+    data: {
+      slug: slug.value,
+      title: title.value,
+      description: description.value,
+      topic: topic.value,
+      targetLevelMin: targetLevelMin.value,
+      targetLevelMax: targetLevelMax.value,
+      articleIds: toArticleIds(input.articleIds ?? []),
+      status: "draft",
+      public: input.public ?? false,
+    },
+  });
+
+  return ok({ series: toAdminSeriesDetail(created) });
+}
+
+/** Updates curated series metadata, lifecycle state, and article membership. */
+export async function updateReadingSeries(
+  seriesId: string,
+  input: UpdateReadingSeriesInput,
+): Promise<ReadingSeriesMutationResult> {
+  const existing = await prisma.readingSeries.findUnique({ where: { id: seriesId } });
+  if (!existing) return notFound("Series not found");
+
+  const data: {
+    slug?: string;
+    title?: string;
+    description?: string | null;
+    topic?: string | null;
+    targetLevelMin?: string | null;
+    targetLevelMax?: string | null;
+    articleIds?: string[];
+    status?: SeriesStatus;
+    public?: boolean;
+  } = {};
+
+  if (input.slug !== undefined) {
+    const slug = normalizeSlug(input.slug);
+    if (!slug.ok) return slug;
+    if (slug.value !== existing.slug) {
+      const clash = await prisma.readingSeries.findUnique({
+        where: { slug: slug.value },
+        select: { id: true },
+      });
+      if (clash && clash.id !== existing.id) return conflict("slug already exists");
+    }
+    data.slug = slug.value;
+  }
+
+  if (input.title !== undefined) {
+    const title = normalizeRequiredText(input.title, "title", SERIES_TITLE_MAX);
+    if (!title.ok) return title;
+    data.title = title.value;
+  }
+
+  if (input.description !== undefined) {
+    const description = normalizeOptionalText(
+      input.description,
+      "description",
+      SERIES_DESCRIPTION_MAX,
+    );
+    if (!description.ok) return description;
+    data.description = description.value;
+  }
+
+  if (input.topic !== undefined) {
+    const topic = normalizeOptionalText(input.topic, "topic", SERIES_TOPIC_MAX);
+    if (!topic.ok) return topic;
+    data.topic = topic.value;
+  }
+
+  if (input.targetLevelMin !== undefined) {
+    const targetLevelMin = normalizeOptionalText(
+      input.targetLevelMin,
+      "targetLevelMin",
+      SERIES_LEVEL_MAX,
+    );
+    if (!targetLevelMin.ok) return targetLevelMin;
+    data.targetLevelMin = targetLevelMin.value;
+  }
+
+  if (input.targetLevelMax !== undefined) {
+    const targetLevelMax = normalizeOptionalText(
+      input.targetLevelMax,
+      "targetLevelMax",
+      SERIES_LEVEL_MAX,
+    );
+    if (!targetLevelMax.ok) return targetLevelMax;
+    data.targetLevelMax = targetLevelMax.value;
+  }
+
+  if (input.articleIds !== undefined) {
+    data.articleIds = toArticleIds(input.articleIds);
+  }
+
+  if (input.public !== undefined) {
+    data.public = input.public;
+  }
+
+  if (input.status !== undefined) {
+    const current = toSeriesStatus(existing.status);
+    const next = toSeriesStatus(input.status);
+    if (!canTransitionSeriesStatus(current, next)) {
+      return conflict(`Cannot transition series status from ${current} to ${next}`);
+    }
+    data.status = next;
+  }
+
+  if (Object.keys(data).length === 0) {
+    return validationError("At least one updatable field is required");
+  }
+
+  const updated = await prisma.readingSeries.update({
+    where: { id: seriesId },
+    data,
+  });
+
+  return ok({ series: toAdminSeriesDetail(updated) });
+}
+
+/** Hard-delete a series when there are no active enrollments. */
+export async function deleteReadingSeries(seriesId: string): Promise<DeleteReadingSeriesResult> {
+  const existing = await prisma.readingSeries.findUnique({
+    where: { id: seriesId },
+    select: { id: true },
+  });
+  if (!existing) return notFound("Series not found");
+
+  const activeEnrollments = await prisma.seriesEnrollment.count({
+    where: { seriesId, status: "active" },
+  });
+  if (activeEnrollments > 0) {
+    return conflict("Cannot delete a series with active enrollments");
+  }
+
+  await prisma.readingSeries.delete({ where: { id: seriesId } });
+  return ok();
+}
+
+function hasSameArticleMembership(current: string[], requested: string[]): boolean {
+  if (current.length !== requested.length) return false;
+  const remaining = new Set(current);
+  for (const id of requested) {
+    if (!remaining.has(id)) return false;
+    remaining.delete(id);
+  }
+  return remaining.size === 0;
+}
+
+/**
+ * Reorders article ids transactionally. Reorder-only: requested ids must be the
+ * same unique set as the existing series membership.
+ */
+export async function reorderReadingSeriesItems(
+  seriesId: string,
+  orderedArticleIds: string[],
+): Promise<ReadingSeriesMutationResult> {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.readingSeries.findUnique({ where: { id: seriesId } });
+    if (!existing) return notFound("Series not found");
+
+    const currentIds = toArticleIds(existing.articleIds);
+    const requestedIds = toArticleIds(orderedArticleIds);
+    if (!hasSameArticleMembership(currentIds, requestedIds)) {
+      return validationError(
+        "articleIds must contain each existing series article id exactly once",
+      );
+    }
+
+    const unchanged = requestedIds.every((id, index) => id === currentIds[index]);
+    if (unchanged) {
+      return ok({ series: toAdminSeriesDetail(existing) });
+    }
+
+    const updated = await tx.readingSeries.update({
+      where: { id: seriesId },
+      data: { articleIds: requestedIds },
+    });
+    return ok({ series: toAdminSeriesDetail(updated) });
+  });
 }
 
 /**
