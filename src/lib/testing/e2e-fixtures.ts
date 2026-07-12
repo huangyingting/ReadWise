@@ -24,6 +24,7 @@ import { prisma } from "@/lib/prisma";
 import { assertSafeE2eDatabaseUrl } from "./db-guard";
 
 export const TEST_ARTICLE_ID = "e2e-critical-reader";
+export const TEST_MEMBER_ID = "e2e-reader-member";
 const FIXED_ARTICLE_PUBLISHED_AT = new Date("2026-01-15T12:00:00.000Z");
 
 export const ARTICLE_BODY = `
@@ -230,6 +231,22 @@ export async function seedE2eArticles(): Promise<void> {
   });
   await prisma.articleTag.create({
     data: { articleId: TEST_ARTICLE_ID, tagId: tag.id },
+  });
+}
+
+/**
+ * Seeds a deterministic Reader member used by the admin member-detail UI audit.
+ * Uses a fixed ID so the route profile can reference it statically.
+ */
+export async function seedE2eMember(): Promise<void> {
+  await prisma.user.create({
+    data: {
+      id: TEST_MEMBER_ID,
+      name: "E2E Reader Member",
+      email: "e2e-reader-member@example.com",
+      role: "Reader",
+      ...onboardedProfileCreateData(),
+    },
   });
 }
 

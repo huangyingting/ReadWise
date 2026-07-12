@@ -12,6 +12,7 @@ interface AdminSection {
 const SECTIONS = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/articles", label: "Articles" },
+  { href: "/admin/series", label: "Series" },
   { href: "/admin/sources", label: "Sources" },
   { href: "/admin/tags", label: "Tags" },
   { href: "/admin/members", label: "Members" },

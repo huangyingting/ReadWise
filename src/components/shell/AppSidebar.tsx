@@ -9,6 +9,7 @@ import {
   PRIMARY_NAV,
   ADMIN_NAV_ITEMS,
   isActivePath,
+  filterNavForUser,
   type NavItem,
 } from "./nav-items";
 import type { ShellUser } from "./types";
@@ -34,8 +35,8 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
   const isAdmin = user?.role === "Admin";
   const { collapsed, mounted, toggle } = useSidebarState();
 
-  const primaryNav = PRIMARY_NAV.filter(hasNavGroup("primary"));
-  const secondaryNav = PRIMARY_NAV.filter(hasNavGroup("secondary"));
+  const primaryNav = filterNavForUser(PRIMARY_NAV, user?.showTodayNav ?? false).filter(hasNavGroup("primary"));
+  const secondaryNav = filterNavForUser(PRIMARY_NAV, user?.showTodayNav ?? false).filter(hasNavGroup("secondary"));
   const renderNavItem = (item: NavItem) => (
     <SidebarNavLink
       key={item.href}

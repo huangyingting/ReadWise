@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-04T23:37:41.612Z",
-  "routeCount": 110,
-  "methodCount": 124,
+  "generatedAt": "2026-07-12T04:35:40.033Z",
+  "routeCount": 118,
+  "methodCount": 139,
   "routes": [
     {
       "path": "/api/account",
@@ -616,6 +616,138 @@
       ]
     },
     {
+      "path": "/api/admin/series",
+      "file": "src/app/api/admin/series/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "series"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 201,
+          "responseKeys": [
+            "ok",
+            "series"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/series/{id}",
+      "file": "src/app/api/admin/series/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "series"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "DELETE",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "PATCH",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "series"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/series/{id}/reorder",
+      "file": "src/app/api/admin/series/[id]/reorder/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "series"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/admin/slo",
       "file": "src/app/api/admin/slo/route.ts",
       "runtime": "default",
@@ -934,6 +1066,29 @@
       ]
     },
     {
+      "path": "/api/assignments/{id}",
+      "file": "src/app/api/assignments/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/assignments/{id}/completion",
       "file": "src/app/api/assignments/[id]/completion/route.ts",
       "runtime": "default",
@@ -1051,6 +1206,22 @@
       "runtime": "default",
       "methods": [
         {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "classrooms"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
           "method": "POST",
           "authMode": "session",
           "capability": null,
@@ -1068,6 +1239,29 @@
             "name",
             "orgId"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms/{id}",
+      "file": "src/app/api/classrooms/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "classroom"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1198,6 +1392,29 @@
             "role",
             "userId"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms/{id}/members/{userid}",
+      "file": "src/app/api/classrooms/[id]/members/[userid]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1625,6 +1842,22 @@
       "runtime": "default",
       "methods": [
         {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "memberships"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
           "method": "POST",
           "authMode": "session",
           "capability": null,
@@ -1647,10 +1880,49 @@
       ]
     },
     {
+      "path": "/api/orgs/{id}",
+      "file": "src/app/api/orgs/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "organization"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/orgs/{id}/members",
       "file": "src/app/api/orgs/[id]/members/route.ts",
       "runtime": "default",
       "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "members"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
         {
           "method": "POST",
           "authMode": "session",
@@ -1669,6 +1941,48 @@
           "bodyFieldNames": [
             "role",
             "userId"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/orgs/{id}/members/{memberid}",
+      "file": "src/app/api/orgs/[id]/members/[memberid]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "PATCH",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "role"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "role"
           ]
         }
       ]

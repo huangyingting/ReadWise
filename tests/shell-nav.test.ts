@@ -8,6 +8,7 @@
  *  - localStorage parsing / responsive default (parseSidebarStored, getResponsiveDefault)
  *  - Protected-route list generation (getNavProtectedPrefixes)
  *  - NAV_ITEMS structural invariants (mobileTab, group, protected fields)
+ *  - Feature-flag gating (filterNavForUser) — Today nav hidden/shown (#1011)
  *
  * No React, no DOM, no database — pure logic only.
  */
@@ -21,6 +22,7 @@ import {
   parseSidebarStored,
   getResponsiveDefault,
   getEffectiveCollapsed,
+  filterNavForUser,
   NAV_ITEMS,
   PRIMARY_NAV,
   PRIMARY_TABS,
@@ -163,6 +165,7 @@ test("getNavProtectedPrefixes includes all expected protected hrefs", () => {
     "/browse",
     "/study",
     "/progress",
+    "/today",
     "/import",
     "/lists",
     "/notes",
@@ -237,5 +240,90 @@ test("PRIMARY_NAV does not include utility-group items", () => {
     utilityInPrimary.length,
     0,
     "utility items must not appear in PRIMARY_NAV",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Today nav item — feature-gated discoverability (#1011)
+// ---------------------------------------------------------------------------
+
+test("NAV_ITEMS includes Today with correct shape", () => {
+  const today = NAV_ITEMS.find((item) => item.href === "/today");
+  assert.ok(today, "/today must be present in NAV_ITEMS");
+  assert.equal(today.label, "Today");
+  assert.equal(today.group, "secondary");
+  assert.equal(today.mobileTab, false);
+  assert.equal(today.protected, true);
+  assert.equal(today.requiresFeature, "todaySession");
+});
+
+test("Today is in SECONDARY_NAV (secondary group)", () => {
+  const today = SECONDARY_NAV.find((item) => item.href === "/today");
+  assert.ok(today, "Today must appear in SECONDARY_NAV (secondary sidebar + More sheet)");
+});
+
+test("Today does NOT appear in PRIMARY_TABS (mobile tab budget preserved)", () => {
+  const today = PRIMARY_TABS.find((item) => item.href === "/today");
+  assert.equal(today, undefined, "Today must not crowd the four primary mobile tabs");
+});
+
+test("PRIMARY_TABS still contains exactly four items with Today present in NAV_ITEMS", () => {
+  assert.equal(PRIMARY_TABS.length, 4, "Mobile tab budget must remain at four items");
+});
+
+test("isActivePath matches /today exactly", () => {
+  assert.equal(isActivePath("/today", "/today"), true);
+});
+
+test("isActivePath matches nested /today/* routes", () => {
+  assert.equal(isActivePath("/today/session/1", "/today"), true);
+});
+
+// ---------------------------------------------------------------------------
+// filterNavForUser — feature-flag gating
+// ---------------------------------------------------------------------------
+
+test("filterNavForUser - hides Today when showTodayNav=false", () => {
+  const result = filterNavForUser(SECONDARY_NAV, false);
+  const today = result.find((item) => item.href === "/today");
+  assert.equal(today, undefined, "Today must be filtered out when showTodayNav=false");
+});
+
+test("filterNavForUser - shows Today when showTodayNav=true", () => {
+  const result = filterNavForUser(SECONDARY_NAV, true);
+  const today = result.find((item) => item.href === "/today");
+  assert.ok(today, "Today must appear when showTodayNav=true");
+});
+
+test("filterNavForUser - non-feature-gated items always pass through", () => {
+  const flagOff = filterNavForUser(SECONDARY_NAV, false);
+  const flagOn = filterNavForUser(SECONDARY_NAV, true);
+  const unconditional = SECONDARY_NAV.filter((item) => !item.requiresFeature);
+  for (const item of unconditional) {
+    assert.ok(
+      flagOff.some((i) => i.href === item.href),
+      `${item.href} must appear with showTodayNav=false`,
+    );
+    assert.ok(
+      flagOn.some((i) => i.href === item.href),
+      `${item.href} must appear with showTodayNav=true`,
+    );
+  }
+});
+
+test("filterNavForUser - PRIMARY_NAV with showTodayNav=false excludes Today", () => {
+  const result = filterNavForUser(PRIMARY_NAV, false);
+  assert.equal(
+    result.find((i) => i.href === "/today"),
+    undefined,
+    "Today must not appear in filtered PRIMARY_NAV when disabled",
+  );
+});
+
+test("filterNavForUser - PRIMARY_NAV with showTodayNav=true includes Today", () => {
+  const result = filterNavForUser(PRIMARY_NAV, true);
+  assert.ok(
+    result.find((i) => i.href === "/today"),
+    "Today must appear in filtered PRIMARY_NAV when enabled",
   );
 });

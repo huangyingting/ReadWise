@@ -4,10 +4,12 @@ import { prisma } from "@/lib/prisma";
 import {
   resetE2eDatabase,
   seedE2eArticles,
+  seedE2eMember,
 } from "@/lib/testing/e2e-fixtures";
 
 export {
   TEST_ARTICLE_ID,
+  TEST_MEMBER_ID,
   createUserWithSession,
   createSessionForUser,
   seedDueFlashcard,
@@ -21,6 +23,7 @@ const MS_PER_SECOND = 1000;
 export async function seedSmokeData(): Promise<void> {
   await resetE2eDatabase();
   await seedE2eArticles();
+  await seedE2eMember();
 }
 
 export async function addSessionCookie(
