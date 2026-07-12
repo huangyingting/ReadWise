@@ -22,7 +22,9 @@ function getTabLabel(href: string, fallback: string): string {
 function itemClass(active: boolean): string {
   return cn(
     "flex flex-1 flex-col items-center justify-center gap-[2px]",
-    "min-h-[44px] px-[var(--space-1)] py-[var(--space-1)]",
+    // min-h keeps items at the full content-height token; the nav adds
+    // padding-bottom below items for the home indicator (see nav className).
+    "min-h-[var(--bottom-bar-h)] px-[var(--space-1)] py-[var(--space-1)]",
     "text-[length:var(--text-xs)] font-medium",
     "transition-colors [transition-duration:var(--duration-fast)]",
     active ? "text-[var(--teal)]" : "text-text-muted hover:text-text",
@@ -60,8 +62,10 @@ export default function BottomTabBar({ user }: { user: ShellUser }) {
         className={cn(
           "md:hidden fixed inset-x-0 bottom-0 z-[var(--z-overlay)]",
           "flex items-stretch",
-          "h-[var(--bottom-bar-h)] bg-surface border-t border-border",
-          "[padding-bottom:env(safe-area-inset-bottom)]",
+          // No fixed height: total height = item content (--bottom-bar-h via
+          // min-h on each item) + home-indicator safe area below.
+          "bg-surface border-t border-border",
+          "[padding-bottom:env(safe-area-inset-bottom,0px)]",
         )}
       >
         {PRIMARY_TABS.map(({ href, label, icon: Icon }) => {
