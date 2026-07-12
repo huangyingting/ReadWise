@@ -11,6 +11,7 @@ import {
   disconnectDb,
   seedSmokeData,
   TEST_ARTICLE_ID,
+  TEST_MEMBER_ID,
 } from "./seed";
 
 export const MOBILE_VIEWPORT = { width: 390, height: 844 } as const;
@@ -90,4 +91,4 @@ export const test = base.extend<ReadwiseFixtures, ReadwiseWorkerFixtures>({
   },
 });
 
-export { expect, TEST_ARTICLE_ID };
+export { expect, TEST_ARTICLE_ID, TEST_MEMBER_ID };
