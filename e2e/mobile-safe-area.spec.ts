@@ -12,8 +12,8 @@
  *   b) zero-inset behavior is unchanged (non-notch path),
  *   c) touch-target geometry (items are ≥ --bottom-bar-h tall, not clipped),
  *   d) scroll-to-bottom visibility (final content not hidden behind bar),
- *   e) MoreSheet final action visible, Sheet panel has safe-area class,
- *   f) reader bottom-sheet body has safe-area class.
+ *   e) MoreSheet final action naturally visible (no pre-scroll) above safe-area, Sheet panel has safe-area padding,
+ *   f) reader tools overlay (reader-tools-surface) has safe-area padding-bottom and close button is visible.
  *
  * Real notch geometry (inset > 0) requires a physical device or a browser flag
  * (`--viewport-meta-content-override`). See wiring note in PR description.
@@ -149,9 +149,11 @@ for (const vp of VIEWPORTS) {
     // In non-notch Chromium env(safe-area-inset-bottom) = 0px, so pb = 0px.
     expect(panelPb).toBe("0px");
 
-    // The Sign out button should be visible.
+    // The Sign out button must be reachable via natural user scroll within the
+    // sheet — not via scrollIntoViewIfNeeded (which would be tautological).
+    // Scroll the sheet panel to the bottom, simulating user interaction.
+    await dialog.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
     const signOutBtn = page.getByRole("button", { name: /sign out/i });
-    await signOutBtn.scrollIntoViewIfNeeded();
     await expect(signOutBtn).toBeVisible();
 
     // Its bottom should be at or above the viewport bottom minus any bar.
@@ -170,10 +172,13 @@ for (const vp of VIEWPORTS) {
 }
 
 // ---------------------------------------------------------------------------
-// Reader bottom-sheet body has safe-area class (structural check via DOM)
+// Reader tools overlay has safe-area padding-bottom (structural + geometry)
 // ---------------------------------------------------------------------------
 
-test("reader bottom-sheet body element has padding-bottom style (0px in Chromium, env-ready)", async ({
+// The reader tools are now a full-screen overlay (ReaderToolsSurface, #206).
+// `.reader-bottom-sheet-body` no longer exists; the safe-area contract is on
+// `.reader-tools-surface[data-open="true"]` via padding-bottom: env(safe-area-inset-bottom).
+test("reader tools overlay (reader-tools-surface) has safe-area padding-bottom and close button is visible", async ({
   signIn,
   page,
 }) => {
@@ -181,29 +186,38 @@ test("reader bottom-sheet body element has padding-bottom style (0px in Chromium
   await signIn();
   await page.goto(`/reader/${TEST_ARTICLE_ID}`);
 
-  // Open the reader tools sheet via the FAB or toolbar.
-  const toolsBtn = page.getByRole("button", { name: /tools|study/i }).first();
-  const toolsBtnVisible = await toolsBtn.isVisible().catch(() => false);
-  if (!toolsBtnVisible) {
-    test.skip();
-    return;
-  }
+  // Open the reader practice tools overlay via the toolbar button (exact match
+  // to avoid strict-mode collision with the "Open practice tools" CTA below).
+  const toolsBtn = page.getByRole("button", { name: "Practice tools", exact: true });
+  await expect(toolsBtn).toBeVisible();
   await toolsBtn.click();
 
-  // Locate the reader bottom-sheet body.
-  const body = page.locator(".reader-bottom-sheet-body").first();
-  const isVisible = await body.isVisible().catch(() => false);
-  if (!isVisible) {
-    test.skip();
-    return;
-  }
+  // The overlay should open as a dialog labelled "Practice tools".
+  const overlay = page.getByRole("dialog", { name: "Practice tools" });
+  await expect(overlay).toBeVisible();
 
-  const pb = await body.evaluate((el) =>
+  // The overlay element must carry padding-bottom from env(safe-area-inset-bottom).
+  // In Chromium without notch emulation, env(safe-area-inset-bottom) = 0px.
+  // The property must be present (even at 0px) to prove the CSS rule is applied.
+  const pb = await page.locator(".reader-tools-surface[data-open='true']").evaluate((el) =>
     window.getComputedStyle(el).paddingBottom,
   );
-  // In Chromium without notch emulation, env(safe-area-inset-bottom) = 0px.
-  // The presence of the property (even at 0px) confirms the CSS rule is applied.
   expect(pb).toBe("0px");
+
+  // The close button must be immediately visible without scrolling.
+  const closeBtn = page.getByRole("button", { name: "Close practice tools" });
+  await expect(closeBtn).toBeVisible();
+
+  // The close button bottom must be within the viewport (not clipped by safe-area).
+  const result = await page.evaluate(() => {
+    const btn = document.querySelector<HTMLElement>('button[aria-label="Close practice tools"]');
+    if (!btn) return { btnBottom: 0, viewportH: window.innerHeight };
+    return {
+      btnBottom: btn.getBoundingClientRect().bottom,
+      viewportH: window.innerHeight,
+    };
+  });
+  expect(result.btnBottom).toBeLessThanOrEqual(result.viewportH);
 });
 
 // ---------------------------------------------------------------------------
