@@ -244,6 +244,33 @@ test("seedDueFlashcard creates a saved word due for review", async () => {
   );
 });
 
+// ── seedE2eMember ─────────────────────────────────────────────────────────
+
+test("seedE2eMember creates a Reader member with fixed synthetic ID and onboarded profile", async () => {
+  createCallCount = 0;
+  const { seedE2eMember, TEST_MEMBER_ID } = await import("@/lib/testing/e2e-fixtures");
+  await seedE2eMember();
+  assert.equal(createCallCount, 1, "one user.create call expected");
+  assert.equal(lastCreateArgs?.id, TEST_MEMBER_ID, "id must match TEST_MEMBER_ID");
+  assert.equal(lastCreateArgs?.id, "e2e-reader-member", "fixed synthetic ID must be e2e-reader-member");
+  assert.equal(lastCreateArgs?.role, "Reader", "role must be Reader");
+  assert.equal(lastCreateArgs?.name, "E2E Reader Member");
+  assert.equal(lastCreateArgs?.email, "e2e-reader-member@example.com");
+  // Onboarded profile data must be embedded in the create call.
+  const profile = lastCreateArgs?.profile as { create?: Record<string, unknown> } | undefined;
+  assert.ok(profile?.create, "profile.create must be present (onboarded)");
+  assert.equal(profile!.create!.englishLevel, "B1");
+  assert.ok(Array.isArray(profile!.create!.topics), "topics must be an array");
+  assert.ok(
+    (profile!.create!.topics as string[]).includes("tech"),
+    "topics must include 'tech'",
+  );
+  assert.ok(
+    profile!.create!.completedAt instanceof Date,
+    "completedAt must be a Date (onboarding complete)",
+  );
+});
+
 // ── seedTeacherClassroom ──────────────────────────────────────────────────
 
 test("seedTeacherClassroom creates teacher, student, org, and classroom", async () => {

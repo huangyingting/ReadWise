@@ -9,7 +9,7 @@ import { type BrowserContext, type Page, type TestInfo } from "@playwright/test"
 import { mkdir, appendFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { expect, TEST_ARTICLE_ID } from "./fixtures";
+import { expect, TEST_ARTICLE_ID, TEST_MEMBER_ID } from "./fixtures";
 
 export type SessionState = "anonymous" | "reader" | "admin" | "new-reader";
 export type SignIn = (options?: {
@@ -550,6 +550,16 @@ export const ADMIN_OPERATIONS_ROUTES: RouteProfile[] = [
   },
 
   {
+    id: "admin-member-detail",
+    subsystem: "admin",
+    session: "admin",
+    path: `/admin/members/${TEST_MEMBER_ID}`,
+    heading: "Member support",
+    expectedText: "Activity summary",
+    tags: ["@high-risk"],
+  },
+
+  {
     id: "admin-reports",
     subsystem: "admin",
     session: "admin",
@@ -657,6 +667,7 @@ const ORIGINAL_ROUTE_ORDER = [
   "admin-jobs",
   "admin-jobs-filtered",
   "admin-members",
+  "admin-member-detail",
   "admin-reports",
   "admin-tags",
   "admin-sources",
@@ -682,8 +693,8 @@ export const SCENARIOS: Scenario[] = ROUTES.flatMap((route) =>
   caseId: `audit-case-${String(index + 1).padStart(3, "0")}`,
 }));
 
-if (SCENARIOS.length !== 500) {
-  throw new Error(`UI audit must register exactly 500 scenarios; got ${SCENARIOS.length}`);
+if (SCENARIOS.length !== 510) {
+  throw new Error(`UI audit must register exactly 510 scenarios; got ${SCENARIOS.length}`);
 }
 
 function regexSource(value: string | RegExp): string {
@@ -951,6 +962,11 @@ async function assertRouteBehavior(page: Page, profile: RouteProfile): Promise<v
     case "admin-members":
       await page.getByRole("searchbox", { name: "Search members" }).fill("E2E");
       await expect(page.getByRole("searchbox", { name: "Search members" })).toHaveValue("E2E");
+      break;
+    case "admin-member-detail":
+      await expect(page.getByRole("link", { name: /Back to members/i }).first()).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Support actions" }).first()).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Admin action history" }).first()).toBeVisible();
       break;
     case "admin-reports":
       await expect(page.getByLabel("Filter by status").first()).toBeVisible();
