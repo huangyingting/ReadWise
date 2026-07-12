@@ -6,6 +6,7 @@
  *   711-A: ReminderPreference (push scheduling preferences)
  *   711-C: LevelHistory, WordMastery, ArticleMastery, SkillMastery,
  *          ArticleDifficultyFeedback (learning mastery data)
+ *   1013: StudyPlanSnapshot metadata (durable weekly study-plan state)
  *   711-E: Membership, ClassroomMembership, AssignmentCompletion
  *          (tenant / classroom history)
  *
@@ -124,6 +125,33 @@ const stubExportUser = {
     },
   ],
 
+  // #1013 — durable weekly study-plan snapshot metadata.
+  studyPlanSnapshots: [
+    {
+      weekStart: new Date("2026-07-07T00:00:00Z"),
+      weekEnd: new Date("2026-07-14T00:00:00Z"),
+      generatedAt: new Date("2026-07-08T12:34:56Z"),
+      summary: "This week, focus on comprehension and vocabulary.",
+      isStarter: false,
+      weakAreas: [
+        {
+          kind: "comprehension",
+          severity: 0.71,
+        },
+      ],
+      items: [
+        {
+          id: "comprehension:quiz",
+          kind: "comprehension",
+          title: "Read then take the comprehension quiz",
+          href: "/browse?view=picks",
+        },
+      ],
+      sourceVersion: "study-plan-v1",
+      createdAt: new Date("2026-07-08T12:34:56Z"),
+    },
+  ],
+
   // 711-E
   memberships: [
     { orgId: "org-1", role: "Member", createdAt: NOW, updatedAt: NOW },
@@ -162,6 +190,7 @@ let stubAdminCount = 2;
 let stubMediaAssets: { storageKey: string }[] = [];
 let storageDeletedKeys: string[] = [];
 let storageDeleteShouldFail = false;
+let lastUserFindUniqueArgs: { where: { id: string }; select?: Record<string, unknown> } | null = null;
 
 const mockStorageInstance = {
   kind: "local" as const,
@@ -180,7 +209,8 @@ const mockStorageInstance = {
 before(() => {
   const mockPrisma = {
     user: {
-      findUnique: async (args: { where: { id: string } }) => {
+      findUnique: async (args: { where: { id: string }; select?: Record<string, unknown> }) => {
+        lastUserFindUniqueArgs = args;
         if (args.where.id === "missing") return null;
         // Return the full export stub; deleteOwnAccount only reads .id and .role
         // so a rich return value is safe for both call sites.
@@ -225,13 +255,14 @@ beforeEach(() => {
   stubMediaAssets = [];
   storageDeletedKeys = [];
   storageDeleteShouldFail = false;
+  lastUserFindUniqueArgs = null;
 });
 
-async function exportStubUserData() {
+async function exportStubUserData(userId = "user-1") {
   const { exportUserData } = await import(
     "@/lib/account-lifecycle/account-commands"
   );
-  const data = await exportUserData("user-1");
+  const data = await exportUserData(userId);
   assert.ok(data, "export should not be null");
   return data;
 }
@@ -241,6 +272,18 @@ async function deleteStubUserAccount() {
     "@/lib/account-lifecycle/account-commands"
   );
   return deleteOwnAccount("user-1");
+}
+
+function makeAuditInput(action: string, targetId = "user-1") {
+  return {
+    req: new Request("http://test/api/account"),
+    session: { user: { id: "operator-1", role: "Admin" } },
+    requestId: "req-1",
+    action,
+    targetType: "account",
+    targetId,
+    metadata: { format: "json" },
+  } as const;
 }
 
 // ---------------------------------------------------------------------------
@@ -313,6 +356,73 @@ test("exportUserData includes learnerCoachMemory aggregates only (#810)", async 
     Object.keys(row).sort(),
     ["confidence", "createdAt", "evidenceCount", "lastObservedAt", "skill", "trend"],
   );
+});
+
+test("exportUserData scopes export query to the requested user id (#1013)", async () => {
+  await exportStubUserData("owned-user");
+  assert.equal(lastUserFindUniqueArgs?.where.id, "owned-user");
+});
+
+test("exportUserData selects ordered StudyPlanSnapshot metadata fields (#1013)", async () => {
+  await exportStubUserData();
+  const snapshots = (lastUserFindUniqueArgs?.select as {
+    studyPlanSnapshots?: {
+      select?: Record<string, unknown>;
+      orderBy?: Record<string, unknown>;
+    };
+  } | null)?.studyPlanSnapshots;
+  assert.ok(snapshots, "studyPlanSnapshots must be selected");
+  assert.deepEqual(snapshots.orderBy, { weekStart: "asc" });
+  assert.deepEqual(Object.keys(snapshots.select ?? {}), [
+    "weekStart",
+    "weekEnd",
+    "generatedAt",
+    "summary",
+    "isStarter",
+    "weakAreas",
+    "items",
+    "sourceVersion",
+    "createdAt",
+  ]);
+});
+
+test("exportUserData includes studyPlanSnapshots metadata rows (#1013)", async () => {
+  const data = await exportStubUserData();
+  assert.ok(Array.isArray(data.studyPlanSnapshots), "studyPlanSnapshots must be an array");
+  assert.equal(data.studyPlanSnapshots.length, 1);
+  const row = data.studyPlanSnapshots[0];
+  assert.deepEqual(Object.keys(row), [
+    "weekStart",
+    "weekEnd",
+    "generatedAt",
+    "summary",
+    "isStarter",
+    "weakAreas",
+    "items",
+    "sourceVersion",
+    "createdAt",
+  ]);
+  assert.equal(row.sourceVersion, "study-plan-v1");
+});
+
+test("exportUserData keeps studyPlanSnapshots as an empty section when no rows exist (#1013)", async () => {
+  const original = stubExportUser.studyPlanSnapshots;
+  try {
+    stubExportUser.studyPlanSnapshots = [];
+    const data = await exportStubUserData();
+    assert.ok("studyPlanSnapshots" in data, "studyPlanSnapshots key must exist in export");
+    assert.deepEqual(data.studyPlanSnapshots, []);
+  } finally {
+    stubExportUser.studyPlanSnapshots = original;
+  }
+});
+
+test("exportUserData records audit when audit context is provided", async () => {
+  const { exportUserData } = await import(
+    "@/lib/account-lifecycle/account-commands"
+  );
+  const data = await exportUserData("user-1", makeAuditInput("account.export"));
+  assert.ok(data);
 });
 
 // ---------------------------------------------------------------------------
@@ -402,4 +512,32 @@ test("deleteOwnAccount skips storage purge when no owned MediaAssets exist (711-
 
   assert.equal(result.ok, true);
   assert.equal(storageDeletedKeys.length, 0);
+});
+
+test("deleteOwnAccount returns 404 when account is missing", async () => {
+  const { deleteOwnAccount } = await import(
+    "@/lib/account-lifecycle/account-commands"
+  );
+  const result = await deleteOwnAccount("missing");
+  assert.deepEqual(result, { ok: false, error: "Account not found", status: 404 });
+});
+
+test("deleteOwnAccount blocks deleting the last admin", async () => {
+  stubUser = { id: "user-1", role: "Admin" };
+  stubAdminCount = 1;
+  const result = await deleteStubUserAccount();
+  assert.deepEqual(result, {
+    ok: false,
+    error:
+      "You are the last admin — transfer the Admin role to another user before deleting your account.",
+    status: 409,
+  });
+});
+
+test("deleteOwnAccount records audit when audit context is provided", async () => {
+  const { deleteOwnAccount } = await import(
+    "@/lib/account-lifecycle/account-commands"
+  );
+  const result = await deleteOwnAccount("user-1", makeAuditInput("account.delete"));
+  assert.equal(result.ok, true);
 });

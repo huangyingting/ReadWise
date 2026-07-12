@@ -5,7 +5,7 @@
  * optimistic UI updates. Seed data is deterministic and provider-free.
  */
 import { test, expect, TEST_ARTICLE_ID } from "./support/fixtures";
-import type { Page } from "@playwright/test";
+import type { Download, Page } from "@playwright/test";
 import {
   addSessionCookie,
   createSessionForUser,
@@ -27,6 +27,16 @@ async function prewarmJsonRoute(page: Page, method: "get" | "post", url: string,
     return;
   }
   await page.request.post(url, { data, timeout: 120_000 });
+}
+
+async function readDownloadUtf8(download: Download): Promise<string> {
+  const stream = await download.createReadStream();
+  if (!stream) throw new Error("download stream unavailable");
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 test("bookmark and named-list membership persist after reload", async ({
@@ -131,4 +141,61 @@ test("offline-saved article remains available after navigation and reload", asyn
 
   await page.reload();
   await expect(savedArticle).toBeVisible();
+});
+
+test("account export download returns JSON headers and includes study plan snapshots", async ({
+  readerPage: page,
+}) => {
+  // Visiting Study generates/persists the weekly StudyPlanSnapshot for this user.
+  await page.goto("/study");
+  await expect(page.getByRole("heading", { name: "Study list" })).toBeVisible();
+
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Download export" }).click();
+  const download = await downloadPromise;
+
+  const exportResponse = await page.request.get(download.url(), { timeout: 120_000 });
+  expect(exportResponse.status()).toBe(200);
+  expect(exportResponse.headers()["content-type"]).toContain("application/json");
+  expect(exportResponse.headers()["content-disposition"]).toContain("attachment");
+  expect(download.suggestedFilename()).toMatch(/^readwise-data-export-\d{4}-\d{2}-\d{2}\.json$/);
+
+  const payload = JSON.parse(await readDownloadUtf8(download)) as {
+    exportedAt: string;
+    data: {
+      profile: unknown;
+      studyPlanSnapshots: Array<{
+        weekStart: string;
+        weekEnd: string;
+        generatedAt: string;
+        summary: string;
+        isStarter: boolean;
+        weakAreas: unknown[];
+        items: unknown[];
+        sourceVersion: string;
+        createdAt: string;
+      }>;
+    };
+  };
+  expect(Number.isNaN(Date.parse(payload.exportedAt))).toBe(false);
+  expect(payload.data.profile).toBeTruthy();
+  expect(Array.isArray(payload.data.studyPlanSnapshots)).toBe(true);
+  expect(payload.data.studyPlanSnapshots.length).toBeGreaterThan(0);
+
+  const firstSnapshot = payload.data.studyPlanSnapshots[0];
+  expect(Object.keys(firstSnapshot)).toEqual([
+    "weekStart",
+    "weekEnd",
+    "generatedAt",
+    "summary",
+    "isStarter",
+    "weakAreas",
+    "items",
+    "sourceVersion",
+    "createdAt",
+  ]);
+  expect(firstSnapshot.sourceVersion).toBe("study-plan-v1");
 });
