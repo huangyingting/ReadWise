@@ -3,10 +3,14 @@
  * TEST2-1, TEST2-2, TEST2-5
  *
  * Covers:
+ *   GET  /api/classrooms                       — 401, 200
  *   POST /api/classrooms                       — 401, 403, 201
+ *   GET  /api/classrooms/[id]                  — 401, 404, 403, 200
  *   GET  /api/classrooms/[id]/analytics        — 401, 404, RBAC matrix (teacher/orgAdmin/learner)
  *   POST /api/classrooms/[id]/members          — 401, 404, 403, 201
+ *   DELETE /api/classrooms/[id]/members/[userId] — 401, 400, 404, 403, 200
  *   POST /api/classrooms/[id]/assignments      — 401, 403, 404, 400 (invalid due date), 201
+ *   DELETE /api/assignments/[id]               — 401, 404, 403, 200
  *   POST /api/assignments/[id]/completion      — 401, 404, 201
  *
  * Mocks: @/lib/api-auth, @/lib/classroom, @/lib/org, org/classroom submodules
@@ -24,7 +28,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { type RouteHandler, readerSession, withParams, jsonPost } from "./support/route";
+import { type RouteHandler, readerSession, withParams, getReq, jsonPost, deleteReq } from "./support/route";
 
 // ---------------------------------------------------------------------------
 // Mutable stub state
@@ -48,6 +52,9 @@ let createClassroomResult: Record<string, unknown> = {
   name: "Class 1",
   orgId: "org-1",
 };
+let classroomListResult: Array<Record<string, unknown>> = [
+  { id: "c1", orgId: "org-1", teacherId: "teacher-1", name: "Class 1" },
+];
 let addMemberResult: Record<string, unknown> = {
   id: "mem1",
   userId: "u2",
@@ -67,6 +74,12 @@ let completionResult: Record<string, unknown> = {
   status: "COMPLETED",
 };
 let assignmentContext: { id: string } | null = { id: "asgn1" };
+let assignmentClassroomResult: { id: string; classroomId: string } | null = {
+  id: "asgn1",
+  classroomId: "c1",
+};
+const removeClassroomMemberCalls: Array<{ classroomId: string; userId: string }> = [];
+const deleteAssignmentCalls: string[] = [];
 
 // org stubs — controls requireOrgCapabilityApi (for POST /classrooms) and
 // the inline RBAC check in GET /classrooms/[id]/analytics.
@@ -120,9 +133,17 @@ before(() => {
         return viewer?.id === classroom.teacherId || isOrgAdminStub;
       },
       getClassroom: async () => classroomStub,
+      listClassroomsForTeacher: async () => classroomListResult,
       createClassroom: async () => createClassroomResult,
       addClassroomMember: async () => addMemberResult,
+      removeClassroomMember: async (classroomId: string, userId: string) => {
+        removeClassroomMemberCalls.push({ classroomId, userId });
+      },
       assignArticle: async () => assignArticleResult,
+      getAssignmentClassroom: async () => assignmentClassroomResult,
+      deleteAssignment: async (assignmentId: string) => {
+        deleteAssignmentCalls.push(assignmentId);
+      },
       getStudentAssignmentContext: async () => assignmentContext,
       recordAssignmentCompletion: async () => completionResult,
     },
@@ -192,20 +213,34 @@ beforeEach(() => {
   currentSession = readerSession;
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
   createClassroomResult = { id: "c1", name: "Class 1", orgId: "org-1" };
+  classroomListResult = [{ id: "c1", orgId: "org-1", teacherId: "teacher-1", name: "Class 1" }];
   addMemberResult = { id: "mem1", userId: "u2", classroomId: "c1", role: "Student" };
   assignArticleResult = { id: "asgn1", classroomId: "c1", articleId: "a1", dueDate: null };
   completionResult = { id: "comp1", userId: "user-1", assignmentId: "asgn1", status: "COMPLETED" };
   assignmentContext = { id: "asgn1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
   membershipStub = null;
   isOrgAdminStub = false;
   analyticsViewerRoleStub = "teacher";
   analyticsDataStub = { classroomId: "c1", completionRate: 0.75, members: [] };
   articleStub = { id: "a1" };
+  removeClassroomMemberCalls.length = 0;
+  deleteAssignmentCalls.length = 0;
 });
 
 async function postClassrooms(body: Record<string, unknown>) {
   const { POST } = (await import("@/app/api/classrooms/route")) as { POST: RouteHandler };
   return POST(jsonPost("http://test/api/classrooms", body));
+}
+
+async function getClassrooms() {
+  const { GET } = (await import("@/app/api/classrooms/route")) as { GET: RouteHandler };
+  return GET(getReq("http://test/api/classrooms"));
+}
+
+async function getClassroom(id = "c1") {
+  const { GET } = (await import("@/app/api/classrooms/[id]/route")) as { GET: RouteHandler };
+  return GET(getReq(`http://test/api/classrooms/${id}`), withParams({ id }));
 }
 
 async function getClassroomAnalytics(id = "c1") {
@@ -232,6 +267,16 @@ async function postClassroomMember(id: string, body: Record<string, unknown>) {
   return POST(jsonPost(`http://test/api/classrooms/${id}/members`, body), withParams({ id }));
 }
 
+async function deleteClassroomMember(id: string, userId: string) {
+  const { DELETE } = (await import("@/app/api/classrooms/[id]/members/[userId]/route")) as {
+    DELETE: RouteHandler;
+  };
+  return DELETE(
+    deleteReq(`http://test/api/classrooms/${id}/members/${userId}`),
+    withParams({ id, userId }),
+  );
+}
+
 async function postClassroomAssignment(id: string, body: Record<string, unknown>) {
   const { POST } = (await import("@/app/api/classrooms/[id]/assignments/route")) as {
     POST: RouteHandler;
@@ -245,6 +290,35 @@ async function postAssignmentCompletion(id: string, body: Record<string, unknown
   };
   return POST(jsonPost(`http://test/api/assignments/${id}/completion`, body), withParams({ id }));
 }
+
+async function deleteAssignmentRoute(id: string) {
+  const { DELETE } = (await import("@/app/api/assignments/[id]/route")) as {
+    DELETE: RouteHandler;
+  };
+  return DELETE(deleteReq(`http://test/api/assignments/${id}`), withParams({ id }));
+}
+
+// ===========================================================================
+// GET /api/classrooms
+// ===========================================================================
+
+test("GET /api/classrooms returns 401 when unauthenticated", async () => {
+  authState = "unauth";
+  const res = await getClassrooms();
+  assert.equal(res.status, 401);
+});
+
+test("GET /api/classrooms returns teacher-managed classrooms", async () => {
+  classroomListResult = [
+    { id: "c1", orgId: "org-1", teacherId: "teacher-1", name: "Class 1" },
+    { id: "c2", orgId: "org-1", teacherId: "teacher-1", name: "Class 2" },
+  ];
+  const res = await getClassrooms();
+  assert.equal(res.status, 200);
+  const body = await res.json() as { classrooms: Array<{ id: string }> };
+  assert.equal(body.classrooms.length, 2);
+  assert.equal(body.classrooms[0].id, "c1");
+});
 
 // ===========================================================================
 // POST /api/classrooms
@@ -271,6 +345,39 @@ test("POST /api/classrooms returns 201 with the new classroom on success", async
   isOrgAdminStub = true;
   const res = await postClassrooms({ orgId: "org-1", name: "Class A" });
   assert.equal(res.status, 201);
+  const body = await res.json() as { classroom: { id: string } };
+  assert.equal(body.classroom.id, "c1");
+});
+
+// ===========================================================================
+// GET /api/classrooms/[id]
+// ===========================================================================
+
+test("GET /api/classrooms/[id] returns 401 when unauthenticated", async () => {
+  authState = "unauth";
+  const res = await getClassroom("c1");
+  assert.equal(res.status, 401);
+});
+
+test("GET /api/classrooms/[id] returns 404 when classroom not found", async () => {
+  classroomStub = null;
+  const res = await getClassroom("missing");
+  assert.equal(res.status, 404);
+});
+
+test("GET /api/classrooms/[id] returns 403 when caller cannot manage classroom", async () => {
+  currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
+  isOrgAdminStub = false;
+  const res = await getClassroom("c1");
+  assert.equal(res.status, 403);
+});
+
+test("GET /api/classrooms/[id] returns classroom detail on success", async () => {
+  currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  const res = await getClassroom("c1");
+  assert.equal(res.status, 200);
   const body = await res.json() as { classroom: { id: string } };
   assert.equal(body.classroom.id, "c1");
 });
@@ -459,6 +566,49 @@ test("POST /api/classrooms/[id]/members returns 201 and new member on success", 
 });
 
 // ===========================================================================
+// DELETE /api/classrooms/[id]/members/[userId]
+// ===========================================================================
+
+test("DELETE /api/classrooms/[id]/members/[userId] returns 401 when unauthenticated", async () => {
+  authState = "unauth";
+  const res = await deleteClassroomMember("c1", "u2");
+  assert.equal(res.status, 401);
+});
+
+test("DELETE /api/classrooms/[id]/members/[userId] validates route params", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  const { DELETE } = (await import("@/app/api/classrooms/[id]/members/[userId]/route")) as {
+    DELETE: RouteHandler;
+  };
+  const res = await DELETE(
+    deleteReq("http://test/api/classrooms/c1/members/"),
+    withParams({ id: "c1", userId: "" }),
+  );
+  assert.equal(res.status, 400);
+});
+
+test("DELETE /api/classrooms/[id]/members/[userId] returns 404 when classroom not found", async () => {
+  classroomStub = null;
+  const res = await deleteClassroomMember("missing", "u2");
+  assert.equal(res.status, 404);
+});
+
+test("DELETE /api/classrooms/[id]/members/[userId] returns 403 when caller cannot manage classroom", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
+  const res = await deleteClassroomMember("c1", "u2");
+  assert.equal(res.status, 403);
+});
+
+test("DELETE /api/classrooms/[id]/members/[userId] returns 200 and removes the member on success", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  const res = await deleteClassroomMember("c1", "u2");
+  assert.equal(res.status, 200);
+  const body = await res.json() as { ok: boolean };
+  assert.equal(body.ok, true);
+  assert.deepEqual(removeClassroomMemberCalls, [{ classroomId: "c1", userId: "u2" }]);
+});
+
+// ===========================================================================
 // POST /api/classrooms/[id]/assignments
 // ===========================================================================
 
@@ -501,6 +651,39 @@ test("POST /api/classrooms/[id]/assignments returns 201 with assignment on succe
   assert.equal(res.status, 201);
   const body = await res.json() as { assignment: { id: string } };
   assert.equal(body.assignment.id, "asgn1");
+});
+
+// ===========================================================================
+// DELETE /api/assignments/[id]
+// ===========================================================================
+
+test("DELETE /api/assignments/[id] returns 401 when unauthenticated", async () => {
+  authState = "unauth";
+  const res = await deleteAssignmentRoute("asgn1");
+  assert.equal(res.status, 401);
+});
+
+test("DELETE /api/assignments/[id] returns 404 when assignment is missing", async () => {
+  assignmentClassroomResult = null;
+  const res = await deleteAssignmentRoute("missing");
+  assert.equal(res.status, 404);
+});
+
+test("DELETE /api/assignments/[id] enforces tenant isolation with classroom-manage guard", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
+  const res = await deleteAssignmentRoute("asgn1");
+  assert.equal(res.status, 403);
+});
+
+test("DELETE /api/assignments/[id] returns 200 and deletes assignment on success", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  const res = await deleteAssignmentRoute("asgn1");
+  assert.equal(res.status, 200);
+  const body = await res.json() as { ok: boolean };
+  assert.equal(body.ok, true);
+  assert.deepEqual(deleteAssignmentCalls, ["asgn1"]);
 });
 
 // ===========================================================================

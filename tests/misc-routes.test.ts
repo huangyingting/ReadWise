@@ -62,7 +62,11 @@ function defaultLevelRecommendation(): Record<string, unknown> {
 }
 
 function defaultExportData(): Record<string, unknown> {
-  return { user: { id: "user-1", email: "t@e.com" }, articles: [], savedWords: [] };
+  return {
+    profile: { id: "user-1", email: "t@e.com" },
+    savedWords: [],
+    studyPlanSnapshots: [],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -344,13 +348,46 @@ test("GET /api/account/export returns 401 when unauthenticated", async () => {
   assert.equal(res.status, 401);
 });
 
-test("GET /api/account/export returns 200 with Content-Disposition attachment header", async () => {
+test("GET /api/account/export returns 200 with download headers", async () => {
   const { GET } = (await import("@/app/api/account/export/route")) as { GET: RouteHandler };
   const res = await GET(getReq("http://test/api/account/export"));
   assert.equal(res.status, 200);
+  assert.match(
+    res.headers.get("content-type") ?? "",
+    /^application\/json/i,
+    "Content-Type is JSON",
+  );
   const contentDisp = res.headers.get("content-disposition") ?? "";
   assert.match(contentDisp, /attachment/i, "Content-Disposition is an attachment");
   assert.match(contentDisp, /readwise-data-export/, "filename contains readwise-data-export");
+});
+
+test("GET /api/account/export serializes exportedAt + data payload", async () => {
+  exportDataResult = {
+    profile: { id: "user-1", email: "t@e.com" },
+    savedWords: [],
+    studyPlanSnapshots: [
+      {
+        weekStart: "2026-07-07T00:00:00.000Z",
+        weekEnd: "2026-07-14T00:00:00.000Z",
+      },
+    ],
+  };
+  const { GET } = (await import("@/app/api/account/export/route")) as { GET: RouteHandler };
+  const res = await GET(getReq("http://test/api/account/export"));
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as {
+    exportedAt: string;
+    data: {
+      profile: Record<string, unknown>;
+      savedWords: unknown[];
+      studyPlanSnapshots: Array<Record<string, string>>;
+    };
+  };
+  assert.equal(typeof body.exportedAt, "string");
+  assert.ok(!Number.isNaN(Date.parse(body.exportedAt)), "exportedAt is parseable ISO datetime");
+  assert.deepEqual(body.data, exportDataResult);
+  assert.ok(Array.isArray(body.data.studyPlanSnapshots));
 });
 
 // ===========================================================================

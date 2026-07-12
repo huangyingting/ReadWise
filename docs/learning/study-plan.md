@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-12"
 description: "Documents the Learning-owned study diagnostics engine, persisted weekly study-plan snapshots, SRS/cloze study routes, and Reader practice signals that feed weekly recommendations. Study mode combines stable weekly plan items, history, due flashcards, saved-word filters, and cloze fallback behavior."
 ---
 
@@ -142,7 +142,10 @@ plan item labels/links, timestamps, and aggregate evidence. They must not store
 raw article text, selected text, definitions, translations, prompts, generated
 AI text, reviewed words, examples, notes, tokens, or credentials. User deletion
 cascades `SavedWord`, mastery rows, quiz/pronunciation attempts, coach memory,
-`StudyPlanSnapshot`, and related user-owned study state.
+`StudyPlanSnapshot`, and related user-owned study state. Account export now
+includes ordered snapshot metadata (`weekStart`, `weekEnd`, `generatedAt`,
+`summary`, `isStarter`, `weakAreas`, `items`, `sourceVersion`, `createdAt`) for
+the authenticated user only.
 
 ## Tests
 
