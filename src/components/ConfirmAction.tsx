@@ -122,9 +122,11 @@ export default function ConfirmAction({
   async function handleConfirm() {
     try {
       await onConfirm();
-    } finally {
       setIsOpen(false);
       resetConfirmationState();
+    } catch {
+      // Keep the dialog open so the caller's error state stays visible and the
+      // user can retry without reopening the panel.
     }
   }
 
