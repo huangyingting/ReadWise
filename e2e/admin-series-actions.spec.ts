@@ -23,7 +23,7 @@ async function createAdminSeries(page: Page, unique: string) {
   };
 }
 
-test("admin series row actions keep failures open and only close on success", async ({
+test("@high-risk admin series row actions keep failures open and only close on success", async ({
   adminPage: page,
 }) => {
   test.setTimeout(240_000);
