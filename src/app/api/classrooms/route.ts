@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object, string, nonEmptyString } from "@/lib/validation";
 import { CAPABILITIES } from "@/lib/rbac";
-import { createClassroom } from "@/lib/classroom";
+import { createClassroom, listClassroomsForTeacher } from "@/lib/classroom";
 import { requireOrgCapabilityApi } from "@/lib/tenant-api";
 
 const createClassroomBody = object({
@@ -19,6 +19,17 @@ function classroomCreateInput(body: { orgId: string; name: string }, teacherId: 
     teacherId,
   };
 }
+
+/**
+ * Lists classrooms the caller teaches/manages (RW-061).
+ */
+export const GET = createHandler(
+  {},
+  async ({ session }) => {
+    const classrooms = await listClassroomsForTeacher(session.user.id);
+    return NextResponse.json({ classrooms });
+  },
+);
 
 /**
  * Creates a classroom in an organization (RW-061). Requires the caller to hold
