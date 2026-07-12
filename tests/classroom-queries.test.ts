@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 let classroomStub: Record<string, unknown> | null = null;
 let classroomListStub: Record<string, unknown>[] = [];
 let membershipListStub: Record<string, unknown>[] = [];
+let assignmentStub: Record<string, unknown> | null = null;
 
 let lastClassroomFindManyWhere: unknown = null;
 
@@ -47,6 +48,9 @@ before(() => {
         classroomMembership: {
           findMany: async () => membershipListStub,
         },
+        assignment: {
+          findUnique: async () => assignmentStub,
+        },
       },
     },
   });
@@ -56,6 +60,7 @@ beforeEach(() => {
   classroomStub = null;
   classroomListStub = [];
   membershipListStub = [];
+  assignmentStub = null;
   lastClassroomFindManyWhere = null;
 });
 
@@ -72,6 +77,20 @@ test("getClassroom returns null when the classroom does not exist", async () => 
   classroomStub = null;
   const { getClassroom } = await classroomQueries();
   const result = await getClassroom("missing");
+  assert.equal(result, null);
+});
+
+test("getAssignmentClassroom returns assignment id and classroomId when it exists", async () => {
+  assignmentStub = { id: "a1", classroomId: "c1" };
+  const { getAssignmentClassroom } = await classroomQueries();
+  const result = await getAssignmentClassroom("a1");
+  assert.deepEqual(result, { id: "a1", classroomId: "c1" });
+});
+
+test("getAssignmentClassroom returns null when assignment does not exist", async () => {
+  assignmentStub = null;
+  const { getAssignmentClassroom } = await classroomQueries();
+  const result = await getAssignmentClassroom("missing");
   assert.equal(result, null);
 });
 

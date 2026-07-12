@@ -7,7 +7,7 @@ import { signOut } from "next-auth/react";
 import { Settings, Shield, Keyboard, LogOut } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { Button, Sheet } from "@/components/ui";
-import { SECONDARY_NAV, isActivePath } from "./nav-items";
+import { SECONDARY_NAV, isActivePath, filterNavForUser } from "./nav-items";
 import ThemeToggle from "./ThemeToggle";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import type { ShellUser } from "./types";
@@ -64,7 +64,7 @@ export default function MoreSheet({
         </div>
 
         <nav aria-label="Secondary" className="py-[var(--space-2)]">
-          {SECONDARY_NAV.map(({ href, label, icon: Icon }) => {
+          {filterNavForUser(SECONDARY_NAV, user.showTodayNav ?? false).map(({ href, label, icon: Icon }) => {
             const active = isActivePath(pathname, href);
             return (
               <Link

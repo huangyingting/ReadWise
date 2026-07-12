@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-12"
 description: "Documents account ownership, support/admin action boundaries, export/delete cascades, and access-related data lifecycle contracts. Captures current account APIs, admin support workflows, guardrails, privacy constraints, and deletion/export behavior."
 ---
 
@@ -30,7 +30,10 @@ user: profile, saved words, progress, daily activity, reading lists, highlights,
 tutor messages, quiz attempts, pronunciation attempts, reminder preferences
 (711-A), level history, word mastery, article mastery, skill mastery, difficulty
 feedback (711-C), org memberships, classroom memberships, and assignment
-completions (711-E).
+completions (711-E), and weekly `studyPlanSnapshots` metadata (1013) ordered by
+`weekStart` ascending with controlled fields:
+`weekStart`, `weekEnd`, `generatedAt`, `summary`, `isStarter`, `weakAreas`,
+`items`, `sourceVersion`, `createdAt`.
 
 Non-negotiable boundaries:
 
