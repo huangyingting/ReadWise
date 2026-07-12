@@ -8,6 +8,10 @@ import {
 } from "./support/seed";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
+const INVALID_ATTRIBUTE_WARNING_PATTERNS = [
+  "non-boolean attribute `invalid`",
+  "non-boolean attribute invalid",
+];
 
 type SessionSeed = {
   sessionToken: string;
@@ -29,6 +33,34 @@ async function expectSeededReader(page: Page) {
   await expect(
     page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
   ).toBeVisible();
+}
+
+function capturePageErrors(page: Page): string[] {
+  const messages: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      messages.push(message.text());
+    }
+  });
+  page.on("pageerror", (error) => {
+    messages.push(error.message);
+  });
+  return messages;
+}
+
+function invalidAttributeWarnings(messages: string[]): string[] {
+  return messages.filter((message) =>
+    INVALID_ATTRIBUTE_WARNING_PATTERNS.some((pattern) =>
+      message.toLowerCase().includes(pattern),
+    ),
+  );
+}
+
+function isExpectedIntentional500(message: string): boolean {
+  return (
+    message.includes("Failed to load resource: the server responded with a status of 500") ||
+    message.includes("500 (Internal Server Error)")
+  );
 }
 
 test("shows onboarding for an authenticated reader without a profile", async ({
@@ -95,8 +127,32 @@ test("assignment lifecycle round trip updates student and teacher progress", asy
   const { context: teacherContext, page: teacherPage } = teacherActor;
   const { context: studentContext, page: studentPage } = studentActor;
   const { context: outsiderContext, page: outsiderPage } = outsiderActor;
+  const teacherPageErrors = capturePageErrors(teacherPage);
+  const studentPageErrors = capturePageErrors(studentPage);
+  const outsiderPageErrors = capturePageErrors(outsiderPage);
 
   try {
+    await teacherPage.goto("/settings");
+    await teacherPage
+      .locator("form")
+      .first()
+      .evaluate((form) => form.setAttribute("novalidate", "true"));
+    const englishLevelSelect = teacherPage.getByLabel("English level");
+    await expect(englishLevelSelect).toBeVisible();
+    await englishLevelSelect.selectOption("");
+    await teacherPage
+      .getByRole("button", { name: "Save profile & reading preferences" })
+      .click();
+    const levelError = teacherPage.getByText("Please select your English level.");
+    await expect(levelError).toBeVisible();
+    await expect(englishLevelSelect).toHaveAttribute("aria-invalid", "true");
+    const levelErrorId = await levelError.getAttribute("id");
+    expect(levelErrorId).toBeTruthy();
+    const levelDescribedBy = (await englishLevelSelect.getAttribute("aria-describedby")) ?? "";
+    expect(levelDescribedBy.split(/\s+/)).toContain(levelErrorId!);
+    await englishLevelSelect.focus();
+    await expect(englishLevelSelect).toBeFocused();
+
     await studentPage.goto("/assignments");
     await expect(studentPage.getByRole("heading", { name: "Assignments" })).toBeVisible();
     await expect(studentPage.getByText("No assignments yet")).toBeVisible();
@@ -104,8 +160,35 @@ test("assignment lifecycle round trip updates student and teacher progress", asy
     await studentPage.goto(`/teacher/classrooms/${classroom.id}`);
     await expect(studentPage).toHaveURL(/\/forbidden$/);
 
+    await teacherPage.route(
+      `**/api/classrooms/${classroom.id}/article-options*`,
+      async (route) => {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Search temporarily unavailable" }),
+        });
+      },
+      { times: 1 },
+    );
     await teacherPage.goto(`/teacher/classrooms/${classroom.id}`);
     await expect(teacherPage.getByRole("heading", { name: "E2E Reading Group" })).toBeVisible();
+    const articleSearchError = teacherPage.getByText(
+      "Could not refresh article results. Showing recent matches.",
+    );
+    await expect(articleSearchError).toBeVisible();
+    const articleSearchInput = teacherPage.getByLabel("Find article");
+    await expect(articleSearchInput).toHaveAttribute("aria-invalid", "true");
+    const articleSearchErrorId = await articleSearchError.getAttribute("id");
+    expect(articleSearchErrorId).toBeTruthy();
+    const articleSearchDescribedBy = (await articleSearchInput.getAttribute("aria-describedby")) ?? "";
+    expect(articleSearchDescribedBy).toContain("article-picker-help");
+    expect(articleSearchDescribedBy.split(/\s+/)).toContain(articleSearchErrorId!);
+    await articleSearchInput.focus();
+    await expect(articleSearchInput).toBeFocused();
+    const instructionsField = teacherPage.getByLabel("Instructions (optional)");
+    await instructionsField.focus();
+    await expect(instructionsField).toBeFocused();
     await expect(teacherPage.getByText("No assignments yet.")).toBeVisible();
 
     await teacherPage
@@ -210,6 +293,17 @@ test("assignment lifecycle round trip updates student and teacher progress", asy
       { data: { status: "COMPLETED" } },
     );
     expect(outsiderAttempt.status()).toBe(404);
+
+    const allPageErrors = [
+      ...teacherPageErrors,
+      ...studentPageErrors,
+      ...outsiderPageErrors,
+    ];
+    const unexpectedPageErrors = allPageErrors.filter(
+      (message) => !isExpectedIntentional500(message),
+    );
+    expect(unexpectedPageErrors).toEqual([]);
+    expect(invalidAttributeWarnings(allPageErrors)).toEqual([]);
   } finally {
     await Promise.all([
       teacherContext.close(),
