@@ -36,7 +36,7 @@ export default function AppShell({
         <AppHeader user={user} />
         <div className="flex flex-1 flex-row">
           {user ? <AppSidebar user={user} /> : null}
-          <div className="flex min-w-0 flex-1 flex-col pb-[var(--bottom-bar-h)] md:pb-0">
+          <div className="flex min-w-0 flex-1 flex-col pb-[var(--bottom-bar-total-h)] md:pb-0">
             <main id={MAIN_CONTENT_ID} className="flex-1" tabIndex={-1}>
               {children}
             </main>
