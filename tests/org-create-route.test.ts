@@ -15,6 +15,7 @@ before(() => {
 
   mock.module("@/lib/org", {
     namedExports: {
+      listUserOrganizations: async () => [],
       createOrganization: async (input: { name: string; slug?: string }, userId: string) => {
         createOrgCalls.push({ input, userId });
         return {
