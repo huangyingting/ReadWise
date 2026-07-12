@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-04T23:37:41.612Z",
-  "routeCount": 110,
-  "methodCount": 124,
+  "generatedAt": "2026-07-12T02:16:49.670Z",
+  "routeCount": 113,
+  "methodCount": 130,
   "routes": [
     {
       "path": "/api/account",
@@ -611,6 +611,138 @@
             "severity",
             "type"
           ],
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/series",
+      "file": "src/app/api/admin/series/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "series"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 201,
+          "responseKeys": [
+            "ok",
+            "series"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/series/{id}",
+      "file": "src/app/api/admin/series/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "series"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "DELETE",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "PATCH",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "series"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/series/{id}/reorder",
+      "file": "src/app/api/admin/series/[id]/reorder/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "articlesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "series"
+          ],
+          "queryParamNames": null,
           "bodyFieldNames": null
         }
       ]
