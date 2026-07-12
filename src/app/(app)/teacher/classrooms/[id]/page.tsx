@@ -29,6 +29,8 @@ import { buttonVariants } from "@/components/ui/Button";
 import { StatCard } from "@/components/analytics/StatCard";
 import AddStudentForm from "@/components/teacher/AddStudentForm";
 import AssignArticleForm from "@/components/teacher/AssignArticleForm";
+import DeleteAssignmentButton from "@/components/teacher/DeleteAssignmentButton";
+import RemoveStudentButton from "@/components/teacher/RemoveStudentButton";
 
 type ClassroomAnalytics = NonNullable<
   Awaited<ReturnType<typeof getClassroomAnalytics>>
@@ -91,8 +93,10 @@ function AnalyticsSummary({ analytics }: { analytics: ClassroomAnalytics }) {
 
 function AssignmentsCard({
   analytics,
+  canManage,
 }: {
   analytics: ClassroomAnalytics | null;
+  canManage: boolean;
 }) {
   return (
     <Card>
@@ -109,14 +113,22 @@ function AssignmentsCard({
             {analytics.perAssignment.map((assignment) => (
               <li
                 key={assignment.assignmentId}
-                className="flex items-center justify-between gap-[var(--space-3)] border-b border-border pb-[var(--space-2)] last:border-0"
+                className="flex flex-col gap-[var(--space-2)] border-b border-border pb-[var(--space-2)] last:border-0 sm:flex-row sm:items-center sm:justify-between"
               >
                 <span className="font-medium text-text">
                   {assignment.articleTitle}
                 </span>
-                <span className="text-[length:var(--text-sm)] text-text-muted">
-                  {assignmentSummary(assignment)}
-                </span>
+                <div className="flex flex-col items-start gap-[var(--space-1)] sm:items-end">
+                  <span className="text-[length:var(--text-sm)] text-text-muted">
+                    {assignmentSummary(assignment)}
+                  </span>
+                  {canManage ? (
+                    <DeleteAssignmentButton
+                      assignmentId={assignment.assignmentId}
+                      assignmentTitle={assignment.articleTitle}
+                    />
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>
@@ -332,9 +344,16 @@ function TeacherSidebar({
                   {students.map((student) => (
                     <li
                       key={student.userId}
-                      className="text-[length:var(--text-sm)] text-text-muted"
+                      className="flex items-center justify-between gap-[var(--space-3)]"
                     >
-                      {memberLabel(student)}
+                      <span className="text-[length:var(--text-sm)] text-text-muted">
+                        {memberLabel(student)}
+                      </span>
+                      <RemoveStudentButton
+                        classroomId={classroomId}
+                        studentId={student.userId}
+                        studentLabel={memberLabel(student)}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -419,7 +438,7 @@ export default async function ClassroomDetailPage({
 
       <div className="grid gap-[var(--space-6)] md:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-[var(--space-6)]">
-          <AssignmentsCard analytics={analytics} />
+          <AssignmentsCard analytics={analytics} canManage={canManage} />
           <DrilldownCard analytics={analytics} />
           <StudentProgressCard analytics={analytics} />
         </div>

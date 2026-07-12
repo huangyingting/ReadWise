@@ -145,3 +145,5 @@ All four recent decisions are complete, evidence-backed, and coordination-comple
 **Coordinator summary:** PR #965 architecture is sound; cycle-2 rejection is measurement-cascade (surgical fix). Switch revision ready for cycle 3. No blocker on merge design—only test coverage gap to resolve.
 
 Ceremony end: 2026-07-10T10:48:29Z
+- 2026-07-12T02:41:59.148+00:00 — Inbox drains must process every decision key; archive gates now depend on exact UTF-8 byte counts and age thresholds before/after merge.
+- 2026-07-11T22:31:57.145+00:00 — Epic #1008 finalization reinforced that canonical E2E discovery is mandatory, isolated ports/DB/.next are required for sequential local Playwright, formal-review comments are the accepted verdict mechanism under shared identity, and reviewer lockout chains must be preserved.

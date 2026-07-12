@@ -1,5 +1,8 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
+import { Input } from "./Input";
+import { Select } from "./Select";
+import { Textarea } from "./Textarea";
 
 export interface LabelProps
   extends React.LabelHTMLAttributes<HTMLLabelElement> {
@@ -42,6 +45,28 @@ export interface FieldProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
+type FieldChildProps = {
+  id?: string;
+  invalid?: boolean;
+  "aria-invalid"?: React.AriaAttributes["aria-invalid"];
+  "aria-describedby"?: string;
+};
+
+// Only controls with an explicit `invalid` contract receive the prop.
+const FIELD_INVALID_CONTROL_TYPES = [Input, Select, Textarea] as const;
+
+function isNativeFieldControlTag(
+  type: React.ReactElement["type"],
+): type is "input" | "select" | "textarea" {
+  return type === "input" || type === "select" || type === "textarea";
+}
+
+function supportsFieldInvalidProp(
+  child: React.ReactElement<FieldChildProps>,
+): boolean {
+  return FIELD_INVALID_CONTROL_TYPES.some((control) => control === child.type);
+}
+
 function cloneFieldControl(
   children: React.ReactNode,
   controlId: string,
@@ -52,15 +77,24 @@ function cloneFieldControl(
     return children;
   }
 
-  const child = children as React.ReactElement<Record<string, unknown>>;
-  return React.cloneElement(child, {
+  const child = children as React.ReactElement<FieldChildProps>;
+  const nextProps: FieldChildProps = {
     id: child.props.id ?? controlId,
     "aria-describedby": joinDescribedBy(
-      child.props["aria-describedby"] as string | undefined,
+      child.props["aria-describedby"],
       describedBy,
     ),
-    invalid: child.props.invalid ?? invalid,
-  });
+  };
+
+  if (invalid !== undefined) {
+    if (supportsFieldInvalidProp(child)) {
+      nextProps.invalid = child.props.invalid ?? invalid;
+    } else if (isNativeFieldControlTag(child.type)) {
+      nextProps["aria-invalid"] = child.props["aria-invalid"] ?? invalid;
+    }
+  }
+
+  return React.cloneElement(child, nextProps);
 }
 
 /**

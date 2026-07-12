@@ -12,6 +12,7 @@ import {
   Presentation,
   Library,
   Shield,
+  CalendarCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,6 +42,14 @@ export interface NavItem {
    * Shell visibility is convenience — server-side authorization is the real gate.
    */
   requiresRole?: NavRole;
+  /**
+   * When set, only render this item when the corresponding server-side feature
+   * flag is enabled. The flag value is passed from the RSC layout via ShellUser
+   * — never imported from server runtime config into client modules.
+   *
+   * REF-054: single-model feature gating, consumed by every renderer.
+   */
+  requiresFeature?: "todaySession";
 }
 
 /**
@@ -76,6 +85,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/browse",      label: "Browse",        icon: Compass,         group: "primary",   mobileTab: true,  protected: true },
   { href: "/study",       label: "Study",         icon: BookOpen,        group: "primary",   mobileTab: true,  protected: true },
   { href: "/progress",    label: "Progress",      icon: TrendingUp,      group: "primary",   mobileTab: true,  protected: true },
+  // Feature-gated: only rendered when FEATURE_TODAY_SESSION_ENABLED. Secondary
+  // group so it appears in the sidebar secondary section and the More sheet on
+  // mobile — the four primary tabs stay exactly at budget.
+  { href: "/today",       label: "Today",         icon: CalendarCheck,   group: "secondary", mobileTab: false, protected: true,  requiresFeature: "todaySession" },
   { href: "/series",      label: "Series",        icon: Library,         group: "secondary", mobileTab: false, protected: true },
   { href: "/import",      label: "Import",        icon: Download,        group: "secondary", mobileTab: false, protected: true },
   { href: "/lists",       label: "Saved articles", icon: Bookmark,       group: "secondary", mobileTab: false, protected: true },
@@ -115,6 +128,24 @@ export const ADMIN_NAV_ITEMS: NavItem[] = NAV_ITEMS.filter(requiresAdminRole);
  */
 export function getNavProtectedPrefixes(): string[] {
   return NAV_ITEMS.filter((item) => item.protected).map((item) => item.href);
+}
+
+/**
+ * Filter nav items based on active server-side feature flags, as derived from
+ * the RSC layout and threaded through ShellUser. Items with no `requiresFeature`
+ * are always included.
+ *
+ * REF-054: consumed by AppSidebar, MoreSheet, and command palette so every
+ * renderer applies the same gate from the same shared nav model.
+ */
+export function filterNavForUser(
+  items: NavItem[],
+  showTodayNav: boolean,
+): NavItem[] {
+  return items.filter((item) => {
+    if (item.requiresFeature === "todaySession") return showTodayNav;
+    return true;
+  });
 }
 
 /**

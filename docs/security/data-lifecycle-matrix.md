@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-12"
 description: "Documents data classification, retention, export, cascade, and privacy treatment across Prisma models and client stores. Captures current model-by-model classification, deletion behavior, retention windows, export handling, and follow-up gaps."
 ---
 
@@ -131,6 +131,7 @@ behavior is invented. Gaps are called out as follow-up items.
 | `ArticleMastery` (comprehensionScore, readingCompletion, quizScore, etc.) | Learning | **derived** | ✅ all mastery fields, timestamps | Cascade via `ArticleMastery.userId` + article | Cascade via article | Deleted with user or article | Safe |
 | `SkillMastery` (confidence, evidenceCount, recentEvidence) | Learning | **derived** | ✅ skill, confidence, evidenceCount, recentEvidence, timestamps | Cascade via `SkillMastery.userId` | Not affected | Deleted with user | `recentEvidence` is a bounded JSON array of `{outcome, weight, at}` — no sensitive content per schema comment |
 | `LearnerCoachMemory` (skill, confidence, evidenceCount, lastObservedAt, trend) | Learning | **derived** | ✅ skill, confidence, evidenceCount, lastObservedAt, trend, createdAt | Cascade via `LearnerCoachMemory.userId` | Not affected | Indefinite (stale > 90d decays in weight, not auto-deleted); deleted with user; user-facing clear via `DELETE /api/coach-memory` | Safe — **structured aggregate signals only**, banned by schema + `upsertCoachMemory` allowlist from storing prompts, article/selected/question/answer text, definitions, examples, notes, tokens, article/question/session ids, or PII. Hard-delete leaves `SkillMastery` (source of truth) intact |
+| `StudyPlanSnapshot` (weekStart/weekEnd/generatedAt, summary, isStarter, weakAreas, items, sourceVersion) | Learning / Study plan | **derived** | ✅ controlled metadata only — weekStart, weekEnd, generatedAt, summary, isStarter, weakAreas, items, sourceVersion, createdAt | Cascade via `StudyPlanSnapshot.userId` | Not affected | Deleted with user; one row per `(userId, weekStart)` (upsert refresh updates generatedAt/sourceVersion) | Safe when aggregate-only: never include article text, selected text, prompts, definitions, translations, tokens, or credentials in `summary`/`weakAreas`/`items` |
 | `TodaySession` (localDate, timezoneSnapshot, primaryArticleId, backupArticleIds, targetSavedWordIds, controlled status/source/tier/reason, completion + skip timestamps) | Learning / Today | **personal** | ✅ anchors + ids only (no content) | Cascade via `TodaySession.userId` | Not affected | Deleted with user | Safe — stores **ids and anchors only**; `primaryArticleId`/`backupArticleIds`/`targetSavedWordIds` are plain string ids (NOT FKs) revalidated in code, so deleting an Article or SavedWord never cascades here. Never stores article text, word text, definitions, examples, or context sentences |
 | `TodayComprehensionFeedback` (selfRating, todaySessionId, articleId, questionId, mcqCorrect, skillTag, remediationViewed) | Learning / Today | **personal** | ✅ controlled fields + ids/booleans | Cascade via `TodayComprehensionFeedback.userId` | Not affected | Deleted with user | Safe — stores ids/enums/booleans only; never article text, question text, answer/option text, explanations, prompts, definitions, notes, or selected text |
 | `ReadingSeries` (slug, title, description, target levels, topic, articleIds, status, public) | Learning / Content catalogue | **operational / public** when public | ⛔ | Not user-linked | Not affected by tenant deletion unless managed explicitly | Indefinite | Metadata mostly safe; `description` is curator-authored free text and should be redacted before logging if copied into metadata |
@@ -284,6 +285,7 @@ behavior is invented. Gaps are called out as follow-up items.
 | 711-C | `LevelHistory`, `WordMastery`, `ArticleMastery`, `SkillMastery`, `ArticleDifficultyFeedback` not in export | Medium | ✅ Resolved (#711) — all added to export |
 | 711-D | Object-storage bytes not purged on `MediaAsset` DB cascade | Medium | ✅ Resolved (#711) — best-effort purge in `deleteOwnAccount` and `deleteMember` |
 | 711-E | Membership, classroom, assignment completion not in export | Low | ✅ Resolved (#711) — added to export |
+| 1013 | `StudyPlanSnapshot` not in export bundle | Low | ✅ Resolved (#1013) — added to export with ordered metadata-only fields |
 | 711-F | Client-side IndexedDB not cleared on server-side account deletion | Medium | Follow-up — PWA service worker must clear offline cache on sign-out; tracked separately |
 | 712-A | `AiInvocation` has no retention window or per-user erasure helper | High | ✅ Resolved (#712) — `pruneOldAiInvocations` + `deleteAiInvocationsForUser` in `src/lib/ai/retention.ts` |
 | 712-B | `AuditLog` has no retention window | Medium | ✅ Resolved (#712) — `pruneOldAuditLogs` in `src/lib/security/audit.ts` (default 730 d, configurable via `AUDIT_LOG_RETENTION_DAYS`) |

@@ -34,6 +34,11 @@ export type AssignableArticleOptionRow = {
   difficulty: string | null;
 };
 
+export type AssignmentClassroomRow = {
+  id: string;
+  classroomId: string;
+};
+
 const NEWEST_FIRST = { createdAt: "desc" } as const;
 const USER_PROFILE_SELECT = {
   id: true,
@@ -50,6 +55,15 @@ function classroomMembership(userId: string, role?: ClassroomRole) {
 
 export function getClassroom(classroomId: string): Promise<Classroom | null> {
   return prisma.classroom.findUnique({ where: { id: classroomId } });
+}
+
+export function getAssignmentClassroom(
+  assignmentId: string,
+): Promise<AssignmentClassroomRow | null> {
+  return prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: { id: true, classroomId: true },
+  });
 }
 
 /** Classrooms in an org, newest first. */

@@ -95,6 +95,25 @@ test("getPageItems - all items have required shape", () => {
   }
 });
 
+test("getPageItems - excludes Today when showTodayNav=false (default)", () => {
+  const pages = getPageItems("Member");
+  assert.ok(
+    !pages.some((p) => p.href === "/today"),
+    "Today must not appear in command palette when feature disabled",
+  );
+});
+
+test("getPageItems - includes Today when showTodayNav=true", () => {
+  const pages = getPageItems("Member", true);
+  assert.ok(
+    pages.some((p) => p.href === "/today"),
+    "Today must appear in command palette when feature enabled",
+  );
+  const today = pages.find((p) => p.href === "/today");
+  assert.equal(today?.label, "Today");
+  assert.equal(today?.kind, "page");
+});
+
 // ---- ACTION_ITEMS ---------------------------------------------------------
 
 test("ACTION_ITEMS - all items have required shape", () => {
@@ -110,3 +129,4 @@ test("ACTION_ITEMS - at least one item has showOnEmpty", () => {
   const onEmpty = ACTION_ITEMS.filter((a) => a.showOnEmpty);
   assert.ok(onEmpty.length > 0, "Expected at least one action with showOnEmpty");
 });
+

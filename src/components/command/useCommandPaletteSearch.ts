@@ -93,7 +93,10 @@ export function useCommandPaletteSearch({
 
   const trimmedQuery = query.trim();
 
-  const pageItems = useMemo(() => getPageItems(user?.role), [user?.role]);
+  const pageItems = useMemo(
+    () => getPageItems(user?.role, user?.showTodayNav ?? false),
+    [user?.role, user?.showTodayNav],
+  );
 
   const filteredPages = useMemo<PageSelectable[]>(() => {
     const pages = trimmedQuery ? fuzzyFilter(pageItems, query) : pageItems;
