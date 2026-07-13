@@ -705,3 +705,8 @@ Note: `tests/difficulty*.test.ts` target remains in scope only for the constants
 
 ### 2026-07-11T22:31:57.145+00:00 — Epic #1008 final promotion accepted
 55f2dfbb73892eaa574e2d8b087b1265ca50a97d https://github.com/huangyingting/ReadWise/pull/1032 https://github.com/huangyingting/ReadWise/actions/runs/29190298960 https://github.com/huangyingting/ReadWise/actions/runs/29190298930
+### 2026-07-12 — Issue #1035 mobile UI audit reaches GO; main promotion pending
+
+**Source:** Issue #1035 final audit/review trail
+
+Accepted roots: safe-area, viewport-aware popover geometry, reader 100dvh, canonical high-risk wiring, and the semantic auth-boundary anchor. Child mapping is corrected and final: #1036→PR #1039→dev d4adc823; #1037→PR #1040→dev 6928c076 (PR body corrected after issue-number mix-up); #1038→PR #1041→dev 80bfc51; #1042→PR #1043→dev caffbad (v1 rejected; strict lockout preserved; final 79/79 zero-skip approval); #1044→PR #1045→dev d27cc36. Final QA is 520/520, 79/79 zero-skip/only/retry, 5/5 smoke, and 16/16 CTA matrix. Architecture final GO, Rai final GREEN, and Fact Checker final GO. Parent #1035 stays open until dev→main promotion and post-main CI.
