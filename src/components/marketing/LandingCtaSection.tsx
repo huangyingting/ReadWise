@@ -2,7 +2,6 @@
  * LandingCtaSection — final call-to-action band with gradient background
  * (REF-059).
  */
-import Link from "next/link";
 import { buttonVariants } from "@/components/ui";
 import { CONTAINER } from "@/components/marketing/landing-content";
 
@@ -32,12 +31,12 @@ export function LandingCtaSection({
           English. No textbooks. No drills. Just reading.
         </p>
         <div className="mt-[var(--space-7)]">
-          <Link
+          <a
             href={primaryHref}
             className={buttonVariants({ variant: "secondary", size: "lg" })}
           >
             {primaryLabel}
-          </Link>
+          </a>
         </div>
       </div>
     </section>
