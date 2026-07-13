@@ -1,12 +1,12 @@
 ---
-updated_at: 2026-07-12T12:52:19.731+00:00
-focus_area: Mobile UI audit promotion
-active_issues: [1035]
-dev_sha: d27cc365beb298162d4faccf562cffd2129a691e
-gates: GO
-remaining: dev->main promotion, post-main CI
+updated_at: 2026-07-13T06:09:56.157+00:00
+focus_area: Mobile UI audit complete
+active_issues: []
+main_sha: a15412fae26d2b2790a6d7161603cd66c60ee951
+gates: complete
+remaining: none
 ---
 
 # What We're Focused On
 
-ReadWise is in the final mobile UI audit promotion phase. The dev SHA above is GO; remaining work is dev→main promotion, post-main CI, and then closing #1035.
+Issue #1035 is closed after dev→main promotion. Main SHA `a15412fae26d2b2790a6d7161603cd66c60ee951` passed post-main CI and release validation; no active mobile UI audit issues remain.
