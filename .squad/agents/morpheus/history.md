@@ -72,3 +72,4 @@ Review comment: https://github.com/huangyingting/ReadWise/pull/967
 - 2026-07-11T22:31:57.145+00:00 — Epic #1008 showed formal-review comments are the review artifact of record under shared identity, and rejection/lockout chains must be kept intact when authors revise.
 
 - 2026-07-11T22:31:57.145+00:00 — Under shared identity, the accepted promotion verdict is the evidence-backed review trail for PR #1032, not a formal approval object.
+- 2026-07-12T12:52:19.731+00:00 — Marketing CTAs that cross into sign-in should be semantic `<a href>` anchors, not button surrogates; auth-boundary navigation is a product contract, not just styling.

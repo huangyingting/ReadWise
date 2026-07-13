@@ -3,7 +3,6 @@
  * card (REF-059).
  */
 import type { CSSProperties, ReactNode } from "react";
-import Link from "next/link";
 import { Badge, buttonVariants } from "@/components/ui";
 import { MockReaderCard } from "@/components/marketing/MockReaderCard";
 import { CONTAINER } from "@/components/marketing/landing-content";
@@ -72,19 +71,19 @@ export function LandingHeroSection({
             className="rw-fade-up mt-[var(--space-7)] flex flex-wrap items-center justify-center gap-[var(--space-4)] lg:justify-start"
             style={animationDelay(FADE_DELAYS.actions)}
           >
-            <Link
+            <a
               href={primaryHref}
               className={buttonVariants({ variant: "primary", size: "lg" })}
             >
               {primaryLabel}
-            </Link>
+            </a>
             {!signedIn && (
-              <Link
+              <a
                 href="/signin"
                 className={buttonVariants({ variant: "ghost", size: "lg" })}
               >
                 Sign In
-              </Link>
+              </a>
             )}
           </div>
         </div>
