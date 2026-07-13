@@ -73,3 +73,5 @@ Review comment: https://github.com/huangyingting/ReadWise/pull/967
 
 - 2026-07-11T22:31:57.145+00:00 — Under shared identity, the accepted promotion verdict is the evidence-backed review trail for PR #1032, not a formal approval object.
 - 2026-07-12T12:52:19.731+00:00 — Marketing CTAs that cross into sign-in should be semantic `<a href>` anchors, not button surrogates; auth-boundary navigation is a product contract, not just styling.
+
+- 2026-07-13T06:09:56.157+00:00 — Verified #1035 main promotion closure: PR #1047 merged to `a15412fae26d2b2790a6d7161603cd66c60ee951`, post-main CI and release both passed, and the issue tree closed cleanly.
