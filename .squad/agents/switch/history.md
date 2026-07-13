@@ -55,3 +55,6 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - 2026-07-12T01:54:08.000+00:00 — Completed Wave 1 PR #1020 cycle (issue #1012). Initial rejection of native coverage regression enforced correctness gate; Tank's independent revision at 520609e added seedE2eMember native fixture coverage + 10 Chromium E2E scenarios. Morpheus approved and merged to dev as 730bfc8. **Learning:** Helper executable code requires native fixture coverage alongside browser coverage; strict reviewer lockout on native debt regression is correctness enforcement, not gatekeeping.
 - 2026-07-11T22:31:57.145+00:00 — Canonical E2E discovery is mandatory, and sequential Playwright reruns need isolated ports, DBs, and .next lifecycles to avoid cross-run contamination.
+
+- 2026-07-12T12:52:19.731+00:00 — Canonical E2E QA must use the executed no-skip/no-only/no-retry runtime gate; the authoritative count is 79/79, not a static listing.
+- 2026-07-12T12:52:19.731+00:00 — When child issues are created in parallel, verify issue numbers against PR bodies before publishing; #1037 needed a body correction after the numbering mix-up.
