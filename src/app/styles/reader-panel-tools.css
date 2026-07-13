@@ -542,6 +542,8 @@
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Keep final controls above the home indicator on notched devices. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Reduced-motion: collapse sheet animation to opacity only */

@@ -29,7 +29,7 @@ const SIDE_CLASSES: Record<SheetSide, string> = {
   left: "inset-y-0 left-0 w-[min(420px,90vw)] border-r",
   right: "inset-y-0 right-0 w-[min(420px,90vw)] border-l",
   bottom:
-    "inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto border-t rounded-t-[var(--radius-xl)]",
+    "inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto border-t rounded-t-[var(--radius-xl)] [padding-bottom:env(safe-area-inset-bottom,0px)]",
 };
 
 /**
