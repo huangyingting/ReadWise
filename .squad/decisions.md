@@ -710,3 +710,8 @@ Note: `tests/difficulty*.test.ts` target remains in scope only for the constants
 **Source:** Issue #1035 final audit/review trail
 
 Accepted roots: safe-area, viewport-aware popover geometry, reader 100dvh, canonical high-risk wiring, and the semantic auth-boundary anchor. Child mapping is corrected and final: #1036→PR #1039→dev d4adc823; #1037→PR #1040→dev 6928c076 (PR body corrected after issue-number mix-up); #1038→PR #1041→dev 80bfc51; #1042→PR #1043→dev caffbad (v1 rejected; strict lockout preserved; final 79/79 zero-skip approval); #1044→PR #1045→dev d27cc36. Final QA is 520/520, 79/79 zero-skip/only/retry, 5/5 smoke, and 16/16 CTA matrix. Architecture final GO, Rai final GREEN, and Fact Checker final GO. Parent #1035 stays open until dev→main promotion and post-main CI.
+
+### 2026-07-13 — Issue #1035 mobile UI audit closes after main promotion
+**Source:** Promotion PR #1047 and post-main validation.
+**Evidence:** PR https://github.com/huangyingting/ReadWise/pull/1047 merged dev→main at commit https://github.com/huangyingting/ReadWise/commit/a15412fae26d2b2790a6d7161603cd66c60ee951. Post-main CI https://github.com/huangyingting/ReadWise/actions/runs/29227918120 succeeded on that exact SHA; release workflow https://github.com/huangyingting/ReadWise/actions/runs/29227918111 succeeded and skipped tag/release creation by contract because the version already existed.
+**State:** Final product gates remained 5/5 smoke, 79/79 high-risk zero skips, 520/520 full UI audit, and 16/16 CTA matrix. Architecture GO, Rai GREEN, and Fact Checker GO held. Parent #1035 and children #1036/#1037/#1038/#1042/#1044 are closed.
