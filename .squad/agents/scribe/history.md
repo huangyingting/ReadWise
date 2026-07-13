@@ -149,3 +149,4 @@ Ceremony end: 2026-07-10T10:48:29Z
 - 2026-07-11T22:31:57.145+00:00 — Epic #1008 finalization reinforced that canonical E2E discovery is mandatory, isolated ports/DB/.next are required for sequential local Playwright, formal-review comments are the accepted verdict mechanism under shared identity, and reviewer lockout chains must be preserved.
 
 - 2026-07-11T22:31:57.145+00:00 — Final promotion closure stayed under the decisions archive gate by keeping the ledger entry concise and avoiding raw CI output.
+- 2026-07-13T06:09:56.157+00:00 — Closed #1035 after PR #1047 merged to main at `a15412fae26d2b2790a6d7161603cd66c60ee951`; post-main CI 29227918120 and release 29227918111 passed, and identity was updated to complete.

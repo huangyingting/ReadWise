@@ -44,3 +44,4 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - 2026-07-11T22:31:57.145+00:00 — Reviewer lockout chains must be respected, and local QA reruns should use isolated ports, DBs, and .next directories to avoid contamination from earlier runs.
 
 - 2026-07-11T22:31:57.145+00:00 — Final epic closure preserved the canonical E2E discovery and isolated port/DB/.next QA pattern; no new data/AI blockers remained.
+- 2026-07-13T06:09:56.157+00:00 — Final #1035 mobile UI gates stayed green through main promotion: 5/5 smoke, 79/79 high-risk zero skips, 520/520 full UI audit, and 16/16 CTA matrix.
