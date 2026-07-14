@@ -769,6 +769,9 @@ function batchWordFromBoundary(item: BatchWordBoundary): SpeechWord | null {
     return null;
   }
 
+  // Azure Batch Synthesis REST API returns AudioOffset and Duration already in
+  // milliseconds (unlike the real-time Speech SDK, which uses 100-ns ticks and
+  // requires division by 1e4).  Store the values directly.
   const word: SpeechWord = {
     word: item.Text,
     startMs: item.AudioOffset,
