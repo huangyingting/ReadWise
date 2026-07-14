@@ -64,6 +64,22 @@ before(() => {
 
   mock.module("@/lib/speech", {
     namedExports: {
+      parseSpeechTimingPayload: (value: unknown) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+        const v = value as Record<string, unknown>;
+        if (v.version !== 2 || v.timeUnit !== "ms" || v.textUnit !== "utf16") return null;
+        const words = Array.isArray(v.words) ? (v.words as string[]) : [];
+        const startMs = Array.isArray(v.startMs) ? (v.startMs as number[]) : [];
+        const endMs = Array.isArray(v.endMs) ? (v.endMs as number[]) : [];
+        if (words.length !== startMs.length || words.length !== endMs.length) return null;
+        return {
+          version: 2,
+          provider: typeof v.provider === "string" ? v.provider : "unknown",
+          timeUnit: "ms",
+          textUnit: "utf16",
+          words: words.map((word, i) => ({ word, startMs: startMs[i] ?? 0, endMs: endMs[i] ?? 0 })),
+        };
+      },
       extractSpeechBoundaryTokens: (text: string) =>
         text
           .trim()
@@ -140,6 +156,21 @@ test("analyze speech alignment converts timing JSON and computes coverage spans"
 
   const words = timingWordsFromJson([{ word: "hello" }, {}, null, { word: "world" }]);
   assert.deepEqual(words, [{ word: "hello" }, { word: "world" }]);
+
+  // V2 columnar payload — the current on-disk format; must parse correctly.
+  const v2Words = timingWordsFromJson({
+    version: 2,
+    timeUnit: "ms",
+    textUnit: "utf16",
+    provider: "azure-batch",
+    words: ["hello", "world"],
+    startMs: [0, 500],
+    endMs: [400, 900],
+  });
+  assert.deepEqual(v2Words, [
+    { word: "hello", startMs: 0, endMs: 400 },
+    { word: "world", startMs: 500, endMs: 900 },
+  ]);
 
   const result = coverage(
     [
