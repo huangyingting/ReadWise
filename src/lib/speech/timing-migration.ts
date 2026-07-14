@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import {
+  legacySpeechWordsToTimingPayloadV1,
   legacySpeechWordsToTimingPayloadV2,
   type SpeechTimingProvider,
 } from "./timing";
@@ -19,6 +20,7 @@ export type SpeechTimingMigrationResult = {
 type SpeechTimingMigrationOptions = {
   limit?: number;
   provider?: SpeechTimingProvider | string;
+  target?: "v1" | "v2";
 };
 
 type SpeechTimingMigrationRow = {
@@ -53,11 +55,23 @@ async function findArticleSpeechRows(limit: number | undefined): Promise<SpeechT
   });
 }
 
+function serializeLegacyWords(
+  raw: unknown,
+  provider: string,
+  target: "v1" | "v2",
+): ReturnType<typeof legacySpeechWordsToTimingPayloadV2> | ReturnType<typeof legacySpeechWordsToTimingPayloadV1> {
+  return target === "v1"
+    ? legacySpeechWordsToTimingPayloadV1(raw)
+    : legacySpeechWordsToTimingPayloadV2(raw, provider);
+}
+
 /**
- * Converts legacy raw ArticleSpeech.words arrays into the canonical V2 timing
- * payload. Safe to re-run: rows that already store V2 objects are skipped.
+ * Converts legacy raw ArticleSpeech.words arrays to the requested timing
+ * payload format. Defaults to V2 (canonical). Use `target: "v1"` for compact
+ * V1 columnar output (migration tooling only). Safe to re-run: rows that
+ * already store a non-array object are skipped.
  */
-export async function migrateArticleSpeechTimingsToV2(
+export async function migrateArticleSpeechTimings(
   opts: SpeechTimingMigrationOptions = {},
 ): Promise<SpeechTimingMigrationResult> {
   const rows = await findArticleSpeechRows(opts.limit);
@@ -66,6 +80,7 @@ export async function migrateArticleSpeechTimingsToV2(
   let skippedCurrent = 0;
   let failed = 0;
   const provider = opts.provider ?? DEFAULT_TIMING_PROVIDER;
+  const target = opts.target ?? "v2";
 
   for (const row of rows) {
     if (!Array.isArray(row.words)) {
@@ -73,7 +88,7 @@ export async function migrateArticleSpeechTimingsToV2(
       continue;
     }
 
-    const payload = legacySpeechWordsToTimingPayloadV2(row.words, provider);
+    const payload = serializeLegacyWords(row.words, provider, target);
     if (!payload) {
       failed += 1;
       logMigrationFailure(row.articleId, MALFORMED_LEGACY_PAYLOAD_ERROR);
@@ -98,4 +113,15 @@ export async function migrateArticleSpeechTimingsToV2(
     skippedCurrent,
     failed,
   };
+}
+
+/**
+ * Convenience wrapper for V2 migration (backward-compatible alias).
+ * Converts legacy raw ArticleSpeech.words arrays into the canonical V2 timing
+ * payload. Safe to re-run: rows already storing V2 objects are skipped.
+ */
+export async function migrateArticleSpeechTimingsToV2(
+  opts: Omit<SpeechTimingMigrationOptions, "target"> = {},
+): Promise<SpeechTimingMigrationResult> {
+  return migrateArticleSpeechTimings({ ...opts, target: "v2" });
 }

@@ -1,18 +1,20 @@
 /**
  * Speech timing migration CLI — converts legacy ArticleSpeech.words arrays to
- * the canonical V2 columnar timing payload.
+ * the canonical V2 columnar timing payload (default) or compact V1 columnar
+ * payload (opt-in with `--target v1`).
  *
  * Usage:
- *   npm run migrate-speech-timing -- [--limit N] [--provider azure]
+ *   npm run migrate-speech-timing -- [--limit N] [--provider azure] [--target v1|v2]
  *
- * Safe to re-run: rows already storing V2 objects are skipped.
+ * Safe to re-run: rows already storing object payloads are skipped.
  */
-import { migrateArticleSpeechTimingsToV2 } from "@/lib/speech/timing-migration";
+import { migrateArticleSpeechTimings } from "@/lib/speech/timing-migration";
 import { runScript, isMain, parseString } from "./lib/cli";
 
 type Args = {
   limit: number | undefined;
   provider: string | undefined;
+  target: "v1" | "v2";
 };
 
 function parseOptionalInt(value: string | null): number | undefined {
@@ -22,9 +24,12 @@ function parseOptionalInt(value: string | null): number | undefined {
 function parseArgs(argv: string[]): Args {
   const limitStr = parseString(argv, "--limit");
   const provider = parseString(argv, "--provider");
+  const targetRaw = parseString(argv, "--target");
+  const target: "v1" | "v2" = targetRaw === "v1" ? "v1" : "v2";
   return {
     limit: parseOptionalInt(limitStr),
     provider: provider ?? undefined,
+    target,
   };
 }
 
@@ -32,13 +37,14 @@ export async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
 
   console.log(
-    "Starting speech timing migration...",
+    `Starting speech timing migration (target: ${args.target})...`,
     args.limit ? `(limit ${args.limit})` : "(all rows)",
   );
 
-  const result = await migrateArticleSpeechTimingsToV2({
+  const result = await migrateArticleSpeechTimings({
     limit: args.limit,
     provider: args.provider,
+    target: args.target,
   });
 
   console.log(`Scanned:          ${result.scanned}`);

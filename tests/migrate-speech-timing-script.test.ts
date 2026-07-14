@@ -10,7 +10,7 @@ let migrateArgs: Record<string, unknown> | null = null;
 before(() => {
   mock.module("@/lib/speech/timing-migration", {
     namedExports: {
-      migrateArticleSpeechTimingsToV2: async (args: Record<string, unknown>) => {
+      migrateArticleSpeechTimings: async (args: Record<string, unknown>) => {
         migrateArgs = args;
         return migrateResult;
       },
@@ -29,8 +29,25 @@ test("migrate-speech-timing parses optional args", async () => {
   assert.deepEqual(parseArgs(["--limit", "10", "--provider", "azure"]), {
     limit: 10,
     provider: "azure",
+    target: "v2",
   });
-  assert.deepEqual(parseArgs([]), { limit: undefined, provider: undefined });
+  assert.deepEqual(parseArgs([]), { limit: undefined, provider: undefined, target: "v2" });
+  assert.deepEqual(parseArgs(["--target", "v1"]), {
+    limit: undefined,
+    provider: undefined,
+    target: "v1",
+  });
+  assert.deepEqual(parseArgs(["--target", "v2"]), {
+    limit: undefined,
+    provider: undefined,
+    target: "v2",
+  });
+  // unknown target values default to v2
+  assert.deepEqual(parseArgs(["--target", "v3"]), {
+    limit: undefined,
+    provider: undefined,
+    target: "v2",
+  });
 });
 
 test("migrate-speech-timing main returns success when no failures", async () => {
@@ -50,9 +67,30 @@ test("migrate-speech-timing main returns success when no failures", async () => 
     console.log = originalLog;
   }
 
-  assert.deepEqual(migrateArgs, { limit: 7, provider: "azure" });
+  assert.deepEqual(migrateArgs, { limit: 7, provider: "azure", target: "v2" });
   assert.match(logs.join("\n"), /Starting speech timing migration/);
   assert.match(logs.join("\n"), /Migration complete/);
+});
+
+test("migrate-speech-timing main passes target v1 when requested", async () => {
+  const { main } = await import("../scripts/migrate-speech-timing");
+
+  const originalArgv = process.argv;
+  const originalLog = console.log;
+  const logs: string[] = [];
+  console.log = ((...args: unknown[]) => logs.push(args.join(" "))) as typeof console.log;
+
+  try {
+    process.argv = [process.execPath, "scripts/migrate-speech-timing.ts", "--target", "v1"];
+    const code = await main();
+    assert.equal(code, 0);
+  } finally {
+    process.argv = originalArgv;
+    console.log = originalLog;
+  }
+
+  assert.deepEqual(migrateArgs, { limit: undefined, provider: undefined, target: "v1" });
+  assert.match(logs.join("\n"), /target: v1/);
 });
 
 test("migrate-speech-timing main returns non-zero when failures exist", async () => {
