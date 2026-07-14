@@ -639,6 +639,35 @@ describe("batch synthesis Azure and result helpers", () => {
         [6, 11],
       ],
     );
+
+    // Zero-duration words that cannot be aligned are excluded (timing markers)
+    const withZeroDur = __batchSynthesisTest.enrichBatchWordsWithTextSpans(
+      [
+        { word: "Hello", startMs: 0, endMs: 100 },
+        { word: "\u200b", startMs: 100, endMs: 100 }, // zero-dur invisible marker
+        { word: "world", startMs: 100, endMs: 200 },
+      ],
+      "Hello world",
+    );
+    assert.equal(withZeroDur.length, 2); // marker excluded
+    assert.ok(withZeroDur.every((w: { textStart?: number; textEnd?: number }) =>
+      typeof w.textStart === "number" && typeof w.textEnd === "number",
+    ));
+
+    // Non-zero-duration words not found in plainText receive neighbour fallback spans
+    const withExpansion = __batchSynthesisTest.enrichBatchWordsWithTextSpans(
+      [
+        { word: "about", startMs: 0, endMs: 100 },
+        { word: "twenty", startMs: 100, endMs: 200 }, // TTS expansion of "20"
+        { word: "million", startMs: 200, endMs: 300 },
+      ],
+      "about 20 million",
+    );
+    assert.equal(withExpansion.length, 3); // expansion kept with fallback
+    const twentyWord = withExpansion.find((w: { word: string }) => w.word === "twenty");
+    assert.ok(twentyWord !== undefined);
+    assert.ok(typeof twentyWord.textStart === "number" && typeof twentyWord.textEnd === "number");
+    assert.ok(twentyWord.textEnd > twentyWord.textStart);
   });
 
   test("persists job results with injectable filesystem dependencies and graceful save fallback", async () => {
