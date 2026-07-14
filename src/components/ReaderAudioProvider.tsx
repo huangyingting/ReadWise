@@ -36,6 +36,7 @@ import { type SpeechWord } from "@/lib/speech/timing";
 import { useNarrationApi } from "@/components/reader/useNarrationApi";
 import { useActiveWord } from "@/components/reader/useActiveWord";
 import { useLoopSegment } from "@/components/reader/useLoopSegment";
+import { usePlaybackClock } from "@/components/reader/usePlaybackClock";
 
 export type { SpeechWord } from "@/lib/speech/timing";
 
@@ -123,6 +124,27 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     audioRef,
   );
 
+  // ── Time-update handler: update active word + enforce sentence loop ────────
+  // Shared by both the rAF clock (visible playback) and the timeupdate event
+  // (background-tab fallback).  The setActiveIndex equality guard in
+  // useActiveWord prevents redundant renders when both paths fire.
+  const handleTimeUpdate = useCallback(
+    (time: number) => {
+      updateActiveWord(time);
+      const seg = loopSegmentRef.current;
+      if (seg && time >= seg.endTime - 0.05) {
+        const audio = audioRef.current;
+        if (audio) audio.currentTime = seg.startTime;
+      }
+    },
+    [updateActiveWord, loopSegmentRef],
+  );
+
+  // ── rAF-driven playback clock (#1060) ─────────────────────────────────────
+  // Samples audio.currentTime at ~60fps while visible+playing so highlight
+  // onset p50 drops from ~140ms (timeupdate-only) to ~22ms.
+  const { startClock, cancelClock } = usePlaybackClock(audioRef, handleTimeUpdate);
+
   const setListenActive = useCallback((v: boolean) => {
     setListenActiveState(v);
   }, []);
@@ -135,6 +157,8 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
       cached: boolean,
       plainText: string,
     ) => {
+      // Cancel any running rAF loop before swapping the source.
+      cancelClock();
       setAudioSrc(src);
       setWords(ws);
       setPlainTextState(plainText);
@@ -143,10 +167,9 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
       setIsLoaded(true);
       setIsFallback(false);
       setVoiceMeta({ voice, cached });
-      // Cancel any active loop when new audio is loaded.
       cancelLoop();
     },
-    [cancelLoop],
+    [cancelClock, cancelLoop],
   );
 
   const markFallback = useCallback(() => {
@@ -161,23 +184,11 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     onFallback: markFallback,
   });
 
-  // ── Time-update handler: update active word + enforce sentence loop ────────
-  const handleTimeUpdate = useCallback(
-    (time: number) => {
-      updateActiveWord(time);
-      const seg = loopSegmentRef.current;
-      if (seg && time >= seg.endTime - 0.05) {
-        const audio = audioRef.current;
-        if (audio) audio.currentTime = seg.startTime;
-      }
-    },
-    [updateActiveWord, loopSegmentRef],
-  );
-
   const handleEnded = useCallback(() => {
+    cancelClock();
     clearActiveWord();
     cancelLoop();
-  }, [cancelLoop, clearActiveWord]);
+  }, [cancelClock, cancelLoop, clearActiveWord]);
 
   const contextValue = useMemo<AudioContextValue>(
     () => ({
@@ -230,9 +241,12 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
           preload="metadata"
           className="reader-sr-live"
           style={HIDDEN_AUDIO_STYLE}
+          onPlay={startClock}
+          onPause={cancelClock}
           onTimeUpdate={(e) => handleTimeUpdate(e.currentTarget.currentTime)}
           onSeeked={(e) => updateActiveWord(e.currentTarget.currentTime)}
           onEnded={handleEnded}
+          onError={cancelClock}
         />
       ) : (
         // Keep ref stable even when no audio yet.
