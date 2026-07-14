@@ -4,6 +4,7 @@ import { getMediaStorage, mediaStorageKind } from "@/lib/storage";
 import {
   buildTokenAlignment,
   extractSpeechBoundaryTokens,
+  parseSpeechTimingPayload,
   type ComparableToken,
 } from "@/lib/speech";
 import { runCli, isMain, addUniqueFromCsv, warnUnknown } from "./lib/cli";
@@ -176,6 +177,10 @@ Options:
 }
 
 export function timingWordsFromJson(value: unknown): SpeechTimingLike[] {
+  // V2 columnar payload (current format) or legacy array — use the canonical parser.
+  const parsed = parseSpeechTimingPayload(value);
+  if (parsed) return parsed.words;
+  // Plain legacy array of {word} objects (pre-V2, kept for robustness).
   if (!Array.isArray(value)) return [];
   return value
     .map((entry) => {
