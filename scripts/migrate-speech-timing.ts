@@ -25,6 +25,9 @@ function parseArgs(argv: string[]): Args {
   const limitStr = parseString(argv, "--limit");
   const provider = parseString(argv, "--provider");
   const targetRaw = parseString(argv, "--target");
+  if (targetRaw !== null && targetRaw !== "v1" && targetRaw !== "v2") {
+    throw new Error(`Invalid --target: "${targetRaw}". Use v1 or v2.`);
+  }
   const target: "v1" | "v2" = targetRaw === "v1" ? "v1" : "v2";
   return {
     limit: parseOptionalInt(limitStr),

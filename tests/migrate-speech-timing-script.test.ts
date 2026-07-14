@@ -42,12 +42,19 @@ test("migrate-speech-timing parses optional args", async () => {
     provider: undefined,
     target: "v2",
   });
-  // unknown target values default to v2
-  assert.deepEqual(parseArgs(["--target", "v3"]), {
-    limit: undefined,
-    provider: undefined,
-    target: "v2",
-  });
+});
+
+test("migrate-speech-timing parseArgs throws for explicit invalid --target", async () => {
+  const { parseArgs } = await import("../scripts/migrate-speech-timing");
+
+  assert.throws(
+    () => parseArgs(["--target", "v3"]),
+    /Invalid --target/,
+  );
+  assert.throws(
+    () => parseArgs(["--target", "bad"]),
+    /Invalid --target/,
+  );
 });
 
 test("migrate-speech-timing main returns success when no failures", async () => {
