@@ -23,6 +23,7 @@ type SpeechRow = {
 
 let rows: SpeechRow[] = [];
 let updates: Array<{ where: { id: string }; data: { words: unknown } }> = [];
+let updateShouldThrow = false;
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -31,6 +32,7 @@ before(() => {
         articleSpeech: {
           findMany: async () => rows,
           update: async (args: { where: { id: string }; data: { words: unknown } }) => {
+            if (updateShouldThrow) throw new Error("DB connection failed");
             updates.push(args);
             return {};
           },
@@ -43,6 +45,7 @@ before(() => {
 beforeEach(() => {
   rows = [];
   updates = [];
+  updateShouldThrow = false;
 });
 
 // ── computeSpansForWords ────────────────────────────────────────────────────
@@ -515,5 +518,102 @@ describe("repairSpeechTimingSpans", () => {
       assert.ok(textStart[i]! >= 0, `textStart[${i}] < 0`);
       assert.ok(textEnd[i]! > textStart[i]!, `textEnd[${i}] <= textStart[${i}]`);
     }
+  });
+
+  test("malformed V2 payload (endMs < startMs): parseSpeechTimingPayload returns null → skippedAlignment, no update", async () => {
+    const { repairSpeechTimingSpans } = await import("@/lib/speech/timing-migration");
+
+    rows = [
+      {
+        id: "row1",
+        articleId: "a1",
+        // Valid version:2 shape but endMs < startMs for a word entry;
+        // parseSpeechTimingPayload → parseV2Payload → speechWordFromColumns
+        // returns null because end < start → entire parse returns null.
+        words: {
+          version: 2,
+          provider: "azure",
+          timeUnit: "ms",
+          textUnit: "utf16",
+          words: ["hello"],
+          startMs: [500],
+          endMs: [100],
+          // no textStart/textEnd → v2MissingSpans true, row reaches parse step
+        },
+        plainText: "hello world",
+      },
+    ];
+
+    const result = await repairSpeechTimingSpans({ dryRun: false });
+
+    assert.equal(result.scanned, 1);
+    assert.equal(result.skippedAlignment, 1);
+    assert.equal(result.repaired, 0);
+    assert.equal(result.failed, 0);
+    assert.equal(updates.length, 0);
+  });
+
+  test("all-zero-duration words absent from plainText: enrichment still lacks spans → skippedAlignment, no update", async () => {
+    const { repairSpeechTimingSpans } = await import("@/lib/speech/timing-migration");
+
+    rows = [
+      {
+        id: "row1",
+        articleId: "a1",
+        // parse succeeds; computeSpansForWords excludes all zero-duration unaligned
+        // entries → enriched = [] → createSpeechTimingPayloadV2 emits no textStart/
+        // textEnd → v2MissingSpans(newPayload) true → skippedAlignment.
+        words: {
+          version: 2,
+          provider: "azure",
+          timeUnit: "ms",
+          textUnit: "utf16",
+          words: ["xyz"],
+          startMs: [0],
+          endMs: [0], // zero-duration; "xyz" not in plainText → excluded
+          // no textStart/textEnd → v2MissingSpans true; parse succeeds
+        },
+        plainText: "hello world",
+      },
+    ];
+
+    const result = await repairSpeechTimingSpans({ dryRun: false });
+
+    assert.equal(result.scanned, 1);
+    assert.equal(result.skippedAlignment, 1);
+    assert.equal(result.repaired, 0);
+    assert.equal(result.failed, 0);
+    assert.equal(updates.length, 0);
+  });
+
+  test("Prisma update throws → failed increments, error surfaced, no repaired count", async () => {
+    const { repairSpeechTimingSpans } = await import("@/lib/speech/timing-migration");
+
+    updateShouldThrow = true;
+    rows = [
+      {
+        id: "row1",
+        articleId: "a1",
+        words: {
+          version: 2,
+          provider: "azure",
+          timeUnit: "ms",
+          textUnit: "utf16",
+          words: ["Hello", "world"],
+          startMs: [0, 100],
+          endMs: [80, 200],
+          // no textStart/textEnd → valid repair candidate; update will throw
+        },
+        plainText: "Hello world",
+      },
+    ];
+
+    const result = await repairSpeechTimingSpans({ dryRun: false });
+
+    assert.equal(result.scanned, 1);
+    assert.equal(result.failed, 1);
+    assert.equal(result.repaired, 0);
+    assert.equal(result.skippedAlignment, 0);
+    assert.equal(updates.length, 0);
   });
 });
