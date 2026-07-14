@@ -91,7 +91,10 @@ export function usePlaybackClock(
   }, [audioRef, cancelClock, startClock]);
 
   // Unmount: cancel any live loop and prevent tick from updating state.
+  // Restore mountedRef.current on (re-)setup so React Strict Mode's
+  // setup → cleanup → setup replay does not leave the clock permanently disabled.
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       cancelClock();
