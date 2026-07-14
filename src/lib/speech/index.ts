@@ -31,6 +31,7 @@ export type {
   WordTiming,
   SpeechWord,
   SpeechTimingPayload,
+  SpeechTimingPayloadV1,
   SpeechTimingPayloadV2,
   SpeechTimingProvider,
   ParsedSpeechTimingPayload,
@@ -48,7 +49,9 @@ export {
   extractSpeechBoundaryTokens,
   timingStartSeconds,
   timingEndSeconds,
+  createSpeechTimingPayloadV1,
   createSpeechTimingPayloadV2,
+  legacySpeechWordsToTimingPayloadV1,
   legacySpeechWordsToTimingPayloadV2,
   parseSpeechTimingPayload,
 } from "./timing";
