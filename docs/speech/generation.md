@@ -112,13 +112,15 @@ Azure Speech Batch Synthesis jobs, enables `wordBoundaryEnabled`, downloads the
 result ZIP, parses `[nnnn].word.json`, and saves audio/timings through
 `saveSpeechResult`.
 
-Azure's Batch Synthesis result documentation shows `[nnnn].word.json` entries as
-`Text`, `AudioOffset`, and `Duration` in milliseconds. The parser also preserves
-optional `TextOffset` plus `WordLength`/`TextLength` fields if the service returns
-them for a voice/model, so the reader can use direct text spans instead of token
-alignment. When Batch returns only the documented fields, the script derives
-`textStart`/`textEnd` spans by aligning returned word-boundary text back to the
-same DOM-extracted `plainText` that was sent to Azure.
+Azure Batch Synthesis `[nnnn].word.json` entries contain `Text`, `AudioOffset`,
+and `Duration` already in **milliseconds** (unlike the real-time Speech SDK word-
+boundary events, which use 100-nanosecond ticks and require dividing by 10,000).
+The parser stores these values directly as `SpeechWord.startMs`/`endMs`. The
+parser also preserves optional `TextOffset` plus `WordLength`/`TextLength` fields
+if the service returns them for a voice/model, so the reader can use direct text
+spans instead of token alignment. When Batch returns only the documented fields,
+the script derives `textStart`/`textEnd` spans by aligning returned word-boundary
+text back to the same DOM-extracted `plainText` that was sent to Azure.
 
 Safe dry-run examples:
 

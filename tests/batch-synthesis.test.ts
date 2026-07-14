@@ -579,6 +579,9 @@ describe("batch synthesis Azure and result helpers", () => {
     const wordPath = path.join(nested, "0001.word.json");
     await writeFile(audioPath, "audio");
     await writeFile(debugPath, "debug");
+    // TextOffset/WordLength/TextLength are character indices (not ticks).
+    // AudioOffset and Duration are already in milliseconds in the Batch REST API
+    // response (unlike the real-time SDK, which uses 100-ns ticks).
     await writeFile(
       wordPath,
       JSON.stringify([
@@ -597,6 +600,7 @@ describe("batch synthesis Azure and result helpers", () => {
 
     const parsed = await __batchSynthesisTest.parseBatchResult(files, 0);
     assert.equal(parsed.audio.toString(), "audio");
+    // AudioOffset/Duration already in ms; stored directly: startMs=0, endMs=10; startMs=20, endMs=25
     assert.deepEqual(parsed.words, [
       { word: "Hello", startMs: 0, endMs: 10, textStart: 0, textEnd: 5 },
       { word: "world", startMs: 20, endMs: 25, textStart: 6, textEnd: 11 },
