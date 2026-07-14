@@ -4,7 +4,16 @@
  * Runtime speech timings are normalized audio/text cues. New stored JSON uses a
  * single V2 payload: compact columnar arrays with provider/top-level metadata.
  * Legacy raw arrays are still accepted as read-only compatibility input and can
- * be converted to V2 with `legacySpeechWordsToTimingPayloadV2`.
+ * be converted to V2 with `legacySpeechWordsToTimingPayloadV2` or to compact V1
+ * with `legacySpeechWordsToTimingPayloadV1`.
+ *
+ * Storage shapes:
+ *   - Legacy unversioned array: `[{word, offset, duration, ...}]`   (read-only)
+ *   - Compact V1: `{version:1, words:string[], startMs:number[], endMs:number[]}`
+ *   - V2 columnar: `{version:2, provider, timeUnit, textUnit, words[], startMs[], endMs[], ...}`
+ *
+ * All stored shapes normalize to the same `ParsedSpeechTimingPayload` at runtime.
+ * Production writes and new speech generation always use V2.
  */
 
 export type SpeechTimingProvider =
@@ -29,7 +38,19 @@ export type SpeechTimingPayloadV2 = SpeechTimingPayloadBase & {
   textEnd?: number[];
 };
 
-export type SpeechTimingPayload = SpeechTimingPayloadV2;
+/**
+ * Compact V1 storage shape — columnar arrays without provider/timeUnit/textUnit
+ * or text-span metadata. Intended for migration tooling only; production writes
+ * use V2. Parses to the same normalized runtime contract as legacy arrays.
+ */
+export type SpeechTimingPayloadV1 = {
+  version: 1;
+  words: string[];
+  startMs: number[];
+  endMs: number[];
+};
+
+export type SpeechTimingPayload = SpeechTimingPayloadV1 | SpeechTimingPayloadV2;
 
 export type WordTiming = {
   word: string;
@@ -186,6 +207,38 @@ function speechWordFromColumns(params: {
   return word;
 }
 
+function parseV1Payload(record: Record<string, unknown>): ParsedSpeechTimingPayload | null {
+  const words = parseStringArray(record.words);
+  const startMs = parseNumberArray(record.startMs);
+  const endMs = parseNumberArray(record.endMs);
+
+  if (
+    !words ||
+    !startMs ||
+    !endMs ||
+    startMs.length !== words.length ||
+    endMs.length !== words.length
+  ) {
+    return null;
+  }
+
+  const normalized: SpeechWord[] = [];
+  for (let index = 0; index < words.length; index++) {
+    const start = startMs[index];
+    const end = endMs[index];
+    if (start == null || end == null || end < start) return null;
+    normalized.push({ word: words[index] ?? "", startMs: start, endMs: end });
+  }
+
+  return {
+    version: 2,
+    provider: "unknown",
+    timeUnit: "ms",
+    textUnit: "utf16",
+    words: normalized,
+  };
+}
+
 function parseV2Payload(record: Record<string, unknown>): ParsedSpeechTimingPayload | null {
   const words = parseStringArray(record.words);
   const startMs = parseNumberArray(record.startMs);
@@ -245,6 +298,12 @@ export function parseSpeechTimingPayload(raw: unknown): ParsedSpeechTimingPayloa
   }
 
   if (!isRecord(raw)) return null;
+
+  // Compact V1 has no provider/timeUnit/textUnit — handle before the V2 gate.
+  if (raw.version === 1) {
+    return parseV1Payload(raw);
+  }
+
   const { version, provider, timeUnit, textUnit } = raw;
   if (
     typeof provider !== "string" ||
@@ -292,6 +351,20 @@ export function legacySpeechWordsToTimingPayloadV2(
 ): SpeechTimingPayloadV2 | null {
   const words = parseLegacyWords(raw);
   return words ? createSpeechTimingPayloadV2(provider, words) : null;
+}
+
+export function createSpeechTimingPayloadV1(words: SpeechWord[]): SpeechTimingPayloadV1 {
+  return {
+    version: 1,
+    words: words.map((w) => w.word),
+    startMs: words.map((w) => w.startMs),
+    endMs: words.map((w) => w.endMs),
+  };
+}
+
+export function legacySpeechWordsToTimingPayloadV1(raw: unknown): SpeechTimingPayloadV1 | null {
+  const words = parseLegacyWords(raw);
+  return words ? createSpeechTimingPayloadV1(words) : null;
 }
 
 const LETTER_CONNECTOR_CLASS = "[-'ʼʻ‛′’‐‑]";
