@@ -319,4 +319,56 @@ describe("usePlaybackClock", () => {
     runCleanups();
     assert.equal(visibilityListeners.length, 0, "listener removed on unmount");
   });
+
+  // ── React Strict Mode regression (REF-030 / #1060) ───────────────────────
+  // Strict Mode replays effects as setup → cleanup → setup. Before the fix,
+  // the cleanup set mountedRef.current = false and the second setup did not
+  // restore it, so every tick exited early and the clock was silently disabled.
+
+  test("Strict Mode replay: clock ticks after setup → cleanup → setup", async () => {
+    const { usePlaybackClock } = await import("@/components/reader/usePlaybackClock");
+    const audioRef = makeAudioRef({ currentTime: 1.5 });
+    const ticks: number[] = [];
+
+    // Phase 1 — initial mount (Strict Mode first pass)
+    beginRender();
+    usePlaybackClock(audioRef, (t) => ticks.push(t));
+
+    // Strict Mode cleanup: runs all effect cleanups
+    runCleanups();
+
+    // Phase 2 — remount (Strict Mode second pass — the real mount)
+    beginRender();
+    const { startClock } = usePlaybackClock(audioRef, (t) => ticks.push(t));
+
+    startClock();
+    assert.equal(frames.length, 1, "rAF scheduled after Strict Mode replay");
+
+    flushFrames();
+    assert.deepEqual(ticks, [1.5], "tick fires after Strict Mode setup → cleanup → setup");
+  });
+
+  test("Strict Mode replay: unmount after replay still blocks stale ticks", async () => {
+    const { usePlaybackClock } = await import("@/components/reader/usePlaybackClock");
+    const audioRef = makeAudioRef({ currentTime: 2.5 });
+    const ticks: number[] = [];
+
+    // Simulate Strict Mode double-invoke
+    beginRender();
+    usePlaybackClock(audioRef, (t) => ticks.push(t));
+    runCleanups();
+
+    beginRender();
+    const { startClock } = usePlaybackClock(audioRef, (t) => ticks.push(t));
+
+    startClock();
+    assert.equal(frames.length, 1, "rAF scheduled after replay");
+
+    // Unmount
+    runCleanups();
+    assert.equal(frames.length, 0, "rAF cancelled on unmount after replay");
+
+    flushFrames(); // nothing left
+    assert.deepEqual(ticks, [], "no ticks fire after unmount following replay");
+  });
 });
