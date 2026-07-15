@@ -201,7 +201,7 @@ behavior is invented. Gaps are called out as follow-up items.
 
 | Model / store | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `ArticleSpeech` (words) | Speech / Media | **public** (article-scoped; served only to authenticated readers) | ⛔ | Cascade via article (`ArticleSpeech.articleId`) | Cascade via article | Deleted with article | Word timings are derived article data; do not log |
+| `ArticleSpeech` (mediaAssetId, words) | Speech / Media | **public** (article-scoped; served only to authenticated readers) | ⛔ | Cascade via article (`ArticleSpeech.articleId`) | Cascade via article | Deleted with article | Word timings are derived article data; do not log |
 | `MediaAsset` (storageKey, kind, mimeType, voice, articleId) | Media | **public** (operational pointer; no user content) | ⛔ | Cascade via `MediaAsset.articleId` | Cascade via article | Deleted with article; object-storage bytes are not automatically purged by DB cascade (see [`../media/storage.md`](../media/storage.md)) | Safe |
 
 > **Gap #711-D — RESOLVED (#711):** `deleteOwnAccount` and `deleteMember` now
