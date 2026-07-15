@@ -24,7 +24,7 @@ For background TTS job scheduling, see
 **Speech subsystem owns** the TTS provider seam, SSML/text request building,
 voice and output-format selection and fallback, word-boundary event collection,
 Azure SDK isolation, `ArticleSpeech` cache creation and invalidation, and the
-`saveSpeechResult` / `resolveStoredAudioUrl` repository functions.
+`saveSpeechResult` / `resolveStoredSpeechMedia` repository functions.
 
 **Speech does not own** storage backend selection or migration (owned by Media),
 reader playback UX (owned by Reader), or job retry scheduling (owned by
@@ -253,22 +253,23 @@ rerunning TTS jobs after fixing storage.
 `saveSpeechResult` in `src/lib/speech/repository.ts` persists a synthesis result:
 
 1. Calls `storage.put({ data, mimeType, keyHint: "speech" })` → `{ storageKey, sizeBytes, checksum }`.
-2. Upserts a `MediaAsset` row recording `storageKey`, `mimeType`, `sizeBytes`,
-   `checksum`, `durationSec`, `voice`, `format`, `articleId`.
-3. Upserts `ArticleSpeech` with `storageKey`, `mediaAssetId`, `mimeType`, `voice`,
-   `format`, `plainText`, `words`.
+2. Upserts a `MediaAsset` row recording the canonical `storageKey`, `mimeType`,
+   `voice`, and `articleId`.
+3. Upserts `ArticleSpeech` with only `words`; both rows are found by `articleId`.
 
 If media storage is unavailable or the write fails, `saveSpeechResult` returns
 `false`, skips cache persistence, and does not store audio in the database. The
 caller may still return the just-generated audio to the current request, but it
 must not report the result as durably cached.
 
-## Repository: resolveStoredAudioUrl
+## Repository: resolveStoredSpeechMedia
 
-`resolveStoredAudioUrl(row)` resolves a playable `data:` URL from a cached row:
+`resolveStoredSpeechMedia(row)` resolves playback metadata from the article's
+speech asset:
 
-1. Reads bytes from storage via `storage.get(row.storageKey)`.
-2. Returns `null` if the row has no key or storage cannot return the object.
+1. Loads `storageKey`, `mimeType`, and `voice` from `MediaAsset`.
+2. Reads bytes via `storage.get(asset.storageKey)`.
+3. Returns metadata with `audio: null` if storage cannot return the object.
 
 ## Cache invalidation and rebuild
 
@@ -282,7 +283,7 @@ fresh `ArticleSpeech` row.
 
 ## Privacy rules
 
-- Do not log article text, the `plainText` field, or synthesized audio bytes.
+- Do not log article text, derived narration text, or synthesized audio bytes.
 - Do not expose `storageKey` values in API responses to clients.
 - Treat absent Azure Speech credentials as normal; do not surface as an error.
 
@@ -297,7 +298,7 @@ Reader-triggered speech follows the same access policy as AI processing:
 ## Related docs
 
 - [`../media/assets.md`](../media/assets.md) — `MediaAsset` schema, storage keys,
-  checksums, deletion, orphan handling.
+  content addressing, deletion, orphan handling.
 - [`../media/storage.md`](../media/storage.md) — storage backends, migration,
   rollback, readiness.
 - [`../reader/playback.md`](../reader/playback.md) — reader playback UX, how
