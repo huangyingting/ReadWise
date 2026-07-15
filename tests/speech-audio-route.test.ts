@@ -17,7 +17,7 @@ let articleReadable = true;
 
 // Speech row state
 let speechRow: {
-  id: string;
+  mediaAssetId: string | null;
 } | null = null;
 let mediaAssetRow: {
   mimeType: string;
@@ -94,7 +94,7 @@ async function callGet(id: string) {
 function storeSpeechAudio(storageKey: string | null, bytes: Buffer | null = null) {
   storageConfigured = bytes !== null;
   storageBytes = bytes;
-  speechRow = { id: "speech-1" };
+  speechRow = { mediaAssetId: storageKey ? "media-1" : null };
   mediaAssetRow = storageKey
     ? { mimeType: "audio/mpeg", storageKey, voice: null }
     : null;

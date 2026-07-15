@@ -8,6 +8,8 @@
  */
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus, type Article, type Prisma } from "@prisma/client";
+import { createLogger } from "@/lib/observability/logger";
+import { getMediaStorage } from "@/lib/storage";
 import { readingMinutesFor } from "./mapper";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 import {
@@ -16,6 +18,8 @@ import {
   getAdminVisibleArticleById,
   type ArticleAccessContext,
 } from "./policy";
+
+const log = createLogger("article-library");
 
 type ProcessingStepRow = {
   id: string;
@@ -296,20 +300,28 @@ export async function deleteArticle(
   context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
   audit?: AuditRequestInput,
 ): Promise<boolean> {
-  return prisma.$transaction(async (tx) => {
+  const outcome = await prisma.$transaction(async (tx) => {
     const existing = await tx.article.findFirst({
       where: adminVisibleArticleWhere(context, { id }),
       select: { id: true },
     });
     if (!existing) {
-      return false;
+      return null;
     }
+    const mediaAssets = await tx.mediaAsset.findMany({
+      where: { articleId: id },
+      select: { storageKey: true },
+    });
     await tx.article.delete({ where: { id } });
     if (audit) {
       await recordAuditFromRequest(audit, tx);
     }
-    return true;
+    return { mediaAssets };
   });
+  if (!outcome) return false;
+
+  await purgeArticleMediaAssets(id, outcome.mediaAssets, "delete");
+  return true;
 }
 
 /**
@@ -356,9 +368,8 @@ async function clearArticleAiDerivatives(
     tx.articleSpeech.deleteMany({ where: { articleId } }),
   ]);
 
-  // Speech audio is being regenerated, so drop any object-storage MediaAsset
-  // pointers for this article too (RW-049). The underlying storage objects are
-  // content-addressed and overwritten on the next synthesis.
+  // Speech audio is being regenerated, so remove its tracked MediaAsset rows
+  // after their storage keys have been collected by the caller.
   await tx.mediaAsset.deleteMany({ where: { articleId, kind: "speech" } });
 
   // Reset the durable step state for the cleared features (RW-016) so the admin
@@ -378,6 +389,28 @@ async function clearArticleAiDerivatives(
   };
 }
 
+async function purgeArticleMediaAssets(
+  articleId: string,
+  assets: Array<{ storageKey: string }>,
+  operation: "delete" | "rebuild",
+): Promise<void> {
+  if (assets.length === 0) return;
+  const storage = getMediaStorage();
+  if (!storage) return;
+
+  const results = await Promise.allSettled(
+    assets.map(async ({ storageKey }) => storage.delete(storageKey)),
+  );
+  const failedCount = results.filter((result) => result.status === "rejected").length;
+  if (failedCount > 0) {
+    log.error("article.storage_cleanup_failed", {
+      articleId,
+      failedCount,
+      operation,
+    });
+  }
+}
+
 /**
  * Triggers a rebuild of an article's AI-derived content by clearing the cached
  * translations, vocabulary, quiz questions, speech and tag links. These are
@@ -390,7 +423,7 @@ export async function rebuildArticleAi(
   context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
   audit?: RebuildAuditFactory,
 ): Promise<RebuildResult | null> {
-  return prisma.$transaction(async (tx) => {
+  const outcome = await prisma.$transaction(async (tx) => {
     const existing = await tx.article.findFirst({
       where: adminVisibleArticleWhere(context, { id }),
       select: { id: true },
@@ -399,10 +432,18 @@ export async function rebuildArticleAi(
       return null;
     }
 
+    const speechAssets = await tx.mediaAsset.findMany({
+      where: { articleId: id, kind: "speech" },
+      select: { storageKey: true },
+    });
     const result = { cleared: await clearArticleAiDerivatives(tx, id) };
     if (audit) {
       await recordAuditFromRequest(audit(result), tx);
     }
-    return result;
+    return { result, speechAssets };
   });
+  if (!outcome) return null;
+
+  await purgeArticleMediaAssets(id, outcome.speechAssets, "rebuild");
+  return outcome.result;
 }

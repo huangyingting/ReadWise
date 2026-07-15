@@ -251,7 +251,7 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
             (table_name = 'Profile' AND column_name = 'levelUpdatedAt')
             OR (table_name = 'Tag' AND column_name = 'orgId')
             OR (table_name = 'ArticleTag' AND column_name = 'createdAt')
-            OR (table_name = 'ArticleSpeech' AND column_name IN ('voice', 'plainText', 'format', 'mimeType', 'storageKey', 'mediaAssetId'))
+            OR (table_name = 'ArticleSpeech' AND column_name IN ('voice', 'plainText', 'format', 'mimeType', 'storageKey'))
             OR (table_name = 'SentenceTranslation' AND column_name = 'sourceText')
             OR (table_name = 'SkillMastery' AND column_name = 'lastUpdatedAt')
             OR (table_name = 'MediaAsset' AND column_name IN ('sizeBytes', 'checksum', 'durationSec', 'format'))
@@ -269,6 +269,35 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
       assert.deepEqual(retainedAssets, [
         { id: "fixture-media-new", storageKey: "speech/fixture-new.mp3" },
       ]);
+      const speechAssetPointers = await tx.$queryRawUnsafe<
+        Array<{ mediaAssetId: string | null }>
+      >(`
+        SELECT "mediaAssetId"
+        FROM "ArticleSpeech"
+        WHERE "id" = 'fixture-speech-a'
+      `);
+      assert.deepEqual(speechAssetPointers, [{ mediaAssetId: "fixture-media-new" }]);
+
+      await applySql(
+        tx,
+        `
+          INSERT INTO "MediaAsset" (
+            "id", "storageKey", "kind", "mimeType", "voice",
+            "articleId", "createdAt", "updatedAt"
+          )
+          VALUES (
+            'fixture-media-history', 'speech/fixture-history.mp3', 'speech',
+            'audio/mpeg', 'history-voice',
+            'fixture-private-a', '2026-01-03T00:00:00Z', '2026-01-03T00:00:00Z'
+          );
+        `,
+      );
+      const trackedAssetCount = await tx.$queryRawUnsafe<Array<{ count: number }>>(`
+        SELECT COUNT(*)::int AS "count"
+        FROM "MediaAsset"
+        WHERE "articleId" = 'fixture-private-a' AND "kind" = 'speech'
+      `);
+      assert.deepEqual(trackedAssetCount, [{ count: 2 }]);
 
       const scopedTagCounts = await tx.$queryRawUnsafe<
         Array<{ public_shared: number; private_owner_a: number; private_owner_b: number; wrong_links: number }>
