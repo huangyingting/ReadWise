@@ -105,11 +105,9 @@ test("article deletes cascade derived data but keep saved-word study history", {
     prisma.articleSpeech.create({
       data: {
         articleId,
-        voice: "test",
         format: "mp3",
         mimeType: "audio/mpeg",
         storageKey: "speech/test.mp3",
-        plainText: "Hello",
         words: [],
       },
     }),
