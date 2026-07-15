@@ -26,7 +26,8 @@ provider. See [`../reader/playback.md`](../reader/playback.md) and
 
 `MediaAsset` records metadata for every object stored outside the primary
 database. Speech narration is the only asset kind currently in use (`kind =
-"speech"`).
+"speech"`). Each stored object has its own row, including superseded narration
+objects that remain tracked for later lifecycle cleanup.
 
 | Field        | Type     | Description                                              |
 | ------------ | -------- | -------------------------------------------------------- |
@@ -61,8 +62,8 @@ speech/<articleId>/<sha256hex><ext>
 
 The storage backend computes a SHA-256 checksum and embeds it in `storageKey`.
 Re-synthesizing identical bytes therefore produces the same key, and the
-`MediaAsset` upsert (`where: { articleId_kind }`) maintains one speech asset per
-article without persisting the checksum twice.
+`MediaAsset` upsert (`where: { storageKey }`) reuses the existing row without
+persisting the checksum twice. Different bytes create a new tracked row.
 
 ## Asset creation flow
 
@@ -70,12 +71,12 @@ article without persisting the checksum twice.
 synthesize(text, config) → SynthesisOutput { audio: Buffer, words: SpeechWord[] }
   ↓
 saveSpeechResult(...)
-  ├── storage.put({ data, mimeType, keyHint: "speech" })
+  ├── storage.put({ data, mimeType, keyHint: "speech/<articleId>" })
   │     → { storageKey, sizeBytes, checksum }
-  ├── prisma.mediaAsset.upsert(where: { articleId_kind })
+  ├── prisma.mediaAsset.upsert(where: { storageKey })
   │     records: storageKey, kind, mimeType, voice, articleId
   └── prisma.articleSpeech.upsert(where: { articleId })
-        records: word timings
+        records: current mediaAssetId, word timings
 ```
 
 When storage is unavailable or the storage write fails, `saveSpeechResult` skips
@@ -84,14 +85,13 @@ stored in the database.
 
 ## Article deletion and cascade
 
-`MediaAsset` has `onDelete: Cascade` on the `articleId` foreign key. Deleting an
-article removes its `MediaAsset` rows from the database automatically.
+`MediaAsset` has `onDelete: Cascade` on the `articleId` foreign key. Account and
+member deletion enumerate every tracked key and delete the storage objects
+before the database cascade removes their rows.
 
-**The storage object is not automatically deleted when the database row is
-removed.** Operators who want to reclaim storage space must run a separate
-cleanup pass — iterate `MediaAsset` rows with `articleId IS NULL` (orphaned
-because the article cascade fired) and call `storage.delete(storageKey)` for
-each.
+Admin article deletion also collects and best-effort deletes every tracked
+object after its database transaction. A raw database cascade still cannot
+delete storage objects and requires a separate reconciliation pass.
 
 ## AI rebuild and asset replacement
 
@@ -100,12 +100,17 @@ each.
 1. Deletes the `ArticleSpeech` row for the article.
 2. Calls `mediaAsset.deleteMany({ where: { articleId: id, kind: "speech" } })` to
    remove the `MediaAsset` database record.
-3. Does **not** delete the storage object — the object becomes unreferenced in the
-   database but the bytes remain in storage until a cleanup pass removes them.
+3. Best-effort deletes every collected storage object after the database
+   transaction commits. Storage failure does not roll back the rebuild and is
+   logged without exposing object keys.
 
 After a rebuild, the next reader request or `TTS_GENERATE` background job
 re-synthesizes narration and creates a new `MediaAsset` with fresh storage key,
 playback metadata, and ownership.
+
+Normal re-synthesis does not delete prior rows. `ArticleSpeech.mediaAssetId`
+points to the object matching the current timings, while older rows retain the
+keys needed for eventual account/member deletion.
 
 ## Orphan handling
 
@@ -114,13 +119,12 @@ article cascade or admin rebuild) but whose bytes remain in object storage.
 
 Causes:
 - **Article deletion** — cascade removes `MediaAsset` but not the storage object.
-- **Admin AI rebuild** — `MediaAsset` is deleted explicitly; object is retained.
 - **Failed migration cleanup** — partially migrated rows where the DB transaction
   succeeded but a subsequent manual deletion removed the row.
 
 Detection requires comparing object-storage keys against `MediaAsset.storageKey`.
-`ArticleSpeech` and the speech `MediaAsset` are independently and uniquely keyed
-by the same `articleId`; no duplicate soft pointer is stored.
+`ArticleSpeech.mediaAssetId` is a real foreign key to the current object; other
+speech assets for the article are retained lifecycle history.
 
 Cleanup: call `getMediaStorage().delete(storageKey)` for each orphaned key, then
 delete the `MediaAsset` row if it still exists.

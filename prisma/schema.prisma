@@ -229,13 +229,15 @@ model ArticleTag {
 }
 
 model ArticleSpeech {
-  id        String   @id @default(cuid())
-  articleId String   @unique
-  words     Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  articleId    String   @unique
+  mediaAssetId String?  @unique
+  words        Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  article    Article     @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  mediaAsset MediaAsset? @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
 }
 
 model QuizQuestion {
@@ -1004,8 +1006,8 @@ model ContentReview {
 
 // Media storage metadata (Epic RW-E009 — RW-049). Generated audio is written
 // outside the relational DB to local or Azure media storage; this row records
-// the canonical pointer and playback metadata. Assets are uniquely identified
-// by owning article + kind and cascade with the article.
+// the canonical pointer and playback metadata. Each row tracks one stored
+// object so superseded objects remain available for lifecycle cleanup.
 model MediaAsset {
   id          String   @id @default(cuid())
   storageKey  String   @unique
@@ -1016,9 +1018,9 @@ model MediaAsset {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  article Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  article Article?      @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  speech  ArticleSpeech?
 
-  @@unique([articleId, kind])
   @@index([articleId])
   @@index([kind, createdAt])
 }
