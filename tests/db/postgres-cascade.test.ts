@@ -92,7 +92,6 @@ test("article deletes cascade derived data but keep saved-word study history", {
         articleId,
         sourceHash: id("hash"),
         targetLang: "es",
-        sourceText: "Hello",
         translation: "Hola",
       },
     }),
@@ -105,9 +104,6 @@ test("article deletes cascade derived data but keep saved-word study history", {
     prisma.articleSpeech.create({
       data: {
         articleId,
-        format: "mp3",
-        mimeType: "audio/mpeg",
-        storageKey: "speech/test.mp3",
         words: [],
       },
     }),

@@ -180,7 +180,7 @@ reading, vocabulary, grammar, listening, pronunciation, comprehension
 ```
 
 Each row stores `confidence` (0-1), `evidenceCount`, bounded `recentEvidence`,
-and `lastUpdatedAt`.
+and the standard Prisma-managed `updatedAt` timestamp.
 
 ### Evidence update
 

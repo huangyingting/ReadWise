@@ -113,7 +113,6 @@ model Profile {
   timezone        String?
   goalPath        String?   // controlled: "daily_news" | "academic" | "business" | "exam" | "extensive" | null
   streakShields   Int       @default(0)
-  levelUpdatedAt  DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -206,7 +205,6 @@ model Tag {
   /// "user:<id>" for private tags, and future "org:<id>".
   namespace String   @default("public")
   ownerId   String?
-  orgId     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -221,7 +219,6 @@ model Tag {
 model ArticleTag {
   articleId String
   tagId     String
-  createdAt DateTime @default(now())
 
   article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
   tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
@@ -232,15 +229,11 @@ model ArticleTag {
 }
 
 model ArticleSpeech {
-  id          String   @id @default(cuid())
-  articleId   String   @unique
-  format      String
-  mimeType    String
-  storageKey   String?
-  mediaAssetId String?
-  words       Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  articleId String   @unique
+  words     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
 }
@@ -481,7 +474,6 @@ model SentenceTranslation {
   articleId   String
   sourceHash  String   // SHA-256 hex of normalized source text (stable cache key)
   targetLang  String
-  sourceText  String   // original (normalized) text for human inspection
   translation String
   createdAt   DateTime @default(now())
 
@@ -866,7 +858,6 @@ model SkillMastery {
   confidence     Float    @default(0)
   evidenceCount  Int      @default(0)
   recentEvidence Json     @default("[]")
-  lastUpdatedAt  DateTime @default(now())
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -1013,25 +1004,21 @@ model ContentReview {
 
 // Media storage metadata (Epic RW-E009 — RW-049). Generated audio is written
 // outside the relational DB to local or Azure media storage; this row records
-// the pointer + metadata (storageKey, mime, size, checksum, duration, voice,
-// format). `ArticleSpeech.storageKey/mediaAssetId` identify it. Cascades with
-// the article. `kind` distinguishes asset types (e.g. speech).
+// the canonical pointer and playback metadata. Assets are uniquely identified
+// by owning article + kind and cascade with the article.
 model MediaAsset {
   id          String   @id @default(cuid())
   storageKey  String   @unique
   kind        String   @default("speech")
   mimeType    String
-  sizeBytes   Int
-  checksum    String
-  durationSec Float?
   voice       String?
-  format      String?
   articleId   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   article Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
+  @@unique([articleId, kind])
   @@index([articleId])
   @@index([kind, createdAt])
 }
@@ -1098,8 +1085,6 @@ model Organization {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
-  /// Free-form tenant settings (branding, feature flags). Metadata only.
-  settings  Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
