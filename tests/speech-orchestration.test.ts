@@ -113,6 +113,16 @@ before(() => {
           findUnique: async () => mediaAssetRow,
           upsert: async () => ({ id: "media-1" }),
         },
+        $transaction: async (
+          callback: (tx: {
+            articleSpeech: { upsert: () => Promise<Record<string, never>> };
+            mediaAsset: { upsert: () => Promise<{ id: string }> };
+          }) => Promise<unknown>,
+        ) =>
+          callback({
+            articleSpeech: { upsert: async () => ({}) },
+            mediaAsset: { upsert: async () => ({ id: "media-1" }) },
+          }),
       },
     },
   });
@@ -145,6 +155,7 @@ async function getOrCreateSpeech(articleId = "a1") {
 function cachedSpeech(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     articleId: "a1",
+    mediaAssetId: "media-1",
     words: STORED_LEGACY_WORDS,
     ...overrides,
   };

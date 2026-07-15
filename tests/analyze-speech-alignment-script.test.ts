@@ -9,8 +9,10 @@ type ArticleRow = {
   status: string;
   wordCount: number | null;
   content: string;
-  speech: { words: unknown } | null;
-  mediaAssets: Array<{ storageKey: string }>;
+  speech: {
+    words: unknown;
+    mediaAsset: { storageKey: string } | null;
+  } | null;
 };
 
 let articleFindManyImpl: (args: Record<string, unknown>) => Promise<ArticleRow[]>;
@@ -196,8 +198,8 @@ test("analyze speech alignment id scan preserves requested order", async () => {
       content: "hello world",
       speech: {
         words: [{ word: "hello" }],
+        mediaAsset: { storageKey: "speech/b" },
       },
-      mediaAssets: [{ storageKey: "speech/b" }],
     },
     {
       id: "a",
@@ -206,8 +208,8 @@ test("analyze speech alignment id scan preserves requested order", async () => {
       content: "hello world",
       speech: {
         words: [{ word: "hello" }, { word: "world" }],
+        mediaAsset: { storageKey: "speech/a" },
       },
-      mediaAssets: [{ storageKey: "speech/a" }],
     },
   ];
   articleFindManyImpl = async () => rows;
@@ -229,8 +231,8 @@ test("analyze speech alignment full scan supports deletion dry-run and applied l
       content: "alpha beta gamma",
       speech: {
         words: [{ word: "alpha" }, { word: "beta" }, { word: "gamma" }],
+        mediaAsset: { storageKey: "k1" },
       },
-      mediaAssets: [{ storageKey: "k1" }],
     },
     {
       id: "row-2",
@@ -239,8 +241,8 @@ test("analyze speech alignment full scan supports deletion dry-run and applied l
       content: "alpha beta",
       speech: {
         words: [{ word: "alpha" }],
+        mediaAsset: { storageKey: "k2" },
       },
-      mediaAssets: [{ storageKey: "k2" }],
     },
   ];
   let callCount = 0;
@@ -337,8 +339,8 @@ test("analyze speech alignment main prints help, runs ids flow, and disconnects 
         content: "one two",
         speech: {
           words: [{ word: "one" }, { word: "two" }],
+          mediaAsset: { storageKey: "speech-1" },
         },
-        mediaAssets: [{ storageKey: "speech-1" }],
       },
     ];
     process.argv = [process.execPath, "scripts/analyze-speech-alignment.ts", "--ids", "article-1"];
@@ -365,8 +367,8 @@ test("analyze speech alignment main prints help, runs ids flow, and disconnects 
             content: "one",
             speech: {
               words: [{ word: "one" }],
+              mediaAsset: null,
             },
-            mediaAssets: [],
           },
         ];
       }

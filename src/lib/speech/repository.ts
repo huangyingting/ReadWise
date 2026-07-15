@@ -46,9 +46,9 @@ export function parseStoredSpeechWords(
  * Metadata remains available when the storage object itself cannot be read.
  */
 export async function resolveStoredSpeechMedia(row: {
-  articleId: string;
+  mediaAssetId: string | null;
 }): Promise<{ audio: string | null; mimeType: string; voice: string | null } | null> {
-  const asset = await findStoredMediaAsset(row.articleId);
+  const asset = await findStoredMediaAsset(row.mediaAssetId);
   if (!asset) return null;
   const bytes = await readStorageAudioBytes(asset);
   return {
@@ -69,14 +69,10 @@ async function readStorageAudioBytes(row: { storageKey: string | null }): Promis
   return null;
 }
 
-async function findStoredMediaAsset(articleId: string) {
+async function findStoredMediaAsset(mediaAssetId: string | null) {
+  if (!mediaAssetId) return null;
   return prisma.mediaAsset.findUnique({
-    where: {
-      articleId_kind: {
-        articleId,
-        kind: "speech",
-      },
-    },
+    where: { id: mediaAssetId },
     select: {
       storageKey: true,
       mimeType: true,
@@ -94,12 +90,12 @@ export async function getArticleSpeechAudio(articleId: string): Promise<ArticleS
   const speechRow = await prisma.articleSpeech.findUnique({
     where: { articleId },
     select: {
-      id: true,
+      mediaAssetId: true,
     },
   });
 
   if (!speechRow) return null;
-  const asset = await findStoredMediaAsset(articleId);
+  const asset = await findStoredMediaAsset(speechRow.mediaAssetId);
   if (!asset) return null;
   const bytes = await readStorageAudioBytes(asset);
   if (!bytes) return null;
@@ -122,10 +118,12 @@ function mediaAssetData(params: {
 }
 
 function articleSpeechData(params: {
+  mediaAssetId: string;
   words: ReturnType<typeof createSpeechTimingPayloadV2>;
 }) {
-  const { words } = params;
+  const { mediaAssetId, words } = params;
   return {
+    mediaAssetId,
     words,
   };
 }
@@ -179,33 +177,29 @@ export async function saveSpeechResult(params: {
     voice,
     articleId,
   });
-  await prisma.mediaAsset.upsert({
-    where: {
-      articleId_kind: {
-        articleId,
-        kind: "speech",
+  await prisma.$transaction(async (tx) => {
+    const asset = await tx.mediaAsset.upsert({
+      where: { storageKey: put.storageKey },
+      update: assetData,
+      create: {
+        storageKey: put.storageKey,
+        ...assetData,
       },
-    },
-    update: {
-      storageKey: put.storageKey,
-      ...assetData,
-    },
-    create: {
-      storageKey: put.storageKey,
-      ...assetData,
-    },
-  });
+      select: { id: true },
+    });
 
-  const speechData = articleSpeechData({
-    words: timingPayload,
-  });
-  await prisma.articleSpeech.upsert({
-    where: { articleId },
-    update: speechData,
-    create: {
-      articleId,
-      ...speechData,
-    },
+    const speechData = articleSpeechData({
+      mediaAssetId: asset.id,
+      words: timingPayload,
+    });
+    await tx.articleSpeech.upsert({
+      where: { articleId },
+      update: speechData,
+      create: {
+        articleId,
+        ...speechData,
+      },
+    });
   });
   return true;
 }
