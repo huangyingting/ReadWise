@@ -43,6 +43,9 @@ let deletedIds: string[] = [];
 let deleteManyCalls: Record<string, { where: Record<string, unknown> }[]> = {};
 let deleteManyCounts: Record<string, number> = {};
 let auditCalls: { action: string }[] = [];
+let mediaAssetRows: Array<{ storageKey: string }> = [];
+let storageDeletes: string[] = [];
+let storageDeleteFails = false;
 
 let lastFindManyArgs: Record<string, unknown> | null = null;
 
@@ -133,6 +136,7 @@ before(() => {
       findMany: async () => feedbackRows,
     },
     mediaAsset: {
+      findMany: async () => mediaAssetRows,
       deleteMany: recordDeleteMany("mediaAsset"),
     },
     articleProcessingStep: {
@@ -151,6 +155,17 @@ before(() => {
       },
     },
   });
+
+  mock.module("@/lib/storage", {
+    namedExports: {
+      getMediaStorage: () => ({
+        delete: async (storageKey: string) => {
+          storageDeletes.push(storageKey);
+          if (storageDeleteFails) throw new Error("storage unavailable");
+        },
+      }),
+    },
+  });
 });
 
 beforeEach(() => {
@@ -163,6 +178,9 @@ beforeEach(() => {
   deletedIds = [];
   deleteManyCounts = {};
   auditCalls = [];
+  mediaAssetRows = [];
+  storageDeletes = [];
+  storageDeleteFails = false;
   lastFindManyArgs = null;
   resetDeleteMany();
 });
@@ -388,6 +406,23 @@ test("deleteArticle deletes the article and returns true (no audit)", async () =
   assert.equal(auditCalls.length, 0);
 });
 
+test("deleteArticle purges every tracked media object after the database transaction", async () => {
+  const { deleteArticle } = await import("@/lib/article-library/admin");
+  detailArticle = buildArticle({ id: "a1" });
+  mediaAssetRows = [
+    { storageKey: "speech/a1/old.mp3" },
+    { storageKey: "speech/a1/current.mp3" },
+  ];
+
+  const deleted = await deleteArticle("a1", ADMIN);
+
+  assert.equal(deleted, true);
+  assert.deepEqual(storageDeletes, [
+    "speech/a1/old.mp3",
+    "speech/a1/current.mp3",
+  ]);
+});
+
 test("deleteArticle records an audit event when an audit input is supplied", async () => {
   const { deleteArticle } = await import("@/lib/article-library/admin");
   detailArticle = buildArticle({ id: "a1" });
@@ -480,6 +515,35 @@ test("rebuildArticleAi drops only speech-kind media assets for the article", asy
     articleId: "a1",
     kind: "speech",
   });
+});
+
+test("rebuildArticleAi purges every tracked speech object after the database transaction", async () => {
+  const { rebuildArticleAi } = await import("@/lib/article-library/admin");
+  detailArticle = buildArticle({ id: "a1" });
+  mediaAssetRows = [
+    { storageKey: "speech/a1/old.mp3" },
+    { storageKey: "speech/a1/current.mp3" },
+  ];
+
+  const result = await rebuildArticleAi("a1", ADMIN);
+
+  assert.ok(result);
+  assert.deepEqual(storageDeletes, [
+    "speech/a1/old.mp3",
+    "speech/a1/current.mp3",
+  ]);
+});
+
+test("rebuildArticleAi remains successful when best-effort storage cleanup fails", async () => {
+  const { rebuildArticleAi } = await import("@/lib/article-library/admin");
+  detailArticle = buildArticle({ id: "a1" });
+  mediaAssetRows = [{ storageKey: "speech/a1/current.mp3" }];
+  storageDeleteFails = true;
+
+  const result = await rebuildArticleAi("a1", ADMIN);
+
+  assert.ok(result);
+  assert.deepEqual(storageDeletes, ["speech/a1/current.mp3"]);
 });
 
 test("rebuildArticleAi resets processing steps but preserves the difficulty step", async () => {

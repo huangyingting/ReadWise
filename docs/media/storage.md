@@ -91,12 +91,12 @@ To add another backend, implement `MediaStorage` and register it behind a new
 
 - **Synthesis path** — new audio is written through `getMediaStorage().put()`.
   A `MediaAsset` row records the canonical `storageKey`, `mimeType`, `voice`, and
-  `articleId`; `ArticleSpeech` stores only word timings. Both rows are uniquely
-  keyed by `articleId` for their respective speech concerns.
+  `articleId`; `ArticleSpeech.mediaAssetId` identifies the object matching its
+  word timings. Superseded objects retain their own rows for lifecycle cleanup.
 - **Storage unavailable/write failure** — the synthesis result may still be
   returned to the current caller, but no database audio fallback is written and
   no cache row is created.
-- **Cached-read path** — `resolveStoredSpeechMedia` loads the article's speech
+- **Cached-read path** — `resolveStoredSpeechMedia` loads the linked current
   `MediaAsset`, then reads bytes from storage by its `storageKey`. If the object
   is unavailable, the client treats the response as a graceful no-audio fallback.
 

@@ -47,17 +47,27 @@ before(() => {
       prisma: {
         mediaAsset: {
           findUnique: async () => mediaAssetFindRow,
-          upsert: async (args: UpsertArgs) => {
-            mediaAssetUpsertArgs = args;
-            return { id: "media-1" };
-          },
         },
-        articleSpeech: {
-          upsert: async (args: UpsertArgs) => {
-            articleSpeechUpsertArgs = args;
-            return { articleId: (args.where as { articleId: string }).articleId };
-          },
-        },
+        $transaction: async (
+          callback: (tx: {
+            mediaAsset: { upsert: (args: UpsertArgs) => Promise<{ id: string }> };
+            articleSpeech: { upsert: (args: UpsertArgs) => Promise<{ articleId: string }> };
+          }) => Promise<unknown>,
+        ) =>
+          callback({
+            mediaAsset: {
+              upsert: async (args: UpsertArgs) => {
+                mediaAssetUpsertArgs = args;
+                return { id: "media-1" };
+              },
+            },
+            articleSpeech: {
+              upsert: async (args: UpsertArgs) => {
+                articleSpeechUpsertArgs = args;
+                return { articleId: (args.where as { articleId: string }).articleId };
+              },
+            },
+          }),
       },
     },
   });
@@ -194,7 +204,7 @@ test("parseStoredSpeechWords rejects incomplete or invalid text offsets", async 
 
 test("resolveStoredSpeechMedia returns null when there is no media asset", async () => {
   const { resolveStoredSpeechMedia } = await loadRepo();
-  assert.equal(await resolveStoredSpeechMedia({ articleId: "a1" }), null);
+  assert.equal(await resolveStoredSpeechMedia({ mediaAssetId: null }), null);
 });
 
 test("resolveStoredSpeechMedia returns metadata without audio when storage is unconfigured", async () => {
@@ -206,7 +216,7 @@ test("resolveStoredSpeechMedia returns metadata without audio when storage is un
   };
   storageImpl = null;
   const media = await resolveStoredSpeechMedia({
-    articleId: "a1",
+    mediaAssetId: "media-1",
   });
   assert.deepEqual(media, {
     audio: null,
@@ -224,7 +234,7 @@ test("resolveStoredSpeechMedia returns metadata when storage has no bytes for th
   };
   storageImpl = makeStorage({ get: async () => null });
   const media = await resolveStoredSpeechMedia({
-    articleId: "a1",
+    mediaAssetId: "media-1",
   });
   assert.deepEqual(media, {
     audio: null,
@@ -248,7 +258,7 @@ test("resolveStoredSpeechMedia reads bytes and metadata from the MediaAsset", as
     },
   });
   const media = await resolveStoredSpeechMedia({
-    articleId: "a1",
+    mediaAssetId: "media-1",
   });
   assert.equal(requestedKey, "speech/abc");
   assert.deepEqual(media, {
@@ -300,9 +310,7 @@ test("saveSpeechResult writes to media storage and upserts a MediaAsset on succe
   assert.ok(putInput);
   assert.equal((putInput as PutMediaInput).keyHint, "speech/a1");
   assert.ok(mediaAssetUpsertArgs);
-  assert.deepEqual(mediaAssetUpsertArgs!.where, {
-    articleId_kind: { articleId: "a1", kind: "speech" },
-  });
+  assert.deepEqual(mediaAssetUpsertArgs!.where, { storageKey: "speech/xyz" });
   assert.equal(mediaAssetUpsertArgs!.create.kind, "speech");
   assert.equal(mediaAssetUpsertArgs!.create.voice, "en-US-Test");
   for (const field of ["sizeBytes", "checksum", "durationSec", "format"]) {
@@ -311,7 +319,8 @@ test("saveSpeechResult writes to media storage and upserts a MediaAsset on succe
   }
 
   assert.ok(articleSpeechUpsertArgs);
-  for (const field of ["audioBase64", "voice", "plainText", "format", "mimeType", "storageKey", "mediaAssetId"]) {
+  assert.equal(articleSpeechUpsertArgs!.create.mediaAssetId, "media-1");
+  for (const field of ["audioBase64", "voice", "plainText", "format", "mimeType", "storageKey"]) {
     assert.equal(field in articleSpeechUpsertArgs!.create, false);
     assert.equal(field in articleSpeechUpsertArgs!.update, false);
   }

@@ -82,6 +82,7 @@ Admin AI rebuild (`adminRebuildArticleAI`, `src/lib/article-library/admin.ts`):
 1. Deletes the `ArticleSpeech` row for the article.
 2. Deletes `MediaAsset` rows for the article (`kind = "speech"`).
 3. Deletes `ArticleProcessingStep` rows for all steps except `"difficulty"`.
+4. Best-effort deletes every collected speech object from media storage.
 
 After a rebuild:
 
@@ -91,9 +92,8 @@ After a rebuild:
   `enqueueTtsGenerate(articleId)` or via the admin jobs UI to pre-warm
   narration in the background.
 
-Note: storage objects are **not** deleted by the rebuild. The bytes remain in
-object storage as orphans until a cleanup pass removes them. See
-[`../media/assets.md`](../media/assets.md) for orphan handling.
+Storage cleanup failure is logged without object keys and does not roll back the
+database rebuild, preserving graceful fallback when storage is unavailable.
 
 ## Retry policy
 
