@@ -42,8 +42,10 @@ type ArticleSpeechAlignmentRow = {
   status: string;
   wordCount: number | null;
   content: string;
-  speech: { words: unknown } | null;
-  mediaAssets: Array<{ storageKey: string }>;
+  speech: {
+    words: unknown;
+    mediaAsset: { storageKey: string } | null;
+  } | null;
 };
 
 type CoverageResult = {
@@ -94,11 +96,11 @@ const ARTICLE_ALIGNMENT_SELECT = {
   status: true,
   wordCount: true,
   content: true,
-  speech: { select: { words: true } },
-  mediaAssets: {
-    where: { kind: "speech" },
-    select: { storageKey: true },
-    take: 1,
+  speech: {
+    select: {
+      words: true,
+      mediaAsset: { select: { storageKey: true } },
+    },
   },
 } as const;
 
@@ -265,7 +267,7 @@ export function buildArticleStats(row: ArticleSpeechAlignmentRow): ArticleAlignm
     id: row.id,
     status: row.status,
     wordCount: row.wordCount,
-    storageKey: row.mediaAssets[0]?.storageKey ?? null,
+    storageKey: row.speech?.mediaAsset?.storageKey ?? null,
     coverage: Number(ratio.toFixed(4)),
     boundaryTokens: tokens.length,
     covered: result.covered,

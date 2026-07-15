@@ -255,7 +255,8 @@ rerunning TTS jobs after fixing storage.
 1. Calls `storage.put({ data, mimeType, keyHint: "speech" })` → `{ storageKey, sizeBytes, checksum }`.
 2. Upserts a `MediaAsset` row recording the canonical `storageKey`, `mimeType`,
    `voice`, and `articleId`.
-3. Upserts `ArticleSpeech` with only `words`; both rows are found by `articleId`.
+3. Atomically upserts `ArticleSpeech` with `mediaAssetId` and `words`, so the
+   current audio and timing payload remain paired.
 
 If media storage is unavailable or the write fails, `saveSpeechResult` returns
 `false`, skips cache persistence, and does not store audio in the database. The
@@ -264,8 +265,8 @@ must not report the result as durably cached.
 
 ## Repository: resolveStoredSpeechMedia
 
-`resolveStoredSpeechMedia(row)` resolves playback metadata from the article's
-speech asset:
+`resolveStoredSpeechMedia(row)` resolves playback metadata from the linked
+current speech asset:
 
 1. Loads `storageKey`, `mimeType`, and `voice` from `MediaAsset`.
 2. Reads bytes via `storage.get(asset.storageKey)`.
@@ -274,8 +275,8 @@ speech asset:
 ## Cache invalidation and rebuild
 
 Admin AI rebuild (`adminRebuildArticleAI`) deletes the `ArticleSpeech` row and
-the associated `MediaAsset` row. The storage object is retained (not deleted by
-the rebuild). See [`../media/assets.md`](../media/assets.md) for orphan handling.
+associated `MediaAsset` rows, then best-effort deletes every collected storage
+object after the database transaction commits.
 
 The next call to `getOrCreateArticleSpeech` (reader request or
 `TTS_GENERATE` background job) re-synthesizes with current config and persists a
