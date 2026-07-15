@@ -52,7 +52,7 @@ before(() => {
   mock.module("@/lib/speech/repository", {
     namedExports: {
       parseStoredSpeechWords: () => [],
-      resolveStoredAudioUrl: async () => null,
+      resolveStoredSpeechMedia: async () => null,
       saveSpeechResult: async () => null,
       getArticleSpeechAudio: async () => null,
     },

@@ -6,7 +6,7 @@
  * return {@link DomainResult} so callers can act on failures without catching
  * exceptions.
  */
-import type { MembershipRole, Organization, Membership, Prisma } from "@prisma/client";
+import type { MembershipRole, Organization, Membership } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { type DomainResult, ok, notFound, conflict } from "@/lib/result";
 import { getMembership } from "./queries";
@@ -15,7 +15,6 @@ import { slugifyOrg, ensureUniqueOrgSlug } from "./slugs";
 export type CreateOrganizationInput = {
   name: string;
   slug?: string;
-  settings?: Record<string, unknown> | null;
 };
 
 /**
@@ -36,10 +35,6 @@ export async function createOrganization(
       data: {
         name,
         slug,
-        settings:
-          input.settings == null
-            ? undefined
-            : (input.settings as Prisma.InputJsonValue),
       },
     });
     const membership = await tx.membership.create({

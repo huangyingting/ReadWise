@@ -19,11 +19,10 @@ function baseProfileData(input: ProfileInput) {
   };
 }
 
-function updateProfileData(input: ProfileInput, levelChanged: boolean) {
+function updateProfileData(input: ProfileInput) {
   return {
     ...baseProfileData(input),
     ...(input.goalPath !== undefined ? { goalPath: input.goalPath } : {}),
-    ...(levelChanged ? { levelUpdatedAt: new Date() } : {}),
   };
 }
 
@@ -46,7 +45,7 @@ export async function updateProfile(userId: string, input: ProfileInput): Promis
   const goalPathChanged =
     input.goalPath !== undefined && input.goalPath !== (existing?.goalPath ?? null);
 
-  const data = updateProfileData(input, levelChanged);
+  const data = updateProfileData(input);
 
   await prisma.$transaction(async (tx) => {
     await tx.profile.upsert({

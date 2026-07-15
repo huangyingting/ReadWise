@@ -146,9 +146,6 @@ function cachedSpeech(overrides: Record<string, unknown> = {}): Record<string, u
   return {
     articleId: "a1",
     words: STORED_LEGACY_WORDS,
-    storageKey: "speech/cached.mp3",
-    mediaAssetId: "media-1",
-    mimeType: "audio/mpeg",
     ...overrides,
   };
 }
@@ -194,7 +191,11 @@ test("isSpeechConfigured is false when Azure Speech credentials are missing", as
 test("getOrCreateArticleSpeech returns cached speech without calling the provider on a cache hit", async () => {
   cachedSpeechRow = cachedSpeech();
   articleRow = { content: "<p>Hello world from the article.</p>" };
-  mediaAssetRow = { voice: "en-US-Cached" };
+  mediaAssetRow = {
+    storageKey: "speech/cached.mp3",
+    mimeType: "audio/mpeg",
+    voice: "en-US-Cached",
+  };
 
   const result = await getOrCreateSpeech();
 
@@ -224,7 +225,11 @@ test("getOrCreateArticleSpeech derives full text for cached batch narration", as
     },
   });
   articleRow = { content: `<p>${fullText}</p>` };
-  mediaAssetRow = { voice: "en-US-Cached" };
+  mediaAssetRow = {
+    storageKey: "speech/cached.mp3",
+    mimeType: "audio/mpeg",
+    voice: "en-US-Cached",
+  };
 
   const result = await getOrCreateSpeech();
 
@@ -235,7 +240,11 @@ test("getOrCreateArticleSpeech derives full text for cached batch narration", as
 
 test("getOrCreateArticleSpeech returns null when a dangling cache row has no article", async () => {
   cachedSpeechRow = cachedSpeech();
-  mediaAssetRow = { voice: "en-US-Cached" };
+  mediaAssetRow = {
+    storageKey: "speech/cached.mp3",
+    mimeType: "audio/mpeg",
+    voice: "en-US-Cached",
+  };
   articleRow = null;
 
   const result = await getOrCreateSpeech();
@@ -257,7 +266,6 @@ test("getOrCreateArticleSpeech uses the default voice when cached asset metadata
 test("getOrCreateArticleSpeech treats a malformed cached row as a miss, deletes it, and regenerates", async () => {
   cachedSpeechRow = cachedSpeech({
     words: [{ word: "broken", offset: -1, duration: 1 }],
-    storageKey: "speech/corrupt.mp3",
   });
   articleRow = readableArticle("<p>Fresh article text.</p>", "T");
   synthesizeSuccess("NEW");

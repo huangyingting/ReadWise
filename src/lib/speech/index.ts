@@ -16,7 +16,7 @@ import {
 import { synthesize, resolveMimeType } from "./provider-azure";
 import {
   parseStoredSpeechWords,
-  resolveStoredAudioUrl,
+  resolveStoredSpeechMedia,
   saveSpeechResult,
 } from "./repository";
 
@@ -161,20 +161,20 @@ async function cachedSpeechResult(
     return getOrCreateArticleSpeech(articleId, context);
   }
 
-  const [plainText, voice] = await Promise.all([
+  const [plainText, media] = await Promise.all([
     cachedPlainText(articleId, allowedArticle, usesFullArticleText(cached.words)),
-    cachedVoice(cached.mediaAssetId),
+    resolveStoredSpeechMedia(cached),
   ]);
   if (plainText === null) {
     return null;
   }
-  const audio = await resolveStoredAudioUrl(cached);
+  const audio = media?.audio ?? null;
   return {
     audio,
-    mimeType: cached.mimeType,
+    mimeType: media?.mimeType ?? null,
     plainText,
     words,
-    voice,
+    voice: media?.voice ?? DEFAULT_SPEECH_VOICE,
     cached: true,
     fallback: !audio,
     ...(!audio ? { fallbackReason: "cache_audio_missing" as const } : {}),
@@ -204,17 +204,6 @@ function usesFullArticleText(words: unknown): boolean {
     return false;
   }
   return (words as { provider?: unknown }).provider === "azure-batch";
-}
-
-async function cachedVoice(mediaAssetId: string | null): Promise<string> {
-  if (!mediaAssetId) {
-    return DEFAULT_SPEECH_VOICE;
-  }
-  const asset = await prisma.mediaAsset.findUnique({
-    where: { id: mediaAssetId },
-    select: { voice: true },
-  });
-  return asset?.voice ?? DEFAULT_SPEECH_VOICE;
 }
 
 async function findArticleForSpeech(articleId: string): Promise<ArticleSpeechSource | null> {
@@ -251,7 +240,6 @@ async function synthesizeArticleSpeech(
     audio: output.audio,
     mimeType,
     voice: config.voice,
-    format: config.format,
     provider: output.provider,
     words: output.words,
   });
