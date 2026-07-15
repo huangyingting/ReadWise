@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { createLogger } from "@/lib/observability/logger";
 import {
   createSpeechTimingPayloadV2,
@@ -156,7 +157,9 @@ type SpeechTimingRepairRow = {
   id: string;
   articleId: string;
   words: unknown;
-  plainText: string;
+  article: {
+    content: string;
+  };
 };
 
 /**
@@ -251,8 +254,8 @@ export function computeSpansForWords(
 
 /**
  * Idempotent repair pass for V2 ArticleSpeech rows that are missing their
- * textStart/textEnd span arrays.  Uses the stored `plainText` to compute
- * plainText-relative UTF-16 spans via alignment without re-synthesis.
+ * textStart/textEnd span arrays. Derives the canonical reader text from the
+ * related article to compute UTF-16 spans via alignment without re-synthesis.
  *
  * Semantics:
  *   - `dryRun: true`  — reports what would change, writes nothing.
@@ -276,7 +279,11 @@ export async function repairSpeechTimingSpans(
       id: true,
       articleId: true,
       words: true,
-      plainText: true,
+      article: {
+        select: {
+          content: true,
+        },
+      },
     },
     ...takeOption(opts.limit),
   });
@@ -301,7 +308,8 @@ export async function repairSpeechTimingSpans(
       continue;
     }
 
-    if (!row.plainText) {
+    const plainText = articleHtmlToReaderText(row.article.content);
+    if (!plainText) {
       skippedNoPlainText += 1;
       log.warn("speech.span_repair_no_plain_text", { articleId: row.articleId });
       continue;
@@ -314,7 +322,7 @@ export async function repairSpeechTimingSpans(
       continue;
     }
 
-    const enriched = computeSpansForWords(parsed.words, row.plainText);
+    const enriched = computeSpansForWords(parsed.words, plainText);
     const newPayload = createSpeechTimingPayloadV2(v2.provider ?? "azure", enriched);
 
     if (v2MissingSpans(newPayload)) {

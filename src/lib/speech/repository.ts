@@ -127,22 +127,18 @@ function mediaAssetData(params: {
 }
 
 function articleSpeechData(params: {
-  voice: string;
   format: string;
   mimeType: string;
   storageKey: string;
   mediaAssetId: string;
-  plainText: string;
   words: ReturnType<typeof createSpeechTimingPayloadV2>;
 }) {
-  const { voice, format, mimeType, storageKey, mediaAssetId, plainText, words } = params;
+  const { format, mimeType, storageKey, mediaAssetId, words } = params;
   return {
-    voice,
     format,
     mimeType,
     storageKey,
     mediaAssetId,
-    plainText,
     words,
   };
 }
@@ -162,12 +158,10 @@ export async function saveSpeechResult(params: {
   mimeType: string;
   voice: string;
   format: string;
-  plainText: string;
   provider?: SpeechTimingProvider | string;
   words: SpeechWord[];
 }): Promise<boolean> {
-  const { articleId, audio, mimeType, voice, format, plainText, provider = "azure", words } =
-    params;
+  const { articleId, audio, mimeType, voice, format, provider = "azure", words } = params;
   const timingPayload = createSpeechTimingPayloadV2(provider, words);
 
   const storage = getMediaStorage();
@@ -210,12 +204,10 @@ export async function saveSpeechResult(params: {
   });
 
   const speechData = articleSpeechData({
-    voice,
     format,
     mimeType,
     storageKey: put.storageKey,
     mediaAssetId: asset.id,
-    plainText,
     words: timingPayload,
   });
   await prisma.articleSpeech.upsert({

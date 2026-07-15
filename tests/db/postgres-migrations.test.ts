@@ -219,6 +219,14 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
       assert.deepEqual(jsonRows[0]?.topics, ["science", "technology"]);
       assert.deepEqual(jsonRows[0]?.options, ["Yes", "No"]);
       assert.deepEqual(jsonRows[0]?.words, [{ word: "Hello", offset: 0, duration: 500 }]);
+      const removedSpeechColumns = await tx.$queryRawUnsafe<Array<{ column_name: string }>>(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'ArticleSpeech'
+          AND column_name IN ('voice', 'plainText')
+      `);
+      assert.deepEqual(removedSpeechColumns, []);
 
       const scopedTagCounts = await tx.$queryRawUnsafe<
         Array<{ public_shared: number; private_owner_a: number; private_owner_b: number; wrong_links: number }>

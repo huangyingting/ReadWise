@@ -245,7 +245,6 @@ const SAVE_PARAMS = {
   mimeType: "audio/mpeg",
   voice: "en-US-Test",
   format: "audio-24khz-96kbitrate-mono-mp3",
-  plainText: "hello world",
   words: [
     { word: "hello", startMs: 0, endMs: 400, textStart: 0, textEnd: 5 },
     { word: "world", startMs: 500, endMs: 1100, textStart: 6, textEnd: 11 },
@@ -283,11 +282,14 @@ test("saveSpeechResult writes to media storage and upserts a MediaAsset on succe
   // durationSec = last word end = 1100 / 1000 = 1.1s.
   assert.equal(mediaAssetUpsertArgs!.create.durationSec, 1.1);
   assert.equal(mediaAssetUpsertArgs!.create.kind, "speech");
+  assert.equal(mediaAssetUpsertArgs!.create.voice, "en-US-Test");
 
   assert.ok(articleSpeechUpsertArgs);
   assert.equal(articleSpeechUpsertArgs!.create.storageKey, "speech/xyz");
   assert.equal(articleSpeechUpsertArgs!.create.mediaAssetId, "media-1");
   assert.equal("audioBase64" in articleSpeechUpsertArgs!.create, false);
+  assert.equal("voice" in articleSpeechUpsertArgs!.create, false);
+  assert.equal("plainText" in articleSpeechUpsertArgs!.create, false);
   assert.deepEqual(articleSpeechUpsertArgs!.create.words, {
     version: 2,
     provider: "azure",

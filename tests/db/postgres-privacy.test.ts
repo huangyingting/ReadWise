@@ -126,11 +126,9 @@ test("PostgreSQL JSON fields use jsonb columns", { skip: !enabled }, async () =>
   await prisma.articleSpeech.create({
     data: {
       articleId,
-      voice: "test",
       format: "mp3",
       mimeType: "audio/mpeg",
       storageKey: "speech/json-test.mp3",
-      plainText: "Hello",
       words: [{ word: "Hello", offset: 0, duration: 500 }],
     },
   });

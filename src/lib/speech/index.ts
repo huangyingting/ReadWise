@@ -161,14 +161,20 @@ async function cachedSpeechResult(
     return getOrCreateArticleSpeech(articleId, context);
   }
 
-  const plainText = await cachedPlainText(articleId, cached.plainText, allowedArticle);
+  const [plainText, voice] = await Promise.all([
+    cachedPlainText(articleId, allowedArticle, usesFullArticleText(cached.words)),
+    cachedVoice(cached.mediaAssetId),
+  ]);
+  if (plainText === null) {
+    return null;
+  }
   const audio = await resolveStoredAudioUrl(cached);
   return {
     audio,
     mimeType: cached.mimeType,
     plainText,
     words,
-    voice: cached.voice,
+    voice,
     cached: true,
     fallback: !audio,
     ...(!audio ? { fallbackReason: "cache_audio_missing" as const } : {}),
@@ -177,18 +183,38 @@ async function cachedSpeechResult(
 
 async function cachedPlainText(
   articleId: string,
-  fallbackPlainText: string,
   allowedArticle: ArticleSpeechSource | null,
-): Promise<string> {
+  fullArticle: boolean,
+): Promise<string | null> {
   const articleForReaderText =
     allowedArticle ??
     (await prisma.article.findUnique({
       where: { id: articleId },
       select: { content: true },
     }));
-  return articleForReaderText?.content
-    ? articleHtmlToReaderText(articleForReaderText.content).slice(0, MAX_TTS_CHARS)
-    : fallbackPlainText;
+  if (!articleForReaderText) {
+    return null;
+  }
+  const plainText = articleHtmlToReaderText(articleForReaderText.content);
+  return fullArticle ? plainText : plainText.slice(0, MAX_TTS_CHARS);
+}
+
+function usesFullArticleText(words: unknown): boolean {
+  if (!words || typeof words !== "object" || Array.isArray(words)) {
+    return false;
+  }
+  return (words as { provider?: unknown }).provider === "azure-batch";
+}
+
+async function cachedVoice(mediaAssetId: string | null): Promise<string> {
+  if (!mediaAssetId) {
+    return DEFAULT_SPEECH_VOICE;
+  }
+  const asset = await prisma.mediaAsset.findUnique({
+    where: { id: mediaAssetId },
+    select: { voice: true },
+  });
+  return asset?.voice ?? DEFAULT_SPEECH_VOICE;
 }
 
 async function findArticleForSpeech(articleId: string): Promise<ArticleSpeechSource | null> {
@@ -226,7 +252,6 @@ async function synthesizeArticleSpeech(
     mimeType,
     voice: config.voice,
     format: config.format,
-    plainText,
     provider: output.provider,
     words: output.words,
   });
