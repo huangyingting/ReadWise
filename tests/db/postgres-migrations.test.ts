@@ -173,6 +173,28 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
       `,
       );
       for (const migration of migrations.slice(1)) {
+        if (migration.name === "20260715120000_remove_unused_schema_fields") {
+          await applySql(
+            tx,
+            `
+              INSERT INTO "MediaAsset" (
+                "id", "storageKey", "kind", "mimeType", "sizeBytes", "checksum",
+                "durationSec", "voice", "format", "articleId", "createdAt", "updatedAt"
+              )
+              VALUES
+                (
+                  'fixture-media-old', 'speech/fixture-old.mp3', 'speech',
+                  'audio/mpeg', 10, 'old-checksum', 1, 'old-voice', 'mp3',
+                  'fixture-private-a', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'
+                ),
+                (
+                  'fixture-media-new', 'speech/fixture-new.mp3', 'speech',
+                  'audio/mpeg', 20, 'new-checksum', 2, 'new-voice', 'mp3',
+                  'fixture-private-a', '2026-01-02T00:00:00Z', '2026-01-02T00:00:00Z'
+                );
+            `,
+          );
+        }
         await applySql(tx, migration.sql);
       }
 
@@ -219,14 +241,34 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
       assert.deepEqual(jsonRows[0]?.topics, ["science", "technology"]);
       assert.deepEqual(jsonRows[0]?.options, ["Yes", "No"]);
       assert.deepEqual(jsonRows[0]?.words, [{ word: "Hello", offset: 0, duration: 500 }]);
-      const removedSpeechColumns = await tx.$queryRawUnsafe<Array<{ column_name: string }>>(`
-        SELECT column_name
+      const removedColumns = await tx.$queryRawUnsafe<
+        Array<{ table_name: string; column_name: string }>
+      >(`
+        SELECT table_name, column_name
         FROM information_schema.columns
         WHERE table_schema = current_schema()
-          AND table_name = 'ArticleSpeech'
-          AND column_name IN ('voice', 'plainText')
+          AND (
+            (table_name = 'Profile' AND column_name = 'levelUpdatedAt')
+            OR (table_name = 'Tag' AND column_name = 'orgId')
+            OR (table_name = 'ArticleTag' AND column_name = 'createdAt')
+            OR (table_name = 'ArticleSpeech' AND column_name IN ('voice', 'plainText', 'format', 'mimeType', 'storageKey', 'mediaAssetId'))
+            OR (table_name = 'SentenceTranslation' AND column_name = 'sourceText')
+            OR (table_name = 'SkillMastery' AND column_name = 'lastUpdatedAt')
+            OR (table_name = 'MediaAsset' AND column_name IN ('sizeBytes', 'checksum', 'durationSec', 'format'))
+            OR (table_name = 'Organization' AND column_name = 'settings')
+          )
       `);
-      assert.deepEqual(removedSpeechColumns, []);
+      assert.deepEqual(removedColumns, []);
+      const retainedAssets = await tx.$queryRawUnsafe<
+        Array<{ id: string; storageKey: string }>
+      >(`
+        SELECT "id", "storageKey"
+        FROM "MediaAsset"
+        WHERE "articleId" = 'fixture-private-a' AND "kind" = 'speech'
+      `);
+      assert.deepEqual(retainedAssets, [
+        { id: "fixture-media-new", storageKey: "speech/fixture-new.mp3" },
+      ]);
 
       const scopedTagCounts = await tx.$queryRawUnsafe<
         Array<{ public_shared: number; private_owner_a: number; private_owner_b: number; wrong_links: number }>

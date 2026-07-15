@@ -13,7 +13,6 @@ import { getMediaStorage, type PutMediaResult } from "@/lib/storage";
 import {
   createSpeechTimingPayloadV2,
   parseSpeechTimingPayload,
-  timingEndSeconds,
   type ParsedSpeechTimingPayload,
   type SpeechTimingProvider,
   type SpeechWord,
@@ -43,17 +42,20 @@ export function parseStoredSpeechWords(
 }
 
 /**
- * Resolves a playable `data:` URL for a stored speech row by reading the bytes
- * from the configured media-storage backend. Returns null when the row has no
- * storage key or the backend cannot provide the object.
+ * Resolves playback metadata and a `data:` URL from the canonical MediaAsset.
+ * Metadata remains available when the storage object itself cannot be read.
  */
-export async function resolveStoredAudioUrl(row: {
-  mimeType: string;
-  storageKey: string | null;
-}): Promise<string | null> {
-  const bytes = await readStorageAudioBytes(row);
-  if (!bytes) return null;
-  return `data:${row.mimeType};base64,${bytes.toString("base64")}`;
+export async function resolveStoredSpeechMedia(row: {
+  articleId: string;
+}): Promise<{ audio: string | null; mimeType: string; voice: string | null } | null> {
+  const asset = await findStoredMediaAsset(row.articleId);
+  if (!asset) return null;
+  const bytes = await readStorageAudioBytes(asset);
+  return {
+    audio: bytes ? `data:${asset.mimeType};base64,${bytes.toString("base64")}` : null,
+    mimeType: asset.mimeType,
+    voice: asset.voice,
+  };
 }
 
 async function readStorageAudioBytes(row: { storageKey: string | null }): Promise<Buffer | null> {
@@ -67,10 +69,20 @@ async function readStorageAudioBytes(row: { storageKey: string | null }): Promis
   return null;
 }
 
-export async function resolveStoredAudioBytes(
-  row: { storageKey: string | null },
-): Promise<Buffer | null> {
-  return readStorageAudioBytes(row);
+async function findStoredMediaAsset(articleId: string) {
+  return prisma.mediaAsset.findUnique({
+    where: {
+      articleId_kind: {
+        articleId,
+        kind: "speech",
+      },
+    },
+    select: {
+      storageKey: true,
+      mimeType: true,
+      voice: true,
+    },
+  });
 }
 
 export type ArticleSpeechAudio = {
@@ -82,63 +94,38 @@ export async function getArticleSpeechAudio(articleId: string): Promise<ArticleS
   const speechRow = await prisma.articleSpeech.findUnique({
     where: { articleId },
     select: {
-      mimeType: true,
-      storageKey: true,
+      id: true,
     },
   });
 
   if (!speechRow) return null;
-
-  const bytes = await resolveStoredAudioBytes(speechRow);
+  const asset = await findStoredMediaAsset(articleId);
+  if (!asset) return null;
+  const bytes = await readStorageAudioBytes(asset);
   if (!bytes) return null;
 
-  return { mimeType: speechRow.mimeType, bytes };
-}
-
-/** Largest word end timing (seconds) — used as the audio duration. */
-function lastWordEnd(words: SpeechWord[]): number | undefined {
-  let max = 0;
-  for (const w of words) {
-    const end = timingEndSeconds(w);
-    if (end > max) max = end;
-  }
-  return max > 0 ? max : undefined;
+  return { mimeType: asset.mimeType, bytes };
 }
 
 function mediaAssetData(params: {
-  put: PutMediaResult;
   mimeType: string;
-  durationSec: number | undefined;
   voice: string;
-  format: string;
   articleId: string;
 }) {
-  const { put, mimeType, durationSec, voice, format, articleId } = params;
+  const { mimeType, voice, articleId } = params;
   return {
     kind: "speech" as const,
     mimeType,
-    sizeBytes: put.sizeBytes,
-    checksum: put.checksum,
-    durationSec,
     voice,
-    format,
     articleId,
   };
 }
 
 function articleSpeechData(params: {
-  format: string;
-  mimeType: string;
-  storageKey: string;
-  mediaAssetId: string;
   words: ReturnType<typeof createSpeechTimingPayloadV2>;
 }) {
-  const { format, mimeType, storageKey, mediaAssetId, words } = params;
+  const { words } = params;
   return {
-    format,
-    mimeType,
-    storageKey,
-    mediaAssetId,
     words,
   };
 }
@@ -157,11 +144,10 @@ export async function saveSpeechResult(params: {
   audio: Buffer;
   mimeType: string;
   voice: string;
-  format: string;
   provider?: SpeechTimingProvider | string;
   words: SpeechWord[];
 }): Promise<boolean> {
-  const { articleId, audio, mimeType, voice, format, provider = "azure", words } = params;
+  const { articleId, audio, mimeType, voice, provider = "azure", words } = params;
   const timingPayload = createSpeechTimingPayloadV2(provider, words);
 
   const storage = getMediaStorage();
@@ -175,7 +161,11 @@ export async function saveSpeechResult(params: {
 
   let put: PutMediaResult;
   try {
-    put = await storage.put({ data: audio, mimeType, keyHint: "speech" });
+    put = await storage.put({
+      data: audio,
+      mimeType,
+      keyHint: `speech/${articleId}`,
+    });
   } catch (err) {
     log.error("speech.storage_write_failed", {
       articleId,
@@ -184,30 +174,29 @@ export async function saveSpeechResult(params: {
     return false;
   }
 
-  const durationSec = lastWordEnd(words);
   const assetData = mediaAssetData({
-    put,
     mimeType,
-    durationSec,
     voice,
-    format,
     articleId,
   });
-  const asset = await prisma.mediaAsset.upsert({
-    where: { storageKey: put.storageKey },
-    update: assetData,
+  await prisma.mediaAsset.upsert({
+    where: {
+      articleId_kind: {
+        articleId,
+        kind: "speech",
+      },
+    },
+    update: {
+      storageKey: put.storageKey,
+      ...assetData,
+    },
     create: {
       storageKey: put.storageKey,
       ...assetData,
     },
-    select: { id: true },
   });
 
   const speechData = articleSpeechData({
-    format,
-    mimeType,
-    storageKey: put.storageKey,
-    mediaAssetId: asset.id,
     words: timingPayload,
   });
   await prisma.articleSpeech.upsert({
