@@ -45,3 +45,20 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - 2026-07-12T01:54:08.000+00:00 — Wave 1 progress: revised PR #1020 (issue #1012) independently after Switch's initial native-debt rejection. Added seedE2eMember native fixture coverage + 10 Chromium E2E scenarios at 520609e. Morpheus approved and merged to dev as 730bfc8. Spawned issue #1010 (grammar route seam + AI test fixes) carrying forward Wave 1 baseline (571 files ≥98%, routes 110/110). **Learning:** Native coverage baseline is as important as browser coverage for shared test infrastructure; reviewer lockout on debt regression is correctness enforcement.
 - 2026-07-12T02:41:59.148+00:00 — Wave 1 correction: #1010 is complete/closed; #1016 closed via PR #1024 (85de5bf), and #1017 is the active Tank issue.
 - 2026-07-11T22:31:57.145+00:00 — Reviewer lockout chains must be respected, and revisions should be tracked through the accepted review comment path when shared identity prevents formal approval objects.
+
+- 2026-07-14T12:34:36.967+00:00 — Issue #1057 Compact V1 timing format implementation COMPLETE. Implemented SpeechTimingPayloadV1 {version:1, words[], startMs[], endMs[]} with version===1 parser gate BEFORE V2 metadata checks. Added createSpeechTimingPayloadV1, legacySpeechWordsToTimingPayloadV1, migrateArticleSpeechTimings(target: 'v1'|'v2', default 'v2'), CLI --target flag, and backward-compat wrapper. V2 writer/Reader frozen (no changes). 46 focused tests pass (V1 shape, parser gate placement, normalization, migration paths, backward-compat); typecheck/ESLint/diff-check clean. Dev.db 217/217 V2 rows unchanged; no schema migration. PR #1058 on squad/1057-compact-v1-timing-format targeting dev. **Next gate:** Switch independent regression review (V2 byte normalization, backward-compat layer, Reader safety).
+
+- 2026-07-14T22:41:59.465+00:00 — Issue #1060 PR #1061 cycle-2 independent revision: Added 3 edge-case tests to tests/timing-migration.test.ts to resolve cycle-1 coverage gap (96.05% < 98% threshold). Tests: (1) malformed JSON parse-null edge case, (2) all-zero-duration defensive scenario, (3) Prisma update error handling (transient failure resilience). No production code changes (test-only). Mouse lockout observed throughout (Tank independent authority, different artifact scope). Commit 40371e7 pushed. Validation: 25/25 tests pass (3 new + 22 existing), timing-migration.ts 100% line coverage (was 96.05%), all PR required CI checks green. Coverage gap RESOLVED. Independent work verified (test additions only, no Mouse involvement required). Ready for Switch cycle-2 re-approval.
+
+
+## 2026-07-14: Issue #1060 speech-highlight-sync — Cycle 2 complete (rAF fix), delivered to main
+
+**Revision:** Tank cycle-2 independent test additions (40371e7); Switch cycle-2 independent rAF lifecycle fix (f9418e5)
+
+**Outcome:** Approved by Switch and Morpheus; merged to dev (447b3a4); merged to main (c7becda); issue closed; 4505/4505 tests pass
+
+**Lockout chain:** Mouse (span recovery original author) locked; Tank (test coverage independent reviser) approved; Switch (rAF fix independent reviser + reviewer) approved both cycles; Morpheus (lead/release gate) approved and merged to main
+
+**Verification:** Clock latency 98% reduced (265.6ms→16.7ms p50), highlight onset 95% improved (140ms→8ms p50), spans 100% complete (151→217), zero regressions
+
+**Status:** Complete
