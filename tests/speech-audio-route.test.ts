@@ -17,8 +17,12 @@ let articleReadable = true;
 
 // Speech row state
 let speechRow: {
+  id: string;
+} | null = null;
+let mediaAssetRow: {
   mimeType: string;
-  storageKey: string | null;
+  storageKey: string;
+  voice: string | null;
 } | null = null;
 
 // Storage state
@@ -35,6 +39,9 @@ before(() => {
       prisma: makePrisma({
         articleSpeech: {
           findUnique: async () => speechRow,
+        },
+        mediaAsset: {
+          findUnique: async () => mediaAssetRow,
         },
         article: {
           findFirst: async () =>
@@ -74,6 +81,7 @@ beforeEach(() => {
   authState = "ok";
   articleReadable = true;
   speechRow = null;
+  mediaAssetRow = null;
   storageBytes = null;
   storageConfigured = false;
 });
@@ -86,7 +94,10 @@ async function callGet(id: string) {
 function storeSpeechAudio(storageKey: string | null, bytes: Buffer | null = null) {
   storageConfigured = bytes !== null;
   storageBytes = bytes;
-  speechRow = { mimeType: "audio/mpeg", storageKey };
+  speechRow = { id: "speech-1" };
+  mediaAssetRow = storageKey
+    ? { mimeType: "audio/mpeg", storageKey, voice: null }
+    : null;
 }
 
 test("GET /speech/audio returns 401 when unauthenticated", async () => {

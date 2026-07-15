@@ -166,7 +166,6 @@ export async function recordSkillEvidence(
     confidence,
     evidenceCount,
     recentEvidence,
-    lastUpdatedAt: now,
   };
 
   const row = await prisma.skillMastery.upsert({

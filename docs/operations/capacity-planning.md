@@ -198,8 +198,9 @@ Alert conditions:
 
 Source: `src/lib/storage/`, `src/lib/storage/config.ts`.
 
-Objects are content-addressed (SHA-256 keyed): `speech/<sha256><ext>`. Identical
-audio never duplicates on disk/blob.
+Objects are article-scoped and content-addressed:
+`speech/<articleId>/<sha256><ext>`. Repeated synthesis of unchanged audio for
+one article is idempotent without coupling deletion across articles.
 
 ### Known limits
 
@@ -214,8 +215,8 @@ storage growth is driven by TTS audio output.
 
 ### TTS audio growth estimate
 
-> **Estimate** — no production measurements. Refresh by summing `MediaAsset.sizeBytes`
-> on a representative dataset.
+> **Estimate** — no production measurements. Refresh from the configured media
+> storage backend's total object bytes for the `speech/` prefix.
 
 - Azure Speech produces roughly 1 MB of MP3 per minute of speech.
 - Average article reading time: ~5–15 min → ~5–15 MB per article.
@@ -670,7 +671,8 @@ beyond a single-tenant pilot.
 2. **Query job latency**: read `worker_job_duration_ms` histogram buckets from
    `GET /api/admin/metrics` after the queue has processed ≥ 100 jobs of each
    type.
-3. **Measure audio storage**: capture the `sizeBytes` sum from `MediaAsset` rows.
+3. **Measure audio storage**: capture total object bytes for the `speech/` prefix
+   from the configured local filesystem or Azure Blob Storage metrics.
 4. **Measure listing/feed capacity**: run the synthetic benchmark described in
     [§ 7](#7-listingfeed-cache-and-redis-adoption-gate) against disposable SQLite
     and PostgreSQL benchmark databases; treat PostgreSQL as authoritative.

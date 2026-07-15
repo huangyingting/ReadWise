@@ -224,7 +224,6 @@ async function readUserExport(userId: string, client: AccountClient = prisma) {
           confidence: true,
           evidenceCount: true,
           recentEvidence: true,
-          lastUpdatedAt: true,
           createdAt: true,
           updatedAt: true,
         },

@@ -11,7 +11,7 @@ Audio narration (text-to-speech) is the largest media payload ReadWise produces.
 Current speech audio is stored outside the relational database in either local
 filesystem storage or Azure Blob Storage. The legacy database-backed
 `ArticleSpeech.audioBase64` fallback has been removed; current `ArticleSpeech`
-rows retain metadata/timings plus a `storageKey`/`mediaAssetId` pointer only.
+rows retain only word timings. `MediaAsset` is the canonical audio pointer.
 
 ## Goals
 
@@ -73,11 +73,10 @@ interface MediaStorage {
 Both local and Azure implementations are:
 
 - **content-addressed** — object keys embed the SHA-256 of the bytes
-  (`<keyHint>/<sha256><ext>`), so identical audio de-duplicates and writes are
-  idempotent.
-- **flat for speech assets** — narration uses `speech/<sha256><ext>` instead of
-  per-article subdirectories because article ownership is tracked in the
-  database and object keys are already unique.
+  (`<keyHint>/<sha256><ext>`), so repeated writes for one article are idempotent.
+- **article-scoped for speech assets** — narration uses
+  `speech/<articleId>/<sha256><ext>` so article deletion cannot remove bytes
+  referenced by a different article with identical audio.
 - **traversal-safe** — local storage confines all keys to the base directory;
   Azure uses container scoping and sanitized keys.
 - **private** — Azure blobs are uploaded without public access; audio is served
@@ -91,15 +90,15 @@ To add another backend, implement `MediaStorage` and register it behind a new
 `src/lib/speech/index.ts` `getOrCreateArticleSpeech`:
 
 - **Synthesis path** — new audio is written through `getMediaStorage().put()`.
-  A `MediaAsset` row records `storageKey`, `mimeType`, `sizeBytes`, `checksum`,
-  `durationSec`, `voice`, `format`, and `articleId`; `ArticleSpeech` stores
-  the `storageKey` + `mediaAssetId` link plus voice/format/plainText/word timings.
+  A `MediaAsset` row records the canonical `storageKey`, `mimeType`, `voice`, and
+  `articleId`; `ArticleSpeech` stores only word timings. Both rows are uniquely
+  keyed by `articleId` for their respective speech concerns.
 - **Storage unavailable/write failure** — the synthesis result may still be
   returned to the current caller, but no database audio fallback is written and
   no cache row is created.
-- **Cached-read path** — `resolveStoredAudioUrl` reads bytes from storage by
-  `storageKey`. If the object is unavailable, the client treats the response as
-  a graceful no-audio fallback.
+- **Cached-read path** — `resolveStoredSpeechMedia` loads the article's speech
+  `MediaAsset`, then reads bytes from storage by its `storageKey`. If the object
+  is unavailable, the client treats the response as a graceful no-audio fallback.
 
 ## Streaming audio endpoint
 
@@ -136,4 +135,4 @@ secret values (connection strings, account keys) are included in readiness JSON.
 | `storage.azure_unconfigured` warn in logs | Same as above. | Same as above. |
 | `storage.azure_container_unavailable` warn in logs | Azure SDK import failed or container creation threw. | Check credentials, network, and account/container names. |
 | Speech POST returns no cached audio on later requests | Storage write failed or the storage object is unavailable. | Check storage logs and `GET /api/ready`; regenerate narration after storage is healthy. |
-| Audio endpoint returns 404 but `ArticleSpeech.storageKey` is set | The selected backend cannot read the object. | Confirm env vars are loaded and the local directory/blob container contains the key. |
+| Audio endpoint returns 404 but a `MediaAsset` is linked | The selected backend cannot read the asset's object. | Confirm env vars are loaded and the local directory/blob container contains the asset's key. |

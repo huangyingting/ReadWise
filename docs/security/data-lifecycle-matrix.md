@@ -70,13 +70,13 @@ behavior is invented. Gaps are called out as follow-up items.
 |---|---|---|---|---|---|---|---|
 | `Article` (visibility=PUBLIC / UNLISTED / ORG; title, content, sourceUrl, …) | Content library | **public** (for PUBLIC/UNLISTED/ORG articles) | ⛔ — article text is not duplicated into the user export; progress/list rows identify articles by id | Public articles remain on user deletion; private (ownerId non-null) cascade via `Article.ownerId` (onDelete: Cascade) | `Article.organizationId` is a soft non-FK scalar; org articles survive org deletion (organizational referential integrity is enforced in application code, not DB cascades) | Indefinite unless archived/taken down | Metadata fields (category, difficulty, wordCount) safe; `content` field must never appear in logs or audit metadata |
 | `Article` (visibility=PRIVATE; user-imported) | Content library / Import | **personal** | ⛔ article text not exported; articleId references appear in progress/list rows | Cascade via `Article.ownerId` | Not applicable (private articles are user-owned) | Deleted with owner | Same as above |
-| `Tag` (scope=PUBLIC) | Content library | **public** | ⛔ | Public tags remain; `Tag.ownerId` is nullable | Cascade if orgId set; no FK enforcement for `Tag.orgId` (soft ref) | Indefinite | Safe |
+| `Tag` (scope=PUBLIC) | Content library | **public** | ⛔ | Public tags remain; `Tag.ownerId` is nullable | Public tags are not organization-linked | Indefinite | Safe |
 | `Tag` (scope=PRIVATE) | Content library | **personal** | ⛔ | Cascade via `Tag.ownerId` | Not applicable | Deleted with owner | Safe |
 | `ArticleTag` | Content library | **public / personal** (mirrors tag scope) | ⛔ | Cascade via article or tag deletion | Cascade via article | Deleted with article or tag | Safe |
 | `VocabularyItem` (AI-generated; word, explanation, example) | Content / AI | **public** (article-scoped, not user-owned) | ⛔ | Cascade via article | Cascade via article | Deleted with article | `explanation`, `example` are AI-generated content; do not log raw values |
 | `QuizQuestion` (AI-generated) | Content / AI | **public** | ⛔ | Cascade via article | Cascade via article | Deleted with article | `question`, `options` contain AI content; do not log |
 | `Translation` (full-article AI translation) | Content / AI | **public** (article-level cache) | ⛔ | Cascade via article | Cascade via article | Deleted with article | `content` is AI-derived article text; do not log |
-| `SentenceTranslation` (on-demand sentence translation cache) | AI / Reader | **derived** (keyed by hash; no user FK) | ⛔ | Not FK-linked to User; survives user deletion | Cascade via article | Deleted with article | `sourceText` + `translation` are user-selected text + AI output; must not appear in logs |
+| `SentenceTranslation` (on-demand sentence translation cache) | AI / Reader | **derived** (keyed by source hash; no user FK) | ⛔ | Not FK-linked to User; survives user deletion | Cascade via article | Deleted with article | `translation` is AI output and must not appear in logs; selected source text is not persisted |
 | `GrammarExplanation` (AI-generated, per article+phrase) | Content / AI | **public** (article-scoped) | ⛔ | Cascade via article | Cascade via article | Deleted with article | `phrase`, `explanation` contain AI content; do not log |
 | `ContentSource` (scraper provider operational state) | Operations | **operational** | ⛔ | Not user-linked | Not applicable | Indefinite | Safe (health counters only) |
 | `CrawlRun` (bounded provider crawl-run summaries) | Operations | **operational** | ⛔ | Not user-linked | Not applicable | Last 25 per provider retained by writer | Safe only after sanitization; never store URLs, article text, prompts, selected text, definitions, translations, or private content |
@@ -201,8 +201,8 @@ behavior is invented. Gaps are called out as follow-up items.
 
 | Model / store | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `ArticleSpeech` (voice, format, mimeType, storageKey?, mediaAssetId?, plainText, words) | Speech / Media | **public** (article-scoped; served only to authenticated readers) | ⛔ | Cascade via article (`ArticleSpeech.articleId`) | Cascade via article | Deleted with article | `plainText` contains article narration text; do not log. `storageKey` is a content-addressed key (safe to log as an id) |
-| `MediaAsset` (storageKey, kind, mimeType, sizeBytes, checksum, durationSec, voice, format) | Media | **public** (operational pointer; no user content) | ⛔ | Cascade via `MediaAsset.articleId` | Cascade via article | Deleted with article; object-storage bytes are not automatically purged by DB cascade (see [`../media/storage.md`](../media/storage.md)) | Safe |
+| `ArticleSpeech` (words) | Speech / Media | **public** (article-scoped; served only to authenticated readers) | ⛔ | Cascade via article (`ArticleSpeech.articleId`) | Cascade via article | Deleted with article | Word timings are derived article data; do not log |
+| `MediaAsset` (storageKey, kind, mimeType, voice, articleId) | Media | **public** (operational pointer; no user content) | ⛔ | Cascade via `MediaAsset.articleId` | Cascade via article | Deleted with article; object-storage bytes are not automatically purged by DB cascade (see [`../media/storage.md`](../media/storage.md)) | Safe |
 
 > **Gap #711-D — RESOLVED (#711):** `deleteOwnAccount` and `deleteMember` now
 > query `MediaAsset.storageKey` for articles owned by the user before the DB
@@ -302,8 +302,8 @@ callers bear responsibility** for not passing raw values in the first place:
 
 | Category | Examples | Redaction mechanism |
 |---|---|---|
-| Article text / content | `Article.content`, `Translation.content`, `SentenceTranslation.sourceText` | Sensitive key `content`; dropped by sanitizer |
-| Selected / highlighted text | `Highlight.quote`, `SentenceTranslation.sourceText` | Sensitive key `select`, `text` |
+| Article text / content | `Article.content`, `Translation.content`, narration text derived from articles | Sensitive key `content`; dropped by sanitizer |
+| Selected / highlighted text | `Highlight.quote`, sentence-translation request text | Sensitive key `select`, `text` |
 | AI prompts and responses | `TutorMessage.content`, prompt strings | Sensitive keys `prompt`, `completion`, `response` |
 | User private notes | `Highlight.note` | Sensitive key `text` |
 | Credentials / tokens | `Account.access_token`, `Session.sessionToken`, `VerificationToken.token` | Sensitive keys `token`, `authorization`, `credential`, `key`, `secret` |

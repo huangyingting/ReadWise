@@ -17,7 +17,12 @@ Article speech historically stored generated audio inline in the database. Futur
 
 ## Decision
 
-Store generated and imported media in object storage, with database rows keeping ownership, content type, size, checksum, storage key, lifecycle state, and derivation metadata. Access should go through server-issued URLs or proxied responses that enforce article visibility.
+Store generated and imported media in object storage, with database rows keeping
+the canonical storage key, ownership, content type, lifecycle state, and only
+derivation metadata used at runtime. Object size and checksum stay with the
+storage backend; the content-addressed key already embeds the checksum. Access
+should go through server-issued URLs or proxied responses that enforce article
+visibility.
 
 ## Alternatives considered
 

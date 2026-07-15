@@ -63,7 +63,6 @@ before(() => {
               articleId: string;
               sourceHash: string;
               targetLang: string;
-              sourceText: string;
               translation: string;
             };
           }) => {
