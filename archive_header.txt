@@ -1,0 +1,6 @@
+# Squad Decisions Archive
+
+## Archived Decisions (older than 7 days — 2026-07-07)
+
+Decisions made on 2026-07-07 or earlier, archived from decisions.md on 2026-07-15 when the active log exceeded 51200 bytes. See decisions.md for active decisions from 2026-07-08 onward.
+
