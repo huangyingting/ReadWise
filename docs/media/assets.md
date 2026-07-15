@@ -79,7 +79,7 @@ saveSpeechResult(...)
   ├── prisma.mediaAsset.upsert(where: { storageKey })
   │     records: kind, mimeType, sizeBytes, checksum, durationSec, voice, format, articleId
   └── prisma.articleSpeech.upsert(where: { articleId })
-        records: storageKey, mediaAssetId, mimeType, voice, format
+        records: storageKey, mediaAssetId, mimeType, format, word timings
 ```
 
 When storage is unavailable or the storage write fails, `saveSpeechResult` skips

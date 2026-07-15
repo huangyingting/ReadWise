@@ -130,7 +130,7 @@ sentence-loop UX:
 - A second `toggleLoop()` cancels the loop. Loading new audio (`loadAudio(...)`)
   also cancels any active loop unconditionally.
 
-`DictationSegment` boundaries are computed from `ArticleSpeech.plainText` and
+`DictationSegment` boundaries are computed from article-derived reader text and
 `ArticleSpeech.words` at load time via `segmentDictation(plainText, words)`.
 
 ## Blob URL lifecycle
