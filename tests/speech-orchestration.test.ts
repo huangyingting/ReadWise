@@ -29,6 +29,7 @@ type Row = Record<string, unknown> | null;
 
 let cachedSpeechRow: Row = null;
 let articleRow: Row = null;
+let mediaAssetRow: Row = null;
 let deletedArticleIds: string[] = [];
 let speechFindUniqueCalls = 0;
 
@@ -39,6 +40,7 @@ let storagePutFails = false;
 function resetState(): void {
   cachedSpeechRow = null;
   articleRow = null;
+  mediaAssetRow = null;
   deletedArticleIds = [];
   speechFindUniqueCalls = 0;
   synthesizeCalls = [];
@@ -108,6 +110,7 @@ before(() => {
           findUnique: async () => articleRow,
         },
         mediaAsset: {
+          findUnique: async () => mediaAssetRow,
           upsert: async () => ({ id: "media-1" }),
         },
       },
@@ -144,9 +147,8 @@ function cachedSpeech(overrides: Record<string, unknown> = {}): Record<string, u
     articleId: "a1",
     words: STORED_LEGACY_WORDS,
     storageKey: "speech/cached.mp3",
+    mediaAssetId: "media-1",
     mimeType: "audio/mpeg",
-    voice: "en-US-Cached",
-    plainText: "cached plain text",
     ...overrides,
   };
 }
@@ -192,6 +194,7 @@ test("isSpeechConfigured is false when Azure Speech credentials are missing", as
 test("getOrCreateArticleSpeech returns cached speech without calling the provider on a cache hit", async () => {
   cachedSpeechRow = cachedSpeech();
   articleRow = { content: "<p>Hello world from the article.</p>" };
+  mediaAssetRow = { voice: "en-US-Cached" };
 
   const result = await getOrCreateSpeech();
 
@@ -205,22 +208,56 @@ test("getOrCreateArticleSpeech returns cached speech without calling the provide
   assert.equal(synthesizeCalls.length, 0, "provider must not be called on a cache hit");
 });
 
-test("getOrCreateArticleSpeech falls back to the stored plainText when the article row is gone", async () => {
-  cachedSpeechRow = cachedSpeech({ plainText: "stored fallback text" });
-  articleRow = null;
+test("getOrCreateArticleSpeech derives full text for cached batch narration", async () => {
+  const fullText = `Hello ${"world ".repeat(1_000)}`.trim();
+  cachedSpeechRow = cachedSpeech({
+    words: {
+      version: 2,
+      provider: "azure-batch",
+      timeUnit: "ms",
+      textUnit: "utf16",
+      words: ["Hello"],
+      startMs: [0],
+      endMs: [400],
+      textStart: [0],
+      textEnd: [5],
+    },
+  });
+  articleRow = { content: `<p>${fullText}</p>` };
+  mediaAssetRow = { voice: "en-US-Cached" };
 
   const result = await getOrCreateSpeech();
 
   assert.ok(result);
-  assert.equal(result!.cached, true);
-  assert.equal(result!.plainText, "stored fallback text");
+  assert.equal(result!.plainText, fullText);
+  assert.ok(result!.plainText.length > 5_000);
+});
+
+test("getOrCreateArticleSpeech returns null when a dangling cache row has no article", async () => {
+  cachedSpeechRow = cachedSpeech();
+  mediaAssetRow = { voice: "en-US-Cached" };
+  articleRow = null;
+
+  const result = await getOrCreateSpeech();
+
+  assert.equal(result, null);
+});
+
+test("getOrCreateArticleSpeech uses the default voice when cached asset metadata is unavailable", async () => {
+  cachedSpeechRow = cachedSpeech();
+  articleRow = { content: "<p>Hello world.</p>" };
+  mediaAssetRow = null;
+
+  const result = await getOrCreateSpeech();
+
+  assert.ok(result);
+  assert.equal(result!.voice, DEFAULT_SPEECH_VOICE);
 });
 
 test("getOrCreateArticleSpeech treats a malformed cached row as a miss, deletes it, and regenerates", async () => {
   cachedSpeechRow = cachedSpeech({
     words: [{ word: "broken", offset: -1, duration: 1 }],
     storageKey: "speech/corrupt.mp3",
-    plainText: "ignored",
   });
   articleRow = readableArticle("<p>Fresh article text.</p>", "T");
   synthesizeSuccess("NEW");

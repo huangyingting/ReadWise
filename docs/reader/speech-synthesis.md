@@ -44,11 +44,12 @@ Article text is derived with `articleHtmlToReaderText(...)`, then capped at
 1. verifies article access,
 2. reads `ArticleSpeech` by `articleId`,
 3. parses stored word timings,
-4. deletes and regenerates corrupt cache rows,
-5. returns cached audio URL/timings when valid,
-6. returns fallback when speech config is missing or article text is empty,
-7. synthesizes through Azure Speech on a miss,
-8. persists audio/timings through `saveSpeechResult(...)`.
+4. derives reader text from `Article.content` and voice metadata from `MediaAsset`,
+5. deletes and regenerates corrupt cache rows,
+6. returns cached audio URL/timings when valid,
+7. returns fallback when speech config is missing or article text is empty,
+8. synthesizes through Azure Speech on a miss,
+9. persists audio/timings through `saveSpeechResult(...)`.
 
 Fallback results have `audio = null`, empty `words`, `fallback = true`, and are
 not cached.

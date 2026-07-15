@@ -926,7 +926,6 @@ async function persistJobResults(
         mimeType,
         voice: input.voiceSummary,
         format: args.format,
-        plainText: input.plainText,
         provider: "azure-batch",
         words,
       });
