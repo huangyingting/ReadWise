@@ -48,7 +48,7 @@ const MODULES: ModuleConfig[] = [
       "timingEndSeconds",
       "timingStartSeconds",
     ],
-    forbiddenExports: ["synthesize", "resolveMimeType", "saveSpeechResult", "resolveStoredAudioUrl"],
+    forbiddenExports: ["synthesize", "resolveMimeType", "saveSpeechResult", "resolveStoredSpeechMedia"],
     privateInternalImports: ["@/lib/speech/provider-azure", "@/lib/speech/repository"],
   },
   {

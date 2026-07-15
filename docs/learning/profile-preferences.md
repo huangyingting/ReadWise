@@ -35,7 +35,6 @@ fields include:
 - `dailyGoal`,
 - `timezone`,
 - `completedAt`,
-- `levelUpdatedAt`,
 - `streakShields`.
 
 `completedAt` is the onboarding boundary. A profile row without `completedAt`
@@ -65,7 +64,7 @@ metadata only (`englishLevel`, `topicCount`).
 
 `PUT /api/profile` upserts the current session user's profile. If the CEFR level
 changed from the existing profile, it records a `LevelHistory` row in the same
-transaction and updates `levelUpdatedAt`.
+transaction. `LevelHistory.changedAt` is the canonical level-change timestamp.
 
 User ids always come from the authenticated session. The request body never
 selects which profile to modify.

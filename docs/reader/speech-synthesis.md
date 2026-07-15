@@ -66,9 +66,10 @@ Provider failures resolve `null`; callers decide the fallback UI.
 ## Storage and playback
 
 `saveSpeechResult(...)` writes audio to local/Azure media storage and records a
-`MediaAsset` row with storage key, MIME type, byte size, checksum, duration,
-voice, format, and article id. If storage is unavailable or the write fails,
-speech audio is not cached and is never stored inline in the database.
+`MediaAsset` row with the canonical storage key, MIME type, voice, and article
+id. `ArticleSpeech` keeps only word timings; both records are independently
+keyed by article id. If storage is unavailable or the write fails, speech audio
+is not cached and is never stored inline in the database.
 
 `GET /api/reader/[id]/speech/audio` serves bytes from media storage when a
 storage key is present and the object is readable. It must remain auth-gated and
@@ -76,7 +77,7 @@ use private cache headers.
 
 ## Rebuild and invalidation
 
-Admin AI rebuild clears `ArticleSpeech` and speech `MediaAsset` pointers for the
+Admin AI rebuild clears the `ArticleSpeech` and speech `MediaAsset` rows for the
 article. The next reader request or background job regenerates narration with
 current voice/format/config.
 

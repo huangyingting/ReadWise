@@ -104,7 +104,7 @@ export async function translateSentence(
       callModel(renderPrompt("sentence-translation", { label, text: normalized })),
     persist: async (completion) => {
       await prisma.sentenceTranslation.create({
-        data: { articleId, sourceHash, targetLang: lang, sourceText: normalized, translation: completion },
+        data: { articleId, sourceHash, targetLang: lang, translation: completion },
       });
       return { translation: completion, fallback: false };
     },

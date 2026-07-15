@@ -104,7 +104,6 @@ const stubExportUser = {
       confidence: 0.75,
       evidenceCount: 10,
       recentEvidence: [],
-      lastUpdatedAt: NOW,
       createdAt: NOW,
       updatedAt: NOW,
     },
