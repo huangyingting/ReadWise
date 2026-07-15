@@ -234,12 +234,10 @@ model ArticleTag {
 model ArticleSpeech {
   id          String   @id @default(cuid())
   articleId   String   @unique
-  voice       String
   format      String
   mimeType    String
   storageKey   String?
   mediaAssetId String?
-  plainText   String
   words       Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1016,7 +1014,7 @@ model ContentReview {
 // Media storage metadata (Epic RW-E009 — RW-049). Generated audio is written
 // outside the relational DB to local or Azure media storage; this row records
 // the pointer + metadata (storageKey, mime, size, checksum, duration, voice,
-// format). `ArticleSpeech.storageKey/mediaAssetId` reference it. Cascades with
+// format). `ArticleSpeech.storageKey/mediaAssetId` identify it. Cascades with
 // the article. `kind` distinguishes asset types (e.g. speech).
 model MediaAsset {
   id          String   @id @default(cuid())

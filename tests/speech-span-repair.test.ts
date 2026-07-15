@@ -7,7 +7,7 @@ process.env.LOG_LEVEL = "error";
  *  - computeSpansForWords: punctuation, contractions, Unicode/UTF-16, long-row
  *    single-miss, V2 freeze (words/timings unchanged)
  *  - repairSpeechTimingSpans: dry-run/apply semantics, idempotent, invalid input,
- *    V1/legacy skipped, missing plainText skipped
+ *    V1/legacy skipped, missing article text skipped
  *  - production generation path: spans always present after alignment
  */
 
@@ -30,7 +30,11 @@ before(() => {
     namedExports: {
       prisma: {
         articleSpeech: {
-          findMany: async () => rows,
+          findMany: async () =>
+            rows.map(({ plainText, ...row }) => ({
+              ...row,
+              article: { content: plainText },
+            })),
           update: async (args: { where: { id: string }; data: { words: unknown } }) => {
             if (updateShouldThrow) throw new Error("DB connection failed");
             updates.push(args);
@@ -337,7 +341,7 @@ describe("repairSpeechTimingSpans", () => {
     assert.equal(result.repaired, 0);
   });
 
-  test("skips rows with empty plainText", async () => {
+  test("skips rows with empty article-derived text", async () => {
     const { repairSpeechTimingSpans } = await import("@/lib/speech/timing-migration");
 
     rows = [
