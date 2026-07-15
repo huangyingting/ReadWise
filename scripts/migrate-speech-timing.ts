@@ -4,7 +4,8 @@
  * payload (opt-in with `--target v1`).
  *
  * Also provides `--repair-spans` mode: repairs V2 rows that are missing their
- * textStart/textEnd span arrays using the stored plainText without re-synthesis.
+ * textStart/textEnd span arrays using article-derived reader text without
+ * re-synthesis.
  *
  * Usage:
  *   npm run migrate-speech-timing -- [--limit N] [--provider azure] [--target v1|v2]

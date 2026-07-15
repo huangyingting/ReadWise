@@ -75,8 +75,8 @@ characters. This bound limits:
 - Audio file size stored in the database or object storage.
 - Word-boundary array size in `ArticleSpeech.words`.
 
-The capped plain text is stored in `ArticleSpeech.plainText` for re-use on
-cache hits without re-processing the article HTML.
+Cache hits derive the same capped reader text from `Article.content`; the text is
+not duplicated in `ArticleSpeech`.
 
 ## Voice and format selection
 
@@ -91,8 +91,8 @@ Voice and output format are read from environment variables via
 | `SPEECH_TIMEOUT_MS`         | `30000`                                    |
 
 **Voice fallback:** when `AZURE_SPEECH_VOICE` is unset, `DEFAULT_SPEECH_VOICE`
-is used. The voice is recorded in both `MediaAsset.voice` and
-`ArticleSpeech.voice` so the reader can display it.
+is used. The generated voice is recorded in `MediaAsset.voice`; cached reader
+responses obtain voice metadata from that asset.
 
 **Format fallback:** when `AZURE_SPEECH_OUTPUT_FORMAT` is unset or unrecognised
 by `resolveOutputFormat`, the function falls back to
