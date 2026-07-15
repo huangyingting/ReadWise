@@ -2,266 +2,67 @@
 
 ## Active Decisions
 
+### 2026-07-05 — ReadWise release workflow runs only for versioned release inputs
 
-### 2026-07-14: Cycle-2 Independent Revision — Issue #1060 PR #1061 test coverage completion
+**Source:** Tank inbox (`decisions/inbox/tank-release-workflow-version-gate.md`)
 
-**By:** Tank (Cycle-2 Reviser)
+The main release workflow is named for ReadWise, validates `package.json` against `CHANGELOG.md`, installs dependencies, generates Prisma, and runs `npm test`; it now runs on manual dispatch or pushes touching version/release metadata instead of every main push. This aligns release validation with ReadWise's current test layout/runbook and avoids noisy stale release failures when package metadata is unchanged.
 
-**What:** Independently added three test-only edge-case tests to timing-migration.test.ts per cycle-1 coverage gap requirements. Cycle-2 scope: test-only, no production code changes (confirmed Observer: Mouse lockout observed per rejection). Changes: (1) Test malformed JSON parse-null edge case (invalid input handling). (2) Test all-zero-duration scenario (proves repair gracefully handles impossible case). (3) Test Prisma update error on transient failure (connection pool exhaustion recovery). All three branches previously missing from cycle-1 coverage report (96.05%, 3 branches identified: parse-null, zero-duration, DB error). Commit 40371e7 (test-only additions). Test results: 25/25 pass (all tests in timing-migration.test.ts). Coverage: timing-migration.ts now 100% line coverage (was 96.05%, cycle-1 blocking). CI: all PR required CI checks green. No production logic changes, no Reader changes, no data schema changes. Mouse lockout respected (Tank acted independently, no Mouse involvement).
+### 2026-07-05 — UI audit Playwright suite is split by semantic subsystems
 
-**Evidence:** Commit 40371e7, 25/25 tests pass, timing-migration.ts 100% coverage (was 96.05%), all CI green, test-only diff.
+**Source:** Trinity inbox (`decisions/inbox/trinity-ui-audit-semantic-split.md`)
 
-**Why:** Completes cycle-1 coverage requirements (98% threshold, 3 missing branches tested). Unblocks dev merge pending Switch re-approval.
+The legacy numeric `e2e/ui-audit-500.spec.ts` file was replaced by semantic subsystem specs for public/auth, reader learning, classroom, and admin operations. Shared route catalog, artifact, and runner support lives in `e2e/support/ui-audit.ts`; the canonical grep tag is now `@ui-audit` instead of the old numeric `@ui-audit-500` label.
 
-**References:** #1060, PR #1061, cycle-1 rejection (Switch REQUEST_CHANGES), Tank cycle-2 independent authority, Mouse lockout observed
+**Validation:** Switch verified discovery/listing at 500 tests across the 4 semantic files, `@ui-audit` grep compatibility, 50 high-risk tests, targeted `admin-ai-ops` passing 10 tests, targeted ESLint for the audit files, and `npm run typecheck -- --pretty false`.
 
-**Verdict:** APPROVE cycle-2 revision; coverage 100%; unblock Switch re-review
 
+### 2026-07-07 — Treat CEFR/Lexile-like difficulty scores as deterministic baselines pending calibration
 
-### 2026-07-14: REQUEST_CHANGES on PR #1061 — Issue #1060 cycle-1 test coverage gap
+**Source:** Scribe session synthesis (`log/2026-07-07T07-54-41.474+00-00-difficulty-calibration.md`)
 
-**By:** Switch (Reviewer)
+Current CEFR and Lexile-like algorithms are useful deterministic baselines because they are repeatable and available without optional providers, but they should not be treated as calibrated or authoritative labels yet. Mouse's local DB evaluation found 3 article rows compressed to B1/1030 low-confidence outputs with one stored/current mismatch; Tank confirmed the implementation is heuristic formula-based; Switch confirmed evaluation evidence needs to measure distribution quality, not just execution.
 
-**What:** Reviewed PR #1061 (combined Trinity rAF + Mouse span repair for issue #1060). **APPROVED artifact logic** (rAF loop lifecycle correct, span recovery algorithm sound, nested integration clean). **REQUEST_CHANGES** on test coverage: timing-migration.ts 96.05% (below 98% required). Missing branches (3): (1) Malformed payload parse-null edge case. (2) All-zero-duration scenario (still no spans after repair). (3) Prisma update error handling (transient failure recovery). All three branches represent error/edge paths; logic is sound but untested.
+**Priority recommendations:**
+1. Preserve and surface low-confidence caveats for short or sparse text.
+2. Relabel the current Lexile output as Lexile-like unless/until calibrated against a labeled corpus.
+3. Improve tokenization/sentence handling before relying on fine-grained level distinctions.
+4. Prefer stale-version processing selection so changed scoring versions recompute mismatched or stale article rows.
+5. Build a labeled evaluation corpus with gold fixtures, aggregate snapshots, and calibration metrics before raising confidence in CEFR/Lexile-like labels.
 
-**Lockout:** Mouse locked out (author of tests/speech-span-repair.test.ts); cannot self-revise. Cycle 2 ownership assigned to Tank (eligible because prior #1057 lockout chain closed; different artifact from span-repair, no conflict).
 
-**Cycle 2 Scope:** Test-only additions to timing-migration.test.ts. No application logic changes, no Reader changes, no data changes.
+### 2026-07-07 — Correction: provider DB evaluation supersedes e2e.db difficulty sample
 
-**Evidence:** Coverage report 96.05% threshold, 3 branch IDs identified, static analysis confirms all edge cases reachable.
+**Source:** Scribe correction session (`log/2026-07-07T08-02-46.354+00-00-difficulty-calibration-correction.md`)
 
-**Why:** 98% coverage required per team standard. Edge cases must be tested (malformed input, all-fail scenario, transient error) before merge. Separates code quality validation (cycle 1) from edge coverage (cycle 2).
+The earlier `prisma/e2e.db` empirical result recorded for CEFR/Lexile-like difficulty analysis is superseded for this analysis. The corrected evaluation protocol uses smaller provider databases under `prisma/provider-dbs/*`, with Mouse's rerun on `prisma/provider-dbs/workinprogress.db` (8,335,360 bytes, 217 articles) as the representative provider evidence.
 
-**References:** #1060, PR #1061, timing-migration.ts coverage, branch IDs for 3 missing paths, Switch rejection, Tank cycle-2 eligible (prior #1057 lockout closed)
+Corrected findings: CEFR B1 208 (95.9%), B2 7 (3.2%), A2 2 (0.9%); Lexile-like min 590, median 870, mean 861.66, max 1050; confidence high 165, medium 52, low 0. `prisma/e2e.db` should be treated only as a non-representative smoke observation. Provider DB evidence still shows B1 compression and reinforces the need for calibration before treating CEFR or Lexile-like labels as authoritative.
 
-**Verdict:** REQUEST_CHANGES; approve semantics; fix coverage; Tank cycle-2 independent authority
 
-### 2026-07-14: Retrospective — Issue #1060 PR #1061 cycle-1 rejection analysis
+### 2026-07-07 — CEFR calibration v2 remains heuristic pending gold-corpus validation
 
-**By:** Morpheus (Lead)
+**Source:** Scribe session synthesis (`log/2026-07-07T09-08-07.205+00-00-difficulty-calibration-v2.md`)
 
-**What:** Analyzed cycle-1 rejection (Switch REQUEST_CHANGES on test coverage). Switch confirmed artifact logic is sound (Trinity rAF correct, Mouse span recovery correct). Rejection is **coverage-only**, not functionality. Three missing branches in timing-migration.ts: (1) parse-null (malformed JSON input). (2) all-zero-duration-still-no-spans (impossible after fix, but edge case must be tested to prove impossibility). (3) prisma-update-error (transient DB failure, recovery must be tested). All paths reachable, all must be covered. Lockout decision: Mouse (artifact author) locked out of test revision; Tank assigned cycle-2 independent authority because prior #1057 lockout chain is closed (different governance context). Tank-Mouse conflict: Tank added timing-migration tests originally; new cycle-2 scope is *additional* edge-case tests (subset of original domain). This qualifies Tank as independent reviser (non-conflicting, same test file but different test additions).
+`deterministic-cefr/wordfreq-calibrated-v2` calibrates CEFR thresholds from temporary UniversalCEFR/elg_cefr_en evidence, which is CC BY-NC 4.0. Raw calibration text was not committed, and the calibration source should be treated as temporary/non-commercial evidence rather than a durable product corpus.
 
-**Blocking factors:** None (pure coverage gap, not design issue).
+Implementation changed thresholds only, bumped `DIFFICULTY_ALGORITHM_VERSION`, and selected rows with stale `difficultyVersion` or missing `lexileApprox` for recomputation. Provider DB evaluation used `prisma/provider-dbs/workinprogress.db` only: baseline v1 A2 2 / B1 208 / B2 7 changed to v2 B2 2 / C1 141 / C2 74, while Lexile-like values stayed min 590, median 870, mean 861.66, max 1050.
 
-**Advisory factors:** Coverage threshold 98% is team standard; should be confirmed in cycle-2 plan (no design drift).
+Decision/caveat: present CEFR v2 as a heuristic/calibrated deterministic baseline, not authoritative CEFR. There is no committed reproducible calibration harness/snapshot, and the new distribution skews advanced; stronger gold corpus validation is required before raising confidence or product authority claims.
 
-**Cycle 2 Eligibility:** Test-only, no application logic changes, no Reader, no data schema, no CLI semantics change. Purely additive tests for edge-case validation.
 
-**References:** #1060, PR #1061, Switch rejection (REQUEST_CHANGES), coverage report 96.05%, timing-migration.ts missing branches, Tank lockout precedent from #1057 (closed)
+### 2026-07-07 — OneStopEnglish v3 calibration accepted with ordinal-anchor caveats
 
-**Verdict:** APPROVE rejection rationale; confirm Tank cycle-2 eligibility; 3 tests blocking merge
+**Source:** Tank inbox (`decisions/inbox/Tank-onestopenglish-calibrated-cefr-threshold-v3.md`) plus Morpheus independent revision and Switch approval.
 
+`deterministic-cefr/onestop-calibrated-v3` is accepted as the current deterministic CEFR threshold calibration. The calibration uses aggregate OneStopEnglish article-level evidence licensed CC BY-SA 4.0; raw OneStopEnglish text was not committed to the repository or Squad state.
 
-### 2026-07-14: Secondary Fix Implementation — Issue #1060 span completeness recovery
+**Decision/caveats:** OneStopEnglish labels (`elementary`, `intermediate`, `advanced`) are ordinal calibration anchors, not exact A1-C2 gold labels. CEFR output remains a heuristic/calibrated deterministic estimate rather than authoritative CEFR certification. Lexile output remains Lexile-like and was not changed by the v3 calibration.
 
-**By:** Mouse (Span Repair)
+**Implementation/review record:** Tank implemented the initial v3 change, but Switch rejected it as not merge-ready because lexical normalization failed on constructor-shadowed maps and caveats were not explicit enough. Reviewer lockout was enforced; Morpheus independently revised the implementation with own-property guarded lookups for contraction/irregular maps and explicit license/mapping caveats in tests/docs. Switch re-reviewed and approved.
 
-**What:** Implemented span completeness recovery for 66 articles (30% of 217 rows) that lost text-span arrays due all-or-nothing V2 serialization after token misalignment. Root-cause analysis: 196/260 unaligned boundaries were Azure spoken-form expansions (e.g., "Mr." → "Mister") absent from plainText, causing entire span array drop. Added to PR #1061 (same branch squad/1060-reader-audio-highlight-sync). Changes: (1) Two-pass batch span enrichment (source/neighbor fallback for expansion recovery). (2) Zero-duration non-spoken marker exclusion (removes encoder artifacts). (3) Timing migration: compute/repair spans on read (backward compat, no schema change). (4) CLI explicit `--repair-spans` with dry-run/apply modes. (5) 22 new repair tests (boundary alignment, expansion recovery, zero-duration filtering) + CLI/batch integration tests. Local dev.db validation: before 151/217 complete spans → after 217/217 complete spans. Normalized matches: 937,270/937,270 (100%). Zero spoken words lost. Monotonic preservation. typecheck/ESLint clean. Reader files untouched (Mouse changes: parser/migration/CLI only). No business logic changes, no private content.
+**Validation:** `git diff --check` passed; targeted Node tests passed (88); `npm run typecheck` passed; targeted ESLint passed. Provider aggregate validation used 19 `prisma/provider-dbs/*.db` files only, excluded root DBs and sidecars, and covered 286,985 article rows. Final aggregate: A1 23, A2 9,134, B1 60,820, B2 184,428, C1 32,578, C2 2; average score 38.04; average Lexile-like 842.21.
 
-**Evidence:** 151→217 span recovery (100% completeness), 937,270/937,270 matches, zero words lost, 22+N tests pass, zero errors.
-
-**Why:** Separates primary clock fix (Trinity) from span recovery (Mouse), enables parallel implementation, restores highlight capability for 66 articles (30% of corpus) without delaying primary fix. All-or-nothing behavior reversal via batch enrichment.
-
-**References:** #1060 analysis, PR #1061 (same branch as Trinity primary), Mouse analysis (196 expansions), 217 rows, 937,273 timings
-
-**Verdict:** APPROVE secondary fix; span completeness 100% (151→217); combined with Trinity primary fix delivers full termination criteria
-
-
-### 2026-07-14: Primary Fix Implementation — Issue #1060 rAF-sampled browser clock
-
-**By:** Trinity (Implementation)
-
-**What:** Implemented rAF-sampled playback clock for Reader audio/highlight synchronization (issue #1060, PR #1061 targeting dev, branch squad/1060-reader-audio-highlight-sync). Prior analysis identified browser event loop clock (DOM timeupdate ~266ms cadence) as primary 250-330ms lag root cause. Fix replaces timeupdate-only clock with `usePlaybackClock` rAF loop that samples currentTime every frame while playing+visible, with lifecycle management (duplicate-loop prevention, cleanup on pause/seek/visibility change, fallback to timeupdate background). Wired into ReaderAudioProvider (play/pause/error/load/ended lifecycle). Real browser measurement validates fix: **clock latency p50 265.6ms → 16.7ms (98% improvement), p90 265.7ms → 17.9ms (98% improvement)**. Expected highlight onset improved **p50 ~140ms → ~8ms, p90 ~200ms → ~15ms**. Deterministic test suite: 15 new tests (rAF loop, lifecycle, duplicate prevention, cleanup, visibility toggle) + 7 existing (playback, pause/resume, seek, error handling) all pass. Zero console/network errors. No business logic, API, accessibility, or schema changes; no private data touched.
-
-**Evidence:** Before/after latency (265.6ms→16.7ms p50, 265.7ms→17.9ms p90), highlight onset improvement (140ms→8ms p50, 200ms→15ms p90), 22/22 tests pass, zero errors, diff-check clean.
-
-**Why:** Proves rAF fix achieves design termination criteria (offset ≤50ms, onset p50≤80ms, event-paint p90≤32ms). Unblocks Mouse secondary span recovery. V2/V1 schema frozen (only runtime clock change).
-
-**References:** #1060 analysis, PR #1061, branch squad/1060-reader-audio-highlight-sync, Trinity analysis (16.7ms rAF counterfactual validated)
-
-**Verdict:** APPROVE primary fix; clock latency 98% reduced; unblock Mouse span recovery; ready for dev merge
-
-
-### 2026-07-14: Browser Analysis — Issue #1060 highlight latency measurement
-
-**By:** Trinity (Browser Latency Analysis)
-
-**What:** Completed browser-side latency instrumentation and measurement on Reader page with live MP3 playback and CSS highlight sync. Measured three independent timing paths: (1) DOM timeupdate event cadence (production Reader clock), (2) React/setState scheduling, (3) highlight paint timing. Measured actual-vs-counterfactual (requestAnimationFrame sampled currentTime) to isolate browser scheduling contribution. Findings: (1) **timeupdate cadence ~266ms median** (observed range 240-290ms), confirming DOM-native event driven loop. (2) React render + state update adds ~5ms (negligible). (3) **Observed highlight lag ~140ms median / ~307ms maximum** relative to playback audio sample (measured via event listener timestamp vs. highlight paint timestamp). (4) **rAF-sampled counterfactual ~22ms**, confirming timeupdate cadence is primary lag source.
-
-**Root Cause: Browser clock.** DOM timeupdate fires ~3-4x per second, not per-audio-frame (~44,100 Hz), creating inherent 250-333ms lag between actual audio position and highlight update window. Combined with React (~5ms) + CSS paint (~10-30ms), observed 140-307ms lag matches expected profile from slow DOM clock.
-
-**Secondary Finding:** Span completeness (Mouse finding) affects which articles highlight at all; within articles with spans, accuracy is 99%+ but lag is consistent 140-307ms.
-
-**Evidence:** 15+ articles tested, timeupdate cadence measured via event instrumentation, paint timing via PerformanceObserver, rAF counterfactual verified, 0 wrong-word highlights in articles with complete spans.
-
-**Why:** Proves primary root cause is browser scheduling (not MP3 encoder, not data), enabling targeted fix (rAF-sampled currentTime loop). Separates scheduling lag from span completeness.
-
-**References:** #1060, #1054 (generation verified 0.999 ratio), rAF counterfactual ~22ms vs. timeupdate ~266ms, 140-307ms observed lag, 99%+ highlight accuracy
-
-**Verdict:** APPROVE browser analysis; timeupdate cadence confirmed primary root cause (~266ms); fix priority (1) rAF scheduling
-
-### 2026-07-14: Data Analysis — Issue #1060 audio/timing measurement
-
-**By:** Mouse (Data Analysis)
-
-**What:** Completed offline MP3 + timing payload analysis on 217 rows/213 MP3 files generated during #1054 (937,273 aggregate word timings). Examined V2 parser, unit conversion (ms), AudioOffset derivation, text-span alignment, token edge cases, standard MP3 encoder behavior. Measured first-sample delay (standard MPEG layer III ~33ms), trailing silence windows (272-410ms paragraph silence only, no global systematic offset). Empirical findings: (1) V2 payload correct (0 negative durations, 0 parsing errors, all onsets within standard encoder delay). (2) **No global MP3 offset** — hypothesis ruled out; encoder adds expected ~33ms decode delay, accounted for in batch boundary logic. (3) All gaps >400ms are intentional paragraph silence (13,356 gaps), not errors. (4) **Span completeness secondary finding:** 151/217 rows retain full text-span arrays; 66/217 rows (30%) lose entire direct-span arrays due to all-or-nothing serialization behavior after single unaligned token in SSML→plainText, causing span-based highlight loss for those articles only.
-
-**Conclusion:** Data payload is **not primary drift cause**. MP3 offset hypothesis disproven. Span loss (66 articles) is secondary mechanism but not audio sync root cause. Browser-side measurement required to confirm.
-
-**Evidence:** 937,273 timings, 217/217 clean, 0 payloads malformed, no systematic offset >3ms, standard 33±8ms initial delay expected.
-
-**Why:** Separates data generation errors from playback/browser timing so root cause is narrowed to browser scheduling (primary) and span availability (secondary).
-
-**References:** #1060, #1054 (MP3 generation), 217 rows, 937,273 timings aggregated
-
-**Verdict:** APPROVE data analysis; MP3 offset disproven; browser clock primary; span completeness secondary
-
-
-### 2026-07-14: Design Review — Issue #1060 speech/highlight sync root-cause spike
-
-**By:** Morpheus (Lead)
-
-**What:** Conducted formal design review ceremony for word-level speech/highlight desynchronization (issue #1060, https://github.com/huangyingting/ReadWise/issues/1060). Root-cause matrix spans 8 layers: (A) Azure batch boundary semantics, (B) MP3 encoder global offset, (C) AudioOffset unit conversion, (D) SSML/plainText UTF-16 spans, (E) token edge cases, (F) Reader silence-gap policy, (G) browser timeupdate cadence/React scheduling, (H) CSS highlight render latency. Current empirical evidence: 937,273 words, 100% textStart/textEnd coverage, data internally consistent (0 negative durations, <1.5% gaps >400ms, clean onset distribution p50=100ms). Likely root cause: Reader highlight driven **only** by DOM timeupdate (~250ms cadence), appearing up to ~1 word late; secondary hypothesis MP3 encode offset. Fixes frozen until evidence. Assigned Mouse (data/audio offline analysis, layers A-E+G), Trinity (browser latency via dev-browser, layers F-H), Switch (independent verification). Evidence-gated fix sequencing defined (browser scheduling → MP3 offset → text semantics → gap policy). Termination criteria: |offset|≤50ms, onset p50≤80/p90≤150ms across 3+ articles, event-to-paint p90≤32ms, 100% highlight accuracy, all tests green.
-
-**Why:** 99.96% coverage and <0.3s drift prove data quality, not word-level audible sync. Separates data errors (layers A-E) from browser scheduling (G-H) and intentional delays (F) so measured root cause is fixed without tuning to one article or blindly changing playback logic.
-
-**Governance:** No application code changes in ceremony. Fixes frozen pending Mouse/Trinity evidence. Switch independent gate. V2/V1 compat preserved; runtime fixes preferred over schema churn.
-
-**References:** #1060, #1054 (generation verified), #1057 (V1 compat), 937,273 words aggregated, 217 azure-batch rows, empirical onset/gap analysis
-
-**Verdict:** APPROVE design review; analysis phase initiated
-
-
-### 2026-07-14: APPROVE + merge PR #1059 — Issue #1057 compact V1 timing promotion to main
-
-**By:** Morpheus (Lead promotion reviewer)
-
-**What:** Approved and merged PR #1059 (dev → main promotion) at merge commit 04d9d7b. Issue #1057 auto-closed. Verified narrow promotion delta: exactly 8 timing/migration/test files (+633/−15), correct ancestry (merge-base e397f58). Post-main CI 29338449221 success. Release workflow correctly skipped (version metadata unchanged). Final contract verification: V1 shape exact `{version:1,words[],startMs[],endMs[]}`, parser gate before V2 metadata, legacy arrays read-only, V2 writer/playback/routes/schema frozen (diff zero), migration defaults v2 with opt-in --target v1 and explicit invalid-target error.
-
-**Why:** Issue #1057 lifecycle complete: design review → Tank implementation → cycle-1 rejection (Switch) → Tank lock → Mouse independent revision b1d2f6d → Switch cycle-2 approval → Morpheus final merge to main. Lockout chain enforced throughout. All CI green. Contract invariants satisfied. Storage-boundary change (V1 columnar format) with unchanged playback, demonstrating governance rigor and quality gates working correctly.
-
-**Governance evidence:** Cycle-1 REQUEST_CHANGES (Switch) locked Tank; Mouse independently revised and committed b1d2f6d; Switch independently re-approved cycle 2; Morpheus reviewed PR #1059 and merged. No self-revision; lockout chain intact. Commits carry Co-authored-by Copilot trailer. PR approval comment is artifact of record.
-
-**CI evidence:** Post-dev run 29337806292 (success), PR #1059 run 29338099575 (all-green, mergeStateStatus CLEAN), post-main run 29338449221 (success). No release workflow ran — legitimate (version metadata unchanged). Required checks: all green.
-
-**References:** #1057, PR #1058 (merged dev af9eae9), PR #1059 (merged main 04d9d7b), commits af9eae9/b1d2f6d, CI 29337806292/29338099575/29338449221
-
-**Verdict:** APPROVE + MERGED — issue closed on main; all CI green; storage-boundary change complete and verified
-
-
-### 2026-07-14: Cycle-2 APPROVE on PR #1058 — Mouse revision (Issue #1057)
-
-**By:** Switch
-
-**What:** Approved PR #1058 (compact V1 timing format) cycle-2 revision by Mouse (commit b1d2f6d). Verified all blocking and advisory fixes: (1) Barrel-export snapshot now synchronized (expectedExports array +2 V1 exports, 9/9 tests pass, CI "Unit tests + native coverage" now GREEN); (2) Invalid --target now throws explicit error instead of silently defaulting (parseArgs multi-branch logic, 6/6 tests pass including new error case). Tank's V1 implementation frozen (36/36 smoke, zero regression). V2 writer/playback/routes/schema untouched (diff zero). Backward compat verified (v2 default, legacy arrays read-only accepted). All required CI checks on b1d2f6d: GREEN. Tank lockout respected (Mouse independent revision, Switch independent re-review).
-
-**Why:** All contract invariants satisfied: V1 shape/parser gate/serializers/migration correct; V2 boundaries frozen; backward-compat intact; cycle-2 blocking issue resolved; advisory issue implemented; Tank's implementation frozen; lockout protocol enforced; all tests pass; CI green.
-
-**References:** #1057, PR #1058 (squad/1057-compact-v1-timing-format), commit b1d2f6d (Mouse), cycle-2 approval, dev merge ready
-
-**Verdict:** APPROVE (dev merge authorized)
-
-
-### 2026-07-14: Cycle-2 independent revision complete — barrel export + explicit --target error
-
-**By:** Mouse
-
-**What:** Independently completed both cycle-2 deltas as revision owner (Tank locked out): (1) Updated `tests/optional-provider-boundaries.test.ts` `expectedExports` array with `createSpeechTimingPayloadV1` and `legacySpeechWordsToTimingPayloadV1` (alphabetical order); (2) Replaced silent default in `scripts/migrate-speech-timing.ts` `parseArgs()` with explicit error for invalid `--target` values (omitted flag still defaults v2); (3) Added invalid-value error test case in `tests/migrate-speech-timing-script.test.ts`. Commit b1d2f6d pushed to squad/1057-compact-v1-timing-format. Validation: boundary 9/9 pass, script 6/6 pass (including new error case), smoke 36/36 pass (Tank V1 untouched), typecheck/ESLint clean. PR #1058 updated with evidence comment; Switch re-review requested.
-
-**Why:** Tank locked out per reviewer protocol; Mouse has independent revision authority and sole permission to revise PR #1058. Both blocking (barrel snapshot) and advisory (explicit error) issues addressed. Tank's V1 implementation frozen (46 tests remain valid). Zero regression risk.
-
-**References:** #1057, PR #1058 (squad/1057-compact-v1-timing-format), commit b1d2f6d, tests/optional-provider-boundaries.test.ts, scripts/migrate-speech-timing.ts, tests/migrate-speech-timing-script.test.ts
-
-**Verification:** boundary 9/9, script 6/6 (new error case), compact 20/20, migration 16/16, typecheck clean, ESLint clean, 51/51 total pass
-
-
-### 2026-07-14: REQUEST_CHANGES on PR #1058 — barrel snapshot not updated
-**By:** Switch
-**What:** Rejected PR #1058 (compact V1 timing format). Single blocking delta: `tests/optional-provider-boundaries.test.ts` `expectedExports` list not updated to include `createSpeechTimingPayloadV1` and `legacySpeechWordsToTimingPayloadV1`. CI `Unit tests + native coverage` fails. Tank locked out; Mouse assigned as revision owner.
-**Why:** Test discipline requires barrel export assertions to be updated in the same commit as any new public API additions. The omission causes a pre-existing CI-required test to fail. All contract invariants (V1 shape, parser ordering, V2 freeze, playback freeze, migration default) are satisfied — this is the sole blocking issue.
-
-### 2026-07-14: PR #1058 Cycle 1 Rejection & Cycle 2 Revision Plan (Issue #1057)
-
-**By:** Morpheus (retrospective facilitator)
-
-**What:** Switch rejected PR #1058 (Tank's V1 implementation) with REQUEST_CHANGES. Blocking issue: `tests/optional-provider-boundaries.test.ts` `expectedExports` array not updated for two new exports (`createSpeechTimingPayloadV1`, `legacySpeechWordsToTimingPayloadV1`). Advisory issue: `scripts/migrate-speech-timing.ts` silently defaults invalid `--target` values instead of throwing explicit error (violates repository rule). Tank locked out per reviewer protocol. Mouse assigned as independent cycle-2 revision owner with sole authority to fix both blocking (must) and advisory (should) issues.
-
-**Why:** Morpheus verified that Tank's V1 implementation is architecturally correct (46/46 tests pass, V1 shape valid, parser gate placed correctly BEFORE V2 metadata checks, V2 writer/playback frozen, normalization verified). The blocking rejection is purely a test-discipline gap (snapshot not synchronized with new exports), not a code logic problem. Switch's advisory about explicit --target error is tightly coupled to implementation and aligns with repository explicit-error-first rule.
-
-**Decision (Morpheus approved):**
-
-1. **Cycle 2a (Must-include blocking fix):** Mouse will update `tests/optional-provider-boundaries.test.ts` `expectedExports` array with two new entries in alphabetical order. Verification: `NODE_ENV=test node ... "tests/optional-provider-boundaries.test.ts"` → 9/9 pass.
-
-2. **Cycle 2b (Should-include advisory fix):** Mouse will replace `parseArgs()` in `scripts/migrate-speech-timing.ts` to throw explicit error for invalid `--target` values (e.g., `--target v3`). Add test case in `tests/migrate-speech-timing-script.test.ts` for invalid values. Verification: typecheck/lint/migration-tests pass. **Optional defer:** If deferred, file follow-up subtask under #1057.
-
-3. **Lockout enforcement:** Tank remains locked out; Mouse has sole revision authority. Switch will independently re-review PR #1058 after Mouse updates.
-
-4. **No code regression:** Tank's V1 implementation (46 tests, all logic) untouched. Only snapshot array + optional error check.
-
-**References:** #1057, PR #1058 (squad/1057-compact-v1-timing-format), Switch rejection, Morpheus retrospective facilitation
-
-**Learning:** Barrel-export snapshot tests are pre-existing CI gates; they must be updated in the same commit as new public API exports. Reviewer lockout protocol prevents author bias; independent reviser (Mouse) ensures separation of concerns.
-
-
-### 2026-07-14: Compact V1 timing format storage/parse boundary implementation (PR #1058)
-**By:** Tank
-**What:** Implemented SpeechTimingPayloadV1 {version:1, words:string[], startMs:number[], endMs:number[]} with version===1 parser gate BEFORE V2 provider/unit checks in parseSpeechTimingPayload. Added createSpeechTimingPayloadV1, legacySpeechWordsToTimingPayloadV1, migrateArticleSpeechTimings(target: 'v1'|'v2', default 'v2'), CLI --target flag, and backward-compat wrapper migrateArticleSpeechTimingsToV2. V2 serialization and production saveSpeechResult frozen (no changes). 46 tests pass (V1 shape, parser gate, normalization, migration paths). Full typecheck/ESLint/diff-check clean. 217/217 rows remain V2; no schema/db migration needed.
-**Why:** Exactly satisfies Morpheus V1 contract. V1 gate before provider check prevents compact V1 (no provider/timeUnit/textUnit) from failing V2 required-fields validation. All shapes normalize to ParsedSpeechTimingPayload. Storage/parse boundary only; Reader playback/bytes frozen.
-**References:** #1057, PR #1058 (squad/1057-compact-v1-timing-format), src/lib/speech/timing.ts, src/lib/speech/timing-migration.ts, scripts/migrate-speech-timing.ts, tests/speech-compact-v1.test.ts (46/46 pass), full suite green
-**Test coverage:** Parser gate ordering, V1 shape invariants, normalization, migration --target v1|v2|default, backward-compat layer, dev.db no-change verification
-**Status:** Implementation COMPLETE; awaiting Switch independent regression review
-
-### 2026-07-14: Compact V1 word-timing storage contract (storage-boundary only; V2 + playback frozen)
-**By:** Morpheus
-**What:** Introduce a compact columnar V1 storage shape `{version:1, words[], startMs[], endMs[]}` (no provider/timeUnit/textUnit/text spans) that normalizes to the SAME `ParsedSpeechTimingPayload` as legacy arrays (`version:2`, provider `"unknown"`, no text spans). `parseSpeechTimingPayload` gets a `version===1` branch placed BEFORE the provider/timeUnit/textUnit gate. Add `createSpeechTimingPayloadV1` + `legacySpeechWordsToTimingPayloadV1`. Compact V1 is emitted by migration tooling ONLY (opt-in `--target v1`, default stays `v2`); production `saveSpeechResult` keeps emitting full V2. Legacy unversioned arrays stay read-only accepted. `ArticleSpeech.words` stays `Json` — no schema migration, no `dev.db` migration (217/217 already V2; provider-dbs have 0 speech rows). Tracked in issue #1057.
-**Why:** The user wants legacy timing data stored compactly like V2 without fabricating V2's provider/UTF-16/text-span metadata and without changing Reader playback/highlight behavior. Playback consumes only normalized `SpeechWord[]` server-side, so the change is confined to the storage/parse boundary in `src/lib/speech/timing.ts` + `timing-migration.ts`. Freezing V2 bytes and playback prevents highlight/anchoring regressions.
-**Ownership:** Tank (timing/parser/migration/tests, API-safe); Switch (independent V2-byte + playback-normalization regression review); Trinity standby (touch playback only on a demonstrated regression).
-**References:** #1057, src/lib/speech/timing.ts, src/lib/speech/timing-migration.ts, src/lib/speech/repository.ts, scripts/migrate-speech-timing.ts, tests/speech-json.test.ts, tests/speech-timing-migration.test.ts
-
-
-### 2026-07-14: PR #1056 — dev → main promotion (Issue #1054) — APPROVED & MERGED
-**By:** Morpheus (Lead, reviewer)
-**What:** Approved and merged the dev→main promotion PR #1056, promoting the approved narrow #1054 delta to `main`.
-**Why:** User explicitly requested the verified Azure batch TTS timing fix be committed to remote `main`, preserving dev-first release discipline.
-
-**Verification (evidence, aggregates/booleans only):**
-- Base/head `main`←`dev`; `MERGEABLE`, `mergeStateStatus: CLEAN`. `dev` HEAD == `e397f58` (merge of approved PR #1055). Merge-base `8434440`.
-- Delta = exactly 6 files, +56/−11: `.env.example`, `docs/speech/generation.md`, `scripts/analyze-speech-alignment.ts`, `scripts/batch-synthesis.ts`, `tests/analyze-speech-alignment-script.test.ts`, `tests/batch-synthesis.test.ts`. No unrelated commits; no history rewrite.
-- Commits promoted: `433879a` (Copilot author+committer, `Closes #1054`, `Co-authored-by: Copilot` trailer) + merge `e397f58`.
-- No runtime/private data: diff is code/docs/tests only; `prisma/dev.db` and `.media` gitignored; zero tracked `dev.db`/`.media/`/`*.mp3`; no secrets/article content.
-- Correctness confirmed vs source: batch offsets stored directly as ms (`startMs=AudioOffset`, `endMs=AudioOffset+Duration`); analyzer `timingWordsFromJson` now calls canonical `parseSpeechTimingPayload` (returns `{words}`) then legacy fallback; `.env.example` matches `runtime-config/storage.ts` (`database`→`local` deprecation warning, base64 removed in migration 20260702090000).
-- CI: PR #1056 run 29328863505 and post-dev run 29328606705 (both SHA e397f58) all required checks SUCCESS; E2E full-UI-audit shards skipped by design.
-- Prior approval: Switch's evidence-backed APPROVE of #1055 recorded in decisions.md (comment `#issuecomment-4968579073`; GH comment body is placeholder under shared identity — decisions.md is the artifact of record).
-- No branch protection/rulesets on `main`; merged via normal merge commit — no failing checks bypassed.
-
-**Result:**
-- Merge commit `61faa85ff9a431a629749e99b51ee2b152011d25` on `origin/main`.
-- Issue #1054 CLOSED.
-- Post-main CI run 29329199289 (SHA 61faa85) SUCCESS.
-- Release workflow (`squad-release.yml`) legitimately did NOT run — triggers only on `package.json`/`package-lock.json`/`CHANGELOG.md`/workflow changes; none touched (version metadata unchanged).
-- No local runtime data touched.
-
-**Review comment URL:** https://github.com/huangyingting/ReadWise/pull/1056#issuecomment-4968668169
-
-
-### 2026-07-14: PR #1055 — Azure Batch TTS word-sync — APPROVED
-
-**By:** Switch
-
-**What:** Approved PR #1055 (`squad/1054-azure-batch-tts-word-sync`, commit 433879a). 6 files changed: `.env.example`, `docs/speech/generation.md`, `scripts/analyze-speech-alignment.ts`, `scripts/batch-synthesis.ts`, and two test files.
-
-**Evidence (aggregates/booleans only):**
-- Timing-unit claim verified: max(endMs)/1000 vs MP3 duration at 32kbps matches to within 0.01% across min/median/max articles (ratios 0.9991–0.9999). Values are definitively in ms, not ticks.
-- DB invariants: 217/217 rows pass all checks (version=2, provider=azure-batch, timeUnit=ms, storageKey non-null, audio/mpeg, startMs monotonic, textStart<textEnd, word count within [0.7,1.3]× tokens).
-- Analyzer V2 fix: `parseSpeechTimingPayload` now called first in `timingWordsFromJson`; correctly parses V2 columnar payloads that previously returned empty.
-- Tests: 25/25 batch+alignment, 11/11 speech-provider-azure, 9/9 migration+worker. ESLint 0 errors, typecheck 0 errors, diff-check clean.
-- CI: 7/7 required checks SUCCESS.
-- Browser (headless Chromium, dev server, real `dev.db`): highlights at 10% and 50% PRESENT; at 90% CORRECTLY ABSENT (inter-word gap 847ms — correct gap-detection behavior, confirmed by adjacent word 287.43s → PRESENT); mini-player PRESENT after audio loads; seek/pause/resume ok; stale highlight cleared; 0 console/network errors.
-
-**Why:** Issue #1054 acceptance criteria fully met with evidence. The timing-unit claim was the critical risk; empirical three-point verification across min/median/max articles confirms ms units unambiguously. Analyzer V2 fix is correct and well-tested. No defects found.
-
-**Comment URL:** https://github.com/huangyingting/ReadWise/pull/1055#issuecomment-4968579073
 
 ### 2026-07-09 — Difficulty calibration harness stays aggregate-only and license-gated
 
@@ -354,6 +155,19 @@ Program complete when all subsystem issues closed, `dev` passes full CI, and pro
 ## Rollback
 Each subsystem PR is independently revertable on `dev`. Main is never force-pushed.
 
+### 2026-07-06T04-03-51: Keep DB performance telemetry privacy-safe by default
+**By:** Scribe
+**What:** Keep DB performance telemetry privacy-safe by default
+**References:** Tank, Switch, DB query performance work
+**Why:** Slow-query warnings and DB tracing should report timing/operation metadata without logging SQL text, bind values, prompts, article text, selected text, or raw database error text. Performance observability is needed, but it must preserve the repository privacy rule against logging user-private content or secrets.
+
+### 2026-07-06T04-03-51: Refuse DB benchmarks against remote databases by default
+**By:** Scribe
+**What:** Refuse DB benchmarks against remote databases by default
+**References:** Tank, Switch, DB query performance work
+**Why:** The benchmark command should refuse remote database URLs by default and do so before importing Prisma/runtime database code. Benchmarking should not accidentally exercise production-like or remote databases, and early refusal keeps the safety check lightweight and independent of Prisma initialization.
+
+
 ## Feature-Completeness Epic #1008 Scope Decisions (2026-07-11)
 
 ### 2026-07-11T22:31:57: Classroom membership remains teacher-managed
@@ -396,6 +210,16 @@ Each subsystem PR is independently revertable on `dev`. Main is never force-push
 **Implication:** Executable E2E specs must be wired into canonical CI commands (not standalone decorators); tautological helper assertions must be replaced with real user-interaction verification.
 
 ## Inbox Decision Merges 2026-07-12T02:41:59.148+00:00
+
+### 2026-07-05: Scraper CLI coverage uses explicit test seams
+**By:** Mouse
+**What:** Added `__scrapeProviderTest` and `__readingSourcesTest` seams plus injectable argv/spawn parameters so provider scraping CLI workflows can be covered without network, DB, browser, or child-process side effects.
+**Why:** Native coverage now measures these runtime scripts; meaningful tests need to exercise discovery/resume/status/review/scrape behavior while preserving graceful fallback behavior and avoiding coverage-policy weakening.
+
+### 2026-07-06: Content-free Prisma query timing is the backend performance signal
+**By:** Tank
+**What:** Add app-side Prisma timing through low-cardinality metrics/traces and slow-query warnings using provider/model/operation/outcome labels only, controlled by DB_QUERY_TIMING_ENABLED and DB_SLOW_QUERY_THRESHOLD_MS.
+**Why:** Performance tuning needs DB latency visibility without exposing SQL text, parameters, article content, prompts, selections, user-private content, secrets, or raw ids in logs or metrics.
 
 ---
 id: 1bfdfbde-6c21-4559-a35a-13421cae66cb
@@ -891,28 +715,3 @@ Accepted roots: safe-area, viewport-aware popover geometry, reader 100dvh, canon
 **Source:** Promotion PR #1047 and post-main validation.
 **Evidence:** PR https://github.com/huangyingting/ReadWise/pull/1047 merged dev→main at commit https://github.com/huangyingting/ReadWise/commit/a15412fae26d2b2790a6d7161603cd66c60ee951. Post-main CI https://github.com/huangyingting/ReadWise/actions/runs/29227918120 succeeded on that exact SHA; release workflow https://github.com/huangyingting/ReadWise/actions/runs/29227918111 succeeded and skipped tag/release creation by contract because the version already existed.
 **State:** Final product gates remained 5/5 smoke, 79/79 high-risk zero skips, 520/520 full UI audit, and 16/16 CTA matrix. Architecture GO, Rai GREEN, and Fact Checker GO held. Parent #1035 and children #1036/#1037/#1038/#1042/#1044 are closed.
-
-
-### 2026-07-14: Cycle 2 Review — PR #1061 APPROVED
-
-**By:** Switch (Tester)
-
-**What:** APPROVE on PR #1061 cycle 2. Tank added commit 40371e7 with exactly three new tests in `tests/speech-span-repair.test.ts` covering the three uncovered branches from cycle 1 (lines 312-315, 321-324, 338-343 in `timing-migration.ts`). Zero production code changed. Mouse lockout maintained throughout.
-
-**Evidence:**
-- 25/25 repair tests pass (22 original + 3 new)
-- 92/92 across full focused suite
-- Coverage gate passes locally: 582 files >= 98% (was failing at 96.05%)
-- CI all green: Unit tests, Build, Fast checks, PostgreSQL Migrate, Supply-chain, CI summary all pass
-- Branch logic independently verified against timing.ts source (speechWordFromColumns line 191, parseV2Payload line 273)
-
-**Why:** Cycle-1 blocker resolved. Coverage gate is the only required CI check that was failing; it now passes. Original rAF and span semantic approvals remain valid — no production code drifted. Ready for Morpheus to merge to dev.
-
-**Lockout chain:**
-- Mouse: locked out of timing-migration.ts test coverage (original author)
-- Tank: authored cycle 2 revision (approved)
-- Switch: approved both cycles
-
-**References:** PR #1061, commit 40371e7, CI run 29352599245
-
-**Verdict:** APPROVE cycle-2 revision; coverage 100%; unblock Switch re-review
