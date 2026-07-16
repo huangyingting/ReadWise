@@ -6,7 +6,7 @@ import type { ReactNode, RefObject } from "react";
  * Extracted to eliminate duplication (FE2-6) and centralise design-token usage (DSGN2-8).
  */
 import { Volume2 } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button, Tooltip } from "@/components/ui";
 
 // ── PronounceButton ────────────────────────────────────────────────────────
 
@@ -37,19 +37,24 @@ export function PronounceButton({
 }: PronounceButtonProps) {
   const label = speaking === cardId ? "Playing…" : "Pronounce";
 
-  return (
+  const button = (
     <Button
       variant="ghost"
       size="sm"
       onClick={() => onSpeak(word, cardId)}
       disabled={disabled}
       aria-label={`Play pronunciation of ${word}`}
-      title={disabled ? disabledTitle : undefined}
       leadingIcon={<Volume2 size={16} aria-hidden />}
       className="min-h-[44px] text-text-muted hover:text-text disabled:hover:text-text-muted"
     >
       {label}
     </Button>
+  );
+
+  return disabled && disabledTitle ? (
+    <Tooltip content={disabledTitle}>{button}</Tooltip>
+  ) : (
+    button
   );
 }
 

@@ -34,7 +34,7 @@ import {
   useState,
 } from "react";
 import { Send, Sparkles } from "lucide-react";
-import { Button, EmptyState } from "@/components/ui";
+import { Button, EmptyState, Tooltip } from "@/components/ui";
 import { Textarea } from "@/components/ui/Textarea";
 import { Spinner } from "@/components/ui/Spinner";
 import ConfirmAction from "@/components/ConfirmAction";
@@ -139,9 +139,11 @@ export default function ArticleTutor({ active }: { active: boolean }) {
           className="rw-tutor-msg rw-tutor-msg--user rw-fade-up"
         >
           <div className="rw-tutor-bubble-user">{item.content}</div>
-          <span className="rw-tutor-msg-time" title={item.createdAt}>
-            {formatRelative(item.createdAt)}
-          </span>
+          <Tooltip content={item.createdAt}>
+            <span className="rw-tutor-msg-time">
+              {formatRelative(item.createdAt)}
+            </span>
+          </Tooltip>
         </div>
       );
     }

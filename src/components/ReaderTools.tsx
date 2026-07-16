@@ -23,7 +23,7 @@ import {
   Highlighter,
   Sparkles,
 } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button, Tooltip } from "@/components/ui";
 import { useReaderTools, type ToolTabId } from "./ReaderToolsProvider";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import ArticleVocabulary from "./ArticleVocabulary";
@@ -79,23 +79,23 @@ export default function ReaderTools({
         {TOOL_TABS.map(({ id, label, icon, hint }, i) => {
           const isActive = activeTab === id;
           return (
-            <Button
-              key={id}
-              variant="ghost"
-              size="sm"
-              role="tab"
-              id={`study-tab-${id}`}
-              aria-selected={isActive}
-              aria-controls={`study-panel-${id}`}
-              tabIndex={isActive ? 0 : -1}
-              title={hint}
-              onClick={() => activate(id)}
-              onKeyDown={(e) => handleKeyDown(e, i)}
-              leadingIcon={<span aria-hidden="true">{icon}</span>}
-              className="article-study-tab"
-            >
-              {label}
-            </Button>
+            <Tooltip key={id} content={hint}>
+              <Button
+                variant="ghost"
+                size="sm"
+                role="tab"
+                id={`study-tab-${id}`}
+                aria-selected={isActive}
+                aria-controls={`study-panel-${id}`}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => activate(id)}
+                onKeyDown={(e) => handleKeyDown(e, i)}
+                leadingIcon={<span aria-hidden="true">{icon}</span>}
+                className="article-study-tab"
+              >
+                {label}
+              </Button>
+            </Tooltip>
           );
         })}
       </div>

@@ -12,6 +12,7 @@ import {
   EmptyState,
   TableSurface,
   Toolbar,
+  Tooltip,
 } from "@/components/ui";
 import { WordTableRow } from "@/components/vocabulary/WordTableRow";
 import { JournalPagination } from "@/components/vocabulary/JournalPagination";
@@ -336,9 +337,9 @@ export default function VocabularyJournal({
                 <th>Article</th>
                 <th>Saved</th>
                 <th>
-                  <span title="Review due date based on spaced repetition — words you review just before you forget them stick best.">
-                    Review due
-                  </span>
+                  <Tooltip content="Review due date based on spaced repetition — words you review just before you forget them stick best.">
+                    <span>Review due</span>
+                  </Tooltip>
                 </th>
               </tr>
             </thead>

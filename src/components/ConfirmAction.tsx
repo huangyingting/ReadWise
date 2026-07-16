@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useId } from "react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Tooltip } from "@/components/ui";
 
 export interface ConfirmActionProps {
   /** Label for the trigger button (shown in its resting state). */
@@ -130,20 +131,27 @@ export default function ConfirmAction({
     }
   }
 
+  const trigger = (
+    <Button
+      ref={triggerRef}
+      variant={triggerVariant}
+      size={size}
+      disabled={disabled || loading}
+      aria-label={triggerAriaLabel}
+      aria-expanded={isOpen}
+      onClick={() => setIsOpen(!isOpen)}
+    >
+      {triggerContent}
+    </Button>
+  );
+
   return (
     <div className={cn("admin-actions", className)}>
-      <Button
-        ref={triggerRef}
-        variant={triggerVariant}
-        size={size}
-        disabled={disabled || loading}
-        title={triggerTitle}
-        aria-label={triggerAriaLabel}
-        aria-expanded={isOpen}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {triggerContent}
-      </Button>
+      {triggerTitle ? (
+        <Tooltip content={triggerTitle}>{trigger}</Tooltip>
+      ) : (
+        trigger
+      )}
 
       {isOpen && (
         <div

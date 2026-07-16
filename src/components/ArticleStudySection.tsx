@@ -15,7 +15,7 @@
  * network fetches.
  */
 
-import { Button } from "@/components/ui";
+import { Button, Tooltip } from "@/components/ui";
 import { useReaderTools } from "./ReaderToolsProvider";
 import { TOOL_TABS } from "./ReaderTools";
 
@@ -37,17 +37,18 @@ function ToolJumpButton({
   const { id, label, icon, hint } = tab;
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      title={hint}
-      onClick={() => onOpen(id)}
-      {...TOOL_SURFACE_DIALOG_PROPS}
-      leadingIcon={<span aria-hidden="true">{icon}</span>}
-      className="article-study-cta-chip"
-    >
-      {label}
-    </Button>
+    <Tooltip content={hint}>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => onOpen(id)}
+        {...TOOL_SURFACE_DIALOG_PROPS}
+        leadingIcon={<span aria-hidden="true">{icon}</span>}
+        className="article-study-cta-chip"
+      >
+        {label}
+      </Button>
+    </Tooltip>
   );
 }
 

@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { patchJson } from "@/lib/client-fetch";
-import { Button, IconButton, Textarea } from "@/components/ui";
+import { Button, IconButton, Textarea, Tooltip } from "@/components/ui";
 import { submitMutation } from "@/lib/offline/sync-runtime";
 
 interface Props {
@@ -131,15 +131,16 @@ export default function InlineNoteEditor({
           Add a note…
         </span>
       )}
-      <IconButton
-        size="sm"
-        onClick={startEdit}
-        title="Edit note"
-        aria-label="Edit note"
-        className="shrink-0 opacity-0 group-hover/note:opacity-100 focus:opacity-100 text-text-subtle hover:text-text transition-opacity"
-      >
-        <Pencil size={13} aria-hidden />
-      </IconButton>
+      <Tooltip content="Edit note">
+        <IconButton
+          size="sm"
+          onClick={startEdit}
+          aria-label="Edit note"
+          className="shrink-0 opacity-0 group-hover/note:opacity-100 focus:opacity-100 text-text-subtle hover:text-text transition-opacity"
+        >
+          <Pencil size={13} aria-hidden />
+        </IconButton>
+      </Tooltip>
     </div>
   );
 }

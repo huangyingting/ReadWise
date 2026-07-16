@@ -22,7 +22,7 @@ import { useState, useRef, useId, useCallback } from "react";
 import { Bookmark, ListPlus } from "lucide-react";
 import { postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
-import { Button, IconButton } from "@/components/ui";
+import { Button, IconButton, Tooltip } from "@/components/ui";
 import ListPickerPopover from "@/components/ListPickerPopover";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
 
@@ -115,31 +115,32 @@ export default function ReaderBookmarkCluster({
   return (
     <div className="relative flex items-center ml-auto shrink-0" role="group" aria-label="Bookmark controls">
       {/* Segment A — default list toggle */}
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-pressed={saved}
-        aria-label="Save to reading list"
-        title={saved ? "Saved" : "Save"}
-        onClick={() => void handleToggle()}
-        leadingIcon={
-          <Bookmark
-            size={16}
-            fill={saved ? "currentColor" : "none"}
-            aria-hidden
-            className={cn(
-              "transition-transform [transition-duration:var(--duration-fast)]",
-              saved && "rw-pop",
-            )}
-          />
-        }
+      <Tooltip content={saved ? "Saved" : "Save"}>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-pressed={saved}
+          aria-label="Save to reading list"
+          onClick={() => void handleToggle()}
+          leadingIcon={
+            <Bookmark
+              size={16}
+              fill={saved ? "currentColor" : "none"}
+              aria-hidden
+              className={cn(
+                "transition-transform [transition-duration:var(--duration-fast)]",
+                saved && "rw-pop",
+              )}
+            />
+          }
         className={segmentClasses(
           saved,
           "px-[var(--space-3)] rounded-l-[var(--radius-md)] rounded-r-none",
         )}
       >
         {saved ? "Saved" : "Save"}
-      </Button>
+        </Button>
+      </Tooltip>
 
       {/* Segment B — list-picker trigger */}
       <IconButton

@@ -22,7 +22,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Bookmark } from "lucide-react";
 import { deleteJson, postJson } from "@/lib/client-fetch";
-import { IconButton } from "@/components/ui";
+import { IconButton, Tooltip } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
 
@@ -112,45 +112,47 @@ export default function CardBookmarkButton({
     : `Save "${articleTitle}"`;
 
   return (
-    <IconButton
-      ref={buttonRef}
-      // aria-pressed only for toggle mode (not remove mode)
-      aria-pressed={isRemoveMode ? undefined : saved}
-      aria-label={ariaLabel}
-      title={ariaLabel}
-      disabled={pending}
-      // data-saved attribute drives CSS state for both React renders and
-      // DOM-only updates from ListingBookmarkSync
-      data-saved={saved ? "true" : undefined}
-      className={cn(
-        "js-bookmark",
-        // Position: absolute sibling overlay, top-right corner
-        "absolute top-[var(--space-3)] right-[var(--space-3)] z-10",
-        "inline-flex items-center justify-center",
-        // Visual: 32px target; expanded touch via padding
-        "size-8 rounded-[var(--radius-full)] p-1.5",
-        "border shadow-[var(--shadow-sm)]",
-        // Transitions
-        "transition-[opacity,background-color,border-color,color]",
-        "[transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
-        "motion-reduce:transition-none",
-        "disabled:pointer-events-none",
-        // Unsaved base state: hidden, revealed on card hover/button focus
-        "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100",
-        "bg-surface/80 backdrop-blur-sm text-text-subtle border-border",
-        // Saved state overrides via data attribute (also used by ListingBookmarkSync)
-        "data-[saved=true]:opacity-100",
-        "data-[saved=true]:text-primary-text",
-        "data-[saved=true]:bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]",
-        "data-[saved=true]:border-[color-mix(in_srgb,var(--primary)_38%,transparent)]",
-      )}
-      onClick={handleClick}
+    <Tooltip
+      content={ariaLabel}
+      className="absolute top-[var(--space-3)] right-[var(--space-3)] z-10"
     >
-      <Bookmark
-        size={16}
-        fill={saved ? "currentColor" : "none"}
-        aria-hidden
-      />
-    </IconButton>
+      <IconButton
+        ref={buttonRef}
+        // aria-pressed only for toggle mode (not remove mode)
+        aria-pressed={isRemoveMode ? undefined : saved}
+        aria-label={ariaLabel}
+        disabled={pending}
+        // data-saved attribute drives CSS state for both React renders and
+        // DOM-only updates from ListingBookmarkSync
+        data-saved={saved ? "true" : undefined}
+        className={cn(
+          "js-bookmark",
+          "inline-flex items-center justify-center",
+          // Visual: 32px target; expanded touch via padding
+          "size-8 rounded-[var(--radius-full)] p-1.5",
+          "border shadow-[var(--shadow-sm)]",
+          // Transitions
+          "transition-[opacity,background-color,border-color,color]",
+          "[transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
+          "motion-reduce:transition-none",
+          "disabled:pointer-events-none",
+          // Unsaved base state: hidden, revealed on card hover/button focus
+          "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100",
+          "bg-surface/80 backdrop-blur-sm text-text-subtle border-border",
+          // Saved state overrides via data attribute (also used by ListingBookmarkSync)
+          "data-[saved=true]:opacity-100",
+          "data-[saved=true]:text-primary-text",
+          "data-[saved=true]:bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]",
+          "data-[saved=true]:border-[color-mix(in_srgb,var(--primary)_38%,transparent)]",
+        )}
+        onClick={handleClick}
+      >
+        <Bookmark
+          size={16}
+          fill={saved ? "currentColor" : "none"}
+          aria-hidden
+        />
+      </IconButton>
+    </Tooltip>
   );
 }

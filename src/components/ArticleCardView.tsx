@@ -207,14 +207,15 @@ export default function ArticleCardView({
 
       {/* ③b "Why" chip — M15 For You feed only; absent on all other listings (no layout shift) */}
       {reason ? (
-        <span
-          className="rw-why-chip"
-          title={reason}
-          aria-label={`Recommendation reason: ${reason}`}
-        >
-          <Sparkles size={12} aria-hidden className="shrink-0 text-text-subtle" />
-          {reason}
-        </span>
+        <Tooltip content={reason}>
+          <span
+            className="rw-why-chip"
+            aria-label={`Recommendation reason: ${reason}`}
+          >
+            <Sparkles size={12} aria-hidden className="shrink-0 text-text-subtle" />
+            {reason}
+          </span>
+        </Tooltip>
       ) : null}
 
       {/* ④⑤ Progress footer — mt-auto pins to bottom regardless of title length */}

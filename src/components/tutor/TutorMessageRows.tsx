@@ -10,6 +10,7 @@
 
 import { AlertTriangle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Tooltip } from "@/components/ui";
 import { formatRelative } from "@/lib/format-relative";
 import { TutorMarkdownRenderer } from "@/components/tutor/TutorMarkdownRenderer";
 import type { TutorMessage } from "@/components/tutor/useTutorConversation";
@@ -28,9 +29,11 @@ function MessageTime({ createdAt }: { createdAt?: string | null }) {
   if (!createdAt) return null;
 
   return (
-    <span className="rw-tutor-msg-time" title={createdAt}>
-      {formatRelative(createdAt)}
-    </span>
+    <Tooltip content={createdAt}>
+      <span className="rw-tutor-msg-time">
+        {formatRelative(createdAt)}
+      </span>
+    </Tooltip>
   );
 }
 

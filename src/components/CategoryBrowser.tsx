@@ -201,77 +201,72 @@ export default function CategoryBrowser({
 
   return (
     <div>
-      {/* Category tab bar — §2.6; gradient affordance shows scroll on mobile */}
-      <div className="category-tabs-wrapper">
-        <nav
-          className="flex flex-nowrap overflow-x-auto items-center gap-[var(--space-2)] mt-[var(--space-5)] mb-[var(--space-3)] pb-[var(--space-1)]"
-          style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}
-          aria-label="Categories"
-        >
-          {tabs.map((tab) => (
-            <Link
-              key={tab.key}
-              href={tab.href}
-              aria-current={tab.key === activeView ? "page" : undefined}
-              className={cn(
-                "inline-flex items-center shrink-0",
-                "h-9 px-[var(--space-4)]",
-                "rounded-[var(--radius-full)]",
-                "text-[length:var(--text-sm)] font-medium",
-                "no-underline",
-                "transition-colors [transition-duration:var(--duration-fast)]",
-                tab.key === activeView
-                  ? "bg-primary border border-primary text-on-primary"
-                  : "bg-surface border border-border text-text-muted hover:border-border-strong hover:text-text hover:bg-bg-subtle",
-                focusRing,
-              )}
-            >
-              {tab.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
+      {/* Category tab bar — wraps onto multiple rows so every category stays
+          visible without a horizontal scrollbar. */}
+      <nav
+        className="flex flex-wrap items-center gap-[var(--space-2)] mt-[var(--space-5)] mb-[var(--space-3)]"
+        aria-label="Categories"
+      >
+        {tabs.map((tab) => (
+          <Link
+            key={tab.key}
+            href={tab.href}
+            aria-current={tab.key === activeView ? "page" : undefined}
+            className={cn(
+              "inline-flex items-center shrink-0",
+              "h-9 px-[var(--space-4)]",
+              "rounded-[var(--radius-full)]",
+              "text-[length:var(--text-sm)] font-medium",
+              "no-underline",
+              "transition-colors [transition-duration:var(--duration-fast)]",
+              tab.key === activeView
+                ? "bg-primary border border-primary text-on-primary"
+                : "bg-surface border border-border text-text-muted hover:border-border-strong hover:text-text hover:bg-bg-subtle",
+              focusRing,
+            )}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </nav>
 
-      {/* Search + level filter row */}
-      <div className="flex flex-col gap-[var(--space-3)] mb-[var(--space-5)] md:flex-row md:items-end">
+      {/* Search + level filter row — one wrapping line: search box (reduced
+          width) · Search · (Clear) · Level filter. */}
+      <div className="flex flex-wrap items-end gap-x-[var(--space-4)] gap-y-[var(--space-3)] mb-[var(--space-5)]">
         <form
-          className="flex-1"
+          className="flex flex-wrap items-end gap-[var(--space-2)]"
           role="search"
           aria-label="Search within Browse"
           onSubmit={handleSearchSubmit}
         >
-          <div className="flex flex-col gap-[var(--space-2)] sm:flex-row sm:items-end">
-            <Field label="Search Browse" className="flex-1 gap-[var(--space-1)]">
-              <Input
-                value={searchDraft}
-                inputSize="sm"
-                type="search"
-                placeholder="Search articles in this context…"
-                onChange={(e) => setSearchDraft(e.target.value)}
-              />
-            </Field>
-            <div className="flex gap-[var(--space-2)]">
-              <Button
-                type="submit"
-                size="sm"
-                loading={isPending}
-                leadingIcon={<Search size={14} aria-hidden="true" />}
-              >
-                Search
-              </Button>
-              {query ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleSearchClear}
-                  leadingIcon={<X size={14} aria-hidden="true" />}
-                >
-                  Clear
-                </Button>
-              ) : null}
-            </div>
-          </div>
+          <Field label="Search Browse" className="w-full sm:w-72 gap-[var(--space-1)]">
+            <Input
+              value={searchDraft}
+              inputSize="sm"
+              type="search"
+              placeholder="Search articles in this context…"
+              onChange={(e) => setSearchDraft(e.target.value)}
+            />
+          </Field>
+          <Button
+            type="submit"
+            size="sm"
+            loading={isPending}
+            leadingIcon={<Search size={14} aria-hidden="true" />}
+          >
+            Search
+          </Button>
+          {query ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={handleSearchClear}
+              leadingIcon={<X size={14} aria-hidden="true" />}
+            >
+              Clear
+            </Button>
+          ) : null}
         </form>
 
         <div className="flex items-center gap-[var(--space-2)]">

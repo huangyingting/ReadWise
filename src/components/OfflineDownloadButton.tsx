@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Download, Check, Trash2, WifiOff } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button, Tooltip } from "@/components/ui";
 import {
   saveOfflineArticle,
   removeOfflineArticle,
@@ -169,18 +169,19 @@ export default function OfflineDownloadButton({
       );
     }
     return (
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        className="offline-btn offline-btn--saved"
-        onClick={() => setConfirmRemove(true)}
-        aria-label="Article saved offline — click to remove"
-        title="Saved for offline reading — click to remove"
-        leadingIcon={<Check size={13} aria-hidden />}
-      >
-        Downloaded
-      </Button>
+      <Tooltip content="Saved for offline reading — click to remove">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="offline-btn offline-btn--saved"
+          onClick={() => setConfirmRemove(true)}
+          aria-label="Article saved offline — click to remove"
+          leadingIcon={<Check size={13} aria-hidden />}
+        >
+          Downloaded
+        </Button>
+      </Tooltip>
     );
   }
 
@@ -207,24 +208,25 @@ export default function OfflineDownloadButton({
   }
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="offline-btn"
-      onClick={() => void handleDownload()}
-      disabled={state === "loading"}
-      aria-label={
-        state === "loading" ? "Downloading article…" : "Download for offline reading"
-      }
-      title="Download for offline reading"
-      leadingIcon={
-        state === "loading"
-          ? <WifiOff size={13} aria-hidden />
-          : <Download size={13} aria-hidden />
-      }
-    >
-      {state === "loading" ? "Saving…" : "Offline"}
-    </Button>
+    <Tooltip content="Download for offline reading">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="offline-btn"
+        onClick={() => void handleDownload()}
+        disabled={state === "loading"}
+        aria-label={
+          state === "loading" ? "Downloading article…" : "Download for offline reading"
+        }
+        leadingIcon={
+          state === "loading"
+            ? <WifiOff size={13} aria-hidden />
+            : <Download size={13} aria-hidden />
+        }
+      >
+        {state === "loading" ? "Saving…" : "Offline"}
+      </Button>
+    </Tooltip>
   );
 }

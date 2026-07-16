@@ -20,7 +20,7 @@
 import { useState } from "react";
 import { CalendarCheck, CalendarPlus, Check } from "lucide-react";
 import { ApiResponseError, postJson } from "@/lib/client-fetch";
-import { Button, IconButton } from "@/components/ui";
+import { Button, IconButton, Tooltip } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
 type Status = "idle" | "pending" | "success" | "error";
@@ -82,38 +82,40 @@ export default function SetTodayArticleButton({
   if (variant === "overlay") {
     const label = getOverlayLabel(status, articleTitle);
     return (
-      <IconButton
-        type="button"
-        size="md"
-        aria-label={label}
-        title={isError ? (message ?? DEFAULT_ERROR) : label}
-        disabled={isPending || isSuccess}
-        onClick={(e) => {
-          e.preventDefault();
-          void submit();
-        }}
-        className={cn(
-          // Absolute sibling overlay, top-left corner (bookmark sits top-right).
-          "absolute top-[var(--space-3)] left-[var(--space-3)] z-10",
-          "border shadow-[var(--shadow-sm)]",
-          "bg-surface/80 backdrop-blur-sm text-text-subtle border-border",
-          "transition-[opacity,background-color,border-color,color]",
-          "[transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
-          "motion-reduce:transition-none",
-          // Hidden until card hover / focus, like the bookmark overlay.
-          "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100",
-          isSuccess &&
-            "opacity-100 text-primary-text border-[color-mix(in_srgb,var(--primary)_38%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]",
-          isError && "opacity-100 text-[var(--danger-text)] border-[var(--danger)]",
-          className,
-        )}
+      <Tooltip
+        content={isError ? (message ?? DEFAULT_ERROR) : label}
+        className="absolute top-[var(--space-3)] left-[var(--space-3)] z-10"
       >
-        {isSuccess ? (
-          <Check size={16} aria-hidden />
-        ) : (
-          <CalendarPlus size={16} aria-hidden />
-        )}
-      </IconButton>
+        <IconButton
+          type="button"
+          size="md"
+          aria-label={label}
+          disabled={isPending || isSuccess}
+          onClick={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+          className={cn(
+            "border shadow-[var(--shadow-sm)]",
+            "bg-surface/80 backdrop-blur-sm text-text-subtle border-border",
+            "transition-[opacity,background-color,border-color,color]",
+            "[transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
+            "motion-reduce:transition-none",
+            // Hidden until card hover / focus, like the bookmark overlay.
+            "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100",
+            isSuccess &&
+              "opacity-100 text-primary-text border-[color-mix(in_srgb,var(--primary)_38%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]",
+            isError && "opacity-100 text-[var(--danger-text)] border-[var(--danger)]",
+            className,
+          )}
+        >
+          {isSuccess ? (
+            <Check size={16} aria-hidden />
+          ) : (
+            <CalendarPlus size={16} aria-hidden />
+          )}
+        </IconButton>
+      </Tooltip>
     );
   }
 

@@ -6,6 +6,7 @@
  */
 
 import { AccessibleDataTable } from "@/components/admin/AccessibleDataTable";
+import { Tooltip } from "@/components/ui";
 
 export interface WeekBucket {
   week: string;
@@ -62,18 +63,22 @@ export function WeeklyBars({
           const weekLabel = `Week of ${shortWeekLabel(bucket.week)}: ${bucket.count}`;
 
           return (
-            <div
+            <Tooltip
               key={bucket.week}
-              className="flex-1 rounded-t-sm transition-all"
-              style={{
-                height: getBarHeight(bucket.count, max),
-                backgroundColor: hasCount ? color : "var(--border)",
-                opacity: hasCount ? 1 : GHOST_BAR_OPACITY,
-              }}
-              role="img"
-              aria-label={weekLabel}
-              title={`${bucket.week}: ${bucket.count}`}
-            />
+              content={`${bucket.week}: ${bucket.count}`}
+              className="flex-1 items-end"
+            >
+              <div
+                className="w-full rounded-t-sm transition-all"
+                style={{
+                  height: getBarHeight(bucket.count, max),
+                  backgroundColor: hasCount ? color : "var(--border)",
+                  opacity: hasCount ? 1 : GHOST_BAR_OPACITY,
+                }}
+                role="img"
+                aria-label={weekLabel}
+              />
+            </Tooltip>
           );
         })}
       </div>
