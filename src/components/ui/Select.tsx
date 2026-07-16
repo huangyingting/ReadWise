@@ -203,6 +203,10 @@ const OPTION_CHECK_SIZE = 14;
        : uncontrolledValue;
      const selectedOption =
        options.find((option) => option.value === selectedValue) ?? options[0];
+     const initialFocusOption =
+       selectedOption && !selectedOption.disabled
+         ? selectedOption
+         : options.find((option) => !option.disabled);
      const isInvalid = Boolean(invalid || nativeInvalid);
      const customEnabled = mounted && !multiple;
  
@@ -328,7 +332,7 @@ const OPTION_CHECK_SIZE = 14;
                variant="outline"
                size={selectSize === "sm" ? "sm" : "md"}
                role="combobox"
-               value={selectedValue}
+              // Mirrors the form value for E2E assertions and DOM inspection.
                data-value={selectedValue}
                aria-haspopup="listbox"
                aria-expanded={open}
@@ -381,15 +385,17 @@ const OPTION_CHECK_SIZE = 14;
                >
                  {options.map((option) => {
                    const selected = option.value === selectedValue;
+                  const receivesInitialFocus =
+                    option.value === initialFocusOption?.value;
                    return (
                      <li key={option.value} role="presentation">
                        <Button
-                         ref={selected ? selectedOptionRef : undefined}
+                        ref={receivesInitialFocus ? selectedOptionRef : undefined}
                          type="button"
                          variant="ghost"
                          size="sm"
                          role="option"
-                         tabIndex={selected ? 0 : -1}
+                        tabIndex={receivesInitialFocus ? 0 : -1}
                          aria-selected={selected}
                          disabled={option.disabled}
                          onClick={() => chooseValue(option.value)}
