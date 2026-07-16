@@ -11,6 +11,7 @@ import {
   createSessionForUser,
   seedTeacherClassroom,
 } from "./support/seed";
+import { selectDropdownOption } from "./support/select-dropdown";
 
 test.setTimeout(300_000);
 
@@ -91,7 +92,7 @@ test("admin moderation verdict persists after reload", async ({ adminPage: page 
   await expect(page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" })).toBeVisible();
   await prewarmJsonRoute(page, "post", `/api/admin/articles/${TEST_ARTICLE_ID}/review`, {});
 
-  await page.getByLabel("Review verdict").selectOption("approved");
+  await selectDropdownOption(page, "Review verdict", "Approved");
   await page.getByRole("button", { name: "Save review" }).click();
   await expect(page.getByText("Saved.")).toBeVisible({ timeout: 60_000 });
 
@@ -137,37 +138,37 @@ test("org member role update + removal require lifecycle constraints and persist
   await expect(page.getByRole("heading", { name: "Organization members" })).toBeVisible();
 
   const teacherRole = page.getByLabel("Role for E2E Teacher");
-  await expect(teacherRole).toHaveValue("OrgAdmin");
+  await expect(teacherRole).toHaveAttribute("data-value", "OrgAdmin");
   const demoteTeacherResponse = page.waitForResponse(
     (response) =>
       response.request().method() === "PATCH" &&
       response.url().includes("/api/orgs/") &&
       response.url().includes("/members/e2e-teacher"),
   );
-  await teacherRole.selectOption("Teacher");
+  await selectDropdownOption(page, "Role for E2E Teacher", "Teacher");
   await expect((await demoteTeacherResponse).status()).toBe(409);
   await expect(
     page.getByRole("alert").filter({
       hasText: "Promote another member to OrgAdmin first.",
     }),
   ).toBeVisible();
-  await expect(teacherRole).toHaveValue("OrgAdmin");
+  await expect(teacherRole).toHaveAttribute("data-value", "OrgAdmin");
 
   await expect(
     page.getByRole("button", { name: "Remove E2E Teacher" }),
   ).toBeDisabled();
 
   const studentRole = page.getByLabel("Role for E2E Student");
-  await expect(studentRole).toHaveValue("Student");
+  await expect(studentRole).toHaveAttribute("data-value", "Student");
   const promoteStudentResponse = page.waitForResponse(
     (response) =>
       response.request().method() === "PATCH" &&
       response.url().includes("/api/orgs/") &&
       response.url().includes("/members/e2e-student"),
   );
-  await studentRole.selectOption("Teacher");
+  await selectDropdownOption(page, "Role for E2E Student", "Teacher");
   await expect((await promoteStudentResponse).status()).toBe(200);
-  await expect(studentRole).toHaveValue("Teacher");
+  await expect(studentRole).toHaveAttribute("data-value", "Teacher");
 
   await page.getByRole("button", { name: "Remove E2E Student" }).click();
   await expect(page.getByRole("button", { name: "Confirm remove" })).toBeVisible();

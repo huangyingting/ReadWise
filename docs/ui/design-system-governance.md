@@ -180,7 +180,7 @@ semantics; pure aliases are drift.
 | **Card** | `Card.tsx` | `interactive` (hover lift) | Content containers; `CardHeader`, `CardTitle`, `CardMeta`, `CardBody`, `CardFooter` sub-components |
 | **Input** | `Input.tsx` | `variant`: default · error; `size`: sm · md · lg | Single-line text inputs |
 | **Textarea** | `Textarea.tsx` | `variant`: default · error | Multi-line text inputs |
-| **Select** | `Select.tsx` | `variant`: default · error | Native `<select>` wrapper |
+| **Select** | `Select.tsx` | `selectSize`: sm · md; `invalid`; `menuWidth`: trigger · content | Shared single-value dropdown: token-driven Popover/listbox after hydration, with a native no-JS/form fallback |
 | **Field** | `Field.tsx` | — | Label + input + error-message grouping |
 | **Switch** | `Switch.tsx` | `checked`, `onCheckedChange`, `label`, `description` | Boolean toggles (settings, preferences) |
 | **Skeleton** | `Skeleton.tsx` | `shape`: text · block | Loading placeholders — shimmer animation, reduced-motion safe |

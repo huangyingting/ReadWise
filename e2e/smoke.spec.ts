@@ -6,6 +6,7 @@ import {
   createUserWithSession,
   seedTeacherClassroom,
 } from "./support/seed";
+import { selectDropdownOption } from "./support/select-dropdown";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
 const INVALID_ATTRIBUTE_WARNING_PATTERNS = [
@@ -139,7 +140,11 @@ test("assignment lifecycle round trip updates student and teacher progress", asy
       .evaluate((form) => form.setAttribute("novalidate", "true"));
     const englishLevelSelect = teacherPage.getByLabel("English level");
     await expect(englishLevelSelect).toBeVisible();
-    await englishLevelSelect.selectOption("");
+    await selectDropdownOption(
+      teacherPage,
+      "English level",
+      "Select a level…",
+    );
     await teacherPage
       .getByRole("button", { name: "Save profile & reading preferences" })
       .click();

@@ -10,7 +10,13 @@ export {
   type CardTitleProps,
 } from "./Card";
 export { Input, inputVariants, type InputProps } from "./Input";
-export { Select, selectVariants, type SelectProps } from "./Select";
+export {
+  Select,
+  selectVariants,
+  type SelectProps,
+  type SelectMenuWidth,
+  type SelectMenuAlign,
+} from "./Select";
 export {
   Field,
   Label,

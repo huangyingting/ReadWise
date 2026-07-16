@@ -21,6 +21,7 @@
  */
 
 import { test, expect } from "./support/fixtures";
+import { selectDropdownOption } from "./support/select-dropdown";
 
 test("completes the five-step onboarding wizard and reaches the welcome screen", async ({
   signIn,
@@ -110,9 +111,9 @@ test("completes the five-step onboarding wizard and reaches the welcome screen",
   await expect(page.getByRole("heading", { name: "A little about you" })).toBeVisible();
   await expect(page.getByText("Step 4 of 5")).toBeVisible();
 
-  // Select age range and gender via labeled <select> elements
-  await page.getByLabel("Age range").selectOption("25-34");
-  await page.getByLabel("Gender").selectOption("Male");
+  // Select age range and gender through the shared dropdown control.
+  await selectDropdownOption(page, "Age range", "25-34");
+  await selectDropdownOption(page, "Gender", "Male");
 
   await nextButton.click();
 
