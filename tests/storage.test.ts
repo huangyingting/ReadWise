@@ -57,6 +57,43 @@ test("FilesystemMediaStorage put/get/delete round-trips content-addressed bytes"
   assert.equal(await storage.get(put.storageKey), null);
 });
 
+test("FilesystemMediaStorage keeps a scoped digest flat under the key prefix", async () => {
+  process.env.MEDIA_STORAGE = "filesystem";
+  process.env.MEDIA_STORAGE_DIR = TEST_DIR;
+  const { getMediaStorage, sha256Hex } = await import("@/lib/storage");
+  const storage = getMediaStorage();
+  assert.ok(storage);
+  if (!storage) return;
+
+  const data = Buffer.from("flat-speech-bytes");
+  const put = await storage.put({
+    data,
+    mimeType: "audio/mpeg",
+    keyHint: "speech",
+    keyScope: "article-a1",
+  });
+
+  assert.match(put.storageKey, /^speech\/[a-f0-9]{32}\.mp3$/);
+  assert.equal(put.storageKey.includes("article-a1"), false);
+  assert.equal(put.storageKey.split("/").length, 2);
+  assert.equal((await storage.get(put.storageKey))?.equals(data), true);
+
+  const repeated = await storage.put({
+    data,
+    mimeType: "audio/mpeg",
+    keyHint: "speech",
+    keyScope: "article-a1",
+  });
+  const otherArticle = await storage.put({
+    data,
+    mimeType: "audio/mpeg",
+    keyHint: "speech",
+    keyScope: "article-a2",
+  });
+  assert.equal(repeated.storageKey, put.storageKey);
+  assert.notEqual(otherArticle.storageKey, put.storageKey);
+});
+
 test("get rejects path-traversal keys", async () => {
   process.env.MEDIA_STORAGE = "filesystem";
   process.env.MEDIA_STORAGE_DIR = TEST_DIR;
@@ -66,4 +103,3 @@ test("get rejects path-traversal keys", async () => {
   if (!storage) return;
   assert.equal(await storage.get("../../etc/passwd"), null);
 });
-

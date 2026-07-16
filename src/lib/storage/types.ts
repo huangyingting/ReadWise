@@ -9,6 +9,8 @@ export type PutMediaInput = {
   mimeType: string;
   /** Logical key prefix hint (e.g. `speech`); a content hash is appended. */
   keyHint?: string;
+  /** Optional identity scope hashed with the checksum; never emitted in the key. */
+  keyScope?: string;
   /** Optional explicit extension (e.g. `.mp3`); inferred from `mimeType` otherwise. */
   extension?: string;
 };

@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { MediaStorage, PutMediaInput, PutMediaResult } from "@/lib/storage/types";
-import { extensionForMime, normalizeExtension, sanitizeKeyHint, sha256Hex } from "@/lib/storage/key";
+import { buildStorageKey, sha256Hex } from "@/lib/storage/key";
 export { mediaStorageDir } from "@/lib/runtime-config/storage";
 
 function isPathWithinBase(fullPath: string, basePath: string): boolean {
@@ -27,15 +27,9 @@ export class FilesystemMediaStorage implements MediaStorage {
     return full;
   }
 
-  private storageKeyFor(input: PutMediaInput, checksum: string): string {
-    const ext = normalizeExtension(input.extension) ?? extensionForMime(input.mimeType);
-    const prefix = sanitizeKeyHint(input.keyHint);
-    return `${prefix}/${checksum}${ext}`;
-  }
-
   async put(input: PutMediaInput): Promise<PutMediaResult> {
     const checksum = sha256Hex(input.data);
-    const storageKey = this.storageKeyFor(input, checksum);
+    const storageKey = buildStorageKey(input, checksum);
     const full = this.resolve(storageKey);
     await fs.mkdir(path.dirname(full), { recursive: true });
     await fs.writeFile(full, input.data);
