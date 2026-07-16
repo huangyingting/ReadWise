@@ -30,6 +30,23 @@ function nextRovingItem(
   );
 }
 
+function enabledRovingItems(panel: HTMLElement | null): HTMLElement[] {
+  if (!panel) return [];
+  return Array.from(
+    panel.querySelectorAll<HTMLElement>(ROVING_ITEM_SELECTOR),
+  ).filter((item) => {
+    const disabled =
+      (item instanceof HTMLButtonElement && item.disabled) ||
+      item.getAttribute("aria-disabled") === "true";
+    return !disabled;
+  });
+}
+
+function moveRovingFocus(items: HTMLElement[], next: HTMLElement) {
+  for (const item of items) item.tabIndex = item === next ? 0 : -1;
+  next.focus();
+}
+
 function readCssLengthPx(variable: string, fallbackPx: number): number {
   if (typeof window === "undefined") return fallbackPx;
   const root = document.documentElement;
@@ -82,6 +99,12 @@ export interface PopoverProps {
   label: string;
   /** Horizontal edge alignment relative to the anchor. Defaults to "end". */
   align?: "start" | "end";
+  /** Match the panel width to the anchor. Defaults to false. */
+  matchAnchorWidth?: boolean;
+  /** Element to focus when the panel opens. Defaults to the first tabbable item. */
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
+  /** Additional token-driven classes for the popover panel. */
+  className?: string;
   /** Panel contents. */
   children: React.ReactNode;
 }
@@ -108,6 +131,9 @@ export function Popover({
   anchorRef,
   label,
   align = "end",
+  matchAnchorWidth = false,
+  initialFocusRef,
+  className,
   children,
 }: PopoverProps) {
   const panelRef = React.useRef<HTMLDivElement>(null);
@@ -125,6 +151,8 @@ export function Popover({
       if (!nextAnchor || !nextPanel) return;
 
       const viewport = currentViewport();
+      const anchorRect = nextAnchor.getBoundingClientRect();
+      nextPanel.style.width = matchAnchorWidth ? `${anchorRect.width}px` : "";
       const gap = readCssLengthPx("--space-2", GAP_FALLBACK_PX);
       const viewportPadding = readCssLengthPx(
         "--space-3",
@@ -133,7 +161,7 @@ export function Popover({
       const naturalWidth = Math.max(nextPanel.offsetWidth, nextPanel.scrollWidth);
       const naturalHeight = Math.max(nextPanel.offsetHeight, nextPanel.scrollHeight);
       const layout = computePopoverLayout({
-        anchorRect: nextAnchor.getBoundingClientRect(),
+        anchorRect,
         panelWidth: naturalWidth,
         panelHeight: naturalHeight,
         viewport,
@@ -187,11 +215,12 @@ export function Popover({
       visualViewport?.removeEventListener("resize", scheduleLayout);
       visualViewport?.removeEventListener("scroll", scheduleLayout);
     };
-  }, [open, anchorRef, align]);
+  }, [open, anchorRef, align, matchAnchorWidth]);
 
   useFocusTrap(panelRef, open, onClose, {
     restoreFocus: true,
     stopEscapePropagation: true,
+    initialFocusRef,
   });
 
   React.useEffect(() => {
@@ -209,15 +238,26 @@ export function Popover({
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        const items =
-          panelRef.current?.querySelectorAll<HTMLElement>(ROVING_ITEM_SELECTOR);
-        if (!items || items.length === 0) return;
+      if (
+        event.key === "ArrowDown" ||
+        event.key === "ArrowUp" ||
+        event.key === "Home" ||
+        event.key === "End"
+      ) {
+        const list = enabledRovingItems(panelRef.current);
+        if (list.length === 0) return;
         event.preventDefault();
-        const list = Array.from(items);
-        const dir = event.key === "ArrowDown" ? 1 : -1;
-        const next = nextRovingItem(list, document.activeElement, dir);
-        next.focus();
+        const next =
+          event.key === "Home"
+            ? list[0]!
+            : event.key === "End"
+              ? list[list.length - 1]!
+              : nextRovingItem(
+                  list,
+                  document.activeElement,
+                  event.key === "ArrowDown" ? 1 : -1,
+                );
+        moveRovingFocus(list, next);
       }
     }
 
@@ -241,6 +281,7 @@ export function Popover({
         "fixed z-[var(--z-popover)] min-w-[200px] overflow-y-auto",
         "rounded-[var(--radius-md)] border border-border bg-surface py-[var(--space-1)]",
         "shadow-[var(--shadow-lg)]",
+        className,
       )}
     >
       {children}
