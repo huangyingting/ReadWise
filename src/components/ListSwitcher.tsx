@@ -101,7 +101,7 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
   }
 
   return (
-    <div className="group/list-row flex items-center gap-[var(--space-1)]">
+    <div className="group/list-row relative flex items-center gap-[var(--space-1)]">
       <Link
         href={listHref(list)}
         aria-current={isActive ? "page" : undefined}
@@ -151,7 +151,15 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
           <ListDeleteControl
             listId={list.id}
             listName={list.name}
-            confirmClassName="!p-0"
+            // ConfirmAction defaults to a 220px admin action column. Keep its
+            // trigger compact here and anchor the open panel to this list row.
+            confirmClassName={cn(
+              "!min-w-0 !p-0",
+              "[&_.admin-confirm]:absolute [&_.admin-confirm]:left-0",
+              "[&_.admin-confirm]:top-[calc(100%+var(--space-1))]",
+              "[&_.admin-confirm]:z-[var(--z-popover)] [&_.admin-confirm]:w-full",
+              "[&_.admin-confirm]:shadow-[var(--shadow-md)]",
+            )}
             onSuccess={() => onDeleteSuccess(list.id)}
           />
         </div>
