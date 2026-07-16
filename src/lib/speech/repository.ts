@@ -162,7 +162,8 @@ export async function saveSpeechResult(params: {
     put = await storage.put({
       data: audio,
       mimeType,
-      keyHint: `speech/${articleId}`,
+      keyHint: "speech",
+      keyScope: articleId,
     });
   } catch (err) {
     log.error("speech.storage_write_failed", {

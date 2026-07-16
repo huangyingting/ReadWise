@@ -102,13 +102,14 @@ test("AzureBlobMediaStorage supports account-key auth and custom extensions", as
     mimeType: "audio/wav",
     extension: "custom",
     keyHint: "/Speech//Daily!",
+    keyScope: "Article/../A1",
   });
 
   assert.equal(storage.kind, "azure");
   assert.equal(constructedUrl, "https://account.blob.core.windows.net");
   assert.deepEqual(credentialArgs, ["account", "test-key"]);
   assert.equal(uploaded[0].key, result.storageKey);
-  assert.match(result.storageKey, /^speech\/daily-/);
+  assert.match(result.storageKey, /^speech\/daily-\/[a-f0-9]{32}\.custom$/);
   assert.match(result.storageKey, /\.custom$/);
   assert.equal(uploaded[0].contentType, "audio/wav");
 });

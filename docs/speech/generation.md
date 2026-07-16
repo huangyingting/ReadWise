@@ -252,7 +252,8 @@ rerunning TTS jobs after fixing storage.
 
 `saveSpeechResult` in `src/lib/speech/repository.ts` persists a synthesis result:
 
-1. Calls `storage.put({ data, mimeType, keyHint: "speech" })` → `{ storageKey, sizeBytes, checksum }`.
+1. Calls `storage.put({ data, mimeType, keyHint: "speech", keyScope: articleId })`
+   → `{ storageKey, sizeBytes, checksum }`.
 2. Upserts a `MediaAsset` row recording the canonical `storageKey`, `mimeType`,
    `voice`, and `articleId`.
 3. Atomically upserts `ArticleSpeech` with `mediaAssetId` and `words`, so the

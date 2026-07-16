@@ -73,9 +73,11 @@ interface MediaStorage {
 Both local and Azure implementations are:
 
 - **content-addressed** — object keys embed the SHA-256 of the bytes
-  (`<keyHint>/<sha256><ext>`), so repeated writes for one article are idempotent.
+  directly, or a deterministic 128-bit digest of the owner scope plus SHA-256
+  (`<keyHint>/<digest128><ext>`), so repeated writes are idempotent.
 - **article-scoped for speech assets** — narration uses
-  `speech/<articleId>/<sha256><ext>` so article deletion cannot remove bytes
+  `speech/<digest128><ext>`, where the digest includes `articleId`, so article
+  deletion cannot remove bytes
   referenced by a different article with identical audio.
 - **traversal-safe** — local storage confines all keys to the base directory;
   Azure uses container scoping and sanitized keys.

@@ -308,7 +308,8 @@ test("saveSpeechResult writes to media storage and upserts a MediaAsset on succe
 
   assert.equal(saved, true);
   assert.ok(putInput);
-  assert.equal((putInput as PutMediaInput).keyHint, "speech/a1");
+  assert.equal((putInput as PutMediaInput).keyHint, "speech");
+  assert.equal((putInput as PutMediaInput).keyScope, "a1");
   assert.ok(mediaAssetUpsertArgs);
   assert.deepEqual(mediaAssetUpsertArgs!.where, { storageKey: "speech/xyz" });
   assert.equal(mediaAssetUpsertArgs!.create.kind, "speech");
