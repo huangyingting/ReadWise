@@ -6,6 +6,7 @@ import {
 } from "./src/lib/security/headers";
 
 const isProduction = process.env.NODE_ENV === "production";
+const distDir = process.env.NEXT_DIST_DIR;
 
 const DEV_WATCH_IGNORES = [
   "**/prisma/*.db",
@@ -23,6 +24,9 @@ const STANDALONE_OUTPUT_CONFIG: Pick<NextConfig, "output"> = { output: "standalo
 const securityHeaders = buildSecurityHeaders({ production: isProduction });
 
 const nextConfig: NextConfig = {
+  // Let isolated test servers run alongside the local dev server without
+  // competing for Next's `.next/dev/lock`.
+  ...(distDir ? { distDir } : {}),
   // Produce a self-contained `.next/standalone` directory for Docker deploys.
   // Gated to production so local `npm run dev` doesn't emit the standalone
   // artefact (which is only needed by the Dockerfile / container runtime).

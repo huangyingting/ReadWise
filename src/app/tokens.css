@@ -111,6 +111,9 @@
   --sidebar-w: 240px;
   --sidebar-w-collapsed: 64px;
 
+  /* ---- Overlays ---- */
+  --tooltip-max-w: 20rem;
+
   /* ---- Motion ---- */
   --duration-fast: 120ms;
   --duration-base: 200ms;

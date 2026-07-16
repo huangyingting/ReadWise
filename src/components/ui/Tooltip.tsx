@@ -69,6 +69,11 @@ export interface TooltipProps {
   /** Preferred placement relative to the trigger. */
   side?: TooltipSide;
   /**
+   * Allow long content to wrap within the viewport-safe tooltip width.
+   * Defaults to true; disable for compact labels that must stay on one line.
+   */
+  wrap?: boolean;
+  /**
    * Extra classes for the wrapper element. Defaults to `relative inline-flex`;
    * pass layout overrides (e.g. `w-full`, `block`, or absolute-position classes)
    * when the trigger needs to preserve its original box in the layout/flow.
@@ -83,11 +88,16 @@ export interface TooltipProps {
  * respects prefers-reduced-motion. Attaches `aria-describedby` to the trigger
  * while the tooltip is open so screen readers announce the content.
  *
- * Note: children are rendered untouched so Server Component content can be
- * passed through safely. For complex popovers or rich content, a full
- * portal-based solution is a recommended follow-up.
+ * Children are rendered untouched so Server Component content can be passed
+ * through safely. Use Popover rather than Tooltip for interactive content.
  */
-export function Tooltip({ content, children, side = "top", className }: TooltipProps) {
+export function Tooltip({
+  content,
+  children,
+  side = "top",
+  wrap = true,
+  className,
+}: TooltipProps) {
   const [open, setOpen] = React.useState(false);
   const [coords, setCoords] = React.useState<Coords | null>(null);
   const [mounted, setMounted] = React.useState(false);
@@ -180,9 +190,16 @@ export function Tooltip({ content, children, side = "top", className }: TooltipP
     if (!open) return;
     updatePosition();
     const onReflow = () => updatePosition();
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(onReflow)
+        : null;
+    if (tooltipRef.current) resizeObserver?.observe(tooltipRef.current);
+    if (wrapperRef.current) resizeObserver?.observe(wrapperRef.current);
     window.addEventListener("scroll", onReflow, true);
     window.addEventListener("resize", onReflow);
     return () => {
+      resizeObserver?.disconnect();
       window.removeEventListener("scroll", onReflow, true);
       window.removeEventListener("resize", onReflow);
     };
@@ -210,13 +227,19 @@ export function Tooltip({ content, children, side = "top", className }: TooltipP
                 position: "fixed",
                 top: coords?.top ?? -9999,
                 left: coords?.left ?? -9999,
+                maxWidth: wrap
+                  ? "min(var(--tooltip-max-w), calc(100vw - var(--space-8)))"
+                  : undefined,
               }}
               className={cn(
                 "z-[var(--z-overlay)] px-[var(--space-2)] py-[var(--space-1)]",
                 "rounded-[var(--radius-sm)]",
-                "text-[length:var(--text-xs)] text-text-inverted whitespace-nowrap",
+                "text-[length:var(--text-xs)] text-text-inverted",
                 "bg-[color:var(--text)] shadow-[var(--shadow-md)]",
                 "pointer-events-none motion-reduce:transition-none",
+                wrap
+                  ? "whitespace-normal break-words text-left"
+                  : "whitespace-nowrap",
               )}
             >
               {content}
