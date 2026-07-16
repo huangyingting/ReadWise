@@ -162,13 +162,19 @@ test("AzureBlobMediaStorage put uploads with correct container/key/content-type"
   assert.ok(storage);
 
   const data = Buffer.from("test-audio-bytes");
-  const result = await storage!.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
+  const result = await storage!.put({
+    data,
+    mimeType: "audio/mpeg",
+    keyHint: "speech",
+    keyScope: "article-123",
+  });
 
   assert.ok(uploadDataCalled, "uploadData should have been called");
   assert.equal(uploadDataContentType, "audio/mpeg");
   assert.ok(result.storageKey.startsWith("speech/"));
   assert.equal(result.storageKey.split("/").length, 2);
-  assert.ok(result.storageKey.includes(sha256Hex(data)));
+  assert.match(result.storageKey, /^speech\/[a-f0-9]{32}\.mp3$/);
+  assert.equal(result.storageKey.includes("article-123"), false);
   assert.equal(result.sizeBytes, data.byteLength);
   assert.equal(result.checksum, sha256Hex(data));
   assert.ok(createIfNotExistsCalled);

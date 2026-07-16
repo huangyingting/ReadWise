@@ -1,6 +1,6 @@
 import { createLogger } from "@/lib/observability/logger";
 import type { MediaStorage, PutMediaInput, PutMediaResult } from "@/lib/storage/types";
-import { extensionForMime, normalizeExtension, sanitizeKeyHint, sha256Hex } from "@/lib/storage/key";
+import { buildStorageKey, sha256Hex } from "@/lib/storage/key";
 import type { AzureStorageConfig, AzureStorageConnectionStringConfig } from "@/lib/runtime-config/storage";
 export type { AzureStorageConfig, AzureStorageConnectionStringConfig } from "@/lib/runtime-config/storage";
 export { azureStorageConfig } from "@/lib/runtime-config/storage";
@@ -79,10 +79,7 @@ export class AzureBlobMediaStorage implements MediaStorage {
 
   async put(input: PutMediaInput): Promise<PutMediaResult> {
     const checksum = sha256Hex(input.data);
-    const ext =
-      normalizeExtension(input.extension) ?? extensionForMime(input.mimeType);
-    const prefix = sanitizeKeyHint(input.keyHint);
-    const storageKey = `${prefix}/${checksum}${ext}`;
+    const storageKey = buildStorageKey(input, checksum);
     const sizeBytes = input.data.byteLength;
 
     const container = await this.getContainer();

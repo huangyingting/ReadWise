@@ -235,6 +235,28 @@ test("[azure] kind is 'azure'", async () => {
   assert.equal(storage.kind, "azure");
 });
 
+test("filesystem and Azure generate the same flat scoped key", async () => {
+  const input = {
+    data: Buffer.from("flat-provider-parity"),
+    mimeType: "audio/mpeg",
+    keyHint: "speech",
+    keyScope: "article-123",
+  };
+  const { storage: filesystem } = await withFilesystem();
+  const filesystemResult = await filesystem.put(input);
+  const { storage: azure } = await withAzure();
+  const azureResult = await azure.put(input);
+
+  assert.equal(
+    filesystemResult.storageKey,
+    azureResult.storageKey,
+  );
+  assert.match(
+    filesystemResult.storageKey,
+    /^speech\/[a-f0-9]{32}\.mp3$/,
+  );
+});
+
 // ─── Registry / runtime behavior ─────────────────────────────────────────────
 
 test("local mode is the default media storage backend", async () => {

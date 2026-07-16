@@ -199,7 +199,7 @@ Alert conditions:
 Source: `src/lib/storage/`, `src/lib/storage/config.ts`.
 
 Objects are article-scoped and content-addressed:
-`speech/<articleId>/<sha256><ext>`. Repeated synthesis of unchanged audio for
+`speech/<digest128><ext>`, scoped by article id. Repeated synthesis of unchanged audio for
 one article is idempotent without coupling deletion across articles.
 
 ### Known limits
