@@ -8,7 +8,7 @@ import type { ListingArticle } from "@/lib/article-library";
 import type { ProgressSummary } from "@/lib/engagement";
 import { CATEGORIES } from "@/lib/categories";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
-import { Button, Field, Input, Select } from "@/components/ui";
+import { Button, Input, Label, Select } from "@/components/ui";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleListingGrid from "@/components/ArticleListingGrid";
 import { EmptyState } from "@/components/ui";
@@ -239,15 +239,17 @@ export default function CategoryBrowser({
           aria-label="Search within Browse"
           onSubmit={handleSearchSubmit}
         >
-          <Field label="Search Browse" className="w-full sm:w-72 gap-[var(--space-1)]">
+          <div className="flex w-full flex-col gap-[var(--space-1)] sm:w-72">
+            <Label htmlFor="browse-search">Search Browse</Label>
             <Input
+              id="browse-search"
               value={searchDraft}
               inputSize="sm"
               type="search"
               placeholder="Search articles in this context…"
               onChange={(e) => setSearchDraft(e.target.value)}
             />
-          </Field>
+          </div>
           <Button
             type="submit"
             size="sm"
