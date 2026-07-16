@@ -25,6 +25,7 @@ const e2eEnv = {
   AZURE_SPEECH_KEY: "",
   AZURE_SPEECH_REGION: "",
   READWISE_DISABLE_LISTING_CACHE: "1",
+  NEXT_DIST_DIR: ".next-e2e",
 };
 
 for (const [key, value] of Object.entries(e2eEnv)) {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeft, ChevronsLeft } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button, Tooltip } from "@/components/ui";
 import { cn, focusRing } from "@/lib/cn";
 import {
   PRIMARY_NAV,
@@ -14,6 +14,13 @@ import {
 } from "./nav-items";
 import type { ShellUser } from "./types";
 import { useSidebarState } from "./useSidebarState";
+
+const SIDEBAR_CONTROL_HEIGHT =
+  "h-[5dvh] min-h-[var(--space-6)] max-h-11";
+const SIDEBAR_STACK_GAP =
+  "gap-[clamp(0px,0.5dvh,var(--space-1))]";
+const SIDEBAR_STACK_PADDING =
+  "p-[clamp(var(--space-1),1dvh,var(--space-2))]";
 
 /**
  * Persistent collapsible left sidebar (US-149). Owns primary + secondary nav on
@@ -57,53 +64,71 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
       }}
       className={cn(
         "hidden md:flex shrink-0 flex-col",
-        "sticky top-14 h-[calc(100vh-3.5rem)] self-start",
+        "sticky top-[var(--header-height)] h-[calc(100dvh-var(--header-height))] self-start",
         "border-r border-border bg-surface",
         "transition-[width] [transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
       )}
     >
       <nav
         aria-label="Primary"
-        className="flex flex-1 flex-col gap-[var(--space-1)] overflow-y-auto p-[var(--space-2)]"
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto",
+          SIDEBAR_STACK_GAP,
+          SIDEBAR_STACK_PADDING,
+          collapsed && "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
       >
         {primaryNav.map(renderNavItem)}
 
-        <hr className="my-[var(--space-2)] border-t border-border" />
+        <hr className="my-[clamp(var(--space-1),1dvh,var(--space-2))] shrink-0 border-t border-border" />
 
         {secondaryNav.map(renderNavItem)}
       </nav>
 
       {/* Utility area: admin link (role-gated) + collapse toggle. */}
-      <div className="flex flex-col gap-[var(--space-1)] border-t border-border p-[var(--space-2)]">
+      <div
+        className={cn(
+          "flex shrink-0 flex-col border-t border-border",
+          SIDEBAR_STACK_GAP,
+          SIDEBAR_STACK_PADDING,
+        )}
+      >
         {isAdmin
           ? ADMIN_NAV_ITEMS.map(renderNavItem)
           : null}
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={toggle}
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          leadingIcon={
-            collapsed ? (
-              <PanelLeft size={20} aria-hidden className="shrink-0" />
-            ) : (
-              <ChevronsLeft size={20} aria-hidden className="shrink-0" />
-            )
-          }
-          className={cn(
-            "h-11 w-full rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-semibold text-text-muted hover:text-text",
-            collapsed
-              ? "justify-center gap-0 px-0"
-              : "justify-start gap-[var(--space-3)] px-[var(--space-3)]",
-          )}
+        <Tooltip
+          content={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          side={collapsed ? "right" : "top"}
+          wrap={false}
+          className="w-full"
         >
-          <span className={cn(collapsed ? "sr-only" : "truncate")}>
-            Collapse
-          </span>
-        </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggle}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            leadingIcon={
+              collapsed ? (
+                <PanelLeft size={20} aria-hidden className="shrink-0" />
+              ) : (
+                <ChevronsLeft size={20} aria-hidden className="shrink-0" />
+              )
+            }
+            className={cn(
+              SIDEBAR_CONTROL_HEIGHT,
+              "w-full rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-semibold text-text-muted hover:text-text",
+              collapsed
+                ? "justify-center gap-0 px-0"
+                : "justify-start gap-[var(--space-3)] px-[var(--space-3)]",
+            )}
+          >
+            <span className={cn(collapsed ? "sr-only" : "truncate")}>
+              Collapse
+            </span>
+          </Button>
+        </Tooltip>
       </div>
     </aside>
   );
@@ -125,14 +150,14 @@ function SidebarNavLink({
   const { href, label, icon: Icon } = item;
   const active = isActivePath(pathname, href);
 
-  return (
+  const link = (
     <Link
       href={href}
-      title={collapsed ? label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group/link relative flex items-center rounded-[var(--radius-md)]",
-        "h-11 text-[length:var(--text-sm)]",
+        "group/link relative flex w-full items-center rounded-[var(--radius-md)]",
+        SIDEBAR_CONTROL_HEIGHT,
+        "text-[length:var(--text-sm)]",
         collapsed
           ? "justify-center px-0"
           : "gap-[var(--space-3)] px-[var(--space-3)]",
@@ -152,5 +177,13 @@ function SidebarNavLink({
       <Icon size={20} aria-hidden className="shrink-0" />
       <span className={cn(collapsed ? "sr-only" : "truncate")}>{label}</span>
     </Link>
+  );
+
+  return collapsed ? (
+    <Tooltip content={label} side="right" wrap={false} className="w-full">
+      {link}
+    </Tooltip>
+  ) : (
+    link
   );
 }
