@@ -1,6 +1,9 @@
 import { expect, type Page } from "@playwright/test";
 
-/** Select an option through the shared visual Select control. */
+/**
+ * Select an option through the shared visual Select control. Use this instead
+ * of Playwright's native-only `selectOption()` for product dropdowns.
+ */
 export async function selectDropdownOption(
   page: Page,
   label: string | RegExp,
