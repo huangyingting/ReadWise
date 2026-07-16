@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Languages } from "lucide-react";
-import { Button, Select } from "@/components/ui";
+import { Button, Select, Tooltip } from "@/components/ui";
 import WordLookup from "./wordLookup/WordLookup";
 import AiBadge from "@/components/AiBadge";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
@@ -233,19 +233,20 @@ export default function BilingualBody({
     <>
       {/* Bilingual toggle strip — rendered above the article prose */}
       <div className="bilingual-controls" suppressHydrationWarning>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={`bilingual-toggle-btn${enabled ? " bilingual-toggle-btn--active" : ""}`}
-          onClick={toggleBilingual}
-          aria-pressed={enabled}
-          aria-label={enabled ? "Disable bilingual view" : "Enable bilingual view"}
-          title={enabled ? "Turn off bilingual view" : "Show paragraph translations side-by-side"}
-        >
-          <Languages size={14} aria-hidden />
-          <span>Bilingual</span>
-        </Button>
+        <Tooltip content={enabled ? "Turn off bilingual view" : "Show paragraph translations side-by-side"}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={`bilingual-toggle-btn${enabled ? " bilingual-toggle-btn--active" : ""}`}
+            onClick={toggleBilingual}
+            aria-pressed={enabled}
+            aria-label={enabled ? "Disable bilingual view" : "Enable bilingual view"}
+          >
+            <Languages size={14} aria-hidden />
+            <span>Bilingual</span>
+          </Button>
+        </Tooltip>
 
         {(enabled || controlsExpanded) && (
           <Select

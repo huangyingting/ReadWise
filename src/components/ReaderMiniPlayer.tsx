@@ -14,7 +14,7 @@
  * fallback:true (speech service unconfigured).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Play,
   Pause,
@@ -22,9 +22,11 @@ import {
   FastForward,
   X,
   Repeat1,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { IconButton, Select } from "@/components/ui";
+import { IconButton, Button, Popover, Tooltip } from "@/components/ui";
 import { useReaderAudio } from "./ReaderAudioProvider";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5] as const;
@@ -114,8 +116,7 @@ export default function ReaderMiniPlayer() {
     setCurrentTime(t);
   }
 
-  function handleSpeed(e: React.ChangeEvent<HTMLSelectElement>) {
-    const v = Number.parseFloat(e.target.value) as (typeof SPEEDS)[number];
+  function selectSpeed(v: (typeof SPEEDS)[number]) {
     setSpeed(v);
     if (audioRef.current) audioRef.current.playbackRate = v;
   }
@@ -181,44 +182,120 @@ export default function ReaderMiniPlayer() {
 
       {/* Right: speed + loop + close */}
       <div className="reader-mini-player-right">
-        <Select
-          value={speed}
-          onChange={handleSpeed}
-          aria-label="Playback speed"
-          selectSize="sm"
-          className="reader-speed-select"
-        >
-          {SPEEDS.map((s) => (
-            <option key={s} value={s}>
-              {s}×
-            </option>
-          ))}
-        </Select>
+        <SpeedControl speed={speed} onSelect={selectSpeed} />
 
         {/* Sentence loop toggle — disabled when no segments available */}
-        <IconButton
-          aria-label={isLooping ? "Stop looping sentence" : "Loop current sentence"}
-          aria-pressed={isLooping}
-          context="reading"
-          onClick={toggleLoop}
-          disabled={!canLoop}
-          className={cn(isLooping && "text-primary")}
-          title={isLooping ? "Stop looping sentence" : "Loop current sentence"}
-        >
-          <Repeat1 size={CONTROL_ICON_SIZE} />
-        </IconButton>
+        <Tooltip content={isLooping ? "Stop looping sentence" : "Loop current sentence"}>
+          <IconButton
+            aria-label={isLooping ? "Stop looping sentence" : "Loop current sentence"}
+            aria-pressed={isLooping}
+            context="reading"
+            onClick={toggleLoop}
+            disabled={!canLoop}
+            className={cn(isLooping && "text-primary")}
+          >
+            <Repeat1 size={CONTROL_ICON_SIZE} />
+          </IconButton>
+        </Tooltip>
 
-        <IconButton
-          aria-label="Close audio player"
-          context="reading"
-          onClick={() => {
-            audioRef.current?.pause();
-            setDismissed(true);
-          }}
-        >
-          <X size={CONTROL_ICON_SIZE} />
-        </IconButton>
+        <Tooltip content="Close audio player">
+          <IconButton
+            aria-label="Close audio player"
+            context="reading"
+            onClick={() => {
+              audioRef.current?.pause();
+              setDismissed(true);
+            }}
+          >
+            <X size={CONTROL_ICON_SIZE} />
+          </IconButton>
+        </Tooltip>
       </div>
     </div>
+  );
+}
+
+const SPEED_MENU_ITEM_CLASS = cn(
+  "h-auto w-full justify-between gap-[var(--space-4)] rounded-none",
+  "px-[var(--space-4)] py-[var(--space-2)] text-[length:var(--text-sm)] font-normal",
+  "text-text hover:bg-bg-subtle",
+);
+
+/**
+ * Playback-speed dropdown built on the shared Popover primitive (replaces the
+ * native <select>). The trigger shows the current rate; the panel is a
+ * `listbox` of speed options with the active rate marked by a check and
+ * keyboard roving handled by Popover.
+ */
+function SpeedControl({
+  speed,
+  onSelect,
+}: {
+  speed: (typeof SPEEDS)[number];
+  onSelect: (value: (typeof SPEEDS)[number]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <>
+      <Button
+        ref={triggerRef}
+        variant="secondary"
+        size="sm"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Playback speed: ${speed}\u00d7`}
+        onClick={() => setOpen((v) => !v)}
+        trailingIcon={
+          <ChevronDown
+            size={14}
+            aria-hidden
+            className={cn(
+              "transition-transform [transition-duration:var(--duration-fast)]",
+              open && "rotate-180",
+            )}
+          />
+        }
+        className="min-w-[64px] gap-[var(--space-1)] px-[var(--space-2)] font-medium tabular-nums"
+      >
+        {speed}&times;
+      </Button>
+
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchorRef={triggerRef}
+        label="Playback speed"
+        align="end"
+      >
+        <ul role="listbox" aria-label="Playback speed" className="min-w-[120px]">
+          {SPEEDS.map((value) => {
+            const selected = value === speed;
+            return (
+              <li key={value}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => {
+                    onSelect(value);
+                    setOpen(false);
+                  }}
+                  trailingIcon={selected ? <Check size={14} aria-hidden /> : undefined}
+                  className={cn(
+                    SPEED_MENU_ITEM_CLASS,
+                    selected && "font-semibold text-primary-text",
+                  )}
+                >
+                  <span className="tabular-nums">{value}&times;</span>
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      </Popover>
+    </>
   );
 }

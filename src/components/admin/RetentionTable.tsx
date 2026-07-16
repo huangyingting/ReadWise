@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/Card";
+import { Tooltip } from "@/components/ui";
 import { AdminTableWrap } from "./AdminTableWrap";
 import type { RetentionCohort } from "@/lib/analytics/queries";
 
@@ -39,9 +40,10 @@ function RetentionCellValue({
         backgroundColor: `color-mix(in srgb, var(--primary) ${getCellIntensity(cell)}%, transparent)`,
         textAlign: "center",
       }}
-      title={`${cell.count} of ${cohortSize} active`}
     >
-      {cell.pct}%
+      <Tooltip content={`${cell.count} of ${cohortSize} active`}>
+        <span>{cell.pct}%</span>
+      </Tooltip>
     </td>
   );
 }

@@ -27,7 +27,7 @@
 
 import { useEffect, useMemo } from "react";
 import { Mic, MicOff, RotateCcw, Square, Star, Volume2 } from "lucide-react";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, Tooltip } from "@/components/ui";
 import AiBadge from "@/components/AiBadge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
@@ -88,7 +88,7 @@ function HearItButton({
   title,
   ariaDisabled,
 }: HearItButtonProps) {
-  return (
+  const button = (
     <Button
       variant="ghost"
       size={size}
@@ -97,12 +97,13 @@ function HearItButton({
       loading={loading}
       disabled={disabled}
       aria-disabled={ariaDisabled || undefined}
-      title={title}
       aria-label="Hear this sentence"
     >
       {label}
     </Button>
   );
+
+  return title ? <Tooltip content={title}>{button}</Tooltip> : button;
 }
 
 function WeakSentenceResurface({

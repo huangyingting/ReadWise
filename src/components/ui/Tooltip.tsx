@@ -1,19 +1,65 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
 type TooltipSide = "top" | "bottom" | "left" | "right";
 
-const tooltipSideClasses: Record<TooltipSide, string> = {
-  top: "bottom-full left-1/2 -translate-x-1/2 mb-1",
-  bottom: "top-full left-1/2 -translate-x-1/2 mt-1",
-  left: "right-full top-1/2 -translate-y-1/2 mr-1",
-  right: "left-full top-1/2 -translate-y-1/2 ml-1",
-};
+/** Gap in px between the trigger and the tooltip bubble. */
+const TOOLTIP_OFFSET = 6;
+/** Minimum gap in px between the tooltip and the viewport edge. */
+const VIEWPORT_PADDING = 4;
+
+type Coords = { top: number; left: number };
+
+function placeTooltip(
+  side: TooltipSide,
+  trigger: DOMRect,
+  width: number,
+  height: number,
+): Coords {
+  switch (side) {
+    case "bottom":
+      return {
+        top: trigger.bottom + TOOLTIP_OFFSET,
+        left: trigger.left + trigger.width / 2 - width / 2,
+      };
+    case "left":
+      return {
+        top: trigger.top + trigger.height / 2 - height / 2,
+        left: trigger.left - width - TOOLTIP_OFFSET,
+      };
+    case "right":
+      return {
+        top: trigger.top + trigger.height / 2 - height / 2,
+        left: trigger.right + TOOLTIP_OFFSET,
+      };
+    case "top":
+    default:
+      return {
+        top: trigger.top - height - TOOLTIP_OFFSET,
+        left: trigger.left + trigger.width / 2 - width / 2,
+      };
+  }
+}
+
+function clampToViewport(coords: Coords, width: number, height: number): Coords {
+  if (typeof window === "undefined") return coords;
+  const maxLeft = window.innerWidth - width - VIEWPORT_PADDING;
+  const maxTop = window.innerHeight - height - VIEWPORT_PADDING;
+  return {
+    left: Math.max(VIEWPORT_PADDING, Math.min(coords.left, maxLeft)),
+    top: Math.max(VIEWPORT_PADDING, Math.min(coords.top, maxTop)),
+  };
+}
 
 const focusableTriggerSelector =
   "button, a[href], input, select, textarea, [tabindex]:not([tabindex='-1'])";
+
+/** Avoids the useLayoutEffect SSR warning while keeping pre-paint positioning on the client. */
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
 
 export interface TooltipProps {
   /** The tooltip text shown on hover/focus. */
@@ -22,6 +68,12 @@ export interface TooltipProps {
   children: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
   /** Preferred placement relative to the trigger. */
   side?: TooltipSide;
+  /**
+   * Extra classes for the wrapper element. Defaults to `relative inline-flex`;
+   * pass layout overrides (e.g. `w-full`, `block`, or absolute-position classes)
+   * when the trigger needs to preserve its original box in the layout/flow.
+   */
+  className?: string;
 }
 
 /**
@@ -35,11 +87,16 @@ export interface TooltipProps {
  * passed through safely. For complex popovers or rich content, a full
  * portal-based solution is a recommended follow-up.
  */
-export function Tooltip({ content, children, side = "top" }: TooltipProps) {
+export function Tooltip({ content, children, side = "top", className }: TooltipProps) {
   const [open, setOpen] = React.useState(false);
+  const [coords, setCoords] = React.useState<Coords | null>(null);
+  const [mounted, setMounted] = React.useState(false);
   const id = React.useId();
   const wrapperRef = React.useRef<HTMLSpanElement>(null);
+  const tooltipRef = React.useRef<HTMLDivElement>(null);
   const describedElementRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => setMounted(true), []);
 
   const removeDescription = React.useCallback(() => {
     const element = describedElementRef.current;
@@ -109,34 +166,64 @@ export function Tooltip({ content, children, side = "top" }: TooltipProps) {
     removeDescription();
   }, [removeDescription]);
 
+  const updatePosition = React.useCallback(() => {
+    const anchor = wrapperRef.current?.firstElementChild ?? wrapperRef.current;
+    const tip = tooltipRef.current;
+    if (!anchor || !tip) return;
+    const rect = anchor.getBoundingClientRect();
+    const width = tip.offsetWidth;
+    const height = tip.offsetHeight;
+    setCoords(clampToViewport(placeTooltip(side, rect, width, height), width, height));
+  }, [side]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const onReflow = () => updatePosition();
+    window.addEventListener("scroll", onReflow, true);
+    window.addEventListener("resize", onReflow);
+    return () => {
+      window.removeEventListener("scroll", onReflow, true);
+      window.removeEventListener("resize", onReflow);
+    };
+  }, [open, updatePosition]);
+
   React.useEffect(() => removeDescription, [removeDescription]);
 
   return (
     <span
       ref={wrapperRef}
-      className="relative inline-flex"
+      className={cn("relative inline-flex", className)}
       onMouseEnter={(event) => openTooltip(event.target)}
       onMouseLeave={closeTooltip}
       onFocus={(event) => openTooltip(event.target)}
       onBlur={closeTooltip}
     >
       {children}
-      {open && (
-        <span
-          id={id}
-          role="tooltip"
-          className={cn(
-            "absolute z-[var(--z-overlay)] px-[var(--space-2)] py-[var(--space-1)]",
-            "rounded-[var(--radius-sm)]",
-            "text-[length:var(--text-xs)] text-text-inverted whitespace-nowrap",
-            "bg-[color:var(--text)] shadow-[var(--shadow-md)]",
-            "pointer-events-none motion-reduce:transition-none",
-            tooltipSideClasses[side],
-          )}
-        >
-          {content}
-        </span>
-      )}
+      {open && mounted
+        ? createPortal(
+            <div
+              ref={tooltipRef}
+              id={id}
+              role="tooltip"
+              style={{
+                position: "fixed",
+                top: coords?.top ?? -9999,
+                left: coords?.left ?? -9999,
+              }}
+              className={cn(
+                "z-[var(--z-overlay)] px-[var(--space-2)] py-[var(--space-1)]",
+                "rounded-[var(--radius-sm)]",
+                "text-[length:var(--text-xs)] text-text-inverted whitespace-nowrap",
+                "bg-[color:var(--text)] shadow-[var(--shadow-md)]",
+                "pointer-events-none motion-reduce:transition-none",
+              )}
+            >
+              {content}
+            </div>,
+            document.body,
+          )
+        : null}
     </span>
   );
 }

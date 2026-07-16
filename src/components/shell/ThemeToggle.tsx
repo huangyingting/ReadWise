@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sun, Moon, Monitor } from "lucide-react";
-import { IconButton } from "@/components/ui";
+import { IconButton, Tooltip } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import {
   getThemePreference,
@@ -63,17 +63,18 @@ export default function ThemeToggle({ className }: ThemeToggleProps) {
   const Icon = ICONS[theme];
 
   return (
-    <IconButton
-      onClick={handleClick}
-      aria-label={label}
-      title={mounted ? label : undefined}
-      className={cn(
-        "h-11 w-11 rounded-[var(--radius-md)] text-text-muted hover:text-text",
-        className,
-      )}
-    >
-      {/* Render a stable icon until mounted to avoid a hydration mismatch. */}
-      {mounted ? <Icon size={20} aria-hidden /> : <Monitor size={20} aria-hidden />}
-    </IconButton>
+    <Tooltip content={label}>
+      <IconButton
+        onClick={handleClick}
+        aria-label={label}
+        className={cn(
+          "h-11 w-11 rounded-[var(--radius-md)] text-text-muted hover:text-text",
+          className,
+        )}
+      >
+        {/* Render a stable icon until mounted to avoid a hydration mismatch. */}
+        {mounted ? <Icon size={20} aria-hidden /> : <Monitor size={20} aria-hidden />}
+      </IconButton>
+    </Tooltip>
   );
 }

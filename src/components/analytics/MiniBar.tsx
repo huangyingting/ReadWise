@@ -5,6 +5,8 @@
  * database access.
  */
 
+import { Tooltip } from "@/components/ui";
+
 export interface MiniBarProps {
   value: number;
   max: number;
@@ -22,28 +24,30 @@ export function MiniBar({
   const valueLabel = `${value} ${label}`;
 
   return (
-    <div className="flex items-center gap-[var(--space-2)]" title={label}>
-      <div
-        className="flex-1 rounded-full overflow-hidden"
-        style={{ height: 8, backgroundColor: "var(--border)" }}
-        role="presentation"
-      >
+    <Tooltip content={label} className="w-full">
+      <div className="flex w-full items-center gap-[var(--space-2)]">
         <div
-          style={{
-            width: `${pct}%`,
-            height: "100%",
-            backgroundColor: color,
-            borderRadius: 9999,
-          }}
-        />
+          className="flex-1 rounded-full overflow-hidden"
+          style={{ height: 8, backgroundColor: "var(--border)" }}
+          role="presentation"
+        >
+          <div
+            style={{
+              width: `${pct}%`,
+              height: "100%",
+              backgroundColor: color,
+              borderRadius: 9999,
+            }}
+          />
+        </div>
+        <span
+          className="text-[length:var(--text-xs)] text-text-subtle tabular-nums"
+          style={{ minWidth: "2ch", textAlign: "right" }}
+          aria-label={valueLabel}
+        >
+          {value}
+        </span>
       </div>
-      <span
-        className="text-[length:var(--text-xs)] text-text-subtle tabular-nums"
-        style={{ minWidth: "2ch", textAlign: "right" }}
-        aria-label={valueLabel}
-      >
-        {value}
-      </span>
-    </div>
+    </Tooltip>
   );
 }

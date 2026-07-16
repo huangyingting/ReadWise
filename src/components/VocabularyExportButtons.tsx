@@ -1,6 +1,7 @@
 "use client";
 
 import { buttonVariants } from "@/components/ui/Button";
+import { Tooltip } from "@/components/ui";
 
 const EXPORT_LINKS = [
   {
@@ -27,15 +28,15 @@ export default function VocabularyExportButtons() {
       <div className="flex items-center gap-[var(--space-2)] flex-wrap">
         <span className="text-text-muted text-[length:var(--text-sm)]">Export:</span>
         {EXPORT_LINKS.map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            download
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-            title={link.title}
-          >
-            {link.label}
-          </a>
+          <Tooltip key={link.href} content={link.title}>
+            <a
+              href={link.href}
+              download
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              {link.label}
+            </a>
+          </Tooltip>
         ))}
       </div>
       <p className="text-text-muted text-[length:var(--text-xs)] m-0">

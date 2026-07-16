@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
+import { Tooltip } from "@/components/ui";
 import { formatShortDate } from "@/lib/display-format";
 import type { WordEntry } from "@/components/VocabularyJournal";
 
@@ -61,13 +62,14 @@ export function WordTableRow({ word, articles, selected, onToggle }: WordTableRo
       </td>
       <td>
         {word.articleId && articleTitle ? (
-          <Link
-            href={`/reader/${word.articleId}`}
-            className="text-[length:var(--text-xs)] text-primary hover:underline"
-            title={articleTitle}
-          >
-            {formatArticleTitle(articleTitle)}
-          </Link>
+          <Tooltip content={articleTitle}>
+            <Link
+              href={`/reader/${word.articleId}`}
+              className="text-[length:var(--text-xs)] text-primary hover:underline"
+            >
+              {formatArticleTitle(articleTitle)}
+            </Link>
+          </Tooltip>
         ) : (
           <span className="text-text-muted text-[length:var(--text-xs)]">—</span>
         )}

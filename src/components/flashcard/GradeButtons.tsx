@@ -2,7 +2,7 @@
 
 import { RotateCcw, Frown, Check, ChevronsRight } from "lucide-react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
-import { Button } from "@/components/ui";
+import { Button, Tooltip } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import type { Grade } from "./types";
 
@@ -95,17 +95,16 @@ export function GradeButtons({ onGrade, disabled, goodRef }: GradeButtonsProps) 
           tintClass,
           hoverStyle,
         }) => (
-          <Button
-            key={grade}
-            ref={grade === "good" ? goodRef : undefined}
-            variant={variant}
-            size="md"
-            disabled={disabled}
-            onClick={() => onGrade(grade)}
-            title={tooltip}
-            style={hoverStyle}
-            className={getGradeButtonClassName(variant)}
-          >
+          <Tooltip key={grade} content={tooltip} className="w-full">
+            <Button
+              ref={grade === "good" ? goodRef : undefined}
+              variant={variant}
+              size="md"
+              disabled={disabled}
+              onClick={() => onGrade(grade)}
+              style={hoverStyle}
+              className={getGradeButtonClassName(variant)}
+            >
             <span
               className={cn(
                 "inline-flex items-center gap-[var(--space-1)]",
@@ -118,7 +117,8 @@ export function GradeButtons({ onGrade, disabled, goodRef }: GradeButtonsProps) 
             <span className="hidden sm:block text-[length:var(--text-xs)] text-text-subtle">
               {shortcutKey}
             </span>
-          </Button>
+            </Button>
+          </Tooltip>
         ),
       )}
     </div>

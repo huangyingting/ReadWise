@@ -81,7 +81,7 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
 
         <Button
           variant="ghost"
-          size="lg"
+          size="sm"
           onClick={toggle}
           aria-expanded={!collapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -94,10 +94,10 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
             )
           }
           className={cn(
-            "h-11 w-full rounded-[var(--radius-md)] text-text-muted hover:text-text",
+            "h-11 w-full rounded-[var(--radius-md)] text-[length:var(--text-sm)] font-semibold text-text-muted hover:text-text",
             collapsed
-              ? "justify-center px-0"
-              : "gap-[var(--space-3)] px-[var(--space-3)]",
+              ? "justify-center gap-0 px-0"
+              : "justify-start gap-[var(--space-3)] px-[var(--space-3)]",
           )}
         >
           <span className={cn(collapsed ? "sr-only" : "truncate")}>

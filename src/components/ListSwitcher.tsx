@@ -23,7 +23,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, X, MoreHorizontal } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
-import { Button, IconButton } from "@/components/ui";
+import { Button, IconButton, Tooltip } from "@/components/ui";
 import { Badge } from "@/components/ui/Badge";
 import { ListRenameForm } from "@/components/lists/ListRenameForm";
 import { ListCreateForm } from "@/components/lists/ListCreateForm";
@@ -132,20 +132,21 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
             "transition-opacity [transition-duration:var(--duration-fast)]",
           )}
         >
-          <IconButton
-            size="sm"
-            aria-label={`Rename ${list.name}`}
-            title="Rename list"
-            onClick={() => setRenaming(true)}
-            className={cn(
-              "inline-flex items-center justify-center size-7 rounded-[var(--radius-sm)]",
-              "text-text-subtle hover:text-text hover:bg-bg-subtle",
-              "transition-colors [transition-duration:var(--duration-fast)]",
-              focusRing,
-            )}
-          >
-            <Pencil size={14} aria-hidden />
-          </IconButton>
+          <Tooltip content="Rename list">
+            <IconButton
+              size="sm"
+              aria-label={`Rename ${list.name}`}
+              onClick={() => setRenaming(true)}
+              className={cn(
+                "inline-flex items-center justify-center size-7 rounded-[var(--radius-sm)]",
+                "text-text-subtle hover:text-text hover:bg-bg-subtle",
+                "transition-colors [transition-duration:var(--duration-fast)]",
+                focusRing,
+              )}
+            >
+              <Pencil size={14} aria-hidden />
+            </IconButton>
+          </Tooltip>
 
           <ListDeleteControl
             listId={list.id}

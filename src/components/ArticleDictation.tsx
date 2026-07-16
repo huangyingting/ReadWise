@@ -16,7 +16,7 @@
 import { type ChangeEvent, type FormEvent } from "react";
 import { ChevronLeft, ChevronRight, Headphones, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Button, EmptyState, IconButton, Textarea } from "@/components/ui";
+import { Button, EmptyState, IconButton, Textarea, Tooltip } from "@/components/ui";
 import AiBadge from "@/components/AiBadge";
 import {
   useDictationPanel,
@@ -57,55 +57,53 @@ function getScoreVariant(accuracy: number): ScoreVariant {
 function renderDiffToken(tok: DiffToken, index: number) {
   if (tok.status === "correct") {
     return (
-      <span
-        key={index}
-        className="rw-dictate-word rw-dictate-word--correct"
-        title="Correct"
-      >
-        {tok.word}
-      </span>
+      <Tooltip key={index} content="Correct" className="inline">
+        <span className="rw-dictate-word rw-dictate-word--correct">
+          {tok.word}
+        </span>
+      </Tooltip>
     );
   }
 
   if (tok.status === "wrong") {
     return (
-      <span
-        key={index}
-        className="rw-dictate-word rw-dictate-word--wrong"
-        title={`You typed: "${tok.typed}"`}
-        aria-label={`"${tok.typed}" should be "${tok.word}"`}
-      >
-        {tok.typed}
-        <span className="rw-dictate-correction" aria-hidden>
-          {" "}
-          → {tok.word}
+      <Tooltip key={index} content={`You typed: "${tok.typed}"`} className="inline">
+        <span
+          className="rw-dictate-word rw-dictate-word--wrong"
+          aria-label={`"${tok.typed}" should be "${tok.word}"`}
+        >
+          {tok.typed}
+          <span className="rw-dictate-correction" aria-hidden>
+            {" "}
+            → {tok.word}
+          </span>
         </span>
-      </span>
+      </Tooltip>
     );
   }
 
   if (tok.status === "missing") {
     return (
-      <span
-        key={index}
-        className="rw-dictate-word rw-dictate-word--missing"
-        title="Missed word"
-        aria-label={`Missed word: "${tok.word}"`}
-      >
-        {tok.word}
-      </span>
+      <Tooltip key={index} content="Missed word" className="inline">
+        <span
+          className="rw-dictate-word rw-dictate-word--missing"
+          aria-label={`Missed word: "${tok.word}"`}
+        >
+          {tok.word}
+        </span>
+      </Tooltip>
     );
   }
 
   return (
-    <span
-      key={index}
-      className="rw-dictate-word rw-dictate-word--extra"
-      title="Extra word not in original"
-      aria-label={`Extra word: "${tok.word}"`}
-    >
-      {tok.word}
-    </span>
+    <Tooltip key={index} content="Extra word not in original" className="inline">
+      <span
+        className="rw-dictate-word rw-dictate-word--extra"
+        aria-label={`Extra word: "${tok.word}"`}
+      >
+        {tok.word}
+      </span>
+    </Tooltip>
   );
 }
 
