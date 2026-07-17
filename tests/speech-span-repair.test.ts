@@ -4,7 +4,7 @@ process.env.LOG_LEVEL = "error";
  * Focused tests for speech timing span repair (issue #1060).
  *
  * Covers:
- *  - computeSpansForWords: punctuation, contractions, Unicode/UTF-16, long-row
+ *  - enrichSpeechTimingSpans: punctuation, contractions, Unicode/UTF-16, long-row
  *    single-miss, V2 freeze (words/timings unchanged)
  *  - repairSpeechTimingSpans: dry-run/apply semantics, idempotent, invalid input,
  *    V1/legacy skipped, missing article text skipped
@@ -13,6 +13,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, describe, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import { enrichSpeechTimingSpans } from "@/lib/speech/timing-enrichment";
 
 type SpeechRow = {
   id: string;
@@ -52,30 +53,28 @@ beforeEach(() => {
   updateShouldThrow = false;
 });
 
-// ── computeSpansForWords ────────────────────────────────────────────────────
+// ── enrichSpeechTimingSpans ─────────────────────────────────────────────────
 
-describe("computeSpansForWords", () => {
+describe("enrichSpeechTimingSpans", () => {
   test("assigns correct plainText-relative spans for simple words", async () => {
-    const { computeSpansForWords } = await import("@/lib/speech/timing-migration");
     const words = [
       { word: "Hello", startMs: 0, endMs: 100 },
       { word: "world", startMs: 100, endMs: 200 },
     ];
-    const result = computeSpansForWords(words, "Hello world");
+    const result = enrichSpeechTimingSpans(words, "Hello world");
     assert.equal(result.length, 2);
     assert.deepEqual([result[0]?.textStart, result[0]?.textEnd], [0, 5]);
     assert.deepEqual([result[1]?.textStart, result[1]?.textEnd], [6, 11]);
   });
 
   test("aligns punctuation tokens correctly", async () => {
-    const { computeSpansForWords } = await import("@/lib/speech/timing-migration");
     const words = [
       { word: "Hello", startMs: 0, endMs: 100 },
       { word: ",", startMs: 100, endMs: 100 },  // zero-duration punctuation
       { word: "world", startMs: 100, endMs: 200 },
       { word: ".", startMs: 200, endMs: 200 },  // zero-duration punctuation
     ];
-    const result = computeSpansForWords(words, "Hello, world.");
+    const result = enrichSpeechTimingSpans(words, "Hello, world.");
     // Zero-duration entries that can't be aligned are excluded
     // Spoken words get spans
     const spoken = result.filter((w) => w.word !== "," && w.word !== ".");
@@ -84,26 +83,24 @@ describe("computeSpansForWords", () => {
   });
 
   test("excludes zero-duration words that cannot be aligned", async () => {
-    const { computeSpansForWords } = await import("@/lib/speech/timing-migration");
     const words = [
       { word: "Hello", startMs: 0, endMs: 100 },
       { word: "\u200b", startMs: 100, endMs: 100 },  // zero-duration invisible char
       { word: "world", startMs: 100, endMs: 200 },
     ];
-    const result = computeSpansForWords(words, "Hello world");
+    const result = enrichSpeechTimingSpans(words, "Hello world");
     assert.equal(result.length, 2); // zero-dur unaligned excluded
     assert.ok(result.every((w) => w.word !== "\u200b"));
   });
 
   test("assigns neighbour fallback for non-zero-duration unaligned words", async () => {
-    const { computeSpansForWords } = await import("@/lib/speech/timing-migration");
     // 'twenty' is an Azure TTS expansion of '20' — won't be in plainText
     const words = [
       { word: "about", startMs: 0, endMs: 100 },
       { word: "twenty", startMs: 100, endMs: 200 },  // not in plainText
       { word: "million", startMs: 200, endMs: 300 },
     ];
-    const result = computeSpansForWords(words, "about 20 million");
+    const result = enrichSpeechTimingSpans(words, "about 20 million");
     // 'twenty' should receive a valid fallback span (not drop the whole array)
     assert.equal(result.length, 3);
     const twenty = result.find((w) => w.word === "twenty");
@@ -113,13 +110,12 @@ describe("computeSpansForWords", () => {
   });
 
   test("preserves word timings (V2 freeze — words/startMs/endMs unchanged)", async () => {
-    const { computeSpansForWords } = await import("@/lib/speech/timing-migration");
     const words = [
       { word: "The", startMs: 0, endMs: 50 },
       { word: "quick", startMs: 60, endMs: 200 },
       { word: "brown", startMs: 210, endMs: 350 },
     ];
-    const result = computeSpansForWords(words, "The quick brown fox");
+    const result = enrichSpeechTimingSpans(words, "The quick brown fox");
     assert.equal(result.length, 3);
     for (let i = 0; i < words.length; i++) {
       assert.equal(result[i]!.word, words[i]!.word);
@@ -129,12 +125,11 @@ describe("computeSpansForWords", () => {
   });
 
   test("handles contractions correctly (UTF-16 span)", async () => {
-    const { computeSpansForWords } = await import("@/lib/speech/timing-migration");
     const words = [
       { word: "don't", startMs: 0, endMs: 100 },
       { word: "worry", startMs: 110, endMs: 200 },
     ];
-    const result = computeSpansForWords(words, "don't worry");
+    const result = enrichSpeechTimingSpans(words, "don't worry");
     assert.equal(result.length, 2);
     const dont = result[0]!;
     assert.equal(dont.textStart, 0);
@@ -142,12 +137,11 @@ describe("computeSpansForWords", () => {
   });
 
   test("handles Unicode characters correctly (UTF-16 spans)", async () => {
-    const { computeSpansForWords } = await import("@/lib/speech/timing-migration");
     const words = [
       { word: "caf\u00e9", startMs: 0, endMs: 100 },  // é is U+00E9 (1 UTF-16 unit)
       { word: "owner", startMs: 110, endMs: 200 },
     ];
-    const result = computeSpansForWords(words, "caf\u00e9 owner");
+    const result = enrichSpeechTimingSpans(words, "caf\u00e9 owner");
     assert.equal(result.length, 2);
     const cafe = result[0]!;
     assert.equal(cafe.textStart, 0);
@@ -155,7 +149,6 @@ describe("computeSpansForWords", () => {
   });
 
   test("handles long-row single-miss: one unaligned word does not drop all spans", async () => {
-    const { computeSpansForWords } = await import("@/lib/speech/timing-migration");
     // Build a long article: 100 words with a single unaligned word in the middle
     const articleWords = Array.from({ length: 50 }, (_, i) => `word${i}`);
     const words = [
@@ -173,7 +166,7 @@ describe("computeSpansForWords", () => {
       })),
     ];
     const plainText = articleWords.join(" "); // no 'unexpandedterm'
-    const result = computeSpansForWords(words, plainText);
+    const result = enrichSpeechTimingSpans(words, plainText);
 
     // All words should be in result (non-zero-duration, so fallback)
     assert.equal(result.length, words.length);
@@ -186,14 +179,12 @@ describe("computeSpansForWords", () => {
   });
 
   test("returns empty array for empty words", async () => {
-    const { computeSpansForWords } = await import("@/lib/speech/timing-migration");
-    assert.deepEqual(computeSpansForWords([], "Hello"), []);
+    assert.deepEqual(enrichSpeechTimingSpans([], "Hello"), []);
   });
 
   test("returns words unchanged when plainText is empty", async () => {
-    const { computeSpansForWords } = await import("@/lib/speech/timing-migration");
     const words = [{ word: "Hello", startMs: 0, endMs: 100 }];
-    const result = computeSpansForWords(words, "");
+    const result = enrichSpeechTimingSpans(words, "");
     assert.deepEqual(result, words);
   });
 });

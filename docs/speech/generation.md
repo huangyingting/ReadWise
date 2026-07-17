@@ -1,8 +1,8 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-04"
-description: "Documents TTS provider seam, request building, voice/format fallback, word-boundary collection, and ArticleSpeech generation. Captures current Azure Speech synthesis flow, cache/storage behavior, timing migration, readiness, and graceful fallback rules."
+last_updated: "2026-07-18"
+description: "Documents real-time and Batch narration, timing enrichment, voice/format fallback, and ArticleSpeech generation. Captures current Azure Speech synthesis flow, cache/storage behavior, timing migration, readiness, and graceful fallback rules."
 ---
 
 # Speech generation
@@ -21,10 +21,11 @@ For background TTS job scheduling, see
 
 ## Ownership boundary
 
-**Speech subsystem owns** the TTS provider seam, SSML/text request building,
-voice and output-format selection and fallback, word-boundary event collection,
-Azure SDK isolation, `ArticleSpeech` cache creation and invalidation, and the
-`saveSpeechResult` / `resolveStoredSpeechMedia` repository functions.
+**Speech subsystem owns** the TTS provider seam, real-time and Batch request
+building, voice and output-format selection and fallback, word-boundary
+collection and timing enrichment, Azure SDK and Batch REST isolation,
+`ArticleSpeech` cache creation and invalidation, and the `saveSpeechResult` /
+`resolveStoredSpeechMedia` repository functions.
 
 **Speech does not own** storage backend selection or migration (owned by Media),
 reader playback UX (owned by Reader), or job retry scheduling (owned by
@@ -36,11 +37,15 @@ Operations).
 | ---- | ------- |
 | `src/lib/speech/index.ts` | Public entry point. Exports `getOrCreateArticleSpeech`, timing/practice utilities, and `SpeechResult` type. |
 | `src/lib/speech/provider-azure.ts` | Azure SDK isolation — the only module that imports `microsoft-cognitiveservices-speech-sdk`. |
+| `src/lib/speech/azure-batch-synthesis.ts` | Full Azure Batch workflow behind `runAzureBatchSynthesis`: selection, SSML, job planning, REST calls, result parsing, timing enrichment, and persistence. |
 | `src/lib/speech/repository.ts` | ArticleSpeech DB reads/writes, corrupt-cache recovery, `MediaAsset` upsert, storage interaction. |
 | `src/lib/speech/timing.ts` | Word-timing types and utilities (`SpeechWord`, `timingStartSeconds`, `timingEndSeconds`). |
 | `src/lib/speech/timing-alignment.ts` | Token alignment for word-highlight mapping. |
+| `src/lib/speech/timing-enrichment.ts` | Canonical policy for adding reader-text spans to provider word timings. |
+| `src/lib/speech/timing-migration.ts` | Stored timing format migration and span repair; delegates span policy to timing enrichment. |
 | `src/lib/speech/practice.ts` | Sentence segmentation for practice tools. |
 | `src/lib/runtime-config/speech.ts` | Azure Speech env parsing: key, region, voice, format, timeout. |
+| `scripts/batch-synthesis.ts` | Thin CLI adapter for argument parsing, validation, loop control, and process lifecycle. |
 
 ## TTS provider seam
 
@@ -106,21 +111,26 @@ synthesis request overwrites it.
 ## Azure Batch Synthesis CLI
 
 Use `npm run speech:batch` for backend/offline narration jobs that should cover
-full article text instead of the live-listening `MAX_TTS_CHARS = 5000` cap. The
-script extracts DOM-order reader blocks with `articleHtmlToReaderBlocks`, submits
-Azure Speech Batch Synthesis jobs, enables `wordBoundaryEnabled`, downloads the
-result ZIP, parses `[nnnn].word.json`, and saves audio/timings through
-`saveSpeechResult`.
+full article text instead of the live-listening `MAX_TTS_CHARS = 5000` cap.
+`scripts/batch-synthesis.ts` parses and validates CLI arguments and controls
+single-pass or loop execution. It delegates each pass to
+`runAzureBatchSynthesis` in `src/lib/speech/azure-batch-synthesis.ts`, which owns
+article selection, DOM-order reader-block extraction, SSML and job planning,
+Azure submission and polling, result download and parsing, and persistence
+through `saveSpeechResult`.
 
 Azure Batch Synthesis `[nnnn].word.json` entries contain `Text`, `AudioOffset`,
 and `Duration` already in **milliseconds** (unlike the real-time Speech SDK word-
 boundary events, which use 100-nanosecond ticks and require dividing by 10,000).
 The parser stores these values directly as `SpeechWord.startMs`/`endMs`. The
-parser also preserves optional `TextOffset` plus `WordLength`/`TextLength` fields
-if the service returns them for a voice/model, so the reader can use direct text
-spans instead of token alignment. When Batch returns only the documented fields,
-the script derives `textStart`/`textEnd` spans by aligning returned word-boundary
-text back to the same DOM-extracted `plainText` that was sent to Azure.
+parser also preserves optional `TextOffset` plus `WordLength`/`TextLength`
+fields if the service returns them for a voice/model, so the reader can use
+direct text spans. When Batch returns only the documented fields,
+`enrichSpeechTimingSpans` aligns returned word-boundary text to the same reader
+text that was sent to Azure. The stored-timing repair flow uses this same
+enrichment policy: valid provider spans are retained, aligned spans are added,
+non-zero-duration unmatched words receive a neighbouring span, and unalignable
+zero-duration markers are omitted.
 
 Safe dry-run examples:
 
@@ -192,10 +202,10 @@ Important operator notes:
   - `en-US-Steffan:DragonHDLatestNeural`
 - `--paragraph-break-ms` and `--sentence-break-ms` emit SSML `<break>` tags for
   conversational pauses.
-- The script never logs article text, SSML payloads, audio bytes, Azure keys, or
+- The Batch workflow never logs article text, SSML payloads, audio bytes, Azure keys, or
   result URLs. It logs article ids, counts, job ids, timing counts, and byte
   counts only.
-- The script supports multiple articles per Azure batch request: each article is
+- The Batch workflow supports multiple articles per Azure batch request: each article is
   one `inputs[]` item, and result files map back by Azure's numbered `[nnnn]`
   prefix. It chunks automatically at Azure's documented hard limits: 2 MB JSON
   request payload and 1,000 text input objects per batch job.
@@ -209,14 +219,15 @@ Important operator notes:
 During synthesis, `provider-azure.ts` subscribes to
 `sdk.SpeechSynthesizer.wordBoundary`. Each event yields:
 
-- `audioOffset` (ticks, 100-nanosecond units) → converted to milliseconds →
-  stored as `SpeechWord.offset`.
-- `duration` (ticks) → converted to milliseconds → stored as
-  `SpeechWord.duration`.
+- `audioOffset` (ticks, 100-nanosecond units) converted to
+  `SpeechWord.startMs`.
+- `duration` (ticks) converted and added to `startMs` to produce
+  `SpeechWord.endMs`.
 - `text` → stored as `SpeechWord.word`.
+- Valid provider text offsets and lengths → stored as `textStart` and `textEnd`.
 
-The collected words are sorted by `offset` ascending before persisting. Reader
-word-highlight uses binary search on this sorted array.
+The collected words are sorted by `startMs` ascending before persisting. Reader
+word highlighting uses the timing and reader-text spans from this sorted array.
 
 A configurable timeout (`SPEECH_TIMEOUT_MS`, default 30 s) races the SDK call.
 If the timeout fires, `synthesize` resolves `null` and the caller falls back.
@@ -275,9 +286,9 @@ current speech asset:
 
 ## Cache invalidation and rebuild
 
-Admin AI rebuild (`adminRebuildArticleAI`) deletes the `ArticleSpeech` row and
-associated `MediaAsset` rows, then best-effort deletes every collected storage
-object after the database transaction commits.
+Admin AI rebuild prepares Media asset retirement, deletes the `ArticleSpeech`
+and associated `MediaAsset` rows in its transaction, then retires the collected
+storage objects after the transaction commits.
 
 The next call to `getOrCreateArticleSpeech` (reader request or
 `TTS_GENERATE` background job) re-synthesizes with current config and persists a

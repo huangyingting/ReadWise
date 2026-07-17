@@ -9,10 +9,10 @@
  * evaluated INSIDE the transaction for strict atomicity.
  */
 
+import { prepareOwnedArticleMediaAssetRetirement } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
-import { getMediaStorage } from "@/lib/storage/runtime";
 import { type DomainResult, type DomainOk, ok, notFound, conflict } from "@/lib/result";
 
 type AuditFactory<T> = (result: T) => AuditRequestInput;
@@ -143,10 +143,7 @@ export async function deleteMember(
   //
   // 711-D: Collect object-storage keys for private-article MediaAssets BEFORE
   // the cascade so bytes can be purged from object storage after the DB delete.
-  const ownedAssetKeys = await prisma.mediaAsset.findMany({
-    where: { article: { ownerId: id } },
-    select: { storageKey: true },
-  });
+  const mediaRetirement = await prepareOwnedArticleMediaAssetRetirement(id);
 
   let ownedArticleCount = 0;
   try {
@@ -174,14 +171,7 @@ export async function deleteMember(
 
   // Best-effort object-storage purge — do not fail the deletion if storage is
   // down or unconfigured.
-  if (ownedAssetKeys.length > 0) {
-    const storage = getMediaStorage();
-    if (storage) {
-      await Promise.allSettled(
-        ownedAssetKeys.map(({ storageKey }) => storage.delete(storageKey)),
-      );
-    }
-  }
+  await mediaRetirement.retire("member-delete");
 
   return deleteMemberSuccess(user.role, ownedArticleCount);
 }

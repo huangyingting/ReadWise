@@ -241,7 +241,7 @@ before(() => {
     namedExports: { prisma: mockPrisma },
   });
 
-  mock.module("@/lib/storage/runtime", {
+  mock.module("@/lib/storage", {
     namedExports: {
       getMediaStorage: () => mockStorageInstance,
     },

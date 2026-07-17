@@ -10,9 +10,9 @@
  *   checking the last-admin guard so the system is never left adminless.
  */
 
+import { prepareOwnedArticleMediaAssetRetirement } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
-import { getMediaStorage } from "@/lib/storage/runtime";
 import type { Prisma } from "@prisma/client";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -363,19 +363,6 @@ class LastAdminError extends Error {
   }
 }
 
-async function purgeOwnedAssetKeys(
-  ownedAssetKeys: Array<{ storageKey: string }>,
-): Promise<void> {
-  if (ownedAssetKeys.length === 0) return;
-
-  const storage = getMediaStorage();
-  if (!storage) return;
-
-  await Promise.allSettled(
-    ownedAssetKeys.map(({ storageKey }) => storage.delete(storageKey)),
-  );
-}
-
 export async function deleteOwnAccount(
   userId: string,
   audit?: AuditRequestInput,
@@ -405,10 +392,7 @@ export async function deleteOwnAccount(
   // the cascade so we can purge bytes from object storage after the DB delete.
   // The query runs outside the transaction intentionally — storage I/O must not
   // hold a DB lock.
-  const ownedAssetKeys = await prisma.mediaAsset.findMany({
-    where: { article: { ownerId: userId } },
-    select: { storageKey: true },
-  });
+  const mediaRetirement = await prepareOwnedArticleMediaAssetRetirement(userId);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -435,7 +419,7 @@ export async function deleteOwnAccount(
 
   // Best-effort object-storage purge — do not fail the deletion if the storage
   // backend is down or unconfigured (DB-only mode returns null).
-  await purgeOwnedAssetKeys(ownedAssetKeys);
+  await mediaRetirement.retire("account-delete");
 
   return { ok: true };
 }

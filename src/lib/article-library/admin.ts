@@ -8,8 +8,10 @@
  */
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus, type Article, type Prisma } from "@prisma/client";
-import { createLogger } from "@/lib/observability/logger";
-import { getMediaStorage } from "@/lib/storage";
+import {
+  deleteArticleMediaAssetRecords,
+  prepareArticleMediaAssetRetirement,
+} from "@/lib/media";
 import { readingMinutesFor } from "./mapper";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 import {
@@ -18,8 +20,6 @@ import {
   getAdminVisibleArticleById,
   type ArticleAccessContext,
 } from "./policy";
-
-const log = createLogger("article-library");
 
 type ProcessingStepRow = {
   id: string;
@@ -308,19 +308,18 @@ export async function deleteArticle(
     if (!existing) {
       return null;
     }
-    const mediaAssets = await tx.mediaAsset.findMany({
-      where: { articleId: id },
-      select: { storageKey: true },
+    const mediaRetirement = await prepareArticleMediaAssetRetirement(tx, {
+      articleId: id,
     });
     await tx.article.delete({ where: { id } });
     if (audit) {
       await recordAuditFromRequest(audit, tx);
     }
-    return { mediaAssets };
+    return { mediaRetirement };
   });
   if (!outcome) return false;
 
-  await purgeArticleMediaAssets(id, outcome.mediaAssets, "delete");
+  await outcome.mediaRetirement.retire("article-delete");
   return true;
 }
 
@@ -368,9 +367,7 @@ async function clearArticleAiDerivatives(
     tx.articleSpeech.deleteMany({ where: { articleId } }),
   ]);
 
-  // Speech audio is being regenerated, so remove its tracked MediaAsset rows
-  // after their storage keys have been collected by the caller.
-  await tx.mediaAsset.deleteMany({ where: { articleId, kind: "speech" } });
+  await deleteArticleMediaAssetRecords(tx, { articleId, kind: "speech" });
 
   // Reset the durable step state for the cleared features (RW-016) so the admin
   // timeline reflects the post-rebuild reality. Difficulty is NOT cleared by a
@@ -387,28 +384,6 @@ async function clearArticleAiDerivatives(
     speech: speech.count,
     readingProgress: 0,
   };
-}
-
-async function purgeArticleMediaAssets(
-  articleId: string,
-  assets: Array<{ storageKey: string }>,
-  operation: "delete" | "rebuild",
-): Promise<void> {
-  if (assets.length === 0) return;
-  const storage = getMediaStorage();
-  if (!storage) return;
-
-  const results = await Promise.allSettled(
-    assets.map(async ({ storageKey }) => storage.delete(storageKey)),
-  );
-  const failedCount = results.filter((result) => result.status === "rejected").length;
-  if (failedCount > 0) {
-    log.error("article.storage_cleanup_failed", {
-      articleId,
-      failedCount,
-      operation,
-    });
-  }
 }
 
 /**
@@ -432,18 +407,18 @@ export async function rebuildArticleAi(
       return null;
     }
 
-    const speechAssets = await tx.mediaAsset.findMany({
-      where: { articleId: id, kind: "speech" },
-      select: { storageKey: true },
+    const mediaRetirement = await prepareArticleMediaAssetRetirement(tx, {
+      articleId: id,
+      kind: "speech",
     });
     const result = { cleared: await clearArticleAiDerivatives(tx, id) };
     if (audit) {
       await recordAuditFromRequest(audit(result), tx);
     }
-    return { result, speechAssets };
+    return { result, mediaRetirement };
   });
   if (!outcome) return null;
 
-  await purgeArticleMediaAssets(id, outcome.speechAssets, "rebuild");
+  await outcome.mediaRetirement.retire("article-rebuild");
   return outcome.result;
 }

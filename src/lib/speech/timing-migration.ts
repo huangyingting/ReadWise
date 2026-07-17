@@ -3,7 +3,6 @@ import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { createLogger } from "@/lib/observability/logger";
 import {
   createSpeechTimingPayloadV2,
-  extractSpeechBoundaryTokens,
   legacySpeechWordsToTimingPayloadV1,
   legacySpeechWordsToTimingPayloadV2,
   parseSpeechTimingPayload,
@@ -11,7 +10,7 @@ import {
   type SpeechTimingProvider,
   type SpeechWord,
 } from "./timing";
-import { buildTokenAlignment } from "./timing-alignment";
+import { enrichSpeechTimingSpans } from "./timing-enrichment";
 
 const log = createLogger("speech");
 const DEFAULT_TIMING_PROVIDER = "azure";
@@ -177,82 +176,6 @@ function v2MissingSpans(payload: SpeechTimingPayloadV2): boolean {
 }
 
 /**
- * Assigns neighbour-bracket fallback span for a word that cannot be found in
- * plainText (e.g. Azure TTS expansion of a number or abbreviation).  Returns a
- * valid span at the gap between the nearest resolved neighbours.
- */
-function neighbourFallbackSpan(
-  spans: Array<[number, number] | null>,
-  index: number,
-  plainTextLength: number,
-): [number, number] {
-  let prevEnd = 0;
-  for (let j = index - 1; j >= 0; j--) {
-    const s = spans[j];
-    if (s !== null) { prevEnd = s[1]; break; }
-  }
-  let nextStart = plainTextLength;
-  for (let j = index + 1; j < spans.length; j++) {
-    const s = spans[j];
-    if (s !== null) { nextStart = s[0]; break; }
-  }
-  const start = Math.min(prevEnd, plainTextLength - 1);
-  const end = Math.max(start + 1, Math.min(nextStart, plainTextLength));
-  return [start, end];
-}
-
-/**
- * Aligns `words` to `plainText` and returns a full-coverage span array.
- *
- * Words that align successfully receive plainText-relative UTF-16 spans.
- * Zero-duration non-spoken entries that cannot be aligned are excluded (they
- * are timing markers, not audible words; removal preserves timing semantics).
- * Non-zero-duration words that cannot be aligned receive neighbour-bracket
- * fallback spans so the resulting payload always carries complete span arrays
- * (≥99.9 % span-key match is preserved because unresolvable entries are
- * exclusively Azure TTS expansions that represent <0.1 % of the corpus).
- */
-export function computeSpansForWords(
-  words: SpeechWord[],
-  plainText: string,
-): SpeechWord[] {
-  if (words.length === 0 || !plainText) return words;
-
-  const tokens = extractSpeechBoundaryTokens(plainText);
-  const { alignment, spanLengths } = buildTokenAlignment(tokens, words);
-
-  const spans: Array<[number, number] | null> = words.map((_word, index) => {
-    const tokenIndex = alignment[index];
-    if (tokenIndex == null) return null;
-    const spanLength = Math.max(1, spanLengths[index] ?? 1);
-    const firstToken = tokens[tokenIndex];
-    const lastToken = tokens[tokenIndex + spanLength - 1] ?? firstToken;
-    if (!firstToken || !lastToken) return null;
-    return [firstToken.start, lastToken.end];
-  });
-
-  const result: SpeechWord[] = [];
-  for (let index = 0; index < words.length; index++) {
-    const word = words[index]!;
-    const span = spans[index];
-
-    if (span !== null) {
-      result.push({ ...word, textStart: span[0], textEnd: span[1] });
-      continue;
-    }
-
-    // Zero-duration entries are non-spoken timing markers; safe to exclude.
-    if (word.endMs === word.startMs) continue;
-
-    // Non-zero-duration word not in plainText: neighbour-bracket fallback.
-    const fb = neighbourFallbackSpan(spans, index, plainText.length);
-    result.push({ ...word, textStart: fb[0], textEnd: fb[1] });
-  }
-
-  return result;
-}
-
-/**
  * Idempotent repair pass for V2 ArticleSpeech rows that are missing their
  * textStart/textEnd span arrays. Derives the canonical reader text from the
  * related article to compute UTF-16 spans via alignment without re-synthesis.
@@ -322,7 +245,7 @@ export async function repairSpeechTimingSpans(
       continue;
     }
 
-    const enriched = computeSpansForWords(parsed.words, plainText);
+    const enriched = enrichSpeechTimingSpans(parsed.words, plainText);
     const newPayload = createSpeechTimingPayloadV2(v2.provider ?? "azure", enriched);
 
     if (v2MissingSpans(newPayload)) {

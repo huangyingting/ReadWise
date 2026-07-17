@@ -2,7 +2,7 @@ process.env.LOG_LEVEL = "error";
 
 import { after, before, beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ArticleStatus } from "@prisma/client";
 import type { SpeechConfig } from "@/lib/runtime-config/speech";
@@ -20,12 +20,44 @@ let speechRuntimeConfig: SpeechConfig | null = {
   format: "audio-16khz-32kbitrate-mono-mp3",
 };
 const savedSpeechInputs: unknown[] = [];
+let extractedBatchResults: Array<{ audio: Buffer; words: unknown }> = [];
 let saveSpeechResultImpl = async (input: unknown) => {
   savedSpeechInputs.push(input);
   return true;
 };
 
 before(() => {
+  mock.module("node:child_process", {
+    namedExports: {
+      execFile: (
+        _command: string,
+        commandArgs: readonly string[],
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        const outputFlagIndex = commandArgs.indexOf("-d");
+        const outputDirectory = commandArgs[outputFlagIndex + 1];
+        assert.ok(outputDirectory, "unzip output directory is required");
+        void (async () => {
+          await mkdir(outputDirectory, { recursive: true });
+          await Promise.all(
+            extractedBatchResults.flatMap((result, index) => {
+              const prefix = String(index + 1).padStart(4, "0");
+              return [
+                writeFile(path.join(outputDirectory, `${prefix}.audio.mp3`), result.audio),
+                writeFile(
+                  path.join(outputDirectory, `${prefix}.word.json`),
+                  JSON.stringify(result.words),
+                ),
+              ];
+            }),
+          );
+        })().then(
+          () => callback(null, "", ""),
+          (error: Error) => callback(error, "", ""),
+        );
+      },
+    },
+  });
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
@@ -82,6 +114,7 @@ beforeEach(async () => {
     format: "audio-16khz-32kbitrate-mono-mp3",
   };
   savedSpeechInputs.length = 0;
+  extractedBatchResults = [];
   saveSpeechResultImpl = async (input: unknown) => {
     savedSpeechInputs.push(input);
     return true;
@@ -96,6 +129,19 @@ after(async () => {
 
 async function loadBatchSynthesis() {
   return import("../scripts/batch-synthesis");
+}
+
+async function loadAzureBatchSynthesis() {
+  return import("@/lib/speech/azure-batch-synthesis");
+}
+
+async function runBatchSynthesis(argv: string[]) {
+  const [{ parseArgs }, { runAzureBatchSynthesis }] = await Promise.all([
+    loadBatchSynthesis(),
+    loadAzureBatchSynthesis(),
+  ]);
+  assert.ok(speechRuntimeConfig, "speech config is required");
+  return runAzureBatchSynthesis(parseArgs(argv), speechRuntimeConfig);
 }
 
 function silentLogger() {
@@ -305,8 +351,8 @@ describe("batch synthesis CLI parsing", () => {
   });
 
   test("validates incompatible or incomplete options", async () => {
-    const { parseArgs, __batchSynthesisTest } = await loadBatchSynthesis();
-    const validate = (argv: string[]) => __batchSynthesisTest.validateArgs(parseArgs(argv), argv);
+    const { parseArgs, validateArgs } = await loadBatchSynthesis();
+    const validate = (argv: string[]) => validateArgs(parseArgs(argv), argv);
 
     assert.equal(validate(["--list-hd-voices"]), null);
     assert.match(validate([]) ?? "", /Pass article ids or --all/);
@@ -328,55 +374,75 @@ describe("batch synthesis CLI parsing", () => {
   });
 });
 
-describe("batch synthesis selection and SSML helpers", () => {
-  test("builds article filters and speech endpoints", async () => {
-    const { parseArgs, __batchSynthesisTest } = await loadBatchSynthesis();
+describe("Azure Batch synthesis interface", () => {
+  test("selects public articles and plans jobs through one interface", async (t) => {
+    const { logs } = captureConsole(t);
+    articleRows = [article({ id: "selected" })];
 
-    const publicWhere = __batchSynthesisTest.articleWhere(parseArgs(["--all"]));
-    assert.deepEqual(publicWhere, {
-      ownerId: null,
-      visibility: "PUBLIC",
-      speech: { is: null },
+    const result = await runBatchSynthesis([
+      "--all",
+      "--status",
+      "PUBLISHED",
+      "--limit",
+      "4",
+      "--dry-run",
+    ]);
+
+    assert.deepEqual(result, { selected: 1, submitted: 1, persisted: 0 });
+    assert.deepEqual(lastFindManyArgs, {
+      where: {
+        ownerId: null,
+        visibility: "PUBLIC",
+        status: "PUBLISHED",
+        speech: { is: null },
+      },
+      orderBy: { createdAt: "asc" },
+      take: 4,
+      select: {
+        id: true,
+        title: true,
+        source: true,
+        status: true,
+        content: true,
+      },
     });
+    assert.match(logs.join("\n"), /Selected 1 article\(s\)/);
 
-    const explicitWhere = __batchSynthesisTest.articleWhere(
-      parseArgs([
-        "--ids",
-        "a,b",
-        "--include-private",
-        "--include-existing",
-        "--status",
-        "FAILED",
-        "--source",
-        "Undark",
-      ]),
-    );
-    assert.deepEqual(explicitWhere, {
+    await runBatchSynthesis([
+      "--ids",
+      "a,b",
+      "--include-private",
+      "--include-existing",
+      "--status",
+      "FAILED",
+      "--source",
+      "Undark",
+      "--dry-run",
+    ]);
+    assert.deepEqual((lastFindManyArgs as { where: unknown }).where, {
       id: { in: ["a", "b"] },
       status: "FAILED",
       source: "Undark",
     });
-
-    assert.equal(
-      __batchSynthesisTest.speechEndpoint(parseArgs(["--all", "--endpoint", "https://host/"]), "eastus"),
-      "https://host",
-    );
-    process.env.AZURE_SPEECH_ENDPOINT = "https://env-host///";
-    assert.equal(__batchSynthesisTest.speechEndpoint(parseArgs(["--all"]), "eastus"), "https://env-host");
-    delete process.env.AZURE_SPEECH_ENDPOINT;
-    assert.equal(
-      __batchSynthesisTest.speechEndpoint(parseArgs(["--all"]), "westus"),
-      "https://westus.api.cognitive.microsoft.com",
-    );
   });
 
-  test("builds SSML with voices, prosody, express-as, breaks, caps, and escaping", async () => {
-    const { parseArgs, buildSsml, __batchSynthesisTest } = await loadBatchSynthesis();
-    const row = article({
-      content: "<p>Hello & welcome. Next sentence!</p><p>Second paragraph with extra text.</p>",
+  test("submits escaped SSML and Azure properties through one interface", async (t) => {
+    articleRows = [
+      article({
+        content: "<p>Hello & welcome. Next sentence!</p><p>Second paragraph with extra text.</p>",
+      }),
+    ];
+    const fetches: Array<{ url: string; init?: RequestInit }> = [];
+    t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
+      fetches.push({ url: String(url), init });
+      return jsonResponse({ status: "Accepted" });
     });
-    const args = parseArgs([
+
+    await runBatchSynthesis([
       "--all",
+      "--submit-only",
+      "--endpoint",
+      "https://host/",
       "--voice",
       "voice&<>\"'",
       "--style",
@@ -399,37 +465,36 @@ describe("batch synthesis selection and SSML helpers", () => {
       "18",
     ]);
 
-    const input = buildSsml(row, args, "configured", 0);
-    assert.equal(input.article, row);
-    assert.equal(input.voiceSummary, "rotate:voice&<>\"'");
-    assert.equal(input.plainText.length <= 18, true);
-    assert.match(input.content, /voice&amp;&lt;&gt;&quot;&apos;/);
-    assert.match(input.content, /<mstts:express-as style="cheerful" styledegree="1.2" role="role&amp;">/);
-    assert.match(input.content, /<prosody rate="fast" pitch="\+1st" volume="soft">/);
-    assert.match(input.content, /<break time="25ms"\/>/);
-
-    const defaultInput = buildSsml(article(), parseArgs(["--all"]), "configured", 0);
-    assert.equal(defaultInput.voiceSummary, "rotate:configured");
-    assert.match(defaultInput.content, /<voice name="configured">/);
-
-    assert.deepEqual(__batchSynthesisTest.selectedVoices(parseArgs(["--all", "--voices", "a,b"]), "c"), [
-      "a",
-      "b",
-    ]);
-    assert.equal(__batchSynthesisTest.selectedVoices(parseArgs(["--all", "--hd"]), "c").length > 1, true);
-    assert.equal(
-      __batchSynthesisTest.effectiveVoiceMode(parseArgs(["--all", "--hd"]), ["a", "b"]),
-      "random",
-    );
-    assert.equal(__batchSynthesisTest.randomVoice(["only"], null), "only");
-    assert.equal(__batchSynthesisTest.randomVoice(["same", "same"], "same"), "same");
-    assert.equal(__batchSynthesisTest.selectArticleVoice(["a", "b"], "rotate", 3), "b");
-    assert.equal(["a", "b"].includes(__batchSynthesisTest.selectArticleVoice(["a", "b"], "random", 0)), true);
+    assert.equal(fetches.length, 1);
+    assert.match(fetches[0]!.url, /^https:\/\/host\/texttospeech\/batchsyntheses\//);
+    const body = JSON.parse(String(fetches[0]!.init?.body)) as {
+      inputs: Array<{ content: string }>;
+      properties: Record<string, unknown>;
+    };
+    const content = body.inputs[0]!.content;
+    assert.match(content, /voice&amp;&lt;&gt;&quot;&apos;/);
+    assert.match(content, /<mstts:express-as style="cheerful" styledegree="1.2" role="role&amp;">/);
+    assert.match(content, /<prosody rate="fast" pitch="\+1st" volume="soft">/);
+    assert.doesNotMatch(content, /Second paragraph/);
+    assert.deepEqual(body.properties, {
+      outputFormat: "audio-16khz-32kbitrate-mono-mp3",
+      wordBoundaryEnabled: true,
+      sentenceBoundaryEnabled: true,
+      concatenateResult: false,
+      decompressOutputFiles: false,
+      timeToLiveInHours: 168,
+    });
   });
 
-  test("builds batch request bodies, chunks jobs, and maps MIME types", async () => {
-    const { parseArgs, buildSsml, mimeTypeForFormat, __batchSynthesisTest } = await loadBatchSynthesis();
-    const args = parseArgs([
+  test("chunks submitted jobs and rejects an oversized article", async (t) => {
+    articleRows = [article({ id: "a" }), article({ id: "b" })];
+    const fetches: Array<{ url: string; init?: RequestInit }> = [];
+    t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
+      fetches.push({ url: String(url), init });
+      return jsonResponse({ status: "Accepted" });
+    });
+
+    const result = await runBatchSynthesis([
       "--all",
       "--max-inputs-per-job",
       "1",
@@ -442,10 +507,12 @@ describe("batch synthesis selection and SSML helpers", () => {
       "--submit-only",
       "--concatenate",
     ]);
-    const inputs = [buildSsml(article({ id: "a" }), args, "voice"), buildSsml(article({ id: "b" }), args, "voice")];
 
-    const body = __batchSynthesisTest.batchRequestBody(args, inputs);
-    assert.deepEqual((body as { properties: Record<string, unknown> }).properties, {
+    assert.deepEqual(result, { selected: 2, submitted: 2, persisted: 0 });
+    assert.equal(fetches.length, 2);
+    assert.ok(fetches.every(({ url }) => /\/bad-prefix-/.test(url)));
+    const properties = JSON.parse(String(fetches[0]!.init?.body)).properties;
+    assert.deepEqual(properties, {
       outputFormat: "ogg-opus",
       wordBoundaryEnabled: true,
       sentenceBoundaryEnabled: true,
@@ -453,66 +520,88 @@ describe("batch synthesis selection and SSML helpers", () => {
       decompressOutputFiles: false,
       timeToLiveInHours: 12,
     });
-    assert.equal(__batchSynthesisTest.bodySizeBytes(args, inputs) > 0, true);
 
-    const jobs = __batchSynthesisTest.buildJobs(args, inputs);
-    assert.equal(jobs.length, 2);
-    assert.equal(jobs[0].chunkIndex, 1);
-    assert.match(jobs[0].id, /^bad-prefix-/);
-
-    const oversizedArgs = { ...args, maxInputsPerJob: 1000, maxPayloadBytes: 1 };
-    assert.throws(() => __batchSynthesisTest.buildJobs(oversizedArgs, [inputs[0]]), /exceeds the configured payload limit/);
-    assert.match(__batchSynthesisTest.jobId("!!!", 2), /^readwise-batch-tts-/);
-    assert.equal(mimeTypeForFormat("webm-24khz"), "audio/webm");
-    assert.equal(mimeTypeForFormat("riff-16khz"), "audio/wav");
-    assert.equal(mimeTypeForFormat("raw-format"), "application/octet-stream");
-  });
-
-  test("selects articles through Prisma with expected query shape", async () => {
-    const { parseArgs, __batchSynthesisTest } = await loadBatchSynthesis();
-    articleRows = [article({ id: "selected" })];
-
-    const rows = await __batchSynthesisTest.selectArticles(
-      parseArgs(["--all", "--status", "PUBLISHED", "--limit", "4"]),
+    articleRows = [article({ id: "oversized" })];
+    await assert.rejects(
+      () => runBatchSynthesis(["--all", "--dry-run", "--max-payload-bytes", "1"]),
+      /exceeds the configured payload limit/,
     );
-
-    assert.deepEqual(rows, articleRows);
-    assert.deepEqual(lastFindManyArgs, {
-      where: {
-        ownerId: null,
-        visibility: "PUBLIC",
-        status: "PUBLISHED",
-        speech: { is: null },
-      },
-      orderBy: { createdAt: "asc" },
-      take: 4,
-      select: {
-        id: true,
-        title: true,
-        source: true,
-        status: true,
-        content: true,
-      },
-    });
   });
 });
 
-describe("batch synthesis Azure and result helpers", () => {
-  test("requests JSON, submits jobs, polls outcomes, and downloads ZIP bytes", async (t) => {
-    const { parseArgs, buildSsml, __batchSynthesisTest } = await loadBatchSynthesis();
-    const { logs } = captureConsole(t);
-    const fetches: Array<{ url: string; init: RequestInit | undefined }> = [];
-    const responses = [
-      jsonResponse({ ok: true }),
-      new Response("", { status: 200 }),
-      new Response("bad request", { status: 400 }),
-      jsonResponse({ status: "Running" }),
-      jsonResponse({ id: "job-1", status: "Running" }),
-      jsonResponse({ status: "Running" }),
-      jsonResponse({ status: "Succeeded", outputs: { result: "https://result.test/zip" } }),
-      jsonResponse({ status: "Failed" }),
-      new Response("zip-bytes", { status: 200 }),
+describe("Azure Batch synthesis remote and persistence behavior", () => {
+  test("normalizes submission, polling, timeout, and download failures", async (t) => {
+    articleRows = [article()];
+    let responses: Response[] = [];
+    t.mock.method(globalThis, "fetch", async () => {
+      const response = responses.shift();
+      assert.ok(response, "unexpected Azure request");
+      return response;
+    });
+
+    responses = [new Response("bad request", { status: 400 })];
+    await assert.rejects(
+      () => runBatchSynthesis(["--all", "--submit-only"]),
+      /HTTP 400: bad request/,
+    );
+
+    responses = [jsonResponse({ status: "Accepted" }), jsonResponse({ status: "Failed" })];
+    await assert.rejects(
+      () => runBatchSynthesis(["--all", "--poll-interval-ms", "1"]),
+      /job failed/,
+    );
+
+    responses = [jsonResponse({ status: "Accepted" }), jsonResponse({ status: "Running" })];
+    await assert.rejects(
+      () => runBatchSynthesis(["--all", "--poll-interval-ms", "1", "--timeout-ms", "1"]),
+      /Timed out/,
+    );
+
+    responses = [
+      jsonResponse({ status: "Accepted" }),
+      jsonResponse({ status: "Succeeded", outputs: { result: "https://result.test/missing" } }),
       new Response("missing", { status: 404 }),
+    ];
+    await assert.rejects(
+      () => runBatchSynthesis(["--all", "--poll-interval-ms", "1"]),
+      /result ZIP: HTTP 404/,
+    );
+  });
+
+  test("downloads, parses, enriches, persists, and cleans up through one interface", async (t) => {
+    const { warnings } = captureConsole(t);
+    storageConfigured = true;
+    articleRows = [
+      article({ id: "save-me", content: "<p>Hello world.</p>" }),
+      article({ id: "skip-me", content: "<p>Second article.</p>" }),
+    ];
+    extractedBatchResults = [
+      {
+        audio: Buffer.from("audio-one"),
+        words: [
+          { Text: "world", AudioOffset: 20, Duration: 5 },
+          { Text: "Hello", AudioOffset: 0, Duration: 10 },
+          { Text: "bad", AudioOffset: -1, Duration: 1 },
+        ],
+      },
+      {
+        audio: Buffer.from("audio-two"),
+        words: [
+          { Text: "Second", AudioOffset: 0, Duration: 10, TextOffset: 0, WordLength: 6 },
+          { Text: "article", AudioOffset: 10, Duration: 10, TextOffset: 7, TextLength: 7 },
+        ],
+      },
+    ];
+    saveSpeechResultImpl = async (input: unknown) => {
+      savedSpeechInputs.push(input);
+      return (input as { articleId: string }).articleId === "save-me";
+    };
+    const fetches: Array<{ url: string; init?: RequestInit }> = [];
+    const responses = [
+      jsonResponse({ status: "Accepted" }),
+      jsonResponse({ status: "Running" }),
+      jsonResponse({ status: "Succeeded", outputs: { result: "https://result.test/archive" } }),
+      new Response("zip-bytes", { status: 200 }),
     ];
     t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
       fetches.push({ url: String(url), init });
@@ -521,212 +610,48 @@ describe("batch synthesis Azure and result helpers", () => {
       return response;
     });
 
+    const result = await runBatchSynthesis([
+      "--all",
+      "--poll-interval-ms",
+      "1",
+      "--timeout-ms",
+      "2000",
+    ]);
+
+    assert.deepEqual(result, { selected: 2, submitted: 1, persisted: 1 });
+    assert.equal(fetches.at(-1)?.url, "https://result.test/archive");
     assert.deepEqual(
-      await __batchSynthesisTest.requestJson("https://api.test/json", { method: "GET" }),
-      { ok: true },
+      savedSpeechInputs.map((input) => (input as { articleId: string }).articleId),
+      ["save-me", "skip-me"],
     );
-    assert.equal(await __batchSynthesisTest.requestJson("https://api.test/empty", { method: "GET" }), null);
-    await assert.rejects(
-      () => __batchSynthesisTest.requestJson("https://api.test/fail", { method: "GET" }),
-      /HTTP 400: bad request/,
-    );
-
-    const args = parseArgs(["--all", "--poll-interval-ms", "1", "--timeout-ms", "2000"]);
-    const input = buildSsml(article(), args, "voice");
-    const job = { chunkIndex: 1, id: "job/with spaces", inputs: [input] };
-    await __batchSynthesisTest.createBatchJob("https://endpoint.test", "key", args, job);
-    assert.match(logs.join("\n"), /submitted job\/with spaces/);
-    assert.match(fetches[3].url, /job%2Fwith%20spaces/);
-    assert.equal(fetches[3].init?.method, "PUT");
-
-    assert.deepEqual(await __batchSynthesisTest.getBatchJob("https://endpoint.test", "key", "job-1"), {
-      id: "job-1",
-      status: "Running",
-    });
-    assert.deepEqual(await __batchSynthesisTest.waitForBatchJob("https://endpoint.test", "key", args, "job-2"), {
-      status: "Succeeded",
-      outputs: { result: "https://result.test/zip" },
-    });
-    await assert.rejects(
-      () => __batchSynthesisTest.waitForBatchJob("https://endpoint.test", "key", args, "job-3"),
-      /job failed/,
-    );
-    await assert.rejects(
-      () =>
-        __batchSynthesisTest.waitForBatchJob(
-          "https://endpoint.test",
-          "key",
-          { ...args, timeoutMs: 0 },
-          "job-4",
-        ),
-      /Timed out/,
-    );
-
-    const zipPath = path.join(TEST_ARTIFACT_ROOT, "result.zip");
-    await __batchSynthesisTest.downloadResultZip("https://result.test/zip", "key", zipPath);
-    await assert.rejects(
-      () => __batchSynthesisTest.downloadResultZip("https://result.test/missing", "key", zipPath),
-      /HTTP 404/,
-    );
-  });
-
-  test("finds files, parses batch words, and enriches word spans", async () => {
-    const { __batchSynthesisTest } = await loadBatchSynthesis();
-    const nested = path.join(TEST_ARTIFACT_ROOT, "out", "nested");
-    await mkdir(nested, { recursive: true });
-    const audioPath = path.join(TEST_ARTIFACT_ROOT, "out", "0001.audio.mp3");
-    const debugPath = path.join(TEST_ARTIFACT_ROOT, "out", "0001.debug.txt");
-    const wordPath = path.join(nested, "0001.word.json");
-    await writeFile(audioPath, "audio");
-    await writeFile(debugPath, "debug");
-    // TextOffset/WordLength/TextLength are character indices (not ticks).
-    // AudioOffset and Duration are already in milliseconds in the Batch REST API
-    // response (unlike the real-time SDK, which uses 100-ns ticks).
-    await writeFile(
-      wordPath,
-      JSON.stringify([
-        { Text: "world", AudioOffset: 20, Duration: 5, TextOffset: 6, TextLength: 5 },
-        { Text: "Hello", AudioOffset: 0, Duration: 10, TextOffset: 0, WordLength: 5 },
-        { Text: "bad", AudioOffset: -1, Duration: 1 },
-      ]),
-    );
-
-    const files = await __batchSynthesisTest.listFiles(path.join(TEST_ARTIFACT_ROOT, "out"));
-    assert.equal(files.includes(audioPath), true);
-    assert.equal(__batchSynthesisTest.prefixForIndex(0), "0001");
-    assert.equal(__batchSynthesisTest.findBatchFile(files, 0, "audio"), audioPath);
-    assert.equal(__batchSynthesisTest.findBatchFile(files, 0, "word"), wordPath);
-    assert.equal(__batchSynthesisTest.findBatchFile(files, 1, "audio"), null);
-
-    const parsed = await __batchSynthesisTest.parseBatchResult(files, 0);
-    assert.equal(parsed.audio.toString(), "audio");
-    // AudioOffset/Duration already in ms; stored directly: startMs=0, endMs=10; startMs=20, endMs=25
-    assert.deepEqual(parsed.words, [
+    const saved = savedSpeechInputs[0] as {
+      audio: Buffer;
+      mimeType: string;
+      provider: string;
+      words: Array<{
+        word: string;
+        startMs: number;
+        endMs: number;
+        textStart?: number;
+        textEnd?: number;
+      }>;
+    };
+    assert.equal(saved.audio.toString(), "audio-one");
+    assert.equal(saved.mimeType, "audio/mpeg");
+    assert.equal(saved.provider, "azure-batch");
+    assert.deepEqual(saved.words, [
       { word: "Hello", startMs: 0, endMs: 10, textStart: 0, textEnd: 5 },
       { word: "world", startMs: 20, endMs: 25, textStart: 6, textEnd: 11 },
     ]);
-    await assert.rejects(() => __batchSynthesisTest.parseBatchResult(files, 1), /missing audio file/);
-
-    assert.deepEqual(__batchSynthesisTest.parseBatchWords("not-array"), []);
-    assert.deepEqual(
-      __batchSynthesisTest.parseBatchWords([
-        { Text: "later", AudioOffset: 5, Duration: 2 },
-        { Text: "first", AudioOffset: 1, Duration: 2 },
-        { Text: 1, AudioOffset: 1, Duration: 2 },
-        { Text: "bad-duration", AudioOffset: 1, Duration: Number.NaN },
-      ]),
-      [
-        { word: "first", startMs: 1, endMs: 3 },
-        { word: "bad-duration", startMs: 1, endMs: Number.NaN },
-        { word: "later", startMs: 5, endMs: 7 },
-      ],
-    );
-
-    assert.deepEqual(__batchSynthesisTest.enrichBatchWordsWithTextSpans([], "plain"), []);
-    const alreadySpanned = [{ word: "Hello", startMs: 0, endMs: 1, textStart: 0, textEnd: 5 }];
-    assert.equal(__batchSynthesisTest.enrichBatchWordsWithTextSpans(alreadySpanned, "Hello"), alreadySpanned);
-    const enriched = __batchSynthesisTest.enrichBatchWordsWithTextSpans(
-      [
-        { word: "Hello", startMs: 0, endMs: 1 },
-        { word: "world", startMs: 1, endMs: 2 },
-      ],
-      "Hello world",
-    );
-    assert.deepEqual(
-      enriched.map((word: { textStart?: number; textEnd?: number }) => [word.textStart, word.textEnd]),
-      [
-        [0, 5],
-        [6, 11],
-      ],
-    );
-
-    // Zero-duration words that cannot be aligned are excluded (timing markers)
-    const withZeroDur = __batchSynthesisTest.enrichBatchWordsWithTextSpans(
-      [
-        { word: "Hello", startMs: 0, endMs: 100 },
-        { word: "\u200b", startMs: 100, endMs: 100 }, // zero-dur invisible marker
-        { word: "world", startMs: 100, endMs: 200 },
-      ],
-      "Hello world",
-    );
-    assert.equal(withZeroDur.length, 2); // marker excluded
-    assert.ok(withZeroDur.every((w: { textStart?: number; textEnd?: number }) =>
-      typeof w.textStart === "number" && typeof w.textEnd === "number",
-    ));
-
-    // Non-zero-duration words not found in plainText receive neighbour fallback spans
-    const withExpansion = __batchSynthesisTest.enrichBatchWordsWithTextSpans(
-      [
-        { word: "about", startMs: 0, endMs: 100 },
-        { word: "twenty", startMs: 100, endMs: 200 }, // TTS expansion of "20"
-        { word: "million", startMs: 200, endMs: 300 },
-      ],
-      "about 20 million",
-    );
-    assert.equal(withExpansion.length, 3); // expansion kept with fallback
-    const twentyWord = withExpansion.find((w: { word: string }) => w.word === "twenty");
-    assert.ok(twentyWord !== undefined);
-    assert.ok(typeof twentyWord.textStart === "number" && typeof twentyWord.textEnd === "number");
-    assert.ok(twentyWord.textEnd > twentyWord.textStart);
-  });
-
-  test("persists job results with injectable filesystem dependencies and graceful save fallback", async () => {
-    const { parseArgs, buildSsml, __batchSynthesisTest } = await loadBatchSynthesis();
-    const args = parseArgs(["--all", "--format", "audio-16khz-32kbitrate-mono-mp3"]);
-    const inputs = [
-      buildSsml(article({ id: "save-me" }), args, "voice"),
-      buildSsml(article({ id: "skip-me" }), args, "voice"),
-    ];
-    const calls: string[] = [];
-    const warnings: string[] = [];
-    const saved = await __batchSynthesisTest.persistJobResults(
-      { chunkIndex: 1, id: "job", inputs },
-      "https://result.test/zip",
-      "key",
-      args,
-      {
-        tempRoot: TEST_ARTIFACT_ROOT,
-        downloadResultZip: async (url: string, key: string, targetPath: string) => {
-          calls.push(`download:${url}:${key}:${path.basename(targetPath)}`);
-        },
-        execFileAsync: async (command: string, commandArgs: readonly string[] | null = []) => {
-          calls.push(`exec:${command}:${(commandArgs ?? []).join(" ")}`);
-          return { stdout: "", stderr: "" };
-        },
-        listFiles: async (root: string) => {
-          calls.push(`list:${path.basename(root)}`);
-          return ["ignored"];
-        },
-        parseBatchResult: async (_files: string[], index: number) => ({
-          audio: Buffer.from(`audio-${index}`),
-          words: [{ word: index === 0 ? "Hello" : "Second", startMs: 0, endMs: 1 }],
-        }),
-        saveSpeechResult: async (input: { articleId: string }) => {
-          savedSpeechInputs.push(input);
-          return input.articleId === "save-me";
-        },
-        logger: {
-          log: (message: string) => calls.push(message),
-          warn: (message: string) => warnings.push(message),
-        },
-      },
-    );
-
-    assert.equal(saved, 1);
-    assert.deepEqual(savedSpeechInputs.map((input) => (input as { articleId: string }).articleId), [
-      "save-me",
-      "skip-me",
-    ]);
-    assert.match(calls.join("\n"), /download:https:\/\/result\.test\/zip:key:results\.zip/);
-    assert.match(calls.join("\n"), /exec:unzip:-q .* -d .*/);
-    assert.match(calls.join("\n"), /saved ArticleSpeech article=save-me words=1 bytes=7/);
     assert.match(warnings.join("\n"), /media-storage-unavailable/);
+    assert.deepEqual(await readdir(TEST_ARTIFACT_ROOT), []);
   });
 });
 
 describe("batch synthesis runOnce and loop orchestration", () => {
   test("handles empty selections, empty reader text, and dry-run summaries", async (t) => {
-    const { parseArgs, runOnce } = await loadBatchSynthesis();
+    const { parseArgs } = await loadBatchSynthesis();
+    const { runAzureBatchSynthesis: runOnce } = await loadAzureBatchSynthesis();
     const { logs } = captureConsole(t);
 
     assert.deepEqual(await runOnce(parseArgs(["--all"]), speechRuntimeConfig!), {
@@ -758,7 +683,8 @@ describe("batch synthesis runOnce and loop orchestration", () => {
   });
 
   test("submits only when requested and warns before failing without persistence output", async (t) => {
-    const { parseArgs, runOnce } = await loadBatchSynthesis();
+    const { parseArgs } = await loadBatchSynthesis();
+    const { runAzureBatchSynthesis: runOnce } = await loadAzureBatchSynthesis();
     const { warnings } = captureConsole(t);
     articleRows = [article()];
     const responses = [
@@ -910,36 +836,36 @@ describe("batch synthesis main entry orchestration", () => {
   }
 
   test("handles help, HD voice listing, validation, disabled feature, and missing config", async (t) => {
-    const { __batchSynthesisTest } = await loadBatchSynthesis();
+    const { main } = await loadBatchSynthesis();
     const { logs, errors } = captureConsole(t);
 
-    assert.equal(await withArgv(["--help"], () => __batchSynthesisTest.main()), 0);
+    assert.equal(await withArgv(["--help"], () => main()), 0);
     assert.match(logs.join("\n"), /ReadWise Azure Batch Synthesis/);
-    assert.equal(await withArgv(["--list-hd-voices"], () => __batchSynthesisTest.main()), 0);
+    assert.equal(await withArgv(["--list-hd-voices"], () => main()), 0);
     assert.match(logs.join("\n"), /Built-in English DragonHD voice preset/);
-    assert.equal(await withArgv([], () => __batchSynthesisTest.main()), 1);
+    assert.equal(await withArgv([], () => main()), 1);
     assert.match(errors.join("\n"), /Pass article ids or --all/);
 
     ttsEnabled = false;
-    assert.equal(await withArgv(["--all"], () => __batchSynthesisTest.main()), 1);
+    assert.equal(await withArgv(["--all"], () => main()), 1);
     assert.match(errors.join("\n"), /FEATURE_TTS_ENABLED is disabled/);
 
     ttsEnabled = true;
     speechRuntimeConfig = null;
-    assert.equal(await withArgv(["--all"], () => __batchSynthesisTest.main()), 1);
+    assert.equal(await withArgv(["--all"], () => main()), 1);
     assert.match(errors.join("\n"), /Azure Speech is not configured/);
   });
 
   test("runs single-pass dry runs and loop mode through main", async (t) => {
-    const { __batchSynthesisTest } = await loadBatchSynthesis();
+    const { main } = await loadBatchSynthesis();
     captureConsole(t);
     articleRows = [article()];
 
-    assert.equal(await withArgv(["--all", "--dry-run"], () => __batchSynthesisTest.main()), 0);
+    assert.equal(await withArgv(["--all", "--dry-run"], () => main()), 0);
     assert.equal(
       await withArgv(
         ["--all", "--loop", "--dry-run", "--max-passes", "1", "--sleep", "0"],
-        () => __batchSynthesisTest.main(),
+        () => main(),
       ),
       0,
     );
