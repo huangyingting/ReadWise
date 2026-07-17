@@ -1,8 +1,8 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-15"
-description: "Documents MediaAsset ownership, canonical speech asset pointers, content-addressed keys, storage cleanup boundaries, and rebuild replacement flow."
+last_updated: "2026-07-18"
+description: "Documents MediaAsset ownership, canonical speech asset pointers, content-addressed keys, two-phase asset retirement, and rebuild replacement flow."
 ---
 
 # Media asset lifecycle
@@ -13,9 +13,11 @@ tracked, served, and deleted. Storage backend configuration is in
 
 ## Ownership boundary
 
-**Media subsystem owns** the `MediaAsset` table, storage keys, MIME types, asset
-deletion, and orphan handling. Object size and checksum remain storage-backend
-concerns and are not duplicated in the relational database.
+**Media subsystem owns** the `MediaAsset` table, storage keys, MIME types, Media
+asset retirement, and orphan handling. `src/lib/media/asset-retirement.ts`
+provides the public retirement interface used by article, account, and member
+lifecycle commands. Object size and checksum remain storage-backend concerns
+and are not duplicated in the relational database.
 
 **Media does not own** reader playback UX, TTS job scheduling, or the TTS
 provider. See [`../reader/playback.md`](../reader/playback.md) and
@@ -87,23 +89,33 @@ stored in the database.
 ## Article deletion and cascade
 
 `MediaAsset` has `onDelete: Cascade` on the `articleId` foreign key. Account and
-member deletion enumerate every tracked key and delete the storage objects
-before the database cascade removes their rows.
+member deletion therefore removes relational records, but a database cascade
+cannot delete object-storage bytes by itself.
 
-Admin article deletion also collects and best-effort deletes every tracked
-object after its database transaction. A raw database cascade still cannot
-delete storage objects and requires a separate reconciliation pass.
+All application-owned deletion paths use two-phase Media asset retirement:
+
+1. Prepare retirement by collecting the tracked storage references before an
+  article or owner cascade can remove them.
+2. Apply the article, account, member, or speech-record deletion and let its
+  database transaction commit.
+3. Retire the prepared objects from storage on a best-effort basis.
+
+Storage failure never rolls back an already committed lifecycle operation.
+Retirement is idempotent per prepared plan, deletes all objects concurrently,
+and logs only the operation and failed count, never storage keys. A raw database
+cascade still requires a separate object-storage reconciliation pass.
 
 ## AI rebuild and asset replacement
 
 `adminRebuildArticleAI(id, ...)` in `src/lib/article-library/admin.ts`:
 
-1. Deletes the `ArticleSpeech` row for the article.
-2. Calls `mediaAsset.deleteMany({ where: { articleId: id, kind: "speech" } })` to
-   remove the `MediaAsset` database record.
-3. Best-effort deletes every collected storage object after the database
-   transaction commits. Storage failure does not roll back the rebuild and is
-   logged without exposing object keys.
+1. Prepares retirement for every tracked speech asset on the article.
+2. Deletes `ArticleSpeech`, its speech `MediaAsset` records, and the other AI
+  derivatives in one transaction.
+3. Retires the prepared storage objects after the transaction commits.
+
+Storage failure does not roll back the rebuild and is logged without exposing
+object keys.
 
 After a rebuild, the next reader request or `TTS_GENERATE` background job
 re-synthesizes narration and creates a new `MediaAsset` with fresh storage key,
@@ -119,16 +131,21 @@ An orphan is a storage object whose `MediaAsset` row has been deleted (via
 article cascade or admin rebuild) but whose bytes remain in object storage.
 
 Causes:
-- **Article deletion** — cascade removes `MediaAsset` but not the storage object.
-- **Failed migration cleanup** — partially migrated rows where the DB transaction
-  succeeded but a subsequent manual deletion removed the row.
+- **Failed retirement** — the database operation committed but object storage
+  was unavailable or rejected deletion.
+- **Raw database cascade** — relational rows were removed outside the
+  application-owned retirement flow.
+- **Failed migration cleanup** — partially migrated rows lost their relational
+  record before storage cleanup completed.
 
 Detection requires comparing object-storage keys against `MediaAsset.storageKey`.
 `ArticleSpeech.mediaAssetId` is a real foreign key to the current object; other
 speech assets for the article are retained lifecycle history.
 
-Cleanup: call `getMediaStorage().delete(storageKey)` for each orphaned key, then
-delete the `MediaAsset` row if it still exists.
+Cleanup: call `getMediaStorage().delete(storageKey)` for each confirmed orphaned
+key. If a `MediaAsset` row still references the key, first determine whether it
+is lifecycle history or an active `ArticleSpeech` target rather than treating
+the object as orphaned.
 
 **Do not delete the storage container** while any `MediaAsset` rows still
 reference objects in it.

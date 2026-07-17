@@ -74,7 +74,7 @@ before(() => {
       tryRecordAuditLog: async () => {},
     },
   });
-  mock.module("@/lib/storage/runtime", {
+  mock.module("@/lib/storage", {
     namedExports: {
       getMediaStorage: () => mediaStorage,
     },
