@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "accepted"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Architecture decision record for AI invocation governance, prompt versions, and usage budgets. Captures ledger metadata boundaries, budget strategy, prompt-version impacts, and consequences."
 ---
 
@@ -11,6 +11,15 @@ description: "Architecture decision record for AI invocation governance, prompt 
 - **Date:** 2026-06-22
 - **Related:** #277 (RW-019), #278 (RW-020), #279 (RW-021), #280 (RW-022), #312 (RW-054), #324 (RW-066)
 
+## AI governance decision
+
+```mermaid
+flowchart TD
+    n0["AI request"] --> n1["Prompt version and budget check"]
+    n1["Prompt version and budget check"] --> n2["Provider invocation"]
+    n2["Provider invocation"] --> n3["Metadata-only ledger"]
+    n3["Metadata-only ledger"] --> n4["Usage reporting"]
+```
 ## Context
 
 AI features now generate translations, vocabulary, quizzes, tags, and speech-related content. Difficulty estimates are deterministic. Cost, quality, prompt drift, and safety decisions need traceability before more product intelligence features are built.
@@ -38,3 +47,4 @@ Treat AI calls as governed product operations: record an invocation ledger, vers
 - [x] #279: create AI evaluation datasets.
 - [x] #280: enforce AI budgets and quotas.
 - [x] #312: expose AI cost/content operations dashboards.
+

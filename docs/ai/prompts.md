@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents prompt registry, prompt-version ownership, and rebuild/backfill implications. Captures current prompt labels, versioned cache behavior, prompt privacy rules, and regeneration workflow."
 ---
 
@@ -15,6 +15,16 @@ validation/moderation see [`safety.md`](./safety.md); for context/chunking
 see [`context-management.md`](./context-management.md); for the evaluation harness see
 [`evaluations.md`](./evaluations.md).
 
+## Prompt system
+
+```mermaid
+flowchart LR
+    n0["Code-based prompt registry"] --> n1["Version labels"]
+    n0["Code-based prompt registry"] --> n2["Typed variables"]
+    n0["Code-based prompt registry"] --> n3["Rendering helpers"]
+    n0["Code-based prompt registry"] --> n4["Cache keys"]
+    n0["Code-based prompt registry"] --> n5["Evaluation fixtures"]
+```
 ---
 
 ## 1. Why a registry
@@ -174,3 +184,4 @@ Behaviour-preservation is additionally guarded by the existing
 `tests/translation.test.ts`, `tests/tutor.test.ts` (CEFR level appears in the
 system prompt), and `tests/ai-chunking.test.ts` (cache key is prefixed by
 `promptVersionFor("vocabulary")`).
+

@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-06"
+last_updated: "2026-07-19"
 description: "Documents /api/health, /api/ready, runtime configuration validation, migration checks, and optional-provider degradation. Captures current readiness JSON, provider check semantics, database/migration validation, and non-secret reporting."
 ---
 
@@ -15,6 +15,16 @@ OAuth providers, push services, or object storage endpoints.
 See also: [`runtime-config.md`](./runtime-config.md) — runtime configuration
 ownership, typed helpers, and the documented `process.env` allowlist.
 
+## Probe decision flow
+
+```mermaid
+flowchart TD
+    n0["Probe request"] --> n1["Liveness process check"]
+    n1["Liveness process check"] --> n2["Validate runtime config"]
+    n2["Validate runtime config"] --> n3["Check migration state"]
+    n3["Check migration state"] --> n4["Classify optional provider degradation"]
+    n4["Classify optional provider degradation"] --> n5["Ready or unavailable response"]
+```
 ## Endpoints
 
 | Endpoint | Handler | Runtime | Purpose |
@@ -168,3 +178,4 @@ No storage secrets are emitted in readiness JSON.
 | `checks.migrations = error`, `unapplied > 0` | Repo has migration directories not present in `_prisma_migrations`. | Run the correct migration command for the configured schema. |
 | `checks.providers.ai = degraded` | Some but not all Azure OpenAI env vars are set. | Fill all four vars or clear unused placeholders. |
 | `checks.providers.storage = degraded` | `MEDIA_STORAGE=azure` without credentials, or an unsupported storage value. | Configure Azure Storage or set `MEDIA_STORAGE=local`. |
+

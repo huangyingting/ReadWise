@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents common lifecycle and health model for optional external providers. Captures current provider states, credential rotation, outage response, degradation, drift handling, and operator actions."
 ---
 
@@ -20,6 +20,16 @@ Cross-references:
 [docs/platform/health-readiness.md](../platform/health-readiness.md) ·
 Issue #723 (kill-switch flags, planned)
 
+## Provider lifecycle
+
+```mermaid
+flowchart TD
+    n0["Configure provider"] --> n1["Readiness check"]
+    n1["Readiness check"] --> n2["Healthy operation"]
+    n2["Healthy operation"] --> n3["Degraded or outage response"]
+    n3["Degraded or outage response"] --> n4["Credential rotation"]
+    n4["Credential rotation"] --> n5["Drift review and recovery"]
+```
 ---
 
 ## Table of contents
@@ -597,3 +607,4 @@ unified model and tracks planned remediation (issue #723).
 - `GET /api/ready` reflects a `disabled` status for kill-switched providers.
 - Observability exporters remain outside the readiness check (non-critical path).
 - All kill-switch flags are documented in `docs/platform/health-readiness.md`.
+

@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents tenant/classroom reporting visibility boundaries and aggregate-vs-learner data ownership. Captures current teacher/admin visibility, retention/export expectations, and privacy rules for classroom analytics."
 ---
 
@@ -19,6 +19,15 @@ fact, and the retention and export rules that govern tenant-scoped reporting.
 > [docs/access/multi-tenancy.md](../access/multi-tenancy.md) — the tenancy
 > model (orgs, classrooms, memberships, roles).
 
+## Reporting visibility
+
+```mermaid
+flowchart TD
+    n0["Viewer and capability"] --> n1["Resolve tenant scope"]
+    n1["Resolve tenant scope"] --> n2["Apply visibility matrix"]
+    n2["Apply visibility matrix"] --> n3["Aggregate or redact"]
+    n3["Aggregate or redact"] --> n4["Return report or export"]
+```
 ---
 
 ## 1. Why tenant reporting needs explicit boundaries
@@ -236,3 +245,4 @@ AI subsystem, not by Analytics or Access & Tenancy.
 | No classroom bulk-export endpoint | If added ad hoc, could bypass role-based redaction | Any export must reuse `applyAnalyticsAccess` with the same role resolution |
 | Learner visibility into own classroom aggregate (e.g., class average) | Learners currently get 403; no "how does my class compare?" surface | Decide scope before adding; must not expose other learners' identities |
 | AI usage per org/classroom | AI dashboard is platform-wide; no per-tenant AI cost view | Requires explicit per-tenant ledger query, gated by `orgAdmin` role |
+

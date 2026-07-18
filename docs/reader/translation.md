@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents article and sentence translation caches, AI prompt versions, chunking, access checks, and privacy boundaries. Captures current cache keys, full-article/sentence translation flows, fallbacks, route behavior, and metadata constraints."
 ---
 
@@ -11,6 +11,16 @@ ReadWise supports full-article translations and sentence/selection translations.
 Both are cache-first, access-checked, prompt-versioned AI features that degrade
 gracefully when AI is unavailable.
 
+## Translation pipeline
+
+```mermaid
+flowchart TD
+    n0["Article or sentence request"] --> n1["Normalize language and content key"]
+    n1["Normalize language and content key"] --> n2["Check versioned cache"]
+    n2["Check versioned cache"] --> n3["Chunk long article when needed"]
+    n3["Chunk long article when needed"] --> n4["Invoke translation provider"]
+    n4["Invoke translation provider"] --> n5["Persist or return graceful fallback"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -85,3 +95,4 @@ The AI ledger stores feature/model/status/token metadata, not text.
 Relevant tests include `tests/translation.test.ts`,
 `tests/sentence-translation.test.ts`, `tests/ai-chunking.test.ts`,
 `tests/prompts.test.ts`, and reader translation route tests.
+

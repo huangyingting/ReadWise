@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents browser runtime error ingestion, aggregation, redaction, and alerting boundaries. Captures current client error route behavior, scrubbed metadata, rate limiting, aggregation, and alert thresholds."
 ---
 
@@ -11,6 +11,16 @@ Client-error reporting funnels browser runtime errors into the same structured
 server-side observability path as API, worker, and provider failures. It is
 public, rate-limited, best-effort, and privacy-scrubbed.
 
+## Client error pipeline
+
+```mermaid
+flowchart TD
+    n0["Browser runtime error"] --> n1["Scrub private fields"]
+    n1["Scrub private fields"] --> n2["Apply rate limit"]
+    n2["Apply rate limit"] --> n3["Ingest metadata"]
+    n3["Ingest metadata"] --> n4["Aggregate fingerprints"]
+    n4["Aggregate fingerprints"] --> n5["Alert on threshold"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -81,3 +91,4 @@ See [`overview.md`](./overview.md) for the broader error pipeline.
 
 Route behavior is covered by observability/client-error route tests and the
 shared error-redaction tests in `tests/observability*.test.ts` where present.
+

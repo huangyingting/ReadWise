@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents Article Library visibility, status, ownership, moderation, and access-policy boundaries. Captures current article lifecycle, public/private listing behavior, admin operations, and safety/privacy constraints."
 ---
 
@@ -16,6 +16,16 @@ It ties together content ingestion (`docs/content/scrapers.md`), reader features
 visibility ADR
 ([`../architecture/0002-article-visibility-and-access-service.md`](../architecture/0002-article-visibility-and-access-service.md)).
 
+## Article library model
+
+```mermaid
+flowchart LR
+    n0["Article lifecycle"] --> n1["Publication state"]
+    n0["Article lifecycle"] --> n2["Visibility and ownership"]
+    n0["Article lifecycle"] --> n3["Review state"]
+    n0["Article lifecycle"] --> n4["Central access predicate"]
+    n0["Article lifecycle"] --> n5["Listings and takedown"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -150,3 +160,4 @@ Important coverage includes `tests/article-access.test.ts`,
 `tests/admin-articles*.test.ts`, `tests/articles.test.ts`,
 `tests/articles-search.test.ts`, `tests/search-sql-predicate.test.ts`, and
 content policy/moderation route tests.
+

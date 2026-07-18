@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents release gates, migration workflow, deployment checks, rollback decision tree, and post-release monitoring. Captures current quality tiers, database target handling, build/dev caveats, smoke verification, and rollback process."
 ---
 
@@ -12,6 +12,16 @@ quality gates, migration steps for both database targets, deployment, smoke
 verification, rollback decision tree, and post-release monitoring. Use it as a
 checklist for every production change.
 
+## Release workflow
+
+```mermaid
+flowchart TD
+    n0["Preflight quality gates"] --> n1["Prepare database migrations"]
+    n1["Prepare database migrations"] --> n2["Deploy application"]
+    n2["Deploy application"] --> n3["Run smoke verification"]
+    n3["Run smoke verification"] --> n4["Monitor release"]
+    n4["Monitor release"] --> n5["Promote or roll back"]
+```
 ## Related runbooks and docs
 
 - [`docs/platform/database-runbooks.md`](../platform/database-runbooks.md) —
@@ -418,3 +428,4 @@ A release is declared healthy when:
 | Readiness probe | `curl --fail 'https://<host>/api/ready'` |
 | SLO status | `curl --fail 'https://<host>/api/admin/slo'` |
 | Worker single-cycle run | `npm run worker -- --once` |
+

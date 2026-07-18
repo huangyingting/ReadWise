@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-02"
+last_updated: "2026-07-19"
 description: "Documents lexical provider seam, word normalization, dictionary lookup, saved-word persistence, and AI vocabulary panel relationship. Captures current normalization rules, local/free/hybrid providers, lookup route behavior, saved-word SRS integration, and privacy constraints."
 ---
 
@@ -12,6 +12,16 @@ normalization, explicit saved words, word mastery, and study review. It is
 separate from AI-generated article vocabulary (`src/lib/vocabulary/service.ts`),
 but the two share saved-word state in the UI.
 
+## Dictionary lookup
+
+```mermaid
+flowchart TD
+    n0["Selected word"] --> n1["Normalize candidates"]
+    n1["Normalize candidates"] --> n2["Resolve canonical lemma"]
+    n2["Resolve canonical lemma"] --> n3["Query provider chain"]
+    n3["Query provider chain"] --> n4["Return safe fallback"]
+    n4["Return safe fallback"] --> n5["Save word for study"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -149,3 +159,4 @@ article text into metadata. The broader Reader tool behavior is documented in
 Relevant tests include lexical normalization/lookup tests, `tests/vocabulary.test.ts`,
 `tests/article-mastery.test.ts`, dictionary route tests, and analytics sanitizer
 tests that reject word/definition-like properties.
+

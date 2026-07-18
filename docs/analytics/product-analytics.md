@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents the append-only product analytics event stream, retention helpers, and privacy boundaries. Captures current event schemas, sanitizer behavior, dashboard/export rules, and metadata-only constraints."
 ---
 
@@ -17,6 +17,16 @@ retention rules that govern it.
 > `src/lib/analytics/events/catalog.ts`). Every stored event stamps `properties._v` with the
 > version it was written under.
 
+## Analytics event flow
+
+```mermaid
+flowchart TD
+    n0["Product event"] --> n1["Validate versioned schema"]
+    n1["Validate versioned schema"] --> n2["Remove private content"]
+    n2["Remove private content"] --> n3["Append metadata event"]
+    n3["Append metadata event"] --> n4["Aggregate and retain"]
+    n4["Aggregate and retain"] --> n5["Dashboard or export"]
+```
 ## Subsystem ownership boundary
 
 Analytics owns the **product event stream** only:
@@ -222,3 +232,4 @@ content, definitions, notes, prompts, or PII.
   latency / fallback dashboards (from the `AiInvocation` ledger) and content-ops
   health (from `ArticleProcessingStep` + the job queue) — see
   `src/lib/ai/usage-summary.ts` and `src/lib/processing/state.ts`.
+

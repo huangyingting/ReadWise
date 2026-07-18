@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents design-system ownership, token/primitive governance, import rules, density variants, and visual regression boundaries. Captures current token usage, shared UI primitives, ESLint drift checks, density rules, focus states, and CI screenshot plan."
 ---
 
@@ -9,6 +9,16 @@ description: "Documents design-system ownership, token/primitive governance, imp
 
 > **Related:** [Accessibility baseline](./accessibility.md) (#726) · [Platform primitives](../platform/primitives.md) · `src/app/tokens.css` · `src/components/ui/`
 
+## Design-system governance
+
+```mermaid
+flowchart LR
+    n0["Studio design tokens"] --> n1["Shared UI primitives"]
+    n0["Studio design tokens"] --> n2["Density variants"]
+    n0["Studio design tokens"] --> n3["Import and lint rules"]
+    n0["Studio design tokens"] --> n4["Visual regression"]
+    n0["Studio design tokens"] --> n5["Light, dark, mobile, and focus checks"]
+```
 ---
 
 ## 1. Purpose
@@ -594,3 +604,4 @@ established.
 - Recreate old compatibility import paths for shared UI primitives.
 - Skip the WCAG contrast comment when adding colour tokens.
 - Merge a visual baseline update without a second reviewer approving the diff.
+

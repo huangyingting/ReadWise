@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents AI provider abstraction, context construction, chunking, cache keys, and fallback boundaries. Captures current long-context handling, cache/version behavior, prompt/privacy limits, and graceful degradation rules."
 ---
 
@@ -17,6 +17,16 @@ sent as one giant prompt. The goal here is to keep every AI prompt **bounded**
 and to pick the right **context strategy per feature**, with no tokenizer
 dependency and no Prisma schema changes.
 
+## Context pipeline
+
+```mermaid
+flowchart TD
+    n0["AI request"] --> n1["Estimate token budget"]
+    n1["Estimate token budget"] --> n2["Select or chunk context"]
+    n2["Select or chunk context"] --> n3["Invoke provider"]
+    n3["Invoke provider"] --> n4["Merge and cache result"]
+    n4["Merge and cache result"] --> n5["Graceful fallback"]
+```
 ---
 
 ## 1. Token-aware utilities (`src/lib/ai/chunking.ts`)
@@ -132,3 +142,4 @@ content/prompt dimension in its key.
 `tests/translation.test.ts` additionally verifies multi-chunk translation
 coverage, that a single failed chunk degrades to an uncached fallback, and that a
 second request is served from cache with no new AI call.
+

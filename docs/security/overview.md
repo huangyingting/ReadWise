@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-11"
+last_updated: "2026-07-19"
 description: "Documents security subsystem boundaries for client IP, CSRF, security events, audit logs, redaction, and rate limiting. Captures current trusted-proxy strategies, same-origin enforcement, event monitoring, redaction policy, and audit-log relationship."
 ---
 
@@ -23,6 +23,16 @@ behaves exactly as before — but several controls are *weaker* (or spoofable)
 until you configure them for your deployment. Each section calls out the
 default posture and the residual risk.
 
+## Request protection layers
+
+```mermaid
+flowchart TD
+    n0["Incoming request"] --> n1["Trusted proxy and IP resolution"]
+    n1["Trusted proxy and IP resolution"] --> n2["CSRF and origin checks"]
+    n2["CSRF and origin checks"] --> n3["Authentication and capability guard"]
+    n3["Authentication and capability guard"] --> n4["Business action"]
+    n4["Business action"] --> n5["Security event or durable audit"]
+```
 ---
 
 ## Security governance package (REF-037)
@@ -349,3 +359,4 @@ path narrows the superset.
 | `src/lib/analytics/events/sanitize.ts` | `isSensitiveMetadataKey` for `sanitizeEventProperties` (drops sensitive keys) |
 | `src/lib/ai/ledger.ts` | `redactSensitiveValue` for error messages before persistence |
 | `src/lib/security/events.ts` | via `scrubContext` from `@/lib/observability/errors` |
+

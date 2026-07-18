@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Architecture decision record for subsystem ownership, public APIs, private imports, and import-boundary enforcement. Captures current subsystem boundary contract, allowlist strategy, and phased enforcement expectations."
 ---
 
@@ -11,6 +11,15 @@ description: "Architecture decision record for subsystem ownership, public APIs,
 - **Date:** 2026-06-26
 - **Related:** #668, #669, #673
 
+## Import contract
+
+```mermaid
+flowchart TD
+    n0["Cross-subsystem dependency"] --> n1["Public subsystem API"]
+    n1["Public subsystem API"] --> n2["Allowlist exception when required"]
+    n2["Allowlist exception when required"] --> n3["ESLint enforcement"]
+    n3["ESLint enforcement"] --> n4["Migration backlog"]
+```
 ## Context
 
 ReadWise is organized around a small set of first-class subsystems: Access and
@@ -280,3 +289,4 @@ When adding or changing subsystem code, reviewers should check:
   [`../analytics/domain-reporting.md`](../analytics/domain-reporting.md) — event
   stream vs. domain read-model ownership.
 - [`../platform/ci.md`](../platform/ci.md) — lint/test gates.
+

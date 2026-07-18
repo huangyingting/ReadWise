@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents abuse-prevention signals, rate limits, mitigation hooks, and implemented/proposed control boundaries. Captures current thresholds, route scopes, provider-fallback behavior, monitoring signals, and future design targets."
 ---
 
@@ -14,6 +14,16 @@ or account-wide abuse state machine.
 
 This document records the controls that are enforced in the current codebase.
 
+## Abuse-control flow
+
+```mermaid
+flowchart TD
+    n0["Incoming operation"] --> n1["Resolve user, IP, and feature scope"]
+    n1["Resolve user, IP, and feature scope"] --> n2["Apply quota or rate limit"]
+    n2["Apply quota or rate limit"] --> n3["Run SSRF and content guards"]
+    n3["Run SSRF and content guards"] --> n4["Allow or block"]
+    n4["Allow or block"] --> n5["Emit privacy-safe security signal"]
+```
 ## Shared primitives
 
 | Primitive | Source | Current role |

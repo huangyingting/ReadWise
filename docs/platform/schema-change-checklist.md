@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents privacy, retention, export, cascade, and migration checks required for Prisma schema changes. Captures current model-change checklist, SQLite/PostgreSQL parity expectations, generated-schema updates, and documentation requirements."
 ---
 
@@ -17,6 +17,16 @@ the [data-lifecycle matrix](../security/data-lifecycle-matrix.md).
 > pull-request description so reviewers can see the checklist outcome at a
 > glance.
 
+## Schema review gate
+
+```mermaid
+flowchart TD
+    n0["Propose Prisma change"] --> n1["Classify data and privacy"]
+    n1["Classify data and privacy"] --> n2["Check cascades, retention, and export"]
+    n2["Check cascades, retention, and export"] --> n3["Update SQLite and PostgreSQL"]
+    n3["Update SQLite and PostgreSQL"] --> n4["Add migrations and fixtures"]
+    n4["Add migrations and fixtures"] --> n5["Run parity and behavior tests"]
+```
 ---
 
 ## 1. Parity and migration hygiene
@@ -185,3 +195,4 @@ Paste the following block into pull-request descriptions for any schema change:
 | [`docs/access/multi-tenancy.md`](../access/multi-tenancy.md) | Multi-tenancy deletion rules |
 | `src/lib/security/redaction.ts` | Runtime log/metadata redaction implementation |
 | `src/lib/account-lifecycle/account-commands.ts` | `exportUserData` and `deleteUser` implementations |
+

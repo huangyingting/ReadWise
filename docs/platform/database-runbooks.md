@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents database operational runbooks for backup, restore, migration, rollback, and disaster recovery. Captures current SQLite/PostgreSQL procedures, validation checks, rollback safety, and operator actions."
 ---
 
@@ -11,6 +11,16 @@ These runbooks cover the current SQLite deployment and the planned
 PostgreSQL production target from [ADR-0001](../architecture/0001-postgresql-primary-database.md).
 They are intentionally secret-safe: examples use placeholders only.
 
+## Database recovery workflow
+
+```mermaid
+flowchart TD
+    n0["Choose backup or migration operation"] --> n1["Verify ownership and target"]
+    n1["Verify ownership and target"] --> n2["Create encrypted backup"]
+    n2["Create encrypted backup"] --> n3["Restore or migrate"]
+    n3["Restore or migrate"] --> n4["Run integrity checks"]
+    n4["Run integrity checks"] --> n5["Promote or roll back"]
+```
 ## Ownership, frequency, and retention
 
 | Environment | Owner | Backup frequency | Retention | Restore drill |
@@ -247,3 +257,4 @@ workers complete without repeated errors.
   degradation.
 - Backup artifact checksum is recorded and restore-drill artifacts are deleted or
   access-restricted.
+

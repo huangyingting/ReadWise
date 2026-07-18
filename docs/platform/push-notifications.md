@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents Web Push configuration, subscription lifecycle, reminder scheduler, and delivery-health boundaries. Captures current VAPID config, preference model, quiet hours, delivery pruning, push routes, and privacy rules."
 ---
 
@@ -11,6 +11,16 @@ Push notifications are an optional platform subsystem used today for due-card
 study reminders. Missing VAPID configuration is expected in local/test
 environments and degrades to no-op sends.
 
+## Push reminder flow
+
+```mermaid
+flowchart TD
+    n0["VAPID runtime config"] --> n1["Browser subscription"]
+    n1["Browser subscription"] --> n2["Persist endpoint metadata"]
+    n2["Persist endpoint metadata"] --> n3["Reminder scheduler"]
+    n3["Reminder scheduler"] --> n4["Quiet-hours and eligibility check"]
+    n4["Quiet-hours and eligibility check"] --> n5["Send and record delivery health"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -113,3 +123,4 @@ in push payloads; push services are third parties.
 Relevant coverage includes `tests/push.test.ts`, `tests/reminder-preferences.test.ts`,
 route tests for `src/app/api/push/**`, and worker/job tests for
 `PUSH_REMINDER` jobs.
+

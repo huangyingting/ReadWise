@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "accepted"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Architecture decision record for database direction and SQLite/PostgreSQL parity. Captures decision context, chosen database posture, consequences, and migration expectations."
 ---
 
@@ -11,6 +11,16 @@ description: "Architecture decision record for database direction and SQLite/Pos
 - **Date:** 2026-06-22
 - **Related:** #259 (RW-001), #314 (RW-056), #324 (RW-066)
 
+## Database decision
+
+```mermaid
+flowchart LR
+    n0["PostgreSQL primary database"] --> n1["Prisma ORM"]
+    n0["PostgreSQL primary database"] --> n2["SQLite local workflow"]
+    n0["PostgreSQL primary database"] --> n3["Schema parity"]
+    n0["PostgreSQL primary database"] --> n4["Concurrent production workloads"]
+    n0["PostgreSQL primary database"] --> n5["Migration path"]
+```
 ## Context
 
 ReadWise currently uses Prisma with SQLite for local development. Wave 1 adds private content, stricter authorization, audit trails, jobs, analytics, and later multi-tenant features; these need stronger concurrency, migrations, indexes, and integration-test parity than SQLite can provide.
@@ -38,3 +48,4 @@ Use PostgreSQL as the primary durable database for shared, test, and production 
 - PostgreSQL migration and integration-test paths exist.
 - SQLite remains the lightweight local default; shared/production environments
 	should use managed PostgreSQL where available.
+

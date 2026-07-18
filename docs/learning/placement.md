@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents the Learning-owned placement scorer, placement passage route, welcome/settings UI affordances, and PlacementResult schema. Placement is a lightweight, deterministic, privacy-preserving cold-start/retake flow that stores only counts, controlled levels, and a recommendation."
 ---
 
@@ -11,6 +11,16 @@ Reading placement gives new and returning learners a conservative CEFR starting
 signal without storing passage answers, question text, looked-up words, or free
 text. It complements profile preferences and adaptive level recommendations.
 
+## Placement flow
+
+```mermaid
+flowchart TD
+    n0["Seed reading level"] --> n1["Passage and questions"]
+    n1["Passage and questions"] --> n2["Deterministic score"]
+    n2["Deterministic score"] --> n3["Recommended level"]
+    n3["Recommended level"] --> n4["PlacementResult upsert"]
+    n4["PlacementResult upsert"] --> n5["Profile level history"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -134,3 +144,4 @@ route/onboarding tests, and UI smoke coverage around welcome/settings placement.
 - [`profile-preferences.md`](./profile-preferences.md) — onboarding/profile fields that seed placement.
 - [`learning-and-mastery.md`](./learning-and-mastery.md) — adaptive CEFR recommendation after placement.
 - [`today-session.md`](./today-session.md) — daily workflow consumers of learner level.
+

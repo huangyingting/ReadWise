@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-10"
+last_updated: "2026-07-19"
 description: "Documents dependency hygiene, vulnerability response, CI gates, and package-management boundaries. Captures current dependency review, lockfile expectations, advisory response, and upgrade verification workflow."
 ---
 
@@ -15,6 +15,16 @@ to vulnerability advisories.
 Automated gates are defined in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
 For general CI topology, see [`ci.md`](ci.md).
 
+## Dependency governance
+
+```mermaid
+flowchart TD
+    n0["Dependency proposal"] --> n1["Lockfile integrity"]
+    n1["Lockfile integrity"] --> n2["Automated audit and review"]
+    n2["Automated audit and review"] --> n3["Advisory triage"]
+    n3["Advisory triage"] --> n4["Patch, replace, or accept"]
+    n4["Patch, replace, or accept"] --> n5["Verify and document response"]
+```
 ---
 
 ## Gates at a glance
@@ -193,3 +203,4 @@ affected package, the reason for deferral, and a target remediation date.
 | Advisory | Package | Severity | Reason for deferral | Target |
 | --- | --- | --- | --- | --- |
 | _None_ | — | — | No active HIGH/CRITICAL exceptions as of 2026-07-10. | — |
+

@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents Operations-owned admin surfaces, persistent job queue, worker lifecycle, processing state, scripts, and audit-log relationships. Captures current job statuses, retries, locking, backfill/rebuild/repair workflows, dashboards, metrics, source operations, and operator checklists."
 ---
 
@@ -26,6 +26,16 @@ their logic.
 > logic beyond argument parsing and progress formatting. See
 > [§ Scripts are CLI adapters](#scripts-are-cli-adapters) below.
 
+## Admin job workflow
+
+```mermaid
+flowchart TD
+    n0["Authorized admin action"] --> n1["Create persistent job"]
+    n1["Create persistent job"] --> n2["Worker claims job"]
+    n2["Worker claims job"] --> n3["Run processing steps"]
+    n3["Run processing steps"] --> n4["Retry or complete"]
+    n4["Retry or complete"] --> n5["Append audit record"]
+```
 ## Admin surface map
 
 | Surface | Route / API | Capability / guard | Purpose |
@@ -782,3 +792,4 @@ dashboard. This table unifies them for operator reference:
 > `DEAD_LETTER` on the corresponding `Job` row). Unifying these into a
 > `dead_letter` step status is tracked as a future follow-up; do not change
 > this mapping without aligned schema, code, and dashboard updates.
+

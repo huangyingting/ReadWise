@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-10"
+last_updated: "2026-07-19"
 description: "Documents the ReadWise three-branch model (main/dev/insiders), branch naming, worktree workflow, and promotion pipeline."
 ---
 
@@ -10,6 +10,16 @@ description: "Documents the ReadWise three-branch model (main/dev/insiders), bra
 ReadWise uses a three-branch model. All feature work targets `dev`; `main` is
 the released, tagged, stable branch.
 
+## Branch promotion flow
+
+```mermaid
+flowchart TD
+    n0["Issue branch and worktree"] --> n1["Draft pull request"]
+    n1["Draft pull request"] --> n2["Merge to dev"]
+    n2["Merge to dev"] --> n3["Promote to insiders"]
+    n3["Promote to insiders"] --> n4["Validate preview"]
+    n4["Validate preview"] --> n5["Promote to main"]
+```
 ## Branch purposes
 
 | Branch | Purpose | CI |
@@ -75,3 +85,4 @@ feature branch  →  dev  →  insiders (automated)  →  main (manual, tag)
 - ❌ Non-conforming branch names — must be `squad/{number}-{slug}`
 - ❌ Switching branches in the main clone while worktrees are active
 - ❌ Committing directly to `main` or `dev` — use PRs
+

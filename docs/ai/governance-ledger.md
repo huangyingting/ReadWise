@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents AI invocation ledger, cost estimates, budgets, retention, and admin usage reporting. Captures current metadata-only ledger writes, quota enforcement, cost configuration, privacy boundaries, and reporting flows."
 ---
 
@@ -16,6 +16,15 @@ This document expands the ADR in
 and should be read with [`context-management.md`](./context-management.md),
 [`prompts.md`](./prompts.md), and [`safety.md`](./safety.md).
 
+## Governed invocation flow
+
+```mermaid
+flowchart TD
+    n0["AI invocation request"] --> n1["Budget preflight"]
+    n1["Budget preflight"] --> n2["Provider call or fallback"]
+    n2["Provider call or fallback"] --> n3["Metadata-only ledger entry"]
+    n3["Metadata-only ledger entry"] --> n4["Usage and cost aggregates"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -134,3 +143,4 @@ HTTP/browser/storage cache hits.
 Relevant tests include `tests/ai-ledger.test.ts`, `tests/ai-budget.test.ts`,
 `tests/ai-cache-selection.test.ts`, `tests/ai-provider.test.ts`,
 `tests/ai-runner.test.ts`, and admin AI analytics route tests.
+

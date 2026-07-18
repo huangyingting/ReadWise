@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents learner profile preferences, onboarding boundary, goal paths, level history, and personalization consumers. Captures current validation, profile route behavior, onboarding completion, placement relationship, and privacy rules."
 ---
 
@@ -12,6 +12,16 @@ recommended level, topic personalization, daily goals, and parts of the learning
 dashboard. They are small but central: routes should validate them consistently
 and never trust client-provided user ids.
 
+## Profile flow
+
+```mermaid
+flowchart TD
+    n0["Onboarding input"] --> n1["Validate profile fields"]
+    n1["Validate profile fields"] --> n2["Persist preferences"]
+    n2["Persist preferences"] --> n3["Record level history"]
+    n3["Record level history"] --> n4["Stamp completion"]
+    n4["Stamp completion"] --> n5["Personalization consumers"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -170,3 +180,4 @@ event carries only `{ goalPath }`. `exportUserData` includes `goalPath`.
 Relevant tests include `tests/profile*.test.ts`, `tests/onboarding*.test.ts`,
 `tests/leveling*.test.ts`, recommendation context tests, `tests/placement*.test.ts`,
 and auth/session guard tests.
+

@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents local/Azure media storage, readiness behavior, storage interface, speech audio persistence, streaming endpoint, and troubleshooting rules."
 ---
 
@@ -13,6 +13,16 @@ filesystem storage or Azure Blob Storage. The legacy database-backed
 `ArticleSpeech.audioBase64` fallback has been removed; current `ArticleSpeech`
 rows retain only word timings. `MediaAsset` is the canonical audio pointer.
 
+## Storage architecture
+
+```mermaid
+flowchart LR
+    n0["Media storage interface"] --> n1["Local filesystem backend"]
+    n0["Media storage interface"] --> n2["Azure Blob backend"]
+    n0["Media storage interface"] --> n3["Runtime configuration"]
+    n0["Media storage interface"] --> n4["Speech persistence"]
+    n0["Media storage interface"] --> n5["Proxy and streaming"]
+```
 ## Goals
 
 - Keep large audio out of the primary database.
@@ -143,3 +153,4 @@ secret values (connection strings, account keys) are included in readiness JSON.
 | `storage.azure_container_unavailable` warn in logs | Azure SDK import failed or container creation threw. | Check credentials, network, and account/container names. |
 | Speech POST returns no cached audio on later requests | Storage write failed or the storage object is unavailable. | Check storage logs and `GET /api/ready`; regenerate narration after storage is healthy. |
 | Audio endpoint returns 404 but a `MediaAsset` is linked | The selected backend cannot read the asset's object. | Confirm env vars are loaded and the local directory/blob container contains the asset's key. |
+

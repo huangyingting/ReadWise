@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents the admin security surface, in-memory security event buffer, durable AuditLog table, and their relationship to observability and security controls. Operators use /admin/security for recent security events and /api/admin/audit-logs for durable filtered history; both surfaces expose metadata only and rely on shared redaction."
 ---
 
@@ -12,6 +12,16 @@ audit history from the admin surface. It complements the security architecture
 document, which owns the underlying trusted-proxy, CSRF, event, and redaction
 rules.
 
+## Security investigation
+
+```mermaid
+flowchart TD
+    n0["Security signal"] --> n1["Open admin security view"]
+    n1["Open admin security view"] --> n2["Correlate event buffer and AuditLog"]
+    n2["Correlate event buffer and AuditLog"] --> n3["Apply redaction boundary"]
+    n3["Apply redaction boundary"] --> n4["Mitigate or escalate"]
+    n4["Mitigate or escalate"] --> n5["Retain compliance record"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -114,3 +124,4 @@ Audit rows are append-only metadata:
 - [`admin-operations.md`](./admin-operations.md) — broader admin operations surface.
 - [`../observability/overview.md`](../observability/overview.md) — logs, traces, metrics, and SLO triage.
 - [`../security/data-lifecycle-matrix.md`](../security/data-lifecycle-matrix.md) — retention/privacy classification.
+

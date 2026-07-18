@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "accepted"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Architecture decision record for capability-based authorization. Captures capability vocabulary, role mapping, route guard posture, and consequences."
 ---
 
@@ -11,6 +11,15 @@ description: "Architecture decision record for capability-based authorization. C
 - **Date:** 2026-06-23
 - **Related:** #269 (RW-011), #247 (RW-E002), #318 (RW-060, tenant model)
 
+## Authorization decision
+
+```mermaid
+flowchart TD
+    n0["Principal"] --> n1["Global and tenant roles"]
+    n1["Global and tenant roles"] --> n2["Named capabilities"]
+    n2["Named capabilities"] --> n3["Route and service guards"]
+    n3["Route and service guards"] --> n4["Authorization result"]
+```
 ## Context
 
 ReadWise authorizes with a two-value `Role` enum (`Admin`, `Reader`) and
@@ -60,3 +69,4 @@ with the Prisma enum.
   models, not in `User.role`.
 - Additional global system roles require an explicit enum + `ACTIVE_ROLES`
   change when they become active product roles.
+

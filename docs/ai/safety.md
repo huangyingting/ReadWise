@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents AI safety boundaries across structured validation, moderation, provider errors, and fallbacks. Captures current validator usage, safe output handling, moderation posture, provider-error normalization, and privacy constraints."
 ---
 
@@ -21,6 +21,16 @@ or a call fails. The controls here extend that contract so that *malformed* or
 *unsafe* model output is treated exactly like a failed call — the user always
 gets a safe result and nothing bad is cached or persisted.
 
+## Safety pipeline
+
+```mermaid
+flowchart TD
+    n0["User and article context"] --> n1["Input guardrails"]
+    n1["Input guardrails"] --> n2["Provider invocation"]
+    n2["Provider invocation"] --> n3["Structured output validation"]
+    n3["Structured output validation"] --> n4["Moderation policy"]
+    n4["Moderation policy"] --> n5["Safe fallback"]
+```
 ---
 
 ## 1. Where the controls live
@@ -380,3 +390,4 @@ project-wide graceful-fallback convention.
 - Existing feature tests (`tests/translation.test.ts`, `tests/quiz.test.ts`,
   `tests/tags.test.ts`, `tests/tutor.test.ts`, `tests/grammar.test.ts`) continue
   to pass unchanged — the abstraction is behavior-preserving.
+

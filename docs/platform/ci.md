@@ -1,7 +1,7 @@
 ---
 type: "testing"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents CI quality gates, native coverage, test tiers, isolated Playwright configuration, UI audit sharding/artifacts, generated-doc drift checks, and release-readiness automation."
 ---
 
@@ -13,6 +13,16 @@ flakier checks are categorized so they don't make every PR painful. This documen
 describes the tiers, what runs when, how to reproduce each gate locally, and the
 `.next` dev/build race warning (#83).
 
+## CI gate sequence
+
+```mermaid
+flowchart TD
+    n0["Static checks"] --> n1["Typecheck"]
+    n1["Typecheck"] --> n2["Unit and integration tests"]
+    n2["Unit and integration tests"] --> n3["Coverage and drift gates"]
+    n3["Coverage and drift gates"] --> n4["Playwright tier"]
+    n4["Playwright tier"] --> n5["Release readiness"]
+```
 ## Tiers at a glance
 
 | Job (check name) | What it runs | Local command |
@@ -277,3 +287,4 @@ rm -rf .next && npm run build
 CI follows this rule: the **Build** job runs `rm -rf .next` immediately before
 `npm run build` so a stale or cached `.next/` can never race the build. If a build
 fails in CI, the failure-diagnosis summary points back here.
+

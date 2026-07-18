@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents organization, membership, classroom, assignment, tenant-cache, and tenant-reporting boundaries. Captures current tenant roles, classroom ownership, assignment access, cache scoping, analytics privacy, and migration behavior."
 ---
 
@@ -16,6 +16,16 @@ inert until a user actually joins an organization. An account with no membership
 behaves EXACTLY like the pre-tenancy single-user experience — no global/public
 listing, cache key, or analytics surface changes for them.
 
+## Tenant model
+
+```mermaid
+flowchart LR
+    n0["Tenant context"] --> n1["Organization memberships"]
+    n0["Tenant context"] --> n2["Classrooms and assignments"]
+    n0["Tenant context"] --> n3["Tenant-scoped queries"]
+    n0["Tenant context"] --> n4["Tenant-aware cache keys"]
+    n0["Tenant context"] --> n5["Reporting privacy"]
+```
 ---
 
 ## 1. Tenancy model (RW-060)
@@ -271,3 +281,4 @@ separate concerns.
 - **RW-063** — visibility rules, class-level aggregation, redaction of
   out-of-scope individual data, retention/export per role, class analytics
   surfaced in the teacher view. → §4
+

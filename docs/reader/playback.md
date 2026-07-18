@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents ReaderAudioProvider, mini-player, narration transport, word highlighting, and access-checked playback initiation. Captures current playback controls, speed/loop behavior, audio-range playback, TTS integration, storage fallback, and UI state rules."
 ---
 
@@ -18,6 +18,16 @@ and storage, see [`../media/assets.md`](../media/assets.md) and
 [`../media/storage.md`](../media/storage.md). For TTS job scheduling, see
 [`../operations/tts-jobs.md`](../operations/tts-jobs.md).
 
+## Playback lifecycle
+
+```mermaid
+flowchart TD
+    n0["Reader requests narration"] --> n1["Warm or fetch speech"]
+    n1["Warm or fetch speech"] --> n2["Create managed Blob URL"]
+    n2["Create managed Blob URL"] --> n3["ReaderAudioProvider state"]
+    n3["ReaderAudioProvider state"] --> n4["Mini-player transport"]
+    n4["Mini-player transport"] --> n5["Highlight words and loop sentences"]
+```
 ## Ownership boundary
 
 **Reader owns** the mini-player transport UI, word-highlighting UI, playback
@@ -179,3 +189,4 @@ and cleans up the listener on stop or unmount.
   readiness.
 - [`../operations/tts-jobs.md`](../operations/tts-jobs.md) — TTS job scheduling,
   retry, rebuild.
+

@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents Operations-owned TTS_GENERATE job scheduling and its boundary with Speech/Media. Captures current dedupe, retry, rebuild, worker, processing-step, and operator behavior for generated narration."
 ---
 
@@ -13,6 +13,16 @@ status. Speech synthesis logic itself is in
 [`../speech/generation.md`](../speech/generation.md); media asset lifecycle is
 in [`../media/assets.md`](../media/assets.md).
 
+## TTS job workflow
+
+```mermaid
+flowchart TD
+    n0["Schedule TTS_GENERATE"] --> n1["Deduplicate pending work"]
+    n1["Deduplicate pending work"] --> n2["Worker dispatch"]
+    n2["Worker dispatch"] --> n3["Synthesize and persist audio"]
+    n3["Synthesize and persist audio"] --> n4["Complete processing step"]
+    n4["Complete processing step"] --> n5["Retry or rebuild on failure"]
+```
 ## Ownership boundary
 
 **Operations owns** `TTS_GENERATE` job creation, enqueueing, claim/lock/retry
@@ -168,3 +178,4 @@ narration was generated, fell back, or failed for a specific article.
   narration is consumed by the Reader.
 - [`admin-operations.md`](./admin-operations.md) — full job queue model, claim/lock,
   retry mechanics, and CLI usage.
+

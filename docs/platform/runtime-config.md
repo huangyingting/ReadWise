@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents server-side runtime-config ownership, the direct process.env allowlist, typed environment helpers, and narrow build/test/maintenance adapters. Captures current env-var ownership, feature switches, optional-provider config, and server-only import boundaries."
 ---
 
@@ -11,6 +11,16 @@ description: "Documents server-side runtime-config ownership, the direct process
 and environment-variable parsing. External callers must consume typed helpers from
 this module rather than reading `process.env` directly.
 
+## Configuration boundary
+
+```mermaid
+flowchart TD
+    n0["Environment variables"] --> n1["Explicit allowlist"]
+    n1["Explicit allowlist"] --> n2["Typed server helper"]
+    n2["Typed server helper"] --> n3["Validation and defaults"]
+    n3["Validation and defaults"] --> n4["Feature or provider consumer"]
+    n4["Feature or provider consumer"] --> n5["Graceful optional fallback"]
+```
 ## Direct `process.env` allowlist
 
 Some narrow patterns are permitted to read `process.env` outside
@@ -279,3 +289,4 @@ If a file genuinely must import a runtime-config module from a client-adjacent
 path, add a justified allowlist entry to
 `eslint-rules/import-boundary-allowlist.json` following the instructions in
 [`docs/architecture/0010-subsystem-boundaries-and-import-contracts.md §How to add an allowlist entry`](../architecture/0010-subsystem-boundaries-and-import-contracts.md).
+

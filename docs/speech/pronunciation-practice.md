@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents the client-side Azure Speech pronunciation-assessment flow, token exchange route, persistence route, and Learning mastery side effects. Audio assessment runs in the browser with a short-lived Speech token; the server stores bounded scores and reference text only, never raw audio or SDK word/phoneme payloads."
 ---
 
@@ -11,6 +11,16 @@ Pronunciation practice is the Reader Speak tab. It lets learners read selected
 sentences aloud and receive Azure Speech SDK assessment feedback while keeping
 server persistence intentionally narrow.
 
+## Pronunciation assessment
+
+```mermaid
+flowchart TD
+    n0["Learner starts Speak tab"] --> n1["Request short-lived Speech token"]
+    n1["Request short-lived Speech token"] --> n2["Browser records assessment"]
+    n2["Browser records assessment"] --> n3["Azure returns scores"]
+    n3["Azure returns scores"] --> n4["Persist attempt"]
+    n4["Persist attempt"] --> n5["Update skill evidence and history"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -131,3 +141,4 @@ configuration tests.
 - [`../reader/reader-tools.md`](../reader/reader-tools.md) — Reader Speak and Dictation UX context.
 - [`../learning/learning-and-mastery.md`](../learning/learning-and-mastery.md) — skill mastery formulas.
 - [`../platform/runtime-config.md`](../platform/runtime-config.md) — Speech environment variables and feature switches.
+

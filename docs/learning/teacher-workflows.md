@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents learner/teacher assignment workflows built on Access-owned organizations, classrooms, memberships, and Assignment models. Teacher UI creates classrooms, manages rosters, assigns accessible articles, and views classroom analytics; student UI tracks assigned reading completion without changing Article Library access rules."
 ---
 
@@ -12,6 +12,16 @@ subsystem's multi-tenant organization and classroom model. Access owns roles and
 authorization; Learning owns the study/assignment experience and completion
 signals.
 
+## Teacher workflow
+
+```mermaid
+flowchart TD
+    n0["Create classroom"] --> n1["Manage membership"]
+    n1["Manage membership"] --> n2["Create assignment"]
+    n2["Create assignment"] --> n3["Student reads and submits"]
+    n3["Student reads and submits"] --> n4["Record completion"]
+    n4["Record completion"] --> n5["View scoped analytics"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -107,3 +117,4 @@ receive aggregate-only exports with individual rows redacted.
 - [`../access/rbac.md`](../access/rbac.md) — capability resolution.
 - [`../analytics/tenant-reporting-privacy.md`](../analytics/tenant-reporting-privacy.md) — teacher/admin reporting visibility.
 - [`learning-and-mastery.md`](./learning-and-mastery.md) — mastery and quiz signals that can appear in assignment analytics.
+

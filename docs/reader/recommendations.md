@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents Scored Picks candidate boundaries, personalization context, ranking, diversity, explanations, and privacy rules. Captures current candidate filtering, score weights, placement/goal/profile inputs, series soft candidates, feed/browse behavior, and fallback rules."
 ---
 
@@ -11,6 +11,16 @@ Recommendations power the personalized scored "Picks" feed. The system is
 transparent by design: every article receives component scores, a final score,
 and a human-readable reason.
 
+## Recommendation pipeline
+
+```mermaid
+flowchart TD
+    n0["Readable candidate set"] --> n1["Normalize candidate features"]
+    n1["Normalize candidate features"] --> n2["Compute weighted score"]
+    n2["Compute weighted score"] --> n3["Boost weak-word exposure"]
+    n3["Boost weak-word exposure"] --> n4["Apply category diversity"]
+    n4["Apply category diversity"] --> n5["Return explained picks"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -130,3 +140,4 @@ Relevant tests include:
 - `tests/recommendations.test.ts` — scoring, diversity, context loading, and graceful new-user degradation.
 - `tests/recommendations-context.test.ts` — per-user context signal loading.
 - `tests/article-mastery.test.ts`, `tests/leveling*.test.ts` — component signal tests.
+

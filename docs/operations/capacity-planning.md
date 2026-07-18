@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents subsystem capacity assumptions, limits, observable signals, and scaling levers. Captures current throughput constraints, provider bottlenecks, cache/queue/storage limits, Redis adoption gate, and follow-up gaps."
 ---
 
@@ -17,6 +17,16 @@ Cross-references: [incident-response.md](./incident-response.md) ·
 [docs/observability/metrics.md](../observability/metrics.md) ·
 [docs/observability/overview.md](../observability/overview.md)
 
+## Capacity review loop
+
+```mermaid
+flowchart TD
+    n0["Measure subsystem demand"] --> n1["Compare known limits"]
+    n1["Compare known limits"] --> n2["Inspect saturation signals"]
+    n2["Inspect saturation signals"] --> n3["Apply scaling lever"]
+    n3["Apply scaling lever"] --> n4["Validate cost and SLOs"]
+    n4["Validate cost and SLOs"] --> n5["Record next threshold"]
+```
 ---
 
 ## Table of contents
@@ -683,3 +693,4 @@ beyond a single-tenant pilot.
 
 Update this document with real measurements in the same PR that adds each signal.
 Label all values with whether they are **measured** or **estimated**.
+

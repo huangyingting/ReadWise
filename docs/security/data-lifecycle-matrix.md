@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-12"
+last_updated: "2026-07-19"
 description: "Documents data classification, retention, export, cascade, and privacy treatment across Prisma models and client stores. Captures current model-by-model classification, deletion behavior, retention windows, export handling, and follow-up gaps."
 ---
 
@@ -22,6 +22,16 @@ behavior is invented. Gaps are called out as follow-up items.
 - Media asset storage → [`../media/storage.md`](../media/storage.md)
 - Offline client cache → [`../reader/offline-sync.md`](../reader/offline-sync.md)
 
+## Data lifecycle review
+
+```mermaid
+flowchart TD
+    n0["Stored data class"] --> n1["Identify owner and sensitivity"]
+    n1["Identify owner and sensitivity"] --> n2["Set retention boundary"]
+    n2["Set retention boundary"] --> n3["Define export visibility"]
+    n3["Define export visibility"] --> n4["Define deletion or cascade"]
+    n4["Define deletion or cascade"] --> n5["Verify metadata safety"]
+```
 ---
 
 ## Legend
@@ -313,3 +323,4 @@ callers bear responsibility** for not passing raw values in the first place:
 | AI context sentences | `SavedWord.contextSentence` | Sensitive keys `sentence`, `context` |
 | Definitions / explanations | `VocabularyItem.explanation`, `GrammarExplanation.explanation` | Sensitive keys `definition`, `explanation` |
 | Translations | `Translation.content`, `SentenceTranslation.translation` | Sensitive keys `translation`, `content` |
+

@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-11"
+last_updated: "2026-07-19"
 description: "Documents global, tenant, and classroom capability resolution boundaries. Captures current role-to-capability mappings, guard usage, denial behavior, and authorization testing expectations."
 ---
 
@@ -14,6 +14,15 @@ of scattering raw `role === "Admin"` checks across pages and APIs.
 The source of truth is `src/lib/rbac.ts`. It is pure and dependency-free so it
 can be imported from server components, route handlers, CLIs, and tests.
 
+## Authorization flow
+
+```mermaid
+flowchart TD
+    n0["Authenticated principal"] --> n1["Resolve global and tenant roles"]
+    n1["Resolve global and tenant roles"] --> n2["Map roles to capabilities"]
+    n2["Map roles to capabilities"] --> n3["Check route and service boundary"]
+    n3["Check route and service boundary"] --> n4["Allow or deny request"]
+```
 ## Role axes
 
 ReadWise now has two separate authorization axes:
@@ -211,3 +220,4 @@ route tests, and API handler tests verify:
 - Capability/page/API guards return the expected redirect, 401, or 403.
 - `loadSession` returns null for missing/malformed sessions.
 - `sessionHasCapability` correctly delegates to the capability model.
+

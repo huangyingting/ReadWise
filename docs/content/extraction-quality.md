@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents extraction-quality signals, classifier/heuristic boundaries, and scraper drift triage. Captures current quality scoring, rejection/flag behavior, provider counters, and review workflow."
 ---
 
@@ -10,6 +10,15 @@ description: "Documents extraction-quality signals, classifier/heuristic boundar
 Reference for the automated quality signals that guard extracted article content
 before it is persisted as a draft, plus the triage workflow for scraper drift.
 
+## Quality evaluation
+
+```mermaid
+flowchart TD
+    n0["Extracted article"] --> n1["Measure quality signals"]
+    n1["Measure quality signals"] --> n2["Compute composite score"]
+    n2["Compute composite score"] --> n3["Apply quality threshold"]
+    n3["Apply quality threshold"] --> n4["Provider drift triage"]
+```
 ## Overview
 
 `src/lib/scraper/quality.ts` provides `checkContentQuality(article)`, which scores
@@ -177,3 +186,4 @@ See `docs/content/content-policy.md` for the governance workflow.
 | `tests/scraper-quality-checks.test.ts` | Drift-triage fixture tests |
 | `src/lib/scraper/index.ts` | Wiring: `scrapeAndSave` calls `checkContentQuality` |
 | `docs/content/scrapers.md` | Provider guide and extraction pipeline reference |
+

@@ -1,7 +1,7 @@
 ---
 type: "index"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Indexes durable architecture decision records for ReadWise. Explains ADR numbering, status, template usage, and relationship to current implementation docs."
 ---
 
@@ -13,6 +13,15 @@ ADRs should generally be **kept**, not deleted, even after implementation. Updat
 their status and follow-up checklist when the code catches up. Use `Superseded`
 only when a newer ADR replaces the decision.
 
+## ADR lifecycle
+
+```mermaid
+flowchart TD
+    n0["Architecture pressure"] --> n1["Proposed ADR"]
+    n1["Proposed ADR"] --> n2["Decision review"]
+    n2["Decision review"] --> n3["Accepted decision"]
+    n3["Accepted decision"] --> n4["Implementation and follow-up"]
+```
 ## Index
 
 | ADR | Title | Status | Related issues |
@@ -29,3 +38,4 @@ only when a newer ADR replaces the decision.
 | [0010](0010-subsystem-boundaries-and-import-contracts.md) | Subsystem boundaries and import contracts | Accepted | #668, #669, #673 |
 
 Use [0000-template.md](0000-template.md) for new ADRs.
+

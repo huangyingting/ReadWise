@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents dependency-injection seams and testability boundaries across platform/domain modules. Captures current injectable interfaces, default implementations, test seams, and anti-patterns."
 ---
 
@@ -11,6 +11,16 @@ This guide defines when and how to use dependency injection (DI) in ReadWise
 services, route handlers, workers, and scripts. Follow it when writing new
 orchestration services and when updating tests.
 
+## Dependency injection pattern
+
+```mermaid
+flowchart LR
+    n0["Orchestration service"] --> n1["Default dependency object"]
+    n0["Orchestration service"] --> n2["Injected interface"]
+    n0["Orchestration service"] --> n3["Production adapter"]
+    n0["Orchestration service"] --> n4["Test fake"]
+    n0["Orchestration service"] --> n5["Failure-path control"]
+```
 ## Quick reference
 
 | Situation | Pattern | Naming | Examples |
@@ -255,3 +265,4 @@ test("successful URL import returns 201", async () => {
   (`ClaimedJobExecutor`, `ClaimedJobExecutionDeps`).
 - Import services: `src/lib/import/url-import.ts` (`UrlImportDeps`),
   `src/lib/import/text-import.ts` (`TextImportDeps`).
+
