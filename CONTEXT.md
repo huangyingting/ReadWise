@@ -33,3 +33,9 @@ _Avoid_: Batch TTS, offline speech
 **Media asset retirement**:
 Permanent removal of tracked article media from both relational records and object storage as one lifecycle outcome.
 _Avoid_: Blob cleanup, storage purge, file deletion
+
+### Content Ingestion
+
+**Public-library URL intake**:
+The lifecycle for accepting a web article URL into the shared library, ending in an ownerless draft or a non-saving outcome.
+_Avoid_: Admin scrape, scrape-and-save

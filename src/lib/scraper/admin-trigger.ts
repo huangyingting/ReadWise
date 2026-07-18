@@ -5,7 +5,7 @@ import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security/events
 import { discoverProviderUrls } from "@/lib/scraper/discovery";
 import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
 import { recordCrawlRun, type CrawlRunOutcome } from "@/lib/scraper/sources";
-import { saveDraftArticle, scrapeUrl } from "@/lib/scraper";
+import { scrapeAndSave, type UrlIntakeOutcome } from "@/lib/scraper";
 import type { Provider } from "@/lib/scraper/types";
 
 const ADMIN_SCRAPE_TRIGGER_ROUTE = "/api/admin/scrape/trigger";
@@ -47,6 +47,7 @@ type AdminScrapeTriggerSession = {
 
 type AdminScrapeCounters = Pick<AdminScrapeProviderResult, "saved" | "skipped" | "failed">;
 type ScrapeOutcomeStatus = keyof AdminScrapeCounters;
+type FailedUrlIntake = Extract<UrlIntakeOutcome, { status: "failed" }>;
 
 export type AdminScrapeTriggerContext = {
   req: Request;
@@ -189,16 +190,29 @@ async function scrapeAndSaveUrl(
   url: string,
   context: AdminScrapeTriggerContext,
 ): Promise<ScrapeOutcomeStatus> {
-  const article = await scrapeUrl(url);
-  if (!article) {
-    return "failed";
-  }
-
-  const outcome = await saveDraftArticle(
-    article,
+  const outcome = await scrapeAndSave(
+    url,
     (created) => articleIngestAudit(context, provider.key, created),
   );
+  if (outcome.status === "failed") {
+    recordIntakeFailure(context, provider.key, outcome);
+  }
   return outcome.status;
+}
+
+function recordIntakeFailure(
+  context: AdminScrapeTriggerContext,
+  provider: string,
+  outcome: FailedUrlIntake,
+): void {
+  context.log.warn("scrape.trigger.intake_failed", {
+    provider,
+    failure: outcome.failure,
+    error: outcome.reason,
+  });
+  if (outcome.failure === "scrape" || outcome.failure === "save") {
+    recordImportFailure(context, provider, "save", outcome.reason);
+  }
 }
 
 function incrementCounter(counters: AdminScrapeCounters, status: ScrapeOutcomeStatus): void {
