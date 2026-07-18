@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents search/indexing strategy, query boundaries, and article visibility constraints. Captures current search route behavior, indexing assumptions, filtering/pagination, privacy, and fallback semantics."
 ---
 
@@ -9,6 +9,16 @@ description: "Documents search/indexing strategy, query boundaries, and article 
 
 ReadWise routes user-facing search through `ArticleSearchProvider` (`src/lib/search/providers.ts`). The portable provider searches readable article fields plus the signed-in user's highlights/notes and saved vocabulary, merges results only after `readableArticleWhere`, and ranks in application code by field relevance and recency. PostgreSQL additionally has `Article_search_vector_idx`, a GIN expression index over title/excerpt/content used by the raw `postgresTextMatches` path. External search (Meilisearch/Typesense/OpenSearch) is deferred until ranking/language needs exceed PostgreSQL FTS.
 
+## Search pipeline
+
+```mermaid
+flowchart TD
+    n0["Search query"] --> n1["Readable article predicate"]
+    n1["Readable article predicate"] --> n2["Provider-specific candidate retrieval"]
+    n2["Provider-specific candidate retrieval"] --> n3["Priority match buckets"]
+    n3["Priority match buckets"] --> n4["Rank and cap results"]
+    n4["Rank and cap results"] --> n5["Paginated response"]
+```
 ## Article Library visibility boundary
 
 Article Library owns one canonical readable-article access expression in
@@ -106,3 +116,4 @@ For every new high-volume read, document:
 6. A regression test when a flow depends on a specific PostgreSQL plan or access-boundary merge.
 
 Closes #263. Refs #259 #314.
+

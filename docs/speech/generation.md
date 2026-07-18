@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents real-time and Batch narration, timing enrichment, voice/format fallback, and ArticleSpeech generation. Captures current Azure Speech synthesis flow, cache/storage behavior, timing migration, readiness, and graceful fallback rules."
 ---
 
@@ -19,6 +19,17 @@ For reader playback UX that consumes the generated audio, see
 For background TTS job scheduling, see
 [`../operations/tts-jobs.md`](../operations/tts-jobs.md).
 
+## Speech generation pipeline
+
+```mermaid
+flowchart TD
+    n0["Narration request"] --> n1["Build normalized SSML"]
+    n1["Build normalized SSML"] --> n2["Select voice and format"]
+    n2["Select voice and format"] --> n3["Azure synthesis"]
+    n3["Azure synthesis"] --> n4["Collect or align word timings"]
+    n4["Collect or align word timings"] --> n5["Persist ArticleSpeech asset"]
+    n5["Persist ArticleSpeech asset"] --> n6["Serve with fallback"]
+```
 ## Ownership boundary
 
 **Speech subsystem owns** the TTS provider seam, real-time and Batch request
@@ -330,3 +341,4 @@ Reader-triggered speech follows the same access policy as AI processing:
   `ArticleSpeech` is consumed.
 - [`../operations/tts-jobs.md`](../operations/tts-jobs.md) — TTS job scheduling,
   retry, rebuild.
+

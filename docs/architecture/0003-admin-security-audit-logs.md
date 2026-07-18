@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "accepted"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Architecture decision record for durable admin/security audit logging. Captures append-only audit-log decision, non-FK identifiers, metadata limits, and consequences."
 ---
 
@@ -11,6 +11,15 @@ description: "Architecture decision record for durable admin/security audit logg
 - **Date:** 2026-06-22
 - **Related:** #270 (RW-012), #324 (RW-066)
 
+## Audit decision
+
+```mermaid
+flowchart TD
+    n0["Sensitive admin mutation"] --> n1["Authorization"]
+    n1["Authorization"] --> n2["Transactional business change"]
+    n2["Transactional business change"] --> n3["Append-only audit record"]
+    n3["Append-only audit record"] --> n4["Privacy-safe response"]
+```
 ## Context
 
 Admin actions already affect articles, tags, members, and generated content. As private content and roles expand, ReadWise needs a durable answer to who changed security-sensitive data and when.
@@ -36,3 +45,4 @@ Audit writes for high-risk mutations are part of the same database transaction a
 ## Follow-up work
 
 - [x] #270: implement admin/security audit log model and instrumentation.
+

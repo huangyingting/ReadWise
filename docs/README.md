@@ -1,7 +1,7 @@
 ---
 type: "index"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Maps durable subsystem documentation for the current ReadWise codebase. Keeps docs flat by subsystem and links feature docs, ADRs, runbooks, generated catalogs, and governance references."
 ---
 
@@ -15,6 +15,19 @@ than creating nested folders.
 Keep feature docs aligned with code under `src/`, the Prisma schemas under
 `prisma/`, and scripts in `package.json` / `scripts/`.
 
+## Documentation map
+
+```mermaid
+flowchart LR
+    n0["ReadWise documentation"] --> n1["Access and tenancy"]
+    n0["ReadWise documentation"] --> n2["AI and analytics"]
+    n0["ReadWise documentation"] --> n3["Content and reader"]
+    n0["ReadWise documentation"] --> n4["Learning"]
+    n0["ReadWise documentation"] --> n5["Media and speech"]
+    n0["ReadWise documentation"] --> n6["Platform and operations"]
+    n0["ReadWise documentation"] --> n7["Security and observability"]
+    n0["ReadWise documentation"] --> n8["UI"]
+```
 ## Start here
 
 | Document | Scope |
@@ -186,3 +199,4 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
   output.
 - Keep schema/model descriptions consistent with both `prisma/schema.prisma` and
   `prisma/postgresql/schema.prisma` when PostgreSQL parity is affected.
+

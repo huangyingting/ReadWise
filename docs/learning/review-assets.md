@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents review-asset conversion from highlights/notes into optional SRS study cards and Today reflection signals. Captures current low-pressure review-card creation, Progress/Study counts, privacy constraints, and additive Today reflection behavior."
 ---
 
@@ -17,6 +17,16 @@ coursework (#812, Today v1.1).
 - **Related issues:** #782, #787, #812
 - **Schema:** none — no new model or column was introduced.
 
+## Review asset flow
+
+```mermaid
+flowchart TD
+    n0["Existing highlight or note"] --> n1["Convert to review card"]
+    n1["Convert to review card"] --> n2["Reuse SavedWord SRS"]
+    n2["Reuse SavedWord SRS"] --> n3["Surface in Study"]
+    n3["Surface in Study"] --> n4["Count aggregate progress"]
+    n4["Count aggregate progress"] --> n5["Optional Today reflection"]
+```
 ## Capabilities
 
 ### 1. Highlight/note → review card
@@ -68,3 +78,4 @@ user-owned highlight/note/flashcard domains where the learner already stores
 them. This subsystem never writes selected text, note text, prompts, or
 definitions into analytics events or `TodaySession` metadata — only ids,
 schedules, timestamps, and aggregate counts cross those boundaries.
+

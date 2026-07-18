@@ -1,7 +1,7 @@
 ---
 type: "testing"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents UI accessibility baseline, automated checks, manual verification gaps, and component responsibilities. Captures current axe/Playwright checks, keyboard/focus expectations, semantic patterns, and outstanding manual checks."
 ---
 
@@ -11,6 +11,16 @@ This document describes the accessibility baseline for ReadWise, what is
 checked automatically, how checks are run and extended, and which gaps remain
 as manual verification follow-ups.
 
+## Accessibility verification
+
+```mermaid
+flowchart TD
+    n0["Product surface"] --> n1["Semantic primitives and focus behavior"]
+    n1["Semantic primitives and focus behavior"] --> n2["Automated axe scan"]
+    n2["Automated axe scan"] --> n3["Keyboard and screen-reader checks"]
+    n3["Keyboard and screen-reader checks"] --> n4["Mobile viewport check"]
+    n4["Mobile viewport check"] --> n5["Regression gate"]
+```
 ## Why this matters
 
 ReadWise is a reading and learning product.  Keyboard navigation, focus
@@ -204,3 +214,4 @@ The following areas are not yet covered by automated accessibility checks:
 - Full screen-reader announcement verification in VoiceOver/NVDA for the word
   lookup popover and admin tables.
 - Reader selection toolbar focus trap and Escape-return assertion.
+

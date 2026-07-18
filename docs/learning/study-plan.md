@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-12"
+last_updated: "2026-07-19"
 description: "Documents the Learning-owned study diagnostics engine, persisted weekly study-plan snapshots, SRS/cloze study routes, and Reader practice signals that feed weekly recommendations. Study mode combines stable weekly plan items, history, due flashcards, saved-word filters, and cloze fallback behavior."
 ---
 
@@ -11,6 +11,16 @@ The Study page combines a dynamic weekly study plan with saved-word review
 surfaces. It is grounded in recorded learner activity and always returns a
 usable starter plan when evidence is sparse.
 
+## Study plan flow
+
+```mermaid
+flowchart TD
+    n0["Collect learner diagnostics"] --> n1["Evaluate weak-area thresholds"]
+    n1["Evaluate weak-area thresholds"] --> n2["Generate weekly plan"]
+    n2["Generate weekly plan"] --> n3["Persist plan snapshot"]
+    n3["Persist plan snapshot"] --> n4["Run Study mode"]
+    n4["Run Study mode"] --> n5["Use starter fallback when sparse"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -160,3 +170,4 @@ coverage for `/api/study/*`.
 - [`gamification.md`](./gamification.md) — dashboard due-count/streak summary widgets.
 - [`today-session.md`](./today-session.md) — daily word-review target completion.
 - [`../reader/reader-tools.md`](../reader/reader-tools.md) — Reader practice tools that feed Study Plan.
+

@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents ownership and privacy boundaries for unit fixtures, seeds, e2e data, scraper corpora, and AI eval datasets. Captures current fixture rules, generated/test data lifecycle, privacy constraints, and maintenance workflow."
 ---
 
@@ -20,6 +20,17 @@ when adding or changing fixtures.
 - [AI evaluation datasets](../ai/evaluations.md)
 - [Data classification and retention matrix](../security/data-lifecycle-matrix.md)
 
+## Test data boundaries
+
+```mermaid
+flowchart LR
+    n0["Purpose-built test data"] --> n1["Pure unit factories"]
+    n0["Purpose-built test data"] --> n2["Database seeds"]
+    n0["Purpose-built test data"] --> n3["Playwright fixtures"]
+    n0["Purpose-built test data"] --> n4["Scraper corpora"]
+    n0["Purpose-built test data"] --> n5["AI evaluation datasets"]
+    n0["Purpose-built test data"] --> n6["Privacy classification"]
+```
 ---
 
 ## 1. Fixture categories
@@ -275,3 +286,4 @@ If the same delegate shape recurs across multiple test files, extract a helper
    rows (tags, reading progress, etc.).
 3. Verify that `resetE2eDatabase()` correctly tears down the new rows by
    checking the deletion order respects foreign-key constraints.
+

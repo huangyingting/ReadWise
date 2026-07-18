@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-06"
+last_updated: "2026-07-19"
 description: "Documents SQLite/PostgreSQL database setup, schema generation, migration workflows, local parity stack, and performance tuning entry points. Captures current Prisma schemas, DATABASE_URL/PRISMA_SCHEMA_PATH usage, migration tests, and data migration notes."
 ---
 
@@ -31,6 +31,16 @@ workflows use the PostgreSQL URL plus `prisma/postgresql/schema.prisma`.
 Production startup and `/api/ready` fail closed when the URL and schema point to
 different providers.
 
+## Database topology
+
+```mermaid
+flowchart LR
+    n0["Prisma data model"] --> n1["SQLite development target"]
+    n0["Prisma data model"] --> n2["PostgreSQL production target"]
+    n0["Prisma data model"] --> n3["Provider-specific migrations"]
+    n0["Prisma data model"] --> n4["Schema parity checks"]
+    n0["Prisma data model"] --> n5["Reset and seed workflow"]
+```
 ## Migration and integration checks
 
 The PostgreSQL baseline lives in `prisma/postgresql/migrations/`. Run checks
@@ -268,3 +278,4 @@ The following files must not be committed as source-of-truth:
 All patterns above are already covered by `.gitignore`. If a new tool produces
 database-derived artefacts (e.g. schema dumps, ER diagrams, introspection
 output), add them to `.gitignore` before committing.
+

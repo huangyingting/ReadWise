@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "accepted"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Architecture decision record for organization-ready tenancy, memberships, classrooms, and assignments. Captures additive tenant model, role separation, soft references, and migration consequences."
 ---
 
@@ -11,6 +11,16 @@ description: "Architecture decision record for organization-ready tenancy, membe
 - **Date:** 2026-06-22
 - **Related:** #318 (RW-060), #319 (RW-061), #324 (RW-066)
 
+## Tenant decision
+
+```mermaid
+flowchart LR
+    n0["Organization-ready tenant model"] --> n1["Organization"]
+    n0["Organization-ready tenant model"] --> n2["Membership"]
+    n0["Organization-ready tenant model"] --> n3["Classroom"]
+    n0["Organization-ready tenant model"] --> n4["Tenant context"]
+    n0["Organization-ready tenant model"] --> n5["Isolation rules"]
+```
 ## Context
 
 ReadWise started as single-user-account oriented, but classrooms and organizations need shared administration, assignments, content visibility, and audit boundaries. Tenant choices affect authorization, data models, analytics, and storage keys.
@@ -35,3 +45,4 @@ Introduce an organization and membership model before classroom-specific feature
 
 - [x] #318: add organization and membership model.
 - [x] #319: build classroom assignments on top of memberships.
+

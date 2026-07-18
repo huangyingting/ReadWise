@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents MediaAsset ownership, canonical speech asset pointers, content-addressed keys, two-phase asset retirement, and rebuild replacement flow."
 ---
 
@@ -11,6 +11,16 @@ This document covers `MediaAsset` ownership: how assets are created, keyed,
 tracked, served, and deleted. Storage backend configuration is in
 [`storage.md`](./storage.md).
 
+## Media asset lifecycle
+
+```mermaid
+flowchart TD
+    n0["Asset creation request"] --> n1["Derive content-addressed key"]
+    n1["Derive content-addressed key"] --> n2["Write through storage provider"]
+    n2["Write through storage provider"] --> n3["Persist MediaAsset metadata"]
+    n3["Persist MediaAsset metadata"] --> n4["Serve with access checks"]
+    n4["Serve with access checks"] --> n5["Retire on owner cascade"]
+```
 ## Ownership boundary
 
 **Media subsystem owns** the `MediaAsset` table, storage keys, MIME types, Media
@@ -163,3 +173,4 @@ The storage readiness probe is documented in [`storage.md`](./storage.md).
   word highlighting.
 - [`../operations/tts-jobs.md`](../operations/tts-jobs.md) — TTS job scheduling,
   retry, rebuild, processing status.
+

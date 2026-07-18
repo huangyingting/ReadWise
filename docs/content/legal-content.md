@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents legal/static content ownership and release/update boundaries. Captures current responsibilities for terms, privacy, static routes, review cadence, and change control."
 ---
 
@@ -10,6 +10,16 @@ description: "Documents legal/static content ownership and release/update bounda
 > REF-075 — Consolidate legal/static pages, metadata, and manifest content
 > governance.
 
+## Legal content governance
+
+```mermaid
+flowchart LR
+    n0["Static legal content"] --> n1["Site metadata"]
+    n0["Static legal content"] --> n2["Owned copy modules"]
+    n0["Static legal content"] --> n3["Review checklist"]
+    n0["Static legal content"] --> n4["Change control"]
+    n0["Static legal content"] --> n5["Release verification"]
+```
 ## Overview
 
 Legal, manifest, and static marketing copy are treated as **governed content**:
@@ -110,3 +120,4 @@ changes land:
    compose a custom layout.
 4. Export `metadata` using the new `pages.*` constant.
 5. Add the route to the table in this document.
+

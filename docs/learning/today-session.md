@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents the durable per-learner local-day TodaySession workflow anchor and its plan/completion/offline boundaries. Captures current daily generation, primary/backup article ids, comprehension checks, saved-word targets, reflection, local-date semantics, and privacy constraints."
 ---
 
@@ -17,6 +17,16 @@ without duplicating any learning content into a new table.
 - **Schema:** `TodaySession` and `TodayComprehensionFeedback` models in
   `prisma/base.prisma`
 
+## Today Session flow
+
+```mermaid
+flowchart TD
+    n0["Resolve learner-local day"] --> n1["Create or load idempotent session"]
+    n1["Create or load idempotent session"] --> n2["Choose primary article"]
+    n2["Choose primary article"] --> n3["Use backup when needed"]
+    n3["Use backup when needed"] --> n4["Review target saved words"]
+    n4["Review target saved words"] --> n5["Record comprehension feedback"]
+```
 ## Purpose
 
 The Reader needs a deterministic "what should I do today?" surface that:
@@ -505,3 +515,4 @@ behavior without data loss.
   mutation queue and replay semantics.
 - [`reading-series.md`](./reading-series.md) — current `ReadingSeries` /
   `SeriesEnrollment` schema state; not currently consumed by Today generation.
+

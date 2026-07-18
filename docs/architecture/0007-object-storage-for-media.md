@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "accepted"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Architecture decision record for optional object storage and media metadata. Captures storage abstraction, graceful fallback, migration consequences, and media ownership."
 ---
 
@@ -11,6 +11,16 @@ description: "Architecture decision record for optional object storage and media
 - **Date:** 2026-06-22
 - **Related:** #307 (RW-049), #324 (RW-066)
 
+## Media storage decision
+
+```mermaid
+flowchart TD
+    n0["Create media asset"] --> n1["Storage abstraction"]
+    n1["Storage abstraction"] --> n2["Content-addressed key"]
+    n2["Content-addressed key"] --> n3["Object storage backend"]
+    n3["Object storage backend"] --> n4["Access-checked serving"]
+    n4["Access-checked serving"] --> n5["Lifecycle retirement"]
+```
 ## Context
 
 Article speech historically stored generated audio inline in the database. Future imported media, larger narration files, and offline assets would make database blobs expensive to back up and serve.
@@ -40,3 +50,4 @@ visibility.
 
 - [x] #307: add object storage support for media.
 - [x] Revisit generated speech caching after object storage is available.
+

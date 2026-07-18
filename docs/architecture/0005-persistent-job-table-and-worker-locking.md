@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "accepted"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Architecture decision record for the durable Job table and worker-locking model. Captures queue selection, claiming/locking strategy, retries, and external-queue deferral rationale."
 ---
 
@@ -11,6 +11,15 @@ description: "Architecture decision record for the durable Job table and worker-
 - **Date:** 2026-06-22
 - **Related:** #271 (RW-013), #272 (RW-014), #273 (RW-015), #274 (RW-016), #324 (RW-066)
 
+## Job execution decision
+
+```mermaid
+flowchart TD
+    n0["Persist job"] --> n1["Worker claims row lock"]
+    n1["Worker claims row lock"] --> n2["Run processing steps"]
+    n2["Run processing steps"] --> n3["Mark success or failure"]
+    n3["Mark success or failure"] --> n4["Retry or dead-letter"]
+```
 ## Context
 
 The current processor and worker discover work from article state. Wave 2 needs retries, dead-letter handling, multi-worker safety, and step-level processing visibility without forcing an external queue decision too early.
@@ -37,3 +46,4 @@ Add a persistent database-backed job table with explicit state, attempts, next-r
 - [x] #272: implement multi-worker locking.
 - [x] #273: define retry and dead-letter policy.
 - [x] #274: track article processing at step level.
+

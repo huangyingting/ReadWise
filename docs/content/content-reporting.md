@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents user content-reporting, ContentReport schema, and admin moderation queue boundaries. Captures current report reasons/statuses, reader/admin APIs, deduplication, audit actions, and privacy rules."
 ---
 
@@ -9,6 +9,16 @@ description: "Documents user content-reporting, ContentReport schema, and admin 
 
 > **Epic #734 / Issue #738** — User content reporting and admin moderation queue.
 
+## Moderation workflow
+
+```mermaid
+flowchart TD
+    n0["User submits report"] --> n1["Validate reason and scope"]
+    n1["Validate reason and scope"] --> n2["Moderation queue"]
+    n2["Moderation queue"] --> n3["Review and status transition"]
+    n3["Review and status transition"] --> n4["Content action"]
+    n4["Content action"] --> n5["Audit record"]
+```
 ## Overview
 
 ReadWise provides a structured workflow for users to flag problematic articles.
@@ -149,3 +159,4 @@ User report submissions are audited under `user.content_report`.
 - **Rate limiting** beyond dedup — per-user daily cap on total reports.
 - **Bulk actions** — resolve/dismiss multiple reports at once.
 - **Report on non-article content** — currently only articles are supported.
+

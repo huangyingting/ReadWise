@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents URL/text personal imports, SSRF/sanitization boundaries, quota, deduplication, and ownership rules. Captures current import routes, provider fallback, content cleaning, private article creation, audit/analytics metadata, and privacy constraints."
 ---
 
@@ -11,6 +11,16 @@ The import system lets authenticated users create private articles from a URL or
 pasted text. Imported articles use the article-library access model and are
 owned by the importing user.
 
+## Import pipeline
+
+```mermaid
+flowchart TD
+    n0["URL or text input"] --> n1["Quota and ownership check"]
+    n1["Quota and ownership check"] --> n2["SSRF or sanitization guard"]
+    n2["SSRF or sanitization guard"] --> n3["Extract and deduplicate"]
+    n3["Extract and deduplicate"] --> n4["Create private article"]
+    n4["Create private article"] --> n5["Audit metadata-only outcome"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -94,3 +104,4 @@ without it later.
 Relevant tests include `tests/articles.test.ts`, `tests/article-access.test.ts`,
 `tests/backoff.test.ts`, importer route tests, scraper SSRF tests, and analytics
 metadata sanitization tests.
+

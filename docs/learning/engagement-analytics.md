@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents learner-owned engagement read models derived from progress, daily activity, streaks, heatmaps, and reading speed. Captures current local-day rules, forward-only progress, shield policy, WPM calculations, gamification summary, and privacy boundaries."
 ---
 
@@ -11,6 +11,15 @@ Engagement analytics are learner-facing signals derived from user-owned domain
 tables. They are not the append-only product analytics stream described in
 [`../analytics/product-analytics.md`](../analytics/product-analytics.md).
 
+## Engagement signal flow
+
+```mermaid
+flowchart TD
+    n0["Forward-only reading progress"] --> n1["Learner-local daily activity"]
+    n1["Learner-local daily activity"] --> n2["Reading speed estimate"]
+    n2["Reading speed estimate"] --> n3["Streak and shield policy"]
+    n3["Streak and shield policy"] --> n4["Heatmap and summary"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -131,3 +140,4 @@ metadata except as aggregate counts.
 Relevant tests include `tests/activity.test.ts`, `tests/aggregation.test.ts`,
 `tests/article-mastery.test.ts`, `tests/offline-sync.test.ts`, and focused
 engagement/progress tests.
+

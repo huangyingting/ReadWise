@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-11"
+last_updated: "2026-07-19"
 description: "Documents NextAuth provider registry, session persistence, local sign-in and test-session onboarding, first-user bootstrap, cookies, and auth guard layering. Captures current OAuth/provider fallbacks, database sessions, admin bootstrap, cookie posture, and route/session helpers."
 ---
 
@@ -10,6 +10,16 @@ description: "Documents NextAuth provider registry, session persistence, local s
 ReadWise uses NextAuth v4 with database sessions. Authentication is intentionally
 small at the framework boundary and capability-based everywhere else.
 
+## Authentication flow
+
+```mermaid
+flowchart TD
+    n0["Sign-in request"] --> n1["NextAuth provider registry"]
+    n1["NextAuth provider registry"] --> n2["Database session"]
+    n2["Database session"] --> n3["Server session guard"]
+    n3["Server session guard"] --> n4["Route capability guard"]
+    n4["Route capability guard"] --> n5["Authorized application action"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -170,3 +180,4 @@ unconfigured independently in `/api/ready`; see
 Relevant tests include `tests/auth-core.test.ts`, `tests/auth-providers.test.ts`,
 `tests/auth-bootstrap.test.ts`, `tests/auth-security-backend.test.ts`,
 `tests/api-handler.test.ts`, `tests/rbac.test.ts`, and admin/tenant route tests.
+

@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents scraper providers, discovery/extraction pipeline, SSRF/robots controls, source health boundaries, scrape-review feedback retention, and operator guidance."
 ---
 
@@ -9,6 +9,16 @@ description: "Documents scraper providers, discovery/extraction pipeline, SSRF/r
 
 A reference for adding, configuring, and debugging ReadWise scraper providers.
 
+## Scraping pipeline
+
+```mermaid
+flowchart TD
+    n0["Discover candidate URL"] --> n1["SSRF and robots checks"]
+    n1["SSRF and robots checks"] --> n2["Select provider"]
+    n2["Select provider"] --> n3["Fetch and extract"]
+    n3["Fetch and extract"] --> n4["Quality validation"]
+    n4["Quality validation"] --> n5["Provider drift review"]
+```
 ## Overview
 
 ReadWise ingests articles from curated news and magazine sources via a two-phase pipeline:
@@ -408,3 +418,4 @@ Key patterns for scraper tests:
 - For extractor unit tests (`bbc-rss.test.ts`, etc.), call the extractor function
   directly with a mock fetch — no need to go through `discoverProviderUrls`.
 - Use inline XML/JSON fixture strings rather than fixture files to keep tests self-contained.
+

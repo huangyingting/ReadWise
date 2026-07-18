@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents the Learning/Engagement-owned gamification read model and its relationship to DailyActivity, SRS due counts, and dashboard UI. GET /api/gamification/summary combines streak stats, daily-goal progress, last-seven-day activity, shield count, and due flashcards without duplicating private content."
 ---
 
@@ -11,6 +11,16 @@ Gamification in ReadWise is lightweight and learning-aligned. It surfaces daily
 reading momentum, streak continuity, and due review pressure without introducing
 badges or reward tables that duplicate the learning source of truth.
 
+## Gamification summary
+
+```mermaid
+flowchart LR
+    n0["Gamification API"] --> n1["Streak continuity"]
+    n0["Gamification API"] --> n2["Shield earn and spend"]
+    n0["Gamification API"] --> n3["Daily goal progress"]
+    n0["Gamification API"] --> n4["Due SRS count"]
+    n0["Gamification API"] --> n5["Dashboard widgets"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -99,3 +109,4 @@ daily activity, saved words, mastery rows, and review state.
 - [`study-plan.md`](./study-plan.md) — due flashcards and study recommendations.
 - [`learning-and-mastery.md`](./learning-and-mastery.md) — mastery formulas and durable learning rows.
 - [`../analytics/product-analytics.md`](../analytics/product-analytics.md) — separate append-only event stream.
+

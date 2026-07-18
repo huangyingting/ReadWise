@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents ReadingSeries and SeriesEnrollment data model, learner series browser/API, and Today soft-candidate integration. Captures current public-series listing, idempotent enroll/unenroll commands, access-checked article resolution, progress advancement, and remaining gaps."
 ---
 
@@ -14,6 +14,16 @@ and a Today Session soft-candidate integration. Admin CRUD for creating/editing
 series is still out of scope; rows are currently curated by trusted seeds,
 scripts, or direct operational tooling.
 
+## Series journey
+
+```mermaid
+flowchart TD
+    n0["Browse public series"] --> n1["Idempotent enrollment"]
+    n1["Idempotent enrollment"] --> n2["Resolve next article"]
+    n2["Resolve next article"] --> n3["Offer Today candidate"]
+    n3["Offer Today candidate"] --> n4["Advance progress"]
+    n4["Advance progress"] --> n5["Complete or unenroll"]
+```
 ## Code map
 
 | Area | Code | Purpose |

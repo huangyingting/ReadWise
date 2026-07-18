@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents public/static asset ownership, caching, icons/fonts/PWA files, and update boundaries. Captures current static-file conventions, service-worker/manifest interactions, cache rules, and review requirements."
 ---
 
@@ -9,6 +9,16 @@ description: "Documents public/static asset ownership, caching, icons/fonts/PWA 
 
 > REF-080 — Govern public fonts, icons, and static asset usage.
 
+## Static asset lifecycle
+
+```mermaid
+flowchart TD
+    n0["Add owned asset"] --> n1["Choose public URL"]
+    n1["Choose public URL"] --> n2["Apply cache policy"]
+    n2["Apply cache policy"] --> n3["Reference through stable constant"]
+    n3["Reference through stable constant"] --> n4["Verify build and offline behavior"]
+    n4["Verify build and offline behavior"] --> n5["Retire unused asset"]
+```
 ## Overview
 
 All governed files under `public/` are inventoried in
@@ -103,3 +113,4 @@ If you rename either offline page, update:
   for an on-demand reading font). Icon files are ≤4 KB each. Before adding new
   fonts or high-resolution images, check the size impact on the initial page
   load (fonts are deferred; icon PNGs are not inlined).
+

@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents saved/default lists, custom reading lists, membership, and IDOR-safe access boundaries. Captures current list schemas, bookmark APIs, list membership behavior, export/deletion, and privacy rules."
 ---
 
@@ -11,6 +11,16 @@ Bookmarks are implemented as membership in a user's default reading list named
 `Saved`. Custom reading lists use the same `ReadingList` / `ReadingListItem`
 model pair.
 
+## List membership flow
+
+```mermaid
+flowchart TD
+    n0["Bookmark or add request"] --> n1["Check article visibility"]
+    n1["Check article visibility"] --> n2["Resolve or create Saved list"]
+    n2["Resolve or create Saved list"] --> n3["Upsert list membership"]
+    n3["Upsert list membership"] --> n4["Return owned list state"]
+    n4["Return owned list state"] --> n5["Export or delete with account"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -81,3 +91,4 @@ be written into product analytics or logs except as aggregate counts/metadata.
 Relevant tests include `tests/bookmarks.test.ts`, `tests/bookmarks-routes.test.ts`,
 list route tests, article-access regression tests, and account export/deletion
 tests.
+

@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-11"
+last_updated: "2026-07-19"
 description: "Privacy-safe CEFR, OneStop-style ordinal, Lexile-like, provider drift, and vocabulary penalty calibration workflow."
 ---
 
@@ -16,6 +16,16 @@ explicitly opted-in UniversalCEFR/elg_cefr_en NC evidence as full A1-C2 input
 plus OneStopEnglish-style article data as three-level ordinal anchors.
 `lexileApprox` is Lexile-like and is not an official Lexile measure.
 
+## Calibration workflow
+
+```mermaid
+flowchart TD
+    n0["Aggregate-only corpus"] --> n1["Dataset opt-in gate"]
+    n1["Dataset opt-in gate"] --> n2["Run difficulty evaluation"]
+    n2["Run difficulty evaluation"] --> n3["Compare provider DB drift"]
+    n3["Compare provider DB drift"] --> n4["Inspect CEFR distribution"]
+    n4["Inspect CEFR distribution"] --> n5["Store calibration snapshot"]
+```
 ## Harness
 
 Run the aggregate-only harness:
@@ -119,3 +129,4 @@ MIT Words-CEFR exports should expose a word-like column (`word`, `lemma`,
 `headword`, or `item`) and a CEFR-like column (`cefr`, `level`, `label`, or
 `cefr_level`). SQLite exports are inspected for the first table with both column
 families.
+

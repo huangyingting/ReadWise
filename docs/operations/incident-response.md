@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents incident response, SLO breach triage, mitigation, and post-incident review boundaries. Captures current detection signals, metric queries, subsystem runbooks, escalation, and recovery workflow."
 ---
 
@@ -15,6 +15,16 @@ the [SLO catalog](#slo-catalog-quick-reference) defined in
 queue operations described in
 [`docs/operations/admin-operations.md`](./admin-operations.md).
 
+## Incident response
+
+```mermaid
+flowchart TD
+    n0["Detect SLO breach"] --> n1["Assign severity"]
+    n1["Assign severity"] --> n2["Confirm and triage"]
+    n2["Confirm and triage"] --> n3["Mitigate impact"]
+    n3["Mitigate impact"] --> n4["Verify recovery"]
+    n4["Verify recovery"] --> n5["Post-incident review"]
+```
 ---
 
 ## Severity levels
@@ -551,3 +561,4 @@ reviews are recommended when the incident was novel or recurring.
 - **Database runbooks:** [`docs/platform/database-runbooks.md`](../platform/database-runbooks.md)
 - **SLI/SLO implementation:** `src/lib/observability/slo-catalog.ts`
 - **Metrics recorders:** `src/lib/metrics/recorders/`
+

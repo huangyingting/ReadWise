@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents UI i18n architecture, locale loading, and separation from article translation and learner preferences. Captures current catalog structure, translation lookup behavior, fallback rules, and contribution guidance."
 ---
 
@@ -14,6 +14,16 @@ yet perform runtime locale negotiation or render non-English UI.
 This document describes the current behavior and the boundaries that keep UI
 locale concerns separate from article translation and learner preferences.
 
+## Language boundaries
+
+```mermaid
+flowchart LR
+    n0["UI locale"] --> n1["Message catalog"]
+    n0["UI locale"] --> n2["Locale resolution"]
+    n0["UI locale"] --> n3["Article translation target"]
+    n0["UI locale"] --> n4["Learner reading profile"]
+    n0["UI locale"] --> n5["Formatting helpers"]
+```
 ## Three distinct language concepts
 
 | Concept | Owner | Current location | Purpose |

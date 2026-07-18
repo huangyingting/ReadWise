@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents shared platform primitive ownership and relationship to src/lib/primitives/README.md. Captures current primitive classification, contribution guidelines, stability expectations, and import rules."
 ---
 
@@ -12,6 +12,16 @@ description: "Documents shared platform primitive ownership and relationship to 
 > This file is a summary pointer. The authoritative classification table,
 > contribution guidelines, and stability contract live in the README above.
 
+## Primitive tiers
+
+```mermaid
+flowchart LR
+    n0["Shared primitives"] --> n1["Pure tier"]
+    n0["Shared primitives"] --> n2["Client tier"]
+    n0["Shared primitives"] --> n3["Server tier"]
+    n0["Shared primitives"] --> n4["Aggregation"]
+    n0["Shared primitives"] --> n5["Backoff and safe JSON"]
+```
 ---
 
 ## Overview
@@ -86,3 +96,4 @@ owned by the security subsystem at `@/lib/security/redaction`.  The legacy
 path `@/lib/observability/redaction` (a backward-compat shim from #627/#676)
 was removed in #690; import from `@/lib/security/redaction` or `@/lib/security`
 instead.
+

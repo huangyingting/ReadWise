@@ -1,7 +1,7 @@
 ---
 type: "testing"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents offline/live AI evaluation harnesses, datasets, and regression boundaries. Captures current eval dataset structure, runner behavior, deterministic checks, live-provider safeguards, and output expectations."
 ---
 
@@ -14,6 +14,15 @@ datasets of representative inputs + expected **invariants**. See
 [`prompts.md`](./prompts.md) for the prompt registry the live mode renders
 through, and [`safety.md`](./safety.md) for the validators the checks reuse.
 
+## Evaluation workflow
+
+```mermaid
+flowchart TD
+    n0["Versioned evaluation corpus"] --> n1["Offline or live runner"]
+    n1["Offline or live runner"] --> n2["Semantic invariant checks"]
+    n2["Semantic invariant checks"] --> n3["Regression comparison"]
+    n3["Regression comparison"] --> n4["Evaluation report"]
+```
 ---
 
 ## 1. What it evaluates (and what it does NOT)
@@ -235,3 +244,4 @@ Rules:
 - When you add a new injection variant to `tests/fixtures/prompt-injection-cases.ts`,
   add a matching eval case here so both the input-safety layer AND the expected
   model behaviour are covered.
+

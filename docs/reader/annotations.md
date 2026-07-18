@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents Reader annotation ownership, highlight anchors, notes, APIs, and offline conflict boundaries. Captures current anchor model, note editing, color rules, revalidation, merge behavior, and privacy constraints."
 ---
 
@@ -10,6 +10,16 @@ description: "Documents Reader annotation ownership, highlight anchors, notes, A
 ReadWise lets learners highlight article text and attach notes. The system is
 user-scoped, offline-aware, and resilient to small article-text changes.
 
+## Annotation lifecycle
+
+```mermaid
+flowchart TD
+    n0["Reader selection"] --> n1["Persist quote and offsets"]
+    n1["Persist quote and offsets"] --> n2["Revalidate anchor"]
+    n2["Revalidate anchor"] --> n3["Mark stale or re-anchor"]
+    n3["Mark stale or re-anchor"] --> n4["Merge offline note edits"]
+    n4["Merge offline note edits"] --> n5["Render owned annotation"]
+```
 ## Data model
 
 `Highlight` rows belong to a `(userId, articleId)` pair and cascade with both the
@@ -137,3 +147,4 @@ Highlights and notes are part of user-owned data and are included in
 `exportUserData(...)` (`GET /api/account/export`) with article ids, quote,
 offsets, context, note, color, and timestamps. User deletion cascades highlight
 rows with the user.
+

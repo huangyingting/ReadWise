@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents domain-owned reporting read models and their separation from the product analytics event stream. Captures current aggregation boundaries, visibility rules, privacy limits, and report ownership."
 ---
 
@@ -16,6 +16,16 @@ by its domain).
 This document describes the domain read models that are surfaced by dashboards
 and the privacy/retention rules that govern them.
 
+## Reporting ownership
+
+```mermaid
+flowchart LR
+    n0["Domain-owned facts"] --> n1["Learning read models"]
+    n0["Domain-owned facts"] --> n2["Access and tenant reports"]
+    n0["Domain-owned facts"] --> n3["Admin statistics"]
+    n0["Domain-owned facts"] --> n4["On-demand aggregation"]
+    n0["Domain-owned facts"] --> n5["Privacy boundary"]
+```
 ## Why the distinction matters
 
 The Analytics event stream is a denormalized, metadata-only log of funnel and
@@ -151,3 +161,4 @@ processing-step retention rules. Operations is responsible for those boundaries.
 
 For the product analytics event stream retention window, per-user erasure, and
 sanitization rules see [`product-analytics.md`](./product-analytics.md).
+

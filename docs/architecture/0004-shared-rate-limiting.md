@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "accepted"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Architecture decision record for shared fixed-window rate limiting and fallback behavior. Captures rate-limit store decision, DB/memory fallback, request scopes, and operational consequences."
 ---
 
@@ -11,6 +11,15 @@ description: "Architecture decision record for shared fixed-window rate limiting
 - **Date:** 2026-06-22
 - **Related:** #284 (RW-026), #277 (RW-019), #280 (RW-022), #324 (RW-066)
 
+## Rate-limit decision
+
+```mermaid
+flowchart TD
+    n0["Incoming request"] --> n1["Derive IP, user, or feature key"]
+    n1["Derive IP, user, or feature key"] --> n2["Check shared fixed window"]
+    n2["Check shared fixed window"] --> n3["Allow or return 429"]
+    n3["Allow or return 429"] --> n4["Emit aggregate signal"]
+```
 ## Context
 
 ReadWise has endpoints that can trigger AI, scraping, speech synthesis, dictionary lookups, and client error reporting. Per-route ad hoc throttles would be inconsistent and easy to bypass.
@@ -35,3 +44,4 @@ Introduce a shared server-side rate-limiting module used by API routes and worke
 
 - [x] #284: implement shared rate limiting.
 - [x] Align AI budgets in #280 with rate-limit keys where possible.
+

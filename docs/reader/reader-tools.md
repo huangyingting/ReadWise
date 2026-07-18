@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents the ReaderTools surface and its Reader, AI, Speech, Learning, Offline, and Analytics subsystem boundaries. Covers vocabulary, quiz, tutor, dictation, pronunciation, grammar, and selection tools as mounted reader panels and Reader floating surfaces with graceful fallbacks."
 ---
 
@@ -15,6 +15,18 @@ in operational metadata.
 This document is the feature-level companion to lower-level docs for dictionary,
 translation, playback, speech generation, offline sync, and learning mastery.
 
+## Reader learning tools
+
+```mermaid
+flowchart LR
+    n0["Article context"] --> n1["Vocabulary"]
+    n0["Article context"] --> n2["Quiz"]
+    n0["Article context"] --> n3["Tutor and grammar"]
+    n0["Article context"] --> n4["Dictation"]
+    n0["Article context"] --> n5["Pronunciation"]
+    n0["Article context"] --> n6["Translation"]
+    n0["Article context"] --> n7["Offline and provider fallbacks"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -173,3 +185,4 @@ Relevant coverage includes `tests/quiz*.test.ts`, `tests/tutor*.test.ts`,
 - [`playback.md`](./playback.md) — Reader audio context and narration controls.
 - [`../speech/pronunciation-practice.md`](../speech/pronunciation-practice.md) — Azure Speech assessment details.
 - [`../learning/study-plan.md`](../learning/study-plan.md) — how practice outcomes feed weekly study recommendations.
+

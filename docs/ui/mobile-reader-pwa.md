@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-18"
+last_updated: "2026-07-19"
 description: "Documents the mobile Reader/PWA baseline across shell and Reader safe areas, floating text actions, service-worker caching, the offline library, and touch interactions. Captures current layout, viewport reflow, offline/install behavior, known gaps, and test coverage."
 ---
 
@@ -9,6 +9,16 @@ description: "Documents the mobile Reader/PWA baseline across shell and Reader s
 
 This document defines the mobile/touch behavior baseline for the ReadWise Reader, offline library, and PWA install surface. It is grounded in the actual service worker (`public/sw.js`), web-app manifest (`src/app/manifest.ts`), offline library page (`src/app/(app)/offline/page.tsx`), and Reader component set (`src/components/Reader*`).
 
+## Mobile PWA flow
+
+```mermaid
+flowchart TD
+    n0["Responsive application shell"] --> n1["Safe-area reader controls"]
+    n1["Safe-area reader controls"] --> n2["Service-worker caching"]
+    n2["Service-worker caching"] --> n3["IndexedDB offline library"]
+    n3["IndexedDB offline library"] --> n4["Background sync"]
+    n4["Background sync"] --> n5["Install and update lifecycle"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -205,3 +215,4 @@ npm run test:e2e:smoke
 ```
 
 See also `e2e/offline-pwa.spec.ts` for broader offline/library/progress/notes coverage, and `e2e/accessibility.spec.ts` for WCAG automated checks.
+

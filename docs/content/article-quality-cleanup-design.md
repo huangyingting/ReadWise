@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "proposed"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents content-quality cleanup analysis and duplicate-detection design around scraped public-library articles. Captures proposed/current cleanup signals, review workflow, safety limits, and operator-facing analysis approach."
 ---
 
@@ -12,6 +12,16 @@ scraped public-library articles and preventing future garbage articles from
 entering the library. It complements the current scraper quality reference in
 [`extraction-quality.md`](./extraction-quality.md).
 
+## Cleanup workflow
+
+```mermaid
+flowchart TD
+    n0["Inventory public articles"] --> n1["Compute quality signals"]
+    n1["Compute quality signals"] --> n2["Find duplicate candidates"]
+    n2["Find duplicate candidates"] --> n3["Persist analysis snapshot"]
+    n3["Persist analysis snapshot"] --> n4["Operator review"]
+    n4["Operator review"] --> n5["Approved cleanup"]
+```
 ## Problem
 
 Large scraping runs can persist pages that are not useful reading material:
@@ -268,4 +278,5 @@ all-pairs comparison.
 8. Add tests for action selection, duplicate survivor selection, engagement
    protection, and publish blocking.
 9. Update operator docs and package scripts after implementation.
+
 

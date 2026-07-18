@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-12"
+last_updated: "2026-07-19"
 description: "Documents account ownership, support/admin action boundaries, export/delete cascades, and access-related data lifecycle contracts. Captures current account APIs, admin support workflows, guardrails, privacy constraints, and deletion/export behavior."
 ---
 
@@ -13,6 +13,16 @@ admin member mutations, and operator support actions. It complements
 authorization decides who may invoke an action, while this document describes
 what the action is allowed to change.
 
+## Account lifecycle
+
+```mermaid
+flowchart TD
+    n0["Authenticated account"] --> n1["Export or support action"]
+    n1["Export or support action"] --> n2["Authorization and last-admin guard"]
+    n2["Authorization and last-admin guard"] --> n3["Transactional mutation"]
+    n3["Transactional mutation"] --> n4["Cascade and ledger erasure"]
+    n4["Cascade and ledger erasure"] --> n5["Privacy-safe result"]
+```
 ## Code map
 
 | Area | Code | Purpose |
@@ -126,3 +136,4 @@ must source the acting operator from the session.
 Relevant coverage lives in `tests/account.test.ts`, `tests/admin-members.test.ts`,
 `tests/admin-member-detail.test.ts`, `tests/auth-bootstrap.test.ts`, and route
 tests for admin/member APIs.
+

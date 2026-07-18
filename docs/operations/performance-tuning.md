@@ -1,12 +1,22 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-06"
+last_updated: "2026-07-19"
 description: "Performance tuning guide for database query timing, PostgreSQL slow-query logging, pg_stat_statements, pooling, and listing/feed benchmark runs."
 ---
 
 # Performance tuning
 
+## Performance tuning loop
+
+```mermaid
+flowchart TD
+    n0["Capture latency signal"] --> n1["Identify slow operation"]
+    n1["Identify slow operation"] --> n2["Inspect query and pool evidence"]
+    n2["Inspect query and pool evidence"] --> n3["Apply focused change"]
+    n3["Apply focused change"] --> n4["Run benchmark"]
+    n4["Run benchmark"] --> n5["Compare baseline"]
+```
 ## App-side database metrics
 
 ReadWise times Prisma operations in `src/lib/prisma.ts` by default and exports
@@ -98,3 +108,4 @@ The command refuses non-SQLite `DATABASE_URL` values unless
 and row counts, never article content, SQL, user ids, credentials, or database
 URLs. Use `--cold` to set `READWISE_DISABLE_LISTING_CACHE=1` for cache-cold
 comparisons, then compare with the normal cached run.
+

@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents tracing, logging, error aggregation, metrics, SLOs, and investigation workflow boundaries. Captures current instrumentation, request IDs, provider fallbacks, alerting seams, dashboards, and triage guidance."
 ---
 
@@ -29,6 +29,17 @@ See [`metrics.md`](./metrics.md) for the metrics registry, exporter, and recorde
 reference, and [`client-error-reporting.md`](./client-error-reporting.md) for the
 client-error endpoint.
 
+## Observability model
+
+```mermaid
+flowchart LR
+    n0["Request and job context"] --> n1["Distributed traces"]
+    n0["Request and job context"] --> n2["Structured logs"]
+    n0["Request and job context"] --> n3["Metrics"]
+    n0["Request and job context"] --> n4["Error aggregation"]
+    n0["Request and job context"] --> n5["SLIs and SLOs"]
+    n0["Request and job context"] --> n6["Redaction policy"]
+```
 ---
 
 ## Domain ownership boundary
@@ -276,3 +287,4 @@ production data.**
 | `ERROR_REPORTING_PROVIDER` | errors | `log` | Error sink / provider selector. |
 | `ERROR_ALERT_THRESHOLD` | errors | `10` | Per-fingerprint alert threshold. |
 | `APP_VERSION` | tracing + errors | package version | Release tag. |
+

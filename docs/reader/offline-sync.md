@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents client-side offline mutation queue, conflict resolution, cache versioning, Today offline replay, and push/background-sync resilience. Captures current IndexedDB queue, idempotency keys, retry/backoff, conflict statuses, service-worker cache versions, and privacy purge behavior."
 ---
 
@@ -18,6 +18,25 @@ words and finishing quizzes **while offline**, and have those changes converge
 correctly with the server (and with edits made on other devices) once
 connectivity returns — without double-applying, silently losing text, or
 breaking offline reading across a service-worker upgrade.
+
+## Sync workflow
+
+```mermaid
+flowchart TD
+  action[Reader mutation] --> online{Network available?}
+  online -->|Yes| send[Send to API]
+  online -->|No| queue[Store in IndexedDB queue]
+  send -->|Network or retryable failure| queue
+  send -->|Success| applied[Apply server result]
+  queue --> wake[Reconnect or background sync]
+  wake --> flush[Flush in stable FIFO order]
+  flush --> outcome{Response class}
+  outcome -->|2xx| applied
+  outcome -->|408, 425, 429, or 5xx| retry[Retry with jittered backoff]
+  outcome -->|Permanent 4xx| discard[Discard and surface failure]
+  retry --> flush
+  applied --> reconcile[Reconcile conflicts and cache state]
+```
 
 ---
 

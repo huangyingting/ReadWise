@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "accepted"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Architecture decision record for article visibility and centralized access policy. Captures decision context, access-service design, consequences, and enforcement expectations."
 ---
 
@@ -11,6 +11,15 @@ description: "Architecture decision record for article visibility and centralize
 - **Date:** 2026-06-22
 - **Related:** #260 (RW-002), #261 (RW-003), #266 (RW-008), #267 (RW-009), #324 (RW-066)
 
+## Article access decision
+
+```mermaid
+flowchart TD
+    n0["Article request"] --> n1["Centralized access predicate"]
+    n1["Centralized access predicate"] --> n2["Visibility and lifecycle state"]
+    n2["Visibility and lifecycle state"] --> n3["Ownership or capability check"]
+    n3["Ownership or capability check"] --> n4["Allow or deny"]
+```
 ## Context
 
 ReadWise is moving from public curated articles toward private imports and safer reader/admin boundaries. Scattered Prisma queries make it easy to forget owner, visibility, status, or source-type filters and create IDOR risk.
@@ -37,3 +46,4 @@ Represent article lifecycle and visibility explicitly, and route article reads/w
 - [x] #261: enforce safe private article lifecycle.
 - [x] #266: centralize article access.
 - [x] #267: add IDOR regression tests.
+

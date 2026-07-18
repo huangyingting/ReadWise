@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-19"
 description: "Documents source governance, rights metadata, review, takedown, and provider-health boundaries. Captures current policy workflow, source controls, moderation actions, and privacy-safe metadata handling."
 ---
 
@@ -12,6 +12,16 @@ governance controls around it, and the rights / takedown workflow. It is the
 operational reference for editors, moderators and operators (Epic RW-E009 —
 RW-046 / RW-047).
 
+## Content governance flow
+
+```mermaid
+flowchart TD
+    n0["Source onboarding"] --> n1["Rights and robots checks"]
+    n1["Rights and robots checks"] --> n2["Provider health monitoring"]
+    n2["Provider health monitoring"] --> n3["Editorial review"]
+    n3["Editorial review"] --> n4["Takedown or restoration"]
+    n4["Takedown or restoration"] --> n5["Audit trail"]
+```
 ## Source usage
 
 ReadWise ingests public news/feature articles to use as English-learning reading
@@ -126,3 +136,4 @@ editorial intent.
    review history and the audit log.
 4. If the request is later withdrawn, restore to `active` and re-publish via the
    review panel if appropriate.
+

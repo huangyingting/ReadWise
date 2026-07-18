@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-06"
+last_updated: "2026-07-19"
 description: "Documents in-process metrics registry, recorder helpers, route normalization, database query timing, and Prometheus export boundary. Captures current counter/gauge/histogram/cache-stat behavior, labels, route grouping, and admin metrics route output."
 ---
 
@@ -16,6 +16,15 @@ snapshot produced here to evaluate product-critical service levels.
 For the broader Observability context (logging, tracing, error capture, SLOs)
 see [`overview.md`](./overview.md).
 
+## Metrics pipeline
+
+```mermaid
+flowchart TD
+    n0["Domain recorder"] --> n1["Counter or histogram registry"]
+    n1["Counter or histogram registry"] --> n2["Normalize labels"]
+    n2["Normalize labels"] --> n3["Prometheus exporter"]
+    n3["Prometheus exporter"] --> n4["Dashboard and SLO evaluation"]
+```
 ---
 
 ## Architecture
@@ -199,3 +208,4 @@ sanitises. The recorders additionally enforce:
 These rules align with the security-owned redaction policy (`@/lib/security/redaction`)
 applied in the error-capture path. See [`overview.md §Redaction policy`](./overview.md#redaction-policy)
 for the full policy description.
+

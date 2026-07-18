@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Documents durable learning mastery models, learner analytics, adaptive leveling, and their source tables. Captures current formulas, side-effect write behavior, privacy-safe coach memory, SRS integration, and analytics page rules."
 ---
 
@@ -13,6 +13,16 @@ current ReadWise codebase. These are distinct from product analytics events in
 whereas the systems here compute a learner's progress, confidence, level, and
 study recommendations.
 
+## Mastery model
+
+```mermaid
+flowchart LR
+    n0["Learner evidence"] --> n1["Word mastery"]
+    n0["Learner evidence"] --> n2["Article mastery"]
+    n0["Learner evidence"] --> n3["Skill mastery"]
+    n0["Learner evidence"] --> n4["Coach memory"]
+    n0["Learner evidence"] --> n5["Adaptive recommendations"]
+```
 ## Data sources
 
 | Model / table | Purpose | Main code |
@@ -360,3 +370,4 @@ pronunciation attempts, Today comprehension feedback, placement results, coach
 memory, and series enrollments. Product analytics events are non-FK rows and
 must be handled through the retention/erasure helpers documented in
 [`product-analytics.md`](../analytics/product-analytics.md).
+

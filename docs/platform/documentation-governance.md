@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-19"
 description: "Defines the repository-wide documentation metadata contract and how docs stay aligned with code, schemas, scripts, and generated artifacts. Uses flat subsystem directories, YAML frontmatter, code maps, and explicit keep/rename/merge/delete decisions instead of ad-hoc notes."
 ---
 
@@ -12,6 +12,16 @@ reference document carries a small, predictable metadata block that describes
 what kind of document it is, whether it is current, when it was last updated,
 and what it covers.
 
+## Documentation lifecycle
+
+```mermaid
+flowchart TD
+    n0["Identify durable behavior"] --> n1["Choose subsystem and document type"]
+    n1["Choose subsystem and document type"] --> n2["Add required frontmatter"]
+    n2["Add required frontmatter"] --> n3["Align code map and privacy language"]
+    n3["Align code map and privacy language"] --> n4["Generate artifacts from source"]
+    n4["Generate artifacts from source"] --> n5["Review freshness"]
+```
 ## Required frontmatter
 
 Every Markdown document under `docs/` must start with YAML frontmatter:
@@ -94,3 +104,4 @@ controlled enums, or aggregate scores, state that plainly.
 renamed, or meaningfully changes scope, update its subsystem table. If a document
 is merged into another file, remove the old entry and add a sentence in the
 surviving doc explaining where the content lives.
+
