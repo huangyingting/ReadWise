@@ -233,6 +233,22 @@ export async function submitMutation(
     }
   }
 
+  return queueMutation({ ...spec, clientMutationId });
+}
+
+/**
+ * Store a mutation for later delivery without attempting the network first.
+ * Used by deep client modules that already attempted a richer immediate
+ * delivery (for example, one that needs a parsed response body) and need to
+ * fall back to the same durable queue under the same idempotency key.
+ */
+export async function queueMutation(
+  spec: MutationSpec,
+): Promise<SubmitResult> {
+  const clientMutationId = spec.clientMutationId ?? newMutationId();
+  const method = spec.method ?? "POST";
+  const payload = spec.body ?? null;
+
   await enqueueMutation({
     clientMutationId,
     type: spec.type,
