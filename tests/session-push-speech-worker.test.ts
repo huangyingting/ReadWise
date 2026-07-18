@@ -320,13 +320,44 @@ test("worker registry handlers validate payloads, processor results, and no-op p
 });
 
 test("worker loop handles aborts, missing handlers, retry/dead-letter accounting, and crashes", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker/loop");
-  const { createConsoleLogger, generateWorkerId, runJobWorker } = await import("@/lib/worker/index");
+  const { runWorkerLoop: pollWorkerLoop } = await import("@/lib/worker/loop");
+  const {
+    createClaimedJobExecutor,
+    createConsoleLogger,
+    generateWorkerId,
+    runJobWorker,
+  } = await import("@/lib/worker/index");
   const { JobType, JobStatus } = await import("@/lib/jobs");
   const workerLogger = {
     ...logger,
     error: (...args: unknown[]) => loggerErrors.push(args),
   };
+  type ExecutorOptions = Parameters<typeof createClaimedJobExecutor>[0];
+  type ExecutionDeps = NonNullable<Parameters<typeof createClaimedJobExecutor>[1]>;
+  type LoopOptions = Parameters<typeof pollWorkerLoop>[2];
+  type LoopLogger = Parameters<typeof pollWorkerLoop>[3];
+  type LoopDeps = NonNullable<Parameters<typeof pollWorkerLoop>[4]>;
+  const runWorkerLoop = (
+    workerId: string,
+    handlers: ExecutorOptions["handlers"],
+    options: LoopOptions & Pick<ExecutorOptions, "heartbeatIntervalMs" | "process">,
+    loopLogger: LoopLogger,
+    deps: LoopDeps & ExecutionDeps = {},
+  ) => pollWorkerLoop(
+    workerId,
+    createClaimedJobExecutor({
+      workerId,
+      handlers,
+      logger: loopLogger,
+      lockTtlMs: options.lockTtlMs,
+      heartbeatIntervalMs: options.heartbeatIntervalMs,
+      signal: options.signal,
+      process: options.process,
+    }, deps),
+    options,
+    loopLogger,
+    deps,
+  );
 
   assert.match(generateWorkerId(), /^worker-\d+-[a-z0-9]+$/);
   assert.equal(createConsoleLogger(), logger);

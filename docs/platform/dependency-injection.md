@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-18"
 description: "Documents dependency-injection seams and testability boundaries across platform/domain modules. Captures current injectable interfaces, default implementations, test seams, and anti-patterns."
 ---
 
@@ -16,7 +16,7 @@ orchestration services and when updating tests.
 | Situation | Pattern | Naming | Examples |
 |---|---|---|---|
 | Orchestration service with multiple external I/O calls | `Deps` object inside options | `XxxDeps`, `deps?:` inside opts | `BackfillDeps`, `SeedDeps`, `UrlImportDeps`, `TextImportDeps` |
-| Long-running worker / runtime loop with many callables | `Deps` as separate parameter with default `{}` | `XxxDeps`, `deps:` last param | `WorkerLoopDeps` |
+| Long-running poll loop with I/O adapters | Deep executor interface plus `Deps` as the last parameter | `XxxExecutor`, `XxxDeps` | `ClaimedJobExecutor`, `WorkerLoopDeps` |
 | Pluggable external service (dictionary, AI, storage) | Named `interface` | `XxxProvider`, `XxxClient`, `XxxRepository` | `DictionaryProvider`, `GroupClient` |
 | Framework boundary (auth, middleware, Next.js routing) | `mock.module` in tests | n/a | `@/lib/api-auth`, `@/lib/prisma` |
 | Pure computation (formatting, parsing, sanitization) | **No injection** — use directly | n/a | `heuristicDifficulty`, `sanitizeArticleHtml`, `countWords` |
@@ -72,32 +72,37 @@ export async function importArticleFromUrl(input: UrlImportInput): Promise<Impor
 }
 ```
 
-### `Deps` as separate parameter (worker loops)
+### Deep executor plus `Deps` parameter (worker loops)
 
-Use for long-running workers that receive their deps from a parent `options`
-object and pass them to an inner loop. The inner loop accepts `deps` as its last
-parameter with a default of `{}`.
+Use a compact executor interface when a long-running loop would otherwise expose
+an ordered lifecycle protocol. Keep only the loop's own I/O adapters in its
+`deps` parameter, which remains last and defaults to `{}`. Resolve the
+executor's lower-level adapters at the composition root.
 
 ```ts
 // src/lib/worker/loop.ts
 
 export type WorkerLoopDeps = {
   claimNextJob?: typeof claimNextJob;
-  startJob?: typeof startJob;
-  // …
+  sleep?: typeof sleep;
 };
 
 export async function runWorkerLoop(
   workerId: string,
-  handlers: …,
+  executeClaimedJob: ClaimedJobExecutor,
   options: WorkerLoopOptions,
   logger: WorkerLogger,
-  deps: WorkerLoopDeps = {},       // ← last param, always defaults
+  deps: WorkerLoopDeps = {},
 ): Promise<JobWorkerStats> {
   const claimFn = deps.claimNextJob ?? claimNextJob;
-  // …
+  const job = await claimFn(workerId, options);
+  if (job) await executeClaimedJob(job);
 }
 ```
+
+`createClaimedJobExecutor` is the composition boundary for `startJob`,
+`heartbeatJob`, `completeJob`, and `failJob`. Do not widen `WorkerLoopDeps` with
+those operations: their legal ordering belongs inside claimed-job execution.
 
 ### Named `Provider` / `Client` / `Repository` interface (pluggable adapters)
 
@@ -245,6 +250,8 @@ test("successful URL import returns 201", async () => {
 - `tests/support/` — shared test helpers (REF-033).
 - Backfill subsystem: `src/lib/processing/backfill.ts` (`BackfillDeps`).
 - Seed script: `src/lib/seed.ts` (`SeedDeps`).
-- Worker loop: `src/lib/worker/loop.ts` (`WorkerLoopDeps`).
+- Worker poll loop: `src/lib/worker/loop.ts` (`WorkerLoopDeps`).
+- Claimed-job execution: `src/lib/worker/claimed-execution.ts`
+  (`ClaimedJobExecutor`, `ClaimedJobExecutionDeps`).
 - Import services: `src/lib/import/url-import.ts` (`UrlImportDeps`),
   `src/lib/import/text-import.ts` (`TextImportDeps`).

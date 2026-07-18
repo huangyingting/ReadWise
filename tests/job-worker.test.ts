@@ -1,7 +1,10 @@
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import type { ArticleProcessResult } from "@/lib/processing/processor";
-import type { Job } from "@/lib/jobs";
+import type { ArticleProcessResult, ProcessOptions } from "@/lib/processing/processor";
+import type { Job, JobType } from "@/lib/jobs";
+import type { ClaimedJobExecutionDeps } from "@/lib/worker/claimed-execution";
+import type { WorkerLoopDeps, WorkerLoopOptions } from "@/lib/worker/loop";
+import type { JobHandler, JobWorkerStats, WorkerLogger } from "@/lib/worker/types";
 
 process.env.LOG_LEVEL = "error";
 
@@ -22,6 +25,37 @@ before(() => {
 });
 
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} };
+
+type TestWorkerLoopOptions = WorkerLoopOptions & {
+  heartbeatIntervalMs?: number;
+  process?: ProcessOptions;
+};
+
+type TestWorkerLoopDeps = WorkerLoopDeps & ClaimedJobExecutionDeps;
+
+async function runWorkerLoop(
+  workerId: string,
+  handlers: Partial<Record<JobType, JobHandler>>,
+  options: TestWorkerLoopOptions,
+  logger: WorkerLogger,
+  deps: TestWorkerLoopDeps = {},
+): Promise<JobWorkerStats> {
+  const { createClaimedJobExecutor, runWorkerLoop: runLoop } = await import("@/lib/worker");
+  const executeClaimedJob = createClaimedJobExecutor(
+    {
+      workerId,
+      handlers,
+      logger,
+      lockTtlMs: options.lockTtlMs,
+      heartbeatIntervalMs: options.heartbeatIntervalMs,
+      signal: options.signal,
+      process: options.process,
+    },
+    deps,
+  );
+
+  return runLoop(workerId, executeClaimedJob, options, logger, deps);
+}
 
 type FakeJob = {
   id: string;
@@ -182,8 +216,35 @@ test("runJobWorker stops when the queue is empty in once mode", async () => {
   assert.equal(stats.completed, 0);
 });
 
+test("runWorkerLoop delegates claimed jobs and aggregates executor outcomes", async () => {
+  const { runWorkerLoop: runLoop } = await import("@/lib/worker");
+  const queue = [job({ id: "completed" }), job({ id: "dead-letter" })];
+  const executed: string[] = [];
+
+  const stats = await runLoop(
+    "worker-executor",
+    async (claimedJob) => {
+      executed.push(claimedJob.id);
+      if (claimedJob.id === "completed") {
+        return { outcome: "completed" };
+      }
+      return { outcome: "failed", deadLettered: true };
+    },
+    { once: true },
+    silentLogger,
+    {
+      claimNextJob: async () => (queue.shift() ?? null) as unknown as Job | null,
+    },
+  );
+
+  assert.deepEqual(executed, ["completed", "dead-letter"]);
+  assert.equal(stats.completed, 1);
+  assert.equal(stats.failed, 1);
+  assert.equal(stats.deadLettered, 1);
+  assert.equal(stats.retried, 0);
+});
+
 test("runJobWorker heartbeat loss aborts handler and skips complete/fail", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   let heartbeatCount = 0;
   let handlerAborted = false;
@@ -239,7 +300,6 @@ test("runJobWorker heartbeat loss aborts handler and skips complete/fail", async
 });
 
 test("runJobWorker global stop signal aborts handler", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   const controller = new AbortController();
   let claimed = false;
@@ -282,7 +342,6 @@ test("runJobWorker global stop signal aborts handler", async () => {
 // ─── Coverage for defensive branches (L101-106, L200-203, L237-240, L266-268, L287-290) ───
 
 test("heartbeat dependency throws → ownership loss, handler aborted, no stale complete/fail", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   let handlerAborted = false;
   let claimed = false;
@@ -333,7 +392,6 @@ test("heartbeat dependency throws → ownership loss, handler aborted, no stale 
 });
 
 test("startJob CAS returns null → handler does not run, loop continues", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   let handlerRan = false;
   let claimCount = 0;
@@ -374,7 +432,6 @@ test("startJob CAS returns null → handler does not run, loop continues", async
 });
 
 test("completeJob CAS returns null → ownership-loss log, no stats.completed", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   const warns: string[] = [];
   let claimed = false;
@@ -408,7 +465,6 @@ test("completeJob CAS returns null → ownership-loss log, no stats.completed", 
 });
 
 test("failJob CAS returns null → ownership-loss log, no stats.failed update", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   const warns: string[] = [];
   let claimed = false;
@@ -438,7 +494,6 @@ test("failJob CAS returns null → ownership-loss log, no stats.failed update", 
 });
 
 test("handler throws after heartbeat ownership loss → no failJob, no unhandled rejection", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   let claimed = false;
   const warns: string[] = [];
@@ -491,7 +546,6 @@ test("handler throws after heartbeat ownership loss → no failJob, no unhandled
 });
 
 test("heartbeat succeeds and reschedules before handler completes", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   let claimed = false;
   let heartbeatCount = 0;
@@ -524,7 +578,6 @@ test("heartbeat succeeds and reschedules before handler completes", async () => 
 });
 
 test("loop exits immediately when signal is already aborted", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const controller = new AbortController();
   controller.abort();
 
@@ -547,7 +600,6 @@ test("loop exits immediately when signal is already aborted", async () => {
 });
 
 test("non-once mode: no job → sleep → poll again, then drains on signal", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   const controller = new AbortController();
   let pollCount = 0;
@@ -584,7 +636,6 @@ test("non-once mode: no job → sleep → poll again, then drains on signal", as
 });
 
 test("no handler registered for job type throws validation error → failJob", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   let claimed = false;
   let failedError = "";
 
@@ -614,7 +665,6 @@ test("no handler registered for job type throws validation error → failJob", a
 });
 
 test("ownershipLost + global signal aborted in catch → break with stoppedBySignal", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   const controller = new AbortController();
   let claimed = false;
@@ -657,7 +707,6 @@ test("ownershipLost + global signal aborted in catch → break with stoppedBySig
 });
 
 test("handler aborted (ownership lost) via AbortError covers isAbort path", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   let claimed = false;
   const warns: string[] = [];
@@ -699,7 +748,6 @@ test("handler aborted (ownership lost) via AbortError covers isAbort path", asyn
 });
 
 test("handler throws AbortError on its own (no signal, no heartbeat loss) → stops loop", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
   let claimed = false;
 
@@ -731,7 +779,6 @@ test("handler throws AbortError on its own (no signal, no heartbeat loss) → st
 });
 
 test("outer catch: non-abort crash in dependency propagates after logging", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const errors: string[] = [];
 
   await assert.rejects(
@@ -755,7 +802,6 @@ test("outer catch: non-abort crash in dependency propagates after logging", asyn
 });
 
 test("outer catch: abort error in sleep sets stoppedBySignal", async () => {
-  const { runWorkerLoop } = await import("@/lib/worker");
   const { JobType } = await import("@/lib/jobs");
 
   const stats = await runWorkerLoop(
