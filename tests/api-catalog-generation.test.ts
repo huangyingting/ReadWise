@@ -406,6 +406,8 @@ test("api catalog parses synthetic routes and renders markdown summaries", async
     generatedAt: "2026-07-01T20:00:00.000Z",
   });
   assert.match(markdown, /last_updated: "2026-07-01"/);
+  assert.match(markdown, /## Catalog generation model/);
+  assert.match(markdown, /```mermaid/);
   assert.match(markdown, /Summary by auth mode/);
   assert.match(markdown, /Non-JSON routes/);
   assert.match(markdown, /Contract highlights/);
