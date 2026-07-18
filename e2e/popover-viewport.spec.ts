@@ -81,6 +81,12 @@ for (const theme of THEMES) {
     await expect(spacious).toBeVisible();
     await spacious.click();
     await expect(spacious).toHaveAttribute("aria-checked", "true");
+    await expect(spacious).toBeFocused();
+
+    await page.keyboard.press("ArrowRight");
+    const normal = popover.getByRole("radio", { name: "Normal" });
+    await expect(normal).toBeFocused();
+    await expect(normal).toHaveAttribute("aria-checked", "true");
   });
 }
 

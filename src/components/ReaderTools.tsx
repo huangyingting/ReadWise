@@ -63,7 +63,7 @@ export default function ReaderTools({
 
   const { handleKeyDown } = useRovingTabindex(tabListRef, {
     selector: "[role='tab']",
-    vertical: true,
+    orientation: "both",
     homeEnd: true,
     onNavigate: (i) => activate(TOOL_TABS[i].id),
   });
@@ -76,7 +76,7 @@ export default function ReaderTools({
         aria-label="Choose a practice tool"
         className="article-study-tabs"
       >
-        {TOOL_TABS.map(({ id, label, icon, hint }, i) => {
+        {TOOL_TABS.map(({ id, label, icon, hint }) => {
           const isActive = activeTab === id;
           return (
             <Tooltip key={id} content={hint}>
@@ -89,7 +89,7 @@ export default function ReaderTools({
                 aria-controls={`study-panel-${id}`}
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => activate(id)}
-                onKeyDown={(e) => handleKeyDown(e, i)}
+                onKeyDown={handleKeyDown}
                 leadingIcon={<span aria-hidden="true">{icon}</span>}
                 className="article-study-tab"
               >

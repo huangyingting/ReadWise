@@ -3,6 +3,8 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
+import type { FloatingPlacement } from "./floating-layout";
+import { useFloatingPosition } from "./useFloatingPosition";
 
 type TooltipSide = "top" | "bottom" | "left" | "right";
 
@@ -11,55 +13,15 @@ const TOOLTIP_OFFSET = 6;
 /** Minimum gap in px between the tooltip and the viewport edge. */
 const VIEWPORT_PADDING = 4;
 
-type Coords = { top: number; left: number };
-
-function placeTooltip(
-  side: TooltipSide,
-  trigger: DOMRect,
-  width: number,
-  height: number,
-): Coords {
-  switch (side) {
-    case "bottom":
-      return {
-        top: trigger.bottom + TOOLTIP_OFFSET,
-        left: trigger.left + trigger.width / 2 - width / 2,
-      };
-    case "left":
-      return {
-        top: trigger.top + trigger.height / 2 - height / 2,
-        left: trigger.left - width - TOOLTIP_OFFSET,
-      };
-    case "right":
-      return {
-        top: trigger.top + trigger.height / 2 - height / 2,
-        left: trigger.right + TOOLTIP_OFFSET,
-      };
-    case "top":
-    default:
-      return {
-        top: trigger.top - height - TOOLTIP_OFFSET,
-        left: trigger.left + trigger.width / 2 - width / 2,
-      };
-  }
-}
-
-function clampToViewport(coords: Coords, width: number, height: number): Coords {
-  if (typeof window === "undefined") return coords;
-  const maxLeft = window.innerWidth - width - VIEWPORT_PADDING;
-  const maxTop = window.innerHeight - height - VIEWPORT_PADDING;
-  return {
-    left: Math.max(VIEWPORT_PADDING, Math.min(coords.left, maxLeft)),
-    top: Math.max(VIEWPORT_PADDING, Math.min(coords.top, maxTop)),
-  };
-}
+const TOOLTIP_PLACEMENT: Record<TooltipSide, FloatingPlacement> = {
+  top: "above",
+  bottom: "below",
+  left: "left",
+  right: "right",
+};
 
 const focusableTriggerSelector =
   "button, a[href], input, select, textarea, [tabindex]:not([tabindex='-1'])";
-
-/** Avoids the useLayoutEffect SSR warning while keeping pre-paint positioning on the client. */
-const useIsomorphicLayoutEffect =
-  typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
 
 export interface TooltipProps {
   /** The tooltip text shown on hover/focus. */
@@ -99,12 +61,20 @@ export function Tooltip({
   className,
 }: TooltipProps) {
   const [open, setOpen] = React.useState(false);
-  const [coords, setCoords] = React.useState<Coords | null>(null);
   const [mounted, setMounted] = React.useState(false);
   const id = React.useId();
   const wrapperRef = React.useRef<HTMLSpanElement>(null);
   const tooltipRef = React.useRef<HTMLDivElement>(null);
   const describedElementRef = React.useRef<HTMLElement | null>(null);
+
+  useFloatingPosition(tooltipRef, wrapperRef, {
+    active: open && mounted,
+    placement: TOOLTIP_PLACEMENT[side],
+    align: "center",
+    gap: TOOLTIP_OFFSET,
+    viewportPadding: VIEWPORT_PADDING,
+    flip: false,
+  });
 
   React.useEffect(() => setMounted(true), []);
 
@@ -176,35 +146,6 @@ export function Tooltip({
     removeDescription();
   }, [removeDescription]);
 
-  const updatePosition = React.useCallback(() => {
-    const anchor = wrapperRef.current?.firstElementChild ?? wrapperRef.current;
-    const tip = tooltipRef.current;
-    if (!anchor || !tip) return;
-    const rect = anchor.getBoundingClientRect();
-    const width = tip.offsetWidth;
-    const height = tip.offsetHeight;
-    setCoords(clampToViewport(placeTooltip(side, rect, width, height), width, height));
-  }, [side]);
-
-  useIsomorphicLayoutEffect(() => {
-    if (!open) return;
-    updatePosition();
-    const onReflow = () => updatePosition();
-    const resizeObserver =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(onReflow)
-        : null;
-    if (tooltipRef.current) resizeObserver?.observe(tooltipRef.current);
-    if (wrapperRef.current) resizeObserver?.observe(wrapperRef.current);
-    window.addEventListener("scroll", onReflow, true);
-    window.addEventListener("resize", onReflow);
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener("scroll", onReflow, true);
-      window.removeEventListener("resize", onReflow);
-    };
-  }, [open, updatePosition]);
-
   React.useEffect(() => removeDescription, [removeDescription]);
 
   return (
@@ -225,8 +166,8 @@ export function Tooltip({
               role="tooltip"
               style={{
                 position: "fixed",
-                top: coords?.top ?? -9999,
-                left: coords?.left ?? -9999,
+                top: -9999,
+                left: -9999,
                 maxWidth: wrap
                   ? "min(var(--tooltip-max-w), calc(100vw - var(--space-8)))"
                   : undefined,

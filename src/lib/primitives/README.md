@@ -44,7 +44,7 @@ boundary.
 | `@/lib/cn` | `cn`, `focusRing` | Tailwind class composition and focus-ring token |
 | `@/lib/storage-keys` | `STORAGE_KEYS`, `lsGet`, `lsSet`, `lsRemove`, `ssGet`, `ssSet`, `ssRemove` | Browser storage key registry and safe helpers |
 | `@/lib/focus-trap` | `getTabbable`, `useFocusTrap` | **Security-sensitive** — focus containment for modals |
-| `@/lib/use-roving-tabindex` | `computeRovingIndex`, `useRovingTabindex` | Arrow-key navigation within control groups |
+| `@/lib/use-roving-tabindex` | `useRovingTabindex` | Enabled-item discovery, wrapping, `tabindex`, and focus within keyboard groups |
 
 ### Server-only
 

@@ -14,8 +14,7 @@
 import { useRef, type RefObject } from "react";
 import { BookMarked, RotateCcw, X } from "lucide-react";
 import { Button, IconButton } from "@/components/ui";
-import { useFocusTrap } from "@/lib/focus-trap";
-import { usePopoverPosition } from "@/lib/use-popover-position";
+import { ReaderFloatingSurface } from "@/components/reader/ReaderFloatingSurface";
 
 export interface GrammarResult {
   explanation: string | null;
@@ -33,12 +32,6 @@ interface Props {
   popoverRef: RefObject<HTMLDivElement | null>;
 }
 
-const POSITION_OPTIONS = {
-  placement: "below" as const,
-  estimatedHeight: 200,
-  estimatedWidth: 360,
-};
-
 function getExplanationLines(explanation?: string | null): string[] {
   return explanation ? explanation.split(/\n+/).filter((line) => line.trim()) : [];
 }
@@ -55,28 +48,17 @@ export default function GrammarPopover({
 }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  usePopoverPosition(popoverRef, selectionRect, {
-    ...POSITION_OPTIONS,
-    deps: [selectionRect, loading, result, error],
-  });
-
-  useFocusTrap(popoverRef, true, onClose, {
-    initialFocusRef: closeRef,
-    stopEscapePropagation: true,
-  });
-
   const lines = getExplanationLines(result?.explanation);
 
   return (
-    <div
+    <ReaderFloatingSurface
       ref={popoverRef}
-      role="dialog"
-      aria-label={`Grammar: ${phrase}`}
-      aria-modal="false"
+      anchor={selectionRect}
+      placement="below"
+      label={`Grammar: ${phrase}`}
+      onClose={onClose}
+      initialFocusRef={closeRef}
       className="grammar-popover"
-      style={{ left: 0, top: 0, position: "fixed", zIndex: 60 }}
-      onMouseUp={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
     >
       {/* Header */}
       <div className="grammar-popover-header">
@@ -127,6 +109,6 @@ export default function GrammarPopover({
           </div>
         ) : null}
       </div>
-    </div>
+    </ReaderFloatingSurface>
   );
 }

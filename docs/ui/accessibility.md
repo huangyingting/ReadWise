@@ -1,7 +1,7 @@
 ---
 type: "testing"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-18"
 description: "Documents UI accessibility baseline, automated checks, manual verification gaps, and component responsibilities. Captures current axe/Playwright checks, keyboard/focus expectations, semantic patterns, and outstanding manual checks."
 ---
 
@@ -134,12 +134,17 @@ ReadWise uses two focus utilities in `src/lib/`:
 | Utility | Path | Purpose |
 |---------|------|---------|
 | `useFocusTrap` | `src/lib/focus-trap.ts` | Traps keyboard focus inside modals, popovers, and command palette |
-| `useRovingTabindex` | `src/lib/use-roving-tabindex.ts` | Implements roving `tabindex` for toolbar / tab-list navigation |
+| `useRovingTabindex` | `src/lib/use-roving-tabindex.ts` | Owns enabled-item discovery, wrapping, `tabindex`, and focus movement for keyboard groups |
 
 Any component that opens a floating layer (dialog, popover, sheet, command
 palette) **must** use `useFocusTrap` or a library that provides equivalent
 containment.  PRs that remove or bypass this contract require a focused
 accessibility review.
+
+Nested controls may own Escape by calling `preventDefault()`. Focus traps must
+respect the prevented event so one key press does not dismiss both a nested
+surface and its parent. Roving groups use `useRovingTabindex` rather than local
+arrow-key arithmetic; callers supply orientation and activation semantics.
 
 ---
 

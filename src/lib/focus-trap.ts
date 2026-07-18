@@ -24,7 +24,7 @@
  * currently visible (not inside a `[hidden]` subtree and actually rendered).
  */
 
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 const FOCUSABLE_SELECTOR =
   "a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
@@ -161,6 +161,8 @@ export function useFocusTrap(
     restoreFocus = false,
     initialFocusRef,
   } = options;
+  const onEscapeRef = useRef(onEscape);
+  onEscapeRef.current = onEscape;
 
   useEffect(() => {
     if (!active) return;
@@ -171,8 +173,14 @@ export function useFocusTrap(
     focusInitialTarget(containerRef, initialFocusRef);
 
     function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
+
       if (event.key === "Escape") {
-        handleEscapeKey(event, onEscape, stopEscapePropagation);
+        handleEscapeKey(
+          event,
+          () => onEscapeRef.current(),
+          stopEscapePropagation,
+        );
         return;
       }
 
@@ -187,5 +195,5 @@ export function useFocusTrap(
       if (restoreFocus) previouslyFocused?.focus();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, onEscape, capture, stopEscapePropagation, restoreFocus]);
+  }, [active, capture, stopEscapePropagation, restoreFocus]);
 }

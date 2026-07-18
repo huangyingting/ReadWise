@@ -265,7 +265,7 @@ export default function WordLookup({
     [surface, savedAnchorRef],
   );
 
-  // Clamp/flip the dictionary popover — now handled by DictionaryPopover via usePopoverPosition.
+  // DictionaryPopover owns its clamp/flip positioning through ReaderFloatingSurface.
   // Return focus to the reader prose (selection origin) when the dictionary closes.
   useEffect(() => {
     if (openSurface !== "dictionary") return;

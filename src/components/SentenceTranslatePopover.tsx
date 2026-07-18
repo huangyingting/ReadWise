@@ -17,11 +17,10 @@
 import { useRef } from "react";
 import { Languages, RotateCcw, X } from "lucide-react";
 import { Button, IconButton, Select } from "@/components/ui";
+import { ReaderFloatingSurface } from "@/components/reader/ReaderFloatingSurface";
 import type { TranslateSentenceResult } from "@/components/reader/wordLookup/sentenceTranslationTypes";
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import { languageLabel } from "@/lib/supported-languages";
-import { useFocusTrap } from "@/lib/focus-trap";
-import { usePopoverPosition } from "@/lib/use-popover-position";
 
 const SHIMMER_LINE_WIDTHS = ["92%", "78%", "55%"] as const;
 
@@ -163,30 +162,17 @@ export default function SentenceTranslatePopover({
 }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  // Clamp/flip position — re-run after content changes height.
-  usePopoverPosition(popoverRef, selectionRect, {
-    placement: "below",
-    estimatedHeight: 200,
-    estimatedWidth: 360,
-    gap: 12,
-    deps: [selectionRect, loading, result, error],
-  });
-
-  useFocusTrap(popoverRef, true, onClose, {
-    initialFocusRef: closeRef,
-    stopEscapePropagation: true,
-  });
-
   return (
-    <div
+    <ReaderFloatingSurface
       ref={popoverRef}
-      role="dialog"
-      aria-label="Translation"
-      aria-busy={loading}
+      anchor={selectionRect}
+      placement="below"
+      label="Translation"
+      onClose={onClose}
+      initialFocusRef={closeRef}
       className="rw-tr-popover"
-      style={{ left: 0, top: 0 }} // overridden by useLayoutEffect
-      onMouseUp={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
+      gap={12}
+      busy={loading}
     >
       {/* Header: title · language select · close */}
       <div className="rw-tr-header">
@@ -214,12 +200,6 @@ export default function SentenceTranslatePopover({
           className="rw-tr-close"
           aria-label="Close"
           onClick={onClose}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              e.preventDefault();
-              onClose();
-            }
-          }}
         >
           <X size={15} aria-hidden="true" />
         </IconButton>
@@ -243,6 +223,6 @@ export default function SentenceTranslatePopover({
           />
         </div>
       </div>
-    </div>
+    </ReaderFloatingSurface>
   );
 }

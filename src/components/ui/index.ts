@@ -42,6 +42,11 @@ export { Tooltip, type TooltipProps } from "./Tooltip";
 export { Sheet, type SheetProps } from "./Sheet";
 export { Popover, type PopoverProps } from "./Popover";
 export {
+  useFloatingPosition,
+  type FloatingAnchor,
+  type FloatingPositionOptions,
+} from "./useFloatingPosition";
+export {
   SegmentedControl,
   type SegmentedControlProps,
   type SegmentedControlOption,

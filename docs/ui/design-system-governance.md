@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-16"
+last_updated: "2026-07-18"
 description: "Documents design-system ownership, token/primitive governance, import rules, density variants, and visual regression boundaries. Captures current token usage, shared UI primitives, ESLint drift checks, density rules, focus states, and CI screenshot plan."
 ---
 
@@ -187,7 +187,7 @@ semantics; pure aliases are drift.
 | **SkeletonText** | `Skeleton.tsx` | `lines` | Multi-line text loading skeleton |
 | **Spinner** | `Spinner.tsx` | `size`: sm · md · lg | Indeterminate progress — inline or centred |
 | **Tooltip** | `Tooltip.tsx` | `content`, `side`, `delay` | Supplemental labels for icon buttons and truncated text |
-| **Popover** | `Popover.tsx` | `trigger`, `content`, `side` | Anchored floating content (dropdowns, word-lookup panel) |
+| **Popover** | `Popover.tsx` | `open`, `onClose`, `anchorRef`, `label`, `align`, `matchAnchorWidth`, `initialFocusRef` | Generic anchored non-modal dialogs and listboxes |
 | **Sheet** | `Sheet.tsx` | `open`, `onClose`, `side` | Side-panel / drawer overlays |
 | **SegmentedControl** | `SegmentedControl.tsx` | `options`, `value`, `onChange` | Mutually exclusive view-mode tabs |
 | **HighlightColorSwatch** / **HighlightColorSwatchGroup** | `HighlightColorSwatch.tsx`, `highlight-colors.ts` | `color`, `tone`: fill · dot, `size`: xs · sm · md · bar; group `value`, `onChange`, `onEscape` | Highlight colour indicators and accessible colour radiogroups for Reader and Notes UI |
@@ -220,6 +220,22 @@ Rules:
 - Popovers and Sheets must integrate `useFocusTrap` (see [Accessibility baseline](./accessibility.md)).
 - `Spinner` is purely decorative; it must not receive focus.
 - `Skeleton` renders with `aria-hidden`.
+
+Shared interaction mechanics have one owner:
+
+- `floating-layout.ts` computes generic placement, flipping, clamping, safe
+  areas, and constrained size without React or DOM observation.
+- `useFloatingPosition.ts` owns measurement plus resize, scroll, orientation,
+  and visual-viewport reflow for Popover, Tooltip, and feature modules.
+- `useRovingTabindex` owns enabled-item discovery, wrapping, Home/End policy,
+  `tabindex` mutation, and focus. Callers retain only domain activation.
+- Reader text actions compose these mechanics through the feature-local
+  `ReaderFloatingSurface`; it adds real Reader semantics rather than aliasing a
+  generic primitive.
+
+Do not copy viewport arithmetic, observer setup, arrow-key index arithmetic, or
+focus mutation into feature callers. Preserve feature-authored CSS maximum
+sizes; viewport constraints apply the stricter available limit.
 
 ### 4.3 When to use a primitive vs. feature-local styling
 

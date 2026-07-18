@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Check } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
+import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import {
   HIGHLIGHT_COLOR_OPTIONS,
   getHighlightColorCssVar,
@@ -107,65 +108,26 @@ export function HighlightColorSwatchGroup({
   onKeyDown,
   ...props
 }: HighlightColorSwatchGroupProps): React.ReactElement {
-  function selectButton(button: HTMLButtonElement | undefined) {
-    const color = button?.dataset.highlightColor;
-    if (!button || !isHighlightColor(color)) return;
-    button.focus();
-    onChange(color);
-  }
+  const groupRef = React.useRef<HTMLDivElement>(null);
+  const { handleKeyDown: handleRovingKeyDown } = useRovingTabindex(groupRef, {
+    selector: "[data-highlight-swatch-option]",
+    orientation: "both",
+    homeEnd: true,
+    onEscape,
+    onNavigate: (index) => {
+      const option = HIGHLIGHT_COLOR_OPTIONS[index];
+      if (option) onChange(option.color);
+    },
+  });
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     onKeyDown?.(event);
-    if (event.defaultPrevented) return;
-
-    if (event.key === "Escape" && onEscape) {
-      event.preventDefault();
-      onEscape();
-      return;
-    }
-
-    const buttons = Array.from(
-      event.currentTarget.querySelectorAll<HTMLButtonElement>(
-        "[data-highlight-swatch-option]",
-      ),
-    );
-    if (buttons.length === 0) return;
-
-    const activeIndex = Math.max(
-      0,
-      buttons.findIndex(
-        (button) =>
-          button === document.activeElement ||
-          button.getAttribute("aria-checked") === "true",
-      ),
-    );
-
-    switch (event.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        event.preventDefault();
-        selectButton(buttons[(activeIndex + 1) % buttons.length]);
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        event.preventDefault();
-        selectButton(buttons[(activeIndex - 1 + buttons.length) % buttons.length]);
-        break;
-      case "Home":
-        event.preventDefault();
-        selectButton(buttons[0]);
-        break;
-      case "End":
-        event.preventDefault();
-        selectButton(buttons[buttons.length - 1]);
-        break;
-      default:
-        break;
-    }
+    handleRovingKeyDown(event);
   }
 
   return (
     <div
+      ref={groupRef}
       role="radiogroup"
       aria-label={label}
       className={cn("rw-highlight-color-swatch-group", className)}

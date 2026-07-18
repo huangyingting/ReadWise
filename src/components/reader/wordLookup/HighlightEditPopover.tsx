@@ -22,13 +22,10 @@ import {
   Textarea,
   isHighlightColor,
 } from "@/components/ui";
-import { useFocusTrap } from "@/lib/focus-trap";
+import { ReaderFloatingSurface } from "@/components/reader/ReaderFloatingSurface";
 import ConfirmAction from "@/components/ConfirmAction";
-import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { Highlight, HighlightColor } from "@/components/ReaderHighlightsProvider";
-import { useMirroredElementRef } from "./useMirroredElementRef";
 
-const POPOVER_HEIGHT = 260; // approximate
 const NOTE_MAX = 2000;
 
 interface HighlightEditPopoverProps {
@@ -58,7 +55,6 @@ export default function HighlightEditPopover({
   onDelete,
   popoverRef,
 }: HighlightEditPopoverProps) {
-  const { elementRef, setElement } = useMirroredElementRef(popoverRef);
   const selectedSwatchRef = useRef<HTMLButtonElement>(null);
 
   const [noteText, setNoteText] = useState(highlight.note ?? "");
@@ -69,18 +65,6 @@ export default function HighlightEditPopover({
   useEffect(() => {
     setNoteText(highlight.note ?? "");
   }, [highlight.note]);
-
-  useFocusTrap(elementRef, true, onClose, {
-    initialFocusRef: selectedSwatchRef,
-    stopEscapePropagation: true,
-  });
-
-  // Position the popover — anchor is the bounding rect of the <mark> element
-  usePopoverPosition(elementRef, anchorEl.getBoundingClientRect(), {
-    placement: "above",
-    estimatedHeight: POPOVER_HEIGHT,
-    deps: [anchorEl],
-  });
 
   function handleNoteSave() {
     const trimmed = noteText.trim();
@@ -110,21 +94,14 @@ export default function HighlightEditPopover({
   const showNoteCounter = nearLimit || atLimit;
 
   return (
-    <div
-      ref={setElement}
-      role="dialog"
-      aria-label="Edit highlight"
+    <ReaderFloatingSurface
+      ref={popoverRef}
+      anchor={anchorEl.getBoundingClientRect()}
+      placement="above"
+      label="Edit highlight"
+      onClose={onClose}
+      initialFocusRef={selectedSwatchRef}
       className="rw-hl-popover"
-      style={{ left: 0, top: 0 }}
-      onMouseUp={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          onClose();
-          anchorEl.focus?.();
-        }
-      }}
     >
       {/* Header: swatches + close */}
       <div className="rw-hl-popover-header">
@@ -209,6 +186,6 @@ export default function HighlightEditPopover({
           onConfirm={handleDelete}
         />
       </div>
-    </div>
+    </ReaderFloatingSurface>
   );
 }

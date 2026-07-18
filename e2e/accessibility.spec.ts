@@ -189,7 +189,13 @@ test.describe("a11y: reader surface", () => {
 
     const toolbar = page.getByRole("toolbar", { name: "Text actions" });
     await expect(toolbar).toBeVisible();
-    await expect(page.getByRole("radio", { name: "Yellow" })).toBeFocused();
+    const yellow = page.getByRole("radio", { name: "Yellow" });
+    const green = page.getByRole("radio", { name: "Green" });
+    await expect(yellow).toBeFocused();
+
+    await page.keyboard.press("ArrowRight");
+    await expect(green).toBeFocused();
+    await expect(green).toHaveAttribute("aria-checked", "true");
 
     await page.keyboard.press("Shift+Tab");
     await expect(page.getByRole("button", { name: "Define" })).toBeFocused();

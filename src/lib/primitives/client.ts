@@ -34,6 +34,5 @@ export {
 
 // ── Arrow-key roving tabindex navigation ─────────────────────────────────────
 export {
-  computeRovingIndex,
   useRovingTabindex,
 } from "@/lib/use-roving-tabindex";
