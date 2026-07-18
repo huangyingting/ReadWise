@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-18"
 description: "Documents search/indexing strategy, query boundaries, and article visibility constraints. Captures current search route behavior, indexing assumptions, filtering/pagination, privacy, and fallback semantics."
 ---
 
@@ -11,15 +11,23 @@ ReadWise routes user-facing search through `ArticleSearchProvider` (`src/lib/sea
 
 ## Article Library visibility boundary
 
-All Prisma search queries consume `readableArticleWhere` from `@/lib/article-library` so the visibility policy is defined once. The PostgreSQL FTS path (`postgresTextMatches`) uses a raw `$queryRaw` query, which cannot embed Prisma `WhereInput` objects directly. Instead, `buildReadableArticleSqlPredicate` in `src/lib/search/fulltext.ts` is a manually maintained SQL mirror of the same policy:
+Article Library owns one canonical readable-article access expression in
+`src/lib/article-library/policy.ts`. In-memory checks evaluate it,
+`readableArticleWhere` renders it as Prisma filters, and
+`readableArticleSqlPredicate` renders it as parameterized PostgreSQL SQL. The
+raw `postgresTextMatches` query cannot embed a Prisma `WhereInput`, but it no
+longer maintains a separate copy of the access decisions.
 
-| Context | Prisma `readableArticleWhere` | Raw SQL `buildReadableArticleSqlPredicate` |
+| Context | Canonical branches | Adapter result |
 | --- | --- | --- |
-| Admin/System | `{}` (no filter) | `TRUE` |
-| Authenticated user | `OR [public-listable, owned-private]` | `((status='published' AND visibility='PUBLIC') OR (visibility='PRIVATE' AND ownerId=?))` |
-| Anonymous | `{ status: PUBLISHED, visibility: PUBLIC, ownerId: null }` | `(status='published' AND visibility='PUBLIC')` |
+| Admin/System | unrestricted | Prisma `{}` / SQL `TRUE` |
+| Authenticated user | public-listable OR owned-private | Prisma `OR` / parameterized SQL `OR` |
+| Organization-scoped user | public-listable OR owned-private OR matching organization | Prisma `OR` / parameterized SQL `OR` |
+| Anonymous | public-listable | direct Prisma fields / parameterized SQL conjunction |
 
-`buildReadableArticleSqlPredicate` is part of the same access-boundary contract as `readableArticleWhere`: when the Prisma predicate changes, the raw SQL mirror and `tests/search-sql-predicate.test.ts` must change with it.
+`tests/article-access.test.ts` covers policy decisions and Prisma rendering;
+`tests/search-sql-predicate.test.ts` covers SQL structure, PostgreSQL enum casts,
+and bound context values.
 
 Browse has an in-context `q` parameter on `/browse` and `/api/articles`. It uses the same portable article text predicates (`buildSearchTerms` + `articleTextWhere`) but stays within the Browse context: category tabs preserve the query, CEFR filters combine with it, and the Picks view filters candidates before personalized scoring. Browse search remains public-listable only.
 

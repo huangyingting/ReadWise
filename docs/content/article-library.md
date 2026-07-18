@@ -136,11 +136,12 @@ Never render stored or scraped article HTML directly.
 
 All Prisma-based consumers (Reader, Search Prisma path, Import, Scraper,
 Processing) call `readableArticleWhere` / `getReadableArticleById` and related
-helpers from this module. The one known raw-SQL consumer is
-`buildReadableArticleSqlPredicate` in `src/lib/search/fulltext.ts`, which
-manually mirrors `readableArticleWhere` for the PostgreSQL FTS `$queryRaw` path.
-See `docs/reader/search-and-indexing.md` for the migration follow-up note and
-`tests/search-sql-predicate.test.ts` for regression coverage.
+helpers from this module. `canReadArticle`, `readableArticleWhere`, and
+`readableArticleSqlPredicate` evaluate or render one canonical access expression
+owned by `src/lib/article-library/policy.ts`. PostgreSQL FTS consumes the SQL
+renderer, so its `$queryRaw` visibility predicate cannot drift from ordinary
+Prisma reads. See `docs/reader/search-and-indexing.md` and
+`tests/search-sql-predicate.test.ts` for adapter details and regression coverage.
 
 ## Tests
 
