@@ -36,6 +36,7 @@ let speechFindUniqueCalls = 0;
 let synthesizeCalls: Array<{ text: string; articleId: string }> = [];
 let synthesizeResult: { audio: Buffer; provider: "azure"; words: SpeechWord[] } | null = null;
 let storagePutFails = false;
+let persistedTimingPayload: unknown = null;
 
 function resetState(): void {
   cachedSpeechRow = null;
@@ -46,6 +47,7 @@ function resetState(): void {
   synthesizeCalls = [];
   synthesizeResult = null;
   storagePutFails = false;
+  persistedTimingPayload = null;
 }
 
 function enableTts(): void {
@@ -115,12 +117,19 @@ before(() => {
         },
         $transaction: async (
           callback: (tx: {
-            articleSpeech: { upsert: () => Promise<Record<string, never>> };
+            articleSpeech: {
+              upsert: (args: { create: { words: unknown } }) => Promise<Record<string, never>>;
+            };
             mediaAsset: { upsert: () => Promise<{ id: string }> };
           }) => Promise<unknown>,
         ) =>
           callback({
-            articleSpeech: { upsert: async () => ({}) },
+            articleSpeech: {
+              upsert: async (args) => {
+                persistedTimingPayload = args.create.words;
+                return {};
+              },
+            },
             mediaAsset: { upsert: async () => ({ id: "media-1" }) },
           }),
       },
@@ -249,6 +258,34 @@ test("getOrCreateArticleSpeech derives full text for cached batch narration", as
   assert.ok(result!.plainText.length > 5_000);
 });
 
+test("getOrCreateArticleSpeech reconstructs the capped text basis for cached batch narration", async () => {
+  cachedSpeechRow = cachedSpeech({
+    words: {
+      version: 2,
+      provider: "azure-batch",
+      timeUnit: "ms",
+      textUnit: "utf16",
+      textBasis: { kind: "paragraph-limit", maxChars: 10 },
+      words: ["First"],
+      startMs: [0],
+      endMs: [400],
+      textStart: [0],
+      textEnd: [5],
+    },
+  });
+  articleRow = { content: "<p>First paragraph.</p><p>Second paragraph.</p>" };
+  mediaAssetRow = {
+    storageKey: "speech/cached.mp3",
+    mimeType: "audio/mpeg",
+    voice: "en-US-Cached",
+  };
+
+  const result = await getOrCreateSpeech();
+
+  assert.ok(result);
+  assert.equal(result!.plainText, "First para");
+});
+
 test("getOrCreateArticleSpeech returns null when a dangling cache row has no article", async () => {
   cachedSpeechRow = cachedSpeech();
   mediaAssetRow = {
@@ -310,6 +347,10 @@ test("getOrCreateArticleSpeech synthesizes and persists fresh audio on a cache m
   assert.equal(result!.voice, "en-US-TestNeural");
   assert.equal(result!.audio, audioDataUrl("AUDIO"));
   assert.deepEqual(result!.words, VALID_WORDS);
+  assert.deepEqual(
+    (persistedTimingPayload as { textBasis?: unknown }).textBasis,
+    { kind: "character-limit", maxChars: 5_000 },
+  );
 });
 
 test("getOrCreateArticleSpeech reports storage persistence failure as recoverable fallback", async () => {

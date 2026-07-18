@@ -39,6 +39,7 @@ Operations).
 | `src/lib/speech/provider-azure.ts` | Azure SDK isolation — the only module that imports `microsoft-cognitiveservices-speech-sdk`. |
 | `src/lib/speech/azure-batch-synthesis.ts` | Full Azure Batch workflow behind `runAzureBatchSynthesis`: selection, SSML, job planning, REST calls, result parsing, timing enrichment, and persistence. |
 | `src/lib/speech/repository.ts` | ArticleSpeech DB reads/writes, corrupt-cache recovery, `MediaAsset` upsert, storage interaction. |
+| `src/lib/speech/text-basis.ts` | Canonical Narration text basis preparation and cache-reconstruction policy for real-time and Batch adapters. |
 | `src/lib/speech/timing.ts` | Word-timing types and utilities (`SpeechWord`, `timingStartSeconds`, `timingEndSeconds`). |
 | `src/lib/speech/timing-alignment.ts` | Token alignment for word-highlight mapping. |
 | `src/lib/speech/timing-enrichment.ts` | Canonical policy for adding reader-text spans to provider word timings. |
@@ -72,16 +73,25 @@ caller outside `speech/` needs to change.
 
 ## Request building and text basis
 
-Article text is prepared by `articleHtmlToReaderText(article.content)` (HTML
-stripped, reader-safe text extracted), then capped at `MAX_TTS_CHARS = 5000`
-characters. This bound limits:
+`prepareNarrationText` in `src/lib/speech/text-basis.ts` derives the Narration
+text basis from canonical Reader text. The real-time adapter uses a 5,000
+character prefix. The Batch adapter uses full paragraph blocks by default or a
+paragraph-aware character limit when `--max-chars` is supplied. SSML, pauses,
+styles, and voice rotation remain Batch-specific request concerns.
+
+The real-time bound limits:
 
 - Azure Speech latency and per-request cost.
 - Audio file size stored in the database or object storage.
 - Word-boundary array size in `ArticleSpeech.words`.
 
-Cache hits derive the same capped reader text from `Article.content`; the text is
-not duplicated in `ArticleSpeech`.
+V2 timing metadata stores only the basis descriptor (`full`, `character-limit`,
+or `paragraph-limit` plus the numeric limit). Cache hits replay that policy
+against current `Article.content`, so capped Batch narration returns the same
+Reader text scope used during generation. The Reader text itself is not
+duplicated in `ArticleSpeech`. Legacy rows without a descriptor retain the old
+provider-based fallback: Azure Batch is treated as full text and other providers
+as the 5,000-character real-time prefix.
 
 ## Voice and format selection
 
@@ -239,8 +249,8 @@ If the timeout fires, `synthesize` resolves `null` and the caller falls back.
 1. **Access check** — non-operator callers must pass `getAiProcessableArticleById`.
    Operators bypass the check.
 2. **Cache read** — looks up `ArticleSpeech` by `articleId`. Returns cached result
-   if the row exists and word timings parse cleanly.
-3. **Corrupt-cache recovery** — if `parseStoredSpeechWords` returns `null`, the
+  if the timing payload parses cleanly, replaying its Narration text basis.
+3. **Corrupt-cache recovery** — if `parseStoredSpeechTimingPayload` returns `null`, the
    corrupt row is deleted and synthesis retries from scratch.
 4. **Fallback: no config** — if `speechConfig.get()` is null (Azure credentials
    absent), returns `{ audio: null, fallback: true }` without throwing.
@@ -267,8 +277,9 @@ rerunning TTS jobs after fixing storage.
    → `{ storageKey, sizeBytes, checksum }`.
 2. Upserts a `MediaAsset` row recording the canonical `storageKey`, `mimeType`,
    `voice`, and `articleId`.
-3. Atomically upserts `ArticleSpeech` with `mediaAssetId` and `words`, so the
-   current audio and timing payload remain paired.
+3. Atomically upserts `ArticleSpeech` with `mediaAssetId` and the V2 timing
+  payload, including its Narration text basis descriptor, so the current audio,
+  Reader text scope, and word timings remain paired.
 
 If media storage is unavailable or the write fails, `saveSpeechResult` returns
 `false`, skips cache persistence, and does not store audio in the database. The
@@ -297,6 +308,7 @@ fresh `ArticleSpeech` row.
 ## Privacy rules
 
 - Do not log article text, derived narration text, or synthesized audio bytes.
+- Persist only the Narration text basis descriptor, never Reader text itself.
 - Do not expose `storageKey` values in API responses to clients.
 - Treat absent Azure Speech credentials as normal; do not surface as an error.
 

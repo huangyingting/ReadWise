@@ -16,6 +16,8 @@
  * Production writes and new speech generation always use V2.
  */
 
+import type { NarrationTextBasis } from "./text-basis";
+
 export type SpeechTimingProvider =
   | "azure"
   | "polly"
@@ -27,6 +29,7 @@ export type SpeechTimingPayloadBase = {
   provider: SpeechTimingProvider | string;
   timeUnit: "ms";
   textUnit: "utf16";
+  textBasis?: NarrationTextBasis;
 };
 
 export type SpeechTimingPayloadV2 = SpeechTimingPayloadBase & {
@@ -151,6 +154,19 @@ function parseNumberArray(value: unknown): number[] | null {
     : null;
 }
 
+function parseNarrationTextBasis(value: unknown): NarrationTextBasis | null {
+  if (!isRecord(value) || typeof value.kind !== "string") return null;
+  if (value.kind === "full") return { kind: "full" };
+  if (
+    (value.kind === "character-limit" || value.kind === "paragraph-limit") &&
+    Number.isSafeInteger(value.maxChars) &&
+    (value.maxChars as number) > 0
+  ) {
+    return { kind: value.kind, maxChars: value.maxChars as number };
+  }
+  return null;
+}
+
 type ParsedTextSpanColumns = {
   textStart?: number[];
   textEnd?: number[];
@@ -260,6 +276,10 @@ function parseV2Payload(record: Record<string, unknown>): ParsedSpeechTimingPayl
 
   const textSpans = parseTextSpanColumns(record, words.length);
   if (!textSpans) return null;
+  const textBasis = record.textBasis === undefined
+    ? undefined
+    : parseNarrationTextBasis(record.textBasis);
+  if (record.textBasis !== undefined && !textBasis) return null;
 
   const normalized: SpeechWord[] = [];
   for (let index = 0; index < words.length; index++) {
@@ -279,6 +299,7 @@ function parseV2Payload(record: Record<string, unknown>): ParsedSpeechTimingPayl
     provider,
     timeUnit: "ms",
     textUnit: "utf16",
+    ...(textBasis ? { textBasis } : {}),
     words: normalized,
   };
 }
@@ -324,6 +345,7 @@ export function parseSpeechTimingPayload(raw: unknown): ParsedSpeechTimingPayloa
 export function createSpeechTimingPayloadV2(
   provider: SpeechTimingProvider | string,
   words: SpeechWord[],
+  textBasis?: NarrationTextBasis,
 ): SpeechTimingPayloadV2 {
   const includeTextSpans = words.length > 0 && words.every(hasCompleteTextSpan);
 
@@ -335,6 +357,7 @@ export function createSpeechTimingPayloadV2(
     words: words.map((word) => word.word),
     startMs: words.map((word) => word.startMs),
     endMs: words.map((word) => word.endMs),
+    ...(textBasis ? { textBasis } : {}),
   };
 
   if (includeTextSpans) {

@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-18"
 description: "Documents ReaderAudioProvider, mini-player, narration transport, word highlighting, and access-checked playback initiation. Captures current playback controls, speed/loop behavior, audio-range playback, TTS integration, storage fallback, and UI state rules."
 ---
 
@@ -132,6 +132,8 @@ sentence-loop UX:
 
 `DictationSegment` boundaries are computed from article-derived reader text and
 `ArticleSpeech.words` at load time via `segmentDictation(plainText, words)`.
+Speech reconstructs `plainText` from the persisted Narration text basis so a
+capped Narration and its word timings share the same Reader text scope.
 
 ## Blob URL lifecycle
 

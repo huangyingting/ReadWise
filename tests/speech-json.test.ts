@@ -59,6 +59,29 @@ test("parseStoredSpeechTimingPayload accepts versioned V2 columnar payloads", ()
   );
 });
 
+test("parseStoredSpeechTimingPayload preserves Narration text-basis metadata", () => {
+  assert.deepEqual(
+    parseStoredSpeechTimingPayload({
+      version: 2,
+      provider: "azure-batch",
+      timeUnit: "ms",
+      textUnit: "utf16",
+      textBasis: { kind: "paragraph-limit", maxChars: 2_000 },
+      words: ["Hello"],
+      startMs: [0],
+      endMs: [400],
+    }),
+    {
+      version: 2,
+      provider: "azure-batch",
+      timeUnit: "ms",
+      textUnit: "utf16",
+      textBasis: { kind: "paragraph-limit", maxChars: 2_000 },
+      words: [{ word: "Hello", startMs: 0, endMs: 400 }],
+    },
+  );
+});
+
 test("legacySpeechWordsToTimingPayloadV2 converts legacy arrays to canonical V2", () => {
   assert.deepEqual(
     legacySpeechWordsToTimingPayloadV2(
@@ -133,6 +156,16 @@ test("parseStoredSpeechTimingPayload rejects malformed V2 payloads", () => {
     textUnit: "utf16",
     words: ["Hello"],
     startMs: [600],
+    endMs: [500],
+  });
+  assertRejectsStoredTimingPayload({
+    version: 2,
+    provider: "azure-batch",
+    timeUnit: "ms",
+    textUnit: "utf16",
+    textBasis: { kind: "paragraph-limit", maxChars: 0 },
+    words: ["Hello"],
+    startMs: [0],
     endMs: [500],
   });
 });

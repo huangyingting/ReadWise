@@ -14,6 +14,10 @@ before(() => {
   });
   mock.module("@/lib/content-pipeline", {
     namedExports: {
+      articleHtmlToReaderBlocks: (html: string) => ({
+        plainText: html,
+        blocks: html ? [html] : [],
+      }),
       articleHtmlToReaderText: (html: string) => html,
     },
   });
@@ -51,6 +55,7 @@ before(() => {
   });
   mock.module("@/lib/speech/repository", {
     namedExports: {
+      parseStoredSpeechTimingPayload: () => null,
       parseStoredSpeechWords: () => [],
       resolveStoredSpeechMedia: async () => null,
       saveSpeechResult: async () => null,

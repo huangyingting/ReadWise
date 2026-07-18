@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import {
   DEFAULT_SPEECH_VOICE,
   speechConfig,
@@ -15,15 +14,18 @@ import {
 } from "@/lib/article-library";
 import { synthesize, resolveMimeType } from "./provider-azure";
 import {
-  parseStoredSpeechWords,
+  parseStoredSpeechTimingPayload,
   resolveStoredSpeechMedia,
   saveSpeechResult,
 } from "./repository";
+import {
+  prepareNarrationText,
+  REALTIME_NARRATION_TEXT_BASIS,
+  resolveStoredNarrationTextBasis,
+  type NarrationTextBasis,
+} from "./text-basis";
 
 const log = createLogger("speech");
-
-/** Max characters of article text synthesized (bounds audio size / latency). */
-const MAX_TTS_CHARS = 5000;
 
 // ── Barrel re-exports ────────────────────────────────────────────────────────
 // Keep @/lib/speech as the single external entry for all speech subsystem APIs.
@@ -150,8 +152,8 @@ async function cachedSpeechResult(
     return null;
   }
 
-  const words = parseStoredSpeechWords(cached.words);
-  if (!words) {
+  const timing = parseStoredSpeechTimingPayload(cached.words);
+  if (!timing) {
     log.error("speech.cache_parse_failure", {
       articleId,
       error: "Malformed cached word timings",
@@ -162,7 +164,11 @@ async function cachedSpeechResult(
   }
 
   const [plainText, media] = await Promise.all([
-    cachedPlainText(articleId, allowedArticle, usesFullArticleText(cached.words)),
+    cachedPlainText(
+      articleId,
+      allowedArticle,
+      resolveStoredNarrationTextBasis(timing.textBasis, timing.provider),
+    ),
     resolveStoredSpeechMedia(cached),
   ]);
   if (plainText === null) {
@@ -173,7 +179,7 @@ async function cachedSpeechResult(
     audio,
     mimeType: media?.mimeType ?? null,
     plainText,
-    words,
+    words: timing.words,
     voice: media?.voice ?? DEFAULT_SPEECH_VOICE,
     cached: true,
     fallback: !audio,
@@ -184,7 +190,7 @@ async function cachedSpeechResult(
 async function cachedPlainText(
   articleId: string,
   allowedArticle: ArticleSpeechSource | null,
-  fullArticle: boolean,
+  basis: NarrationTextBasis,
 ): Promise<string | null> {
   const articleForReaderText =
     allowedArticle ??
@@ -195,15 +201,7 @@ async function cachedPlainText(
   if (!articleForReaderText) {
     return null;
   }
-  const plainText = articleHtmlToReaderText(articleForReaderText.content);
-  return fullArticle ? plainText : plainText.slice(0, MAX_TTS_CHARS);
-}
-
-function usesFullArticleText(words: unknown): boolean {
-  if (!words || typeof words !== "object" || Array.isArray(words)) {
-    return false;
-  }
-  return (words as { provider?: unknown }).provider === "azure-batch";
+  return prepareNarrationText(articleForReaderText.content, basis).plainText;
 }
 
 async function findArticleForSpeech(articleId: string): Promise<ArticleSpeechSource | null> {
@@ -222,7 +220,11 @@ async function synthesizeArticleSpeech(
     return fallbackResult(DEFAULT_SPEECH_VOICE, "tts_unconfigured");
   }
 
-  const plainText = articleHtmlToReaderText(article.content).slice(0, MAX_TTS_CHARS);
+  const narrationText = prepareNarrationText(
+    article.content,
+    REALTIME_NARRATION_TEXT_BASIS,
+  );
+  const { plainText } = narrationText;
 
   if (!plainText) {
     return fallbackResult(config.voice, "empty_text");
@@ -242,6 +244,7 @@ async function synthesizeArticleSpeech(
     voice: config.voice,
     provider: output.provider,
     words: output.words,
+    textBasis: narrationText.basis,
   });
 
   return {
