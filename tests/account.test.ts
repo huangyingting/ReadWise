@@ -36,6 +36,7 @@ before(() => {
       },
     },
     article: {
+      count: async () => 0,
       deleteMany: async (args: { where: Record<string, unknown> }) => {
         return { count: 1 };
       },
@@ -68,6 +69,7 @@ before(() => {
             },
           },
           article: {
+            count: async () => 0,
             deleteMany: async (args: { where: Record<string, unknown> }) => {
               pendingDeleteManyArgs = args;
               return { count: 1 };

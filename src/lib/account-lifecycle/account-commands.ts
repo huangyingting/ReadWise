@@ -10,7 +10,7 @@
  *   checking the last-admin guard so the system is never left adminless.
  */
 
-import { prepareOwnedArticleMediaAssetRetirement } from "@/lib/media";
+import { removeAccount } from "@/lib/account-lifecycle/account-removal";
 import { prisma } from "@/lib/prisma";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 import type { Prisma } from "@prisma/client";
@@ -356,70 +356,26 @@ export async function exportUserData(
 
 // ── Deletion ───────────────────────────────────────────────────────────────
 
-// Sentinel thrown inside a transaction to signal the last-admin guard fired.
-class LastAdminError extends Error {
-  constructor() {
-    super("last-admin");
-  }
-}
-
 export async function deleteOwnAccount(
   userId: string,
   audit?: AuditRequestInput,
 ): Promise<DeleteAccountResult> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, role: true },
+  const result = await removeAccount(userId, {
+    audit: audit ? () => audit : undefined,
+    mediaRetirementOperation: "account-delete",
   });
 
-  if (!user) {
+  if (!result.ok && result.reason === "not-found") {
     return { ok: false, error: "Account not found", status: 404 };
   }
-
-  // Article.owner now uses onDelete: Cascade, so deleting the user also deletes
-  // their private imports at the database layer. Private articles therefore can
-  // never survive as ownerless public rows.
-  //
-  // The last-admin guard is re-evaluated INSIDE the transaction so two
-  // concurrent self-deletes can never both pass the guard and leave the system
-  // without an admin.
-  //
-  // Cascade deletes on the user: accounts, sessions, profile, readingProgress,
-  // savedWords, dailyActivities, readingLists (+ items), highlights,
-  // tutorMessages, quizAttempts, pronunciationAttempts — all onDelete: Cascade.
-  //
-  // 711-D: Collect object-storage keys for private-article MediaAssets BEFORE
-  // the cascade so we can purge bytes from object storage after the DB delete.
-  // The query runs outside the transaction intentionally — storage I/O must not
-  // hold a DB lock.
-  const mediaRetirement = await prepareOwnedArticleMediaAssetRetirement(userId);
-
-  try {
-    await prisma.$transaction(async (tx) => {
-      if (user.role === "Admin") {
-        const adminCount = await tx.user.count({ where: { role: "Admin" } });
-        if (adminCount <= 1) throw new LastAdminError();
-      }
-      await tx.user.delete({ where: { id: userId } });
-      if (audit) {
-        await recordAuditFromRequest(audit, tx);
-      }
-    });
-  } catch (e) {
-    if (e instanceof LastAdminError) {
-      return {
-        ok: false,
-        error:
-          "You are the last admin — transfer the Admin role to another user before deleting your account.",
-        status: 409,
-      };
-    }
-    throw e;
+  if (!result.ok) {
+    return {
+      ok: false,
+      error:
+        "You are the last admin — transfer the Admin role to another user before deleting your account.",
+      status: 409,
+    };
   }
-
-  // Best-effort object-storage purge — do not fail the deletion if the storage
-  // backend is down or unconfigured (DB-only mode returns null).
-  await mediaRetirement.retire("account-delete");
 
   return { ok: true };
 }

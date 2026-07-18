@@ -45,7 +45,11 @@ test("database schema config validator rejects provider mismatches", () => {
 });
 
 test("database schema config validator rejects invalid or missing database URLs", () => {
-  for (const env of [{}, { DATABASE_URL: "mysql://db.example/readwise" }]) {
+  for (const env of [
+    {},
+    { DATABASE_URL: "mysql://db.example/readwise" },
+    { DATABASE_URL: "postgresql://[" },
+  ]) {
     const result = runValidator(env);
 
     assert.equal(result.status, 1);

@@ -14,7 +14,6 @@ test("prisma omits postgres schema options and global caching in production", as
   const result = await importPrismaModule({
     databaseUrl,
     nodeEnv: "production",
-    postgres: true,
     prismaSchemaPath: "prisma/postgresql/schema.prisma",
   });
 
