@@ -3,28 +3,34 @@ process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, after, mock } from "node:test";
 import assert from "node:assert/strict";
 
-let sharedAttempts = 0;
+let counterCalls: Array<{
+  key: string;
+  fallbackWindowAnchor: string;
+}> = [];
+let count = 0;
 
 before(() => {
-  mock.module("@/lib/security/rate-limit/store", {
+  mock.module("@/lib/security/fixed-window-counter", {
     namedExports: {
-      incrementSharedCounter: async () => {
-        sharedAttempts++;
-        throw new Error("shared store unavailable");
+      consumeFixedWindow: async (input: {
+        key: string;
+        fallbackWindowAnchor: string;
+      }) => {
+        counterCalls.push(input);
+        count += 1;
+        return count;
       },
-      isSharedStoreEnabled: () => true,
-      windowStartFor: (nowMs: number, windowMs: number) =>
+      fixedWindowStart: (nowMs: number, windowMs: number) =>
         Math.floor(nowMs / windowMs) * windowMs,
     },
   });
 });
 
-beforeEach(async () => {
-  sharedAttempts = 0;
+beforeEach(() => {
+  counterCalls = [];
+  count = 0;
   process.env.AI_QUOTA_FEATURE_DEFAULT_DAILY = "1";
   process.env.AI_QUOTA_WINDOW_MS = "1000";
-  const { resetAiBudget } = await import("@/lib/ai/budget");
-  resetAiBudget();
 });
 
 after(() => {
@@ -32,7 +38,7 @@ after(() => {
   delete process.env.AI_QUOTA_WINDOW_MS;
 });
 
-test("AI budget falls back to in-memory counters when the shared store throws", async () => {
+test("AI budget consumes an epoch-anchored fixed-window counter", async () => {
   const { checkAiBudget } = await import("@/lib/ai/budget");
 
   assert.equal(
@@ -44,5 +50,11 @@ test("AI budget falls back to in-memory counters when the shared store throws", 
   assert.equal(blocked.allowed, false);
   assert.equal(blocked.scope, "feature");
   assert.equal(blocked.used, 2);
-  assert.equal(sharedAttempts, 2);
+  assert.deepEqual(counterCalls.map(({ key, fallbackWindowAnchor }) => ({
+    key,
+    fallbackWindowAnchor,
+  })), [
+    { key: "aibudget:feature:fallback-path", fallbackWindowAnchor: "epoch" },
+    { key: "aibudget:feature:fallback-path", fallbackWindowAnchor: "epoch" },
+  ]);
 });

@@ -42,7 +42,7 @@ let authState: AuthState = "ok";
 let sessionRow: Row | null = null;
 let quizQuestions: QuizQuestion[] = [];
 let feedbackRows: Row[] = [];
-let skillEvidence: Array<{ skill: string; outcome: number; weight: number }> = [];
+let learnerEvidence: Array<Record<string, unknown>> = [];
 let articleMasteryCalls: Array<{ userId: string; articleId: string }> = [];
 let capturedEvents: Array<{ type: string; properties: Record<string, unknown> }> = [];
 let masteryShouldThrow = false;
@@ -98,7 +98,7 @@ function resetMockState(): void {
   sessionRow = null;
   quizQuestions = [];
   feedbackRows = [];
-  skillEvidence = [];
+  learnerEvidence = [];
   articleMasteryCalls = [];
   capturedEvents = [];
   masteryShouldThrow = false;
@@ -208,17 +208,13 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/learning/skill-mastery", {
+  mock.module("@/lib/learning/learner-evidence", {
     namedExports: {
-      recordSkillEvidence: async (
+      recordLearnerEvidence: async (
         _userId: string,
-        skill: string,
-        outcome: number,
-        weight = 1,
+        evidence: Record<string, unknown>,
       ) => {
-        if (masteryShouldThrow) throw new Error("skill boom");
-        skillEvidence.push({ skill, outcome, weight });
-        return null;
+        learnerEvidence.push(evidence);
       },
     },
   });
@@ -282,21 +278,6 @@ async function GET(url = "http://localhost/api/today/comprehension") {
 
 // ===========================================================================
 // Pure helpers
-// ===========================================================================
-
-test("comprehensionSkillForTag maps tags to tracked skills", async () => {
-  const { comprehensionSkillForTag } = await importLib();
-  for (const [tag, skill] of [
-    ["main_idea", "comprehension"],
-    ["detail", "comprehension"],
-    ["inference", "comprehension"],
-    ["vocabulary_in_context", "vocabulary"],
-    [null, "comprehension"],
-  ] as const) {
-    assert.equal(comprehensionSkillForTag(tag), skill);
-  }
-});
-
 test("controlled-value validators reject free text", async () => {
   const { isComprehensionSelfRating, isComprehensionSkillTag } = await importLib();
   for (const [rating, expected] of [
@@ -336,8 +317,12 @@ test("self-rating alone completes comprehension (no MCQ, no quiz)", async () => 
   assert.equal(feedbackRows[0].selfRating, "confident");
   assert.equal(feedbackRows[0].questionId, null);
   assert.equal(feedbackRows[0].mcqCorrect, null);
-  // Self-rating feeds comprehension skill evidence.
-  assert.ok(skillEvidence.some((e) => e.skill === "comprehension"));
+  assert.deepEqual(learnerEvidence, [{
+    activity: "today-comprehension",
+    selfRating: "confident",
+    skillTag: null,
+    mcqCorrect: null,
+  }]);
   assert.equal(articleMasteryCalls.length, 1);
 });
 
@@ -396,8 +381,11 @@ test("correct MCQ answer grades server-side and records a strong signal", async 
   assert.equal(feedbackRows[0].mcqCorrect, true);
   assert.equal(feedbackRows[0].questionId, "q1");
   assert.equal(feedbackRows[0].skillTag, "main_idea");
-  // main_idea → comprehension skill, outcome 1.
-  assert.ok(skillEvidence.some((e) => e.skill === "comprehension" && e.outcome === 1));
+  assert.ok(learnerEvidence.some((e) =>
+    e.activity === "today-comprehension" &&
+    e.skillTag === "main_idea" &&
+    e.mcqCorrect === true
+  ));
 });
 
 test("vocabulary_in_context wrong answer triggers remediation + vocabulary signal", async () => {
@@ -418,8 +406,11 @@ test("vocabulary_in_context wrong answer triggers remediation + vocabulary signa
   assert.equal(res.remediation.show, true);
   assert.equal(res.remediation.articleHref, "/reader/a1");
   assert.equal(feedbackRows[0].remediationViewed, true);
-  // vocabulary_in_context → vocabulary skill, outcome 0 (weakness signal).
-  assert.ok(skillEvidence.some((e) => e.skill === "vocabulary" && e.outcome === 0));
+  assert.ok(learnerEvidence.some((e) =>
+    e.activity === "today-comprehension" &&
+    e.skillTag === "vocabulary_in_context" &&
+    e.mcqCorrect === false
+  ));
 });
 
 test("a question id from another article is ignored (mcqCorrect stays null)", async () => {

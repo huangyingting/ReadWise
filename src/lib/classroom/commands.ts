@@ -5,21 +5,10 @@
  * assignments live here. Teachers are seated as classroom members inside
  * {@link createClassroom}'s transaction.
  */
-import type { Assignment, Classroom, ClassroomMembership, ClassroomRole } from "@prisma/client";
+import type { Classroom, ClassroomMembership, ClassroomRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export type CreateClassroomInput = { orgId: string; name: string; teacherId: string };
-
-export type AssignArticleInput = {
-  classroomId: string;
-  articleId: string;
-  dueDate?: Date | null;
-  instructions?: string | null;
-};
-
-function trimOrNull(value: string | null | undefined): string | null {
-  return value?.trim() || null;
-}
 
 function teacherMembership(classroomId: string, teacherId: string) {
   return { classroomId, userId: teacherId, role: "Teacher" as const };
@@ -62,18 +51,6 @@ export async function removeClassroomMember(
   userId: string,
 ): Promise<void> {
   await prisma.classroomMembership.deleteMany({ where: { classroomId, userId } });
-}
-
-/** Assigns an article to a classroom. */
-export function assignArticle(input: AssignArticleInput): Promise<Assignment> {
-  return prisma.assignment.create({
-    data: {
-      classroomId: input.classroomId,
-      articleId: input.articleId,
-      dueDate: input.dueDate ?? null,
-      instructions: trimOrNull(input.instructions),
-    },
-  });
 }
 
 /** Deletes an assignment (cascades its completions). */

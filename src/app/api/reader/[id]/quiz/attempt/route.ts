@@ -6,7 +6,7 @@ import { getOrCreateArticleQuiz } from "@/lib/quiz";
 import { gradeQuizAnswers } from "@/lib/quiz-grading";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { updateArticleMastery } from "@/lib/learning/article-mastery";
-import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
+import { recordLearnerEvidence } from "@/lib/learning/learner-evidence";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { quizAttemptBody, type QuizAttemptBody } from "@/lib/reader/schemas";
@@ -26,18 +26,13 @@ function clientMutationIdFrom(body: QuizAttemptBody, req: Request): string | nul
 async function updateQuizMasterySignals(
   userId: string,
   articleId: string,
-  score: number,
+  scorePct: number,
 ): Promise<void> {
   await Promise.all([
     bestEffortMastery("quiz.article_mastery", () =>
       updateArticleMastery(userId, articleId),
     ),
-    bestEffortMastery("quiz.comprehension_skill", () =>
-      recordSkillEvidence(userId, "comprehension", score),
-    ),
-    bestEffortMastery("quiz.reading_skill", () =>
-      recordSkillEvidence(userId, "reading", score, 0.5),
-    ),
+    recordLearnerEvidence(userId, { activity: "quiz-completed", scorePct }),
   ]);
 }
 
@@ -108,8 +103,11 @@ export const POST = createHandler(
 
     // Best-effort mastery side-effects — never break the attempt write. A quiz
     // is the strongest comprehension signal; it also feeds reading.
-    const score = result.attempt.scorePct / 100;
-    await updateQuizMasterySignals(session.user.id, article.id, score);
+    await updateQuizMasterySignals(
+      session.user.id,
+      article.id,
+      result.attempt.scorePct,
+    );
 
     // Product analytics (RW-051): quiz completion is a core engagement signal.
     // Metadata only — only the server-derived score/counts, never quiz content.

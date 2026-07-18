@@ -68,6 +68,14 @@ instructions. Current lifecycle:
 5. Teachers can filter classroom analytics by assignment/student, inspect
    drilldown rows, and export the privacy-scoped view as CSV or JSON.
 
+After the route authorizes classroom management, it calls
+`createArticleAssignment` in
+`src/lib/classroom/article-assignments.ts`. That workflow asks Article Library
+to validate organization assignability before parsing the optional due date,
+normalizes blank instructions to `null`, and creates the row. This preserves
+Article Library's controlled `404`/`409` integrity outcomes ahead of due-date
+validation; the route only maps the result to HTTP.
+
 `AssignmentStatus` values are controlled by the Prisma enum:
 
 ```text

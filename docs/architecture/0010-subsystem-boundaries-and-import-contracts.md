@@ -119,6 +119,7 @@ scoping, and transaction boundaries should belong to the relevant subsystem.
 | Media / Storage / Speech | Media assets, canonical storage keys/MIME/voice, local/Azure storage lifecycle and object metrics, cleanup/readiness; speech owns TTS provider and word-boundary generation. | Reader playback UX and background job scheduling. | Media owns asset lifecycle, Speech owns generation, Reader owns playback, Operations owns retries/scheduling. |
 | Reader | Reader page composition, display preferences, annotations UI, offline sync UX, playback UX, in-reader tools, search/recommendation presentation. | Article visibility source of truth, storage lifecycle, AI provider internals. | Reader-facing capabilities must use Article Library readable boundaries and feature services. |
 | Search / Recommendations | Provider seams, query normalization, ranking, candidate caps, pagination/performance contract, personalized scoring/diversity/explanations. | Article access policy and reader UI placement. | Reader-facing capability whose candidates must come from Article Library readable policy. |
+| Learning | Learner evidence policy, word/article/skill mastery, study schedules, quizzes, Placement attempt submission, and classroom learning workflows after authorization. | Route transport, Article Library visibility/integrity policy, tenant authorization. | Feature callers report controlled Learner evidence rather than writing Skill Mastery dimensions; Placement and assignment routes delegate complete domain workflows after auth/shape validation. |
 | Platform | API handler wrappers, authentication/session foundation, database workflows, CI, dependency injection conventions, health/readiness, static assets, primitives. | Domain business behavior. | Platform provides common infrastructure; domains own decisions. |
 
 ## Import contract
@@ -136,6 +137,9 @@ External code should prefer stable subsystem entry points, for example:
 - `@/lib/jobs` / documented Operations APIs
 - `@/lib/org`, `@/lib/classroom`, `@/lib/account-lifecycle`, and `@/lib/rbac`
   as public modules under the Access & Tenancy boundary.
+- `@/lib/learning` for stable Learning reads and activity-shaped
+  `recordLearnerEvidence`; low-level `recordSkillEvidence` remains an internal
+  persistence mechanism.
 - `@/lib/engagement/today-session` for Today reads, with documented
   `actions`, `integrations`, and `contracts` submodules for their distinct
   callers.

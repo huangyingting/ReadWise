@@ -115,9 +115,9 @@ semantics are unchanged.
 - grade: `again`, `hard`, `good`, or `easy`.
 
 The route updates the SM-2 schedule, records a product analytics study-review
-event with grade metadata only, records word/skill mastery as best-effort side
-effects, and may complete the Today word-review step when enough target words
-have been reviewed.
+event with grade metadata only, records word mastery and controlled Learner
+evidence as best-effort side effects, and may complete the Today word-review
+step when enough target words have been reviewed.
 
 ## Cloze mode
 

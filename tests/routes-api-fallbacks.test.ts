@@ -50,6 +50,7 @@ let recordedEvents: unknown[];
 let revalidatedUsers: string[];
 let todaySyncCalls: unknown[];
 let masteryCalls: string[];
+let learnerEvidenceCalls: unknown[];
 let quizResult: unknown;
 let tagsResult: unknown;
 let speechResult: unknown;
@@ -136,9 +137,11 @@ before(() => {
       updateArticleMastery: async () => {},
     },
   });
-  mock.module("@/lib/learning/skill-mastery", {
+  mock.module("@/lib/learning/learner-evidence", {
     namedExports: {
-      recordSkillEvidence: async () => {},
+      recordLearnerEvidence: async (_userId: string, evidence: unknown) => {
+        learnerEvidenceCalls.push(evidence);
+      },
     },
   });
   mock.module("@/lib/learning/primitives", {
@@ -170,7 +173,7 @@ before(() => {
       },
     },
   });
-  mock.module("@/lib/engagement/today-session/completion", {
+  mock.module("@/lib/engagement/today-session/integrations", {
     namedExports: {
       syncTodayReadingFromProgress: async (input: unknown) => {
         todaySyncCalls.push(input);
@@ -467,6 +470,7 @@ beforeEach(() => {
   revalidatedUsers = [];
   todaySyncCalls = [];
   masteryCalls = [];
+  learnerEvidenceCalls = [];
   quizResult = { articleId: "a1", questions: [] };
   tagsResult = { articleId: "a1", tags: [] };
   speechResult = { articleId: "a1", audio: null };
@@ -539,8 +543,10 @@ test("reader progress route records completion side effects only when completed"
   assert.equal(todaySyncCalls.length, 1);
   assert.deepEqual(masteryCalls, [
     "progress.article_mastery",
-    "progress.reading_skill",
     "progress.today_reading",
+  ]);
+  assert.deepEqual(learnerEvidenceCalls, [
+    { activity: "reading-progress", percent: 60 },
   ]);
 
   progressResult = { percent: 100, completed: true };

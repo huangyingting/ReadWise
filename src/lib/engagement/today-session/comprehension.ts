@@ -17,7 +17,7 @@
  * Self-rating ALONE advances `comprehensionCompletedAt` — no forced quiz. A
  * wrong MCQ answer surfaces a low-pressure remediation step (a deep-link back to
  * the article reader; no AI). Structured weakness signals feed the EXISTING
- * mastery paths (`updateArticleMastery` + `recordSkillEvidence`) without
+ * mastery paths (`updateArticleMastery` + Learner evidence) without
  * requiring a full quiz attempt.
  *
  * Privacy invariant: this module persists/logs IDS, ENUMS, and BOOLEANS ONLY —
@@ -30,8 +30,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { updateArticleMastery } from "@/lib/learning/article-mastery";
-import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
-import type { Skill } from "@/lib/learning/types";
+import { recordLearnerEvidence } from "@/lib/learning/learner-evidence";
 import { getTodaySession } from "./repository";
 import { resolveLocalDate } from "./local-date";
 import { markTodayComprehensionComplete } from "./completion";
@@ -83,34 +82,6 @@ export function isComprehensionSkillTag(
     typeof value === "string" &&
     (COMPREHENSION_SKILL_TAGS as readonly string[]).includes(value)
   );
-}
-
-/**
- * Map a self-rating to a 0–1 skill-evidence outcome. Self-rating is honest but
- * subjective, so it is fed as LOW-WEIGHT evidence (see {@link SELF_RATING_WEIGHT})
- * — it surfaces a weak area without ever penalising a learner for honesty in the
- * way streak / gamification might.
- */
-const SELF_RATING_OUTCOME: Record<ComprehensionSelfRating, number> = {
-  confident: 0.9,
-  partial: 0.6,
-  confused: 0.3,
-};
-
-/** Self-rating is subjective → low evidence weight. */
-const SELF_RATING_WEIGHT = 0.5;
-
-/**
- * Map a controlled skill tag to one of the six tracked `SkillMastery` skills.
- * Reading-comprehension sub-skills roll up into `comprehension`;
- * vocabulary-in-context rolls up into `vocabulary`. Returns `comprehension` as
- * the default when no tag is available so an MCQ outcome is never lost.
- */
-export function comprehensionSkillForTag(
-  tag: ComprehensionSkillTag | null,
-): Skill {
-  if (tag === "vocabulary_in_context") return "vocabulary";
-  return "comprehension";
 }
 
 // ---------------------------------------------------------------------------
@@ -381,23 +352,12 @@ function masteryUpdates(args: {
     bestEffortMastery("today.comprehension_article_mastery", () =>
       updateArticleMastery(args.userId, args.articleId),
     ),
-    bestEffortMastery("today.comprehension_self_rating_skill", () =>
-      recordSkillEvidence(
-        args.userId,
-        "comprehension",
-        SELF_RATING_OUTCOME[args.selfRating],
-        SELF_RATING_WEIGHT,
-      ),
-    ),
-    args.mcqCorrect != null
-      ? bestEffortMastery("today.comprehension_mcq_skill", () =>
-          recordSkillEvidence(
-            args.userId,
-            comprehensionSkillForTag(args.skillTag),
-            args.mcqCorrect ? 1 : 0,
-          ),
-        )
-      : Promise.resolve(null),
+    recordLearnerEvidence(args.userId, {
+      activity: "today-comprehension",
+      selfRating: args.selfRating,
+      skillTag: args.skillTag,
+      mcqCorrect: args.mcqCorrect,
+    }),
   ];
 }
 
@@ -412,7 +372,7 @@ function masteryUpdates(args: {
  *     ignored (`mcqCorrect = null`).
  *   - Persists the controlled feedback row (ids/enums/booleans only).
  *   - Feeds weakness signals into the EXISTING mastery paths
- *     (`updateArticleMastery` + `recordSkillEvidence`) best-effort — a mastery
+ *     (`updateArticleMastery` + Learner evidence) best-effort — a mastery
  *     failure NEVER breaks comprehension completion.
  *   - Returns a wrong-answer remediation deep-link (no AI, no embedded content).
  *

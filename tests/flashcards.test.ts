@@ -23,7 +23,7 @@ const NOW = new Date("2026-07-04T21:00:00Z");
 let rows: SavedWordRow[] = [];
 let updateArgs: { where: { id: string }; data: Record<string, unknown> } | null = null;
 let wordReviews: Array<{ userId: string; word: string; correct: boolean; articleId?: string }> = [];
-let skillEvidence: Array<{ userId: string; skill: string; outcome: number }> = [];
+let learnerEvidence: Array<{ userId: string; activity: Record<string, unknown> }> = [];
 
 function row(overrides: Partial<SavedWordRow>): SavedWordRow {
   return {
@@ -66,10 +66,13 @@ before(() => {
       },
     },
   });
-  mock.module("@/lib/learning/skill-mastery", {
+  mock.module("@/lib/learning/learner-evidence", {
     namedExports: {
-      recordSkillEvidence: async (userId: string, skill: string, outcome: number) => {
-        skillEvidence.push({ userId, skill, outcome });
+      recordLearnerEvidence: async (
+        userId: string,
+        activity: Record<string, unknown>,
+      ) => {
+        learnerEvidence.push({ userId, activity });
       },
     },
   });
@@ -120,7 +123,7 @@ beforeEach(() => {
   rows = [];
   updateArgs = null;
   wordReviews = [];
-  skillEvidence = [];
+  learnerEvidence = [];
 });
 
 async function loadFlashcards() {
@@ -203,7 +206,10 @@ test("gradeFlashcard writes the next schedule and mastery metadata", async () =>
   assert.deepEqual(wordReviews, [
     { userId: USER_ID, word: "ephemeral", correct: true, articleId: "article-1" },
   ]);
-  assert.deepEqual(skillEvidence, [
-    { userId: USER_ID, skill: "vocabulary", outcome: 0.75 },
+  assert.deepEqual(learnerEvidence, [
+    {
+      userId: USER_ID,
+      activity: { activity: "flashcard-reviewed", grade: "good" },
+    },
   ]);
 });

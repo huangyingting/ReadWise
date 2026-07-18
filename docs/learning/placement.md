@@ -2,7 +2,7 @@
 type: "design"
 status: "current"
 last_updated: "2026-07-19"
-description: "Documents the Learning-owned placement scorer, placement passage route, welcome/settings UI affordances, and PlacementResult schema. Placement is a lightweight, deterministic, privacy-preserving cold-start/retake flow that stores only counts, controlled levels, and a recommendation."
+description: "Documents the Learning-owned placement attempt workflow, passage route, welcome/settings UI affordances, and PlacementResult schema. Placement is a lightweight, deterministic, privacy-preserving cold-start/retake flow that stores only counts, controlled levels, and a recommendation."
 ---
 
 # Reading placement
@@ -25,9 +25,10 @@ flowchart TD
 
 | Area | Code | Purpose |
 | --- | --- | --- |
-| Pure scorer | `src/lib/learning/placement.ts` | Deterministic seed-level + counts → recommended level. |
+| Seed helpers | `src/lib/learning/placement.ts` | Client-safe seed-level validation and profile-to-seed mapping. |
 | Passage loader | `src/lib/learning/placement-passage.ts` | Selects a curated public-library passage and question DTO for a seed level. |
-| API | `src/app/api/placement/route.ts` | `GET` passage, `POST` structured outcome and upsert `PlacementResult`. |
+| Attempt submission | `src/lib/learning/placement-attempt.ts` | Validates count relationships and public-passage eligibility, scores, upserts, and emits privacy-safe analytics. |
+| API | `src/app/api/placement/route.ts` | Adapts `GET` passage and `POST` attempt results to HTTP. |
 | UI card | `src/components/placement/ReadingPlacementCard.tsx` | Fetches passage, tracks answers/lookups, submits counts, supports skip. |
 | Welcome prompt | `src/app/(app)/welcome/page.tsx`, `WelcomePlacement.tsx` | One-time post-onboarding prompt when no placement result exists. |
 | Settings retake | `src/app/(app)/settings/RetakePlacement.tsx` | Retake affordance that upserts the same per-user result row. |
@@ -49,7 +50,8 @@ A2, B1, B2
 | `B1` | `B1` |
 | `B2`, `C1`, `C2` | `B2` |
 
-The scorer may recommend one band below or above the seed, clamped to `A1..C1`.
+Attempt submission may recommend one band below or above the seed, clamped to
+`A1..C1`.
 
 ## GET /api/placement
 
@@ -76,12 +78,14 @@ The POST route accepts only structured fields:
 | `skipped` | Optional boolean; skipped placement seeds recommendation to the seed level. |
 | `attempt` | Optional `initial` or `retake`. |
 
-The route rejects `correctCount > totalCount` and returns `404` when the article
-is not in the public library.
+After route-level shape validation, `submitPlacementAttempt` rejects
+`correctCount > totalCount` and returns a controlled not-found result when the
+article is not in the public library. The route maps those results to `400` and
+`404` respectively.
 
 ## Scoring rules
 
-The pure scorer computes:
+The attempt workflow computes:
 
 - `correctRatio = correct / total`;
 - `lookupRate = lookups / wordCount`.
@@ -116,7 +120,9 @@ article text, definitions, prompts, or PII are stored.
 
 ## Product analytics
 
-Placement completion emits metadata only:
+Analytics runs after the `PlacementResult` upsert, preserving the existing
+persistence-before-analytics partial-success behavior. Placement completion
+emits metadata only:
 
 - seed level;
 - recommended level;
@@ -135,8 +141,9 @@ difficulty feedback, completed articles, and skill mastery.
 
 ## Tests
 
-Relevant tests include `tests/placement.test.ts`, `tests/placement-route.test.ts`,
-`tests/placement-generator.test.ts`, `tests/placement-scorer.test.ts`, profile
+Relevant tests include `tests/placement.test.ts`,
+`tests/placement-seed-level.test.ts`, `tests/placement-attempt.test.ts`,
+`tests/placement-route.test.ts`, `tests/placement-generator.test.ts`, profile
 route/onboarding tests, and UI smoke coverage around welcome/settings placement.
 
 ## Related docs

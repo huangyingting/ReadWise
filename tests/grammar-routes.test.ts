@@ -6,7 +6,7 @@
  * HTTP 200 with `{ explanation: null, fallback: true }`.
  *
  * Mocks: @/lib/api-auth, @/lib/reader/route-guard, @/lib/grammar,
- *        @/lib/learning/skill-mastery, @/lib/learning/primitives.
+ *        @/lib/learning/learner-evidence.
  * No live AI, DB, network, article text, prompt, or token is touched.
  */
 process.env.LOG_LEVEL = "error";
@@ -54,15 +54,9 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/learning/skill-mastery", {
+  mock.module("@/lib/learning/learner-evidence", {
     namedExports: {
-      recordSkillEvidence: async () => {},
-    },
-  });
-
-  mock.module("@/lib/learning/primitives", {
-    namedExports: {
-      bestEffortMastery: async (_label: string, fn: () => unknown) => fn(),
+      recordLearnerEvidence: async () => {},
     },
   });
 });

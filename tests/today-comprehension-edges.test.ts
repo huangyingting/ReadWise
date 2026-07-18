@@ -32,8 +32,8 @@ before(() => {
   mock.module("@/lib/learning/article-mastery", {
     namedExports: { updateArticleMastery: async () => {} },
   });
-  mock.module("@/lib/learning/skill-mastery", {
-    namedExports: { recordSkillEvidence: async () => {} },
+  mock.module("@/lib/learning/learner-evidence", {
+    namedExports: { recordLearnerEvidence: async () => {} },
   });
   mock.module("@/lib/engagement/today-session/repository", {
     namedExports: { getTodaySession: async () => session },

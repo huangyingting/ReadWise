@@ -94,6 +94,12 @@ before(() => {
     },
   });
 
+  mock.module("@/lib/learning/learner-evidence", {
+    namedExports: {
+      recordLearnerEvidence: async () => {},
+    },
+  });
+
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {

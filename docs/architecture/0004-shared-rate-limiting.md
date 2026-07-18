@@ -2,7 +2,7 @@
 type: "architecture"
 status: "accepted"
 last_updated: "2026-07-19"
-description: "Architecture decision record for shared fixed-window rate limiting and fallback behavior. Captures rate-limit store decision, DB/memory fallback, request scopes, and operational consequences."
+description: "Architecture decision record for shared fixed-window counting and rate-limit policy. Captures DB/memory adapters, fallback window semantics, request scopes, and operational consequences."
 ---
 
 # ADR-0004: Shared server-side rate limiting
@@ -26,7 +26,19 @@ ReadWise has endpoints that can trigger AI, scraping, speech synthesis, dictiona
 
 ## Decision
 
-Introduce a shared server-side rate-limiting module used by API routes and worker-triggering paths. Limits should support user, IP, and feature keys, return consistent 429 responses, and emit structured logs with request ids.
+Introduce a shared server-side fixed-window counter in
+`src/lib/security/fixed-window-counter.ts`, with rate-limit scope/key/limit
+policy in `src/lib/security/rate-limit/index.ts`. API routes and
+worker-triggering paths use the policy layer; AI budgets and security-event
+spike detection consume the counter directly for their own domain decisions.
+
+The counter hides the atomic `RateLimitCounter` upsert, process-memory fallback,
+expiry and probabilistic sweeping, and a 30-second database-failure cooldown.
+Database windows are epoch-aligned. Consumers explicitly select the existing
+process-memory behavior they require: rate limits preserve their first-hit
+fallback windows, AI budgets use epoch-aligned fallback windows, and synchronous
+security-event observation uses a local first-hit window while mirroring an
+epoch-aligned count to the database best-effort.
 
 ## Alternatives considered
 
@@ -37,8 +49,11 @@ Introduce a shared server-side rate-limiting module used by API routes and worke
 ## Consequences
 
 - Expensive and abuse-prone features can share predictable enforcement.
+- Counter storage and fallback behavior have one implementation while each
+    consumer retains its own policy and failure semantics.
 - Tests should cover key generation and 429 behavior for sensitive routes.
-- Storage may start simple but must move to a shared backend when multiple app instances are used.
+- The database adapter coordinates counts across app instances; memory remains a
+    process-local availability fallback and cannot provide cross-instance limits.
 
 ## Follow-up work
 

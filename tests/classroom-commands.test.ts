@@ -3,8 +3,8 @@
  *
  * Verifies createClassroom (transaction, name trimming, teacher seating),
  * addClassroomMember (upsert, default role, re-role idempotency),
- * removeClassroomMember, assignArticle (instructions trimming, null dueDate),
- * and deleteAssignment. All Prisma calls are mocked — no real DB is touched.
+ * removeClassroomMember, and deleteAssignment. Article-assignment invariants
+ * are covered through the focused article-assignments interface suite.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -15,24 +15,14 @@ import assert from "node:assert/strict";
 
 const DEFAULT_CLASSROOM = { id: "c1", name: "Math", orgId: "o1", teacherId: "t1" };
 const DEFAULT_UPSERTED_MEMBERSHIP = { classroomId: "c1", userId: "s1", role: "Student" };
-const DEFAULT_ASSIGNMENT = {
-  id: "asgn1",
-  classroomId: "c1",
-  articleId: "art1",
-  dueDate: null,
-  instructions: null,
-};
-
 let createdClassroom: Record<string, unknown> = { ...DEFAULT_CLASSROOM };
 let upsertedMembership: Record<string, unknown> = { ...DEFAULT_UPSERTED_MEMBERSHIP };
-let createdAssignment: Record<string, unknown> = { ...DEFAULT_ASSIGNMENT };
 
 // Call recorders
 let classroomCreateArgs: unknown = null;
 let membershipCreateArgs: unknown = null;
 let membershipUpsertArgs: unknown = null;
 let membershipDeleteManyArgs: unknown = null;
-let assignmentCreateArgs: unknown = null;
 let assignmentDeleteManyArgs: unknown = null;
 let transactionCalled = false;
 
@@ -64,10 +54,6 @@ before(() => {
       },
     },
     assignment: {
-      create: async (args: unknown) => {
-        assignmentCreateArgs = args;
-        return createdAssignment;
-      },
       deleteMany: async (args: unknown) => {
         assignmentDeleteManyArgs = args;
         return { count: 1 };
@@ -89,12 +75,10 @@ async function loadCommands(): Promise<typeof import("@/lib/classroom/commands")
 beforeEach(() => {
   createdClassroom = { ...DEFAULT_CLASSROOM };
   upsertedMembership = { ...DEFAULT_UPSERTED_MEMBERSHIP };
-  createdAssignment = { ...DEFAULT_ASSIGNMENT };
   classroomCreateArgs = null;
   membershipCreateArgs = null;
   membershipUpsertArgs = null;
   membershipDeleteManyArgs = null;
-  assignmentCreateArgs = null;
   assignmentDeleteManyArgs = null;
   transactionCalled = false;
 });
@@ -201,57 +185,6 @@ test("removeClassroomMember returns void (no useful return value)", async () => 
   const result = await removeClassroomMember("c1", "s1");
   assert.equal(result, undefined);
 });
-
-// ---- assignArticle ---------------------------------------------------------
-
-test("assignArticle creates an assignment with the provided classroomId and articleId", async () => {
-  const { assignArticle } = await loadCommands();
-  const result = await assignArticle({ classroomId: "c1", articleId: "art1" });
-  assert.deepEqual(result, createdAssignment);
-  const args = assignmentCreateArgs as { data: { classroomId: string; articleId: string } };
-  assert.equal(args.data.classroomId, "c1");
-  assert.equal(args.data.articleId, "art1");
-});
-
-test("assignArticle stores the dueDate when provided", async () => {
-  const dueDate = new Date("2026-12-31");
-  const { assignArticle } = await loadCommands();
-  await assignArticle({ classroomId: "c1", articleId: "art1", dueDate });
-  const args = assignmentCreateArgs as { data: { dueDate: Date } };
-  assert.deepEqual(args.data.dueDate, dueDate);
-});
-
-for (const { name, input } of [
-  { name: "not provided", input: {} },
-  { name: "explicitly set to null", input: { dueDate: null } },
-]) {
-  test(`assignArticle stores null for dueDate when ${name}`, async () => {
-    const { assignArticle } = await loadCommands();
-    await assignArticle({ classroomId: "c1", articleId: "art1", ...input });
-    const args = assignmentCreateArgs as { data: { dueDate: null } };
-    assert.equal(args.data.dueDate, null);
-  });
-}
-
-test("assignArticle trims whitespace from instructions", async () => {
-  const { assignArticle } = await loadCommands();
-  await assignArticle({ classroomId: "c1", articleId: "art1", instructions: "  Read carefully  " });
-  const args = assignmentCreateArgs as { data: { instructions: string } };
-  assert.equal(args.data.instructions, "Read carefully");
-});
-
-for (const { name, input } of [
-  { name: "an empty string", input: { instructions: "" } },
-  { name: "whitespace only", input: { instructions: "   " } },
-  { name: "not provided", input: {} },
-]) {
-  test(`assignArticle stores null when instructions is ${name}`, async () => {
-    const { assignArticle } = await loadCommands();
-    await assignArticle({ classroomId: "c1", articleId: "art1", ...input });
-    const args = assignmentCreateArgs as { data: { instructions: null } };
-    assert.equal(args.data.instructions, null);
-  });
-}
 
 // ---- deleteAssignment ------------------------------------------------------
 

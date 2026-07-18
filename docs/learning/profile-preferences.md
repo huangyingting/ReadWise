@@ -104,10 +104,12 @@ to profile/onboarding state.
   (skippable) and the "Retake placement" affordance in Settings (posts
   `attempt = "retake"`). Passage + questions are served by `GET /api/placement`
   from the public Article Library — no new content table.
-- **Scoring:** `computePlacementScore` (`src/lib/learning/placement.ts`) is a
-  pure function mapping `{ correctCount, totalCount, lookupCount, wordCount }`
-  for a seed level to a recommended starting level (`A1`–`C1`). Deterministic
-  and conservative (heavy vocabulary pressure can only nudge *down*).
+- **Submission and scoring:** `submitPlacementAttempt`
+  (`src/lib/learning/placement-attempt.ts`) validates the count relationship and
+  public-passage eligibility, then maps `{ correctCount, totalCount,
+  lookupCount, wordCount }` for a seed level to a recommended starting level
+  (`A1`–`C1`). Scoring is deterministic and conservative (heavy vocabulary
+  pressure can only nudge *down*).
 - **Consumer:** the Today generator
   (`src/lib/engagement/today-session/generator.ts`) reads
   `PlacementResult.recommendedLevel` and passes it as a `placementLevel`
