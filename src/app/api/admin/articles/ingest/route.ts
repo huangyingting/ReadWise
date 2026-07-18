@@ -3,33 +3,23 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
 import { CAPABILITIES } from "@/lib/rbac";
-import { scrapeUrl, saveDraftArticle } from "@/lib/scraper";
+import { scrapeAndSave, type UrlIntakeOutcome } from "@/lib/scraper";
 import { revalidateArticlesCache } from "@/lib/cache";
 import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-library";
 import { AUDIT_ACTIONS } from "@/lib/security/audit";
 import { ingestBody } from "@/lib/admin/articles/schemas";
 
-type ScrapedArticle = NonNullable<Awaited<ReturnType<typeof scrapeUrl>>>;
+type FailedUrlIntake = Extract<UrlIntakeOutcome, { status: "failed" }>;
 
-async function scrapeArticleOrApiError(url: string): Promise<ScrapedArticle> {
-  let scraped;
-  try {
-    scraped = await scrapeUrl(url);
-  } catch (err) {
-    throw new ApiError(
-      422,
-      `Scrape failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  if (!scraped) {
-    throw new ApiError(
+function intakeError(outcome: FailedUrlIntake): ApiError {
+  if (outcome.failure === "extract") {
+    return new ApiError(
       422,
       "Could not extract article content from that URL (body too short or unsupported format).",
     );
   }
-
-  return scraped;
+  const prefix = outcome.failure === "save" ? "Save failed" : "Scrape failed";
+  return new ApiError(422, `${prefix}: ${outcome.reason}`);
 }
 
 async function duplicateArticleResponse(sourceUrl: string): Promise<NextResponse> {
@@ -52,9 +42,7 @@ export const POST = createCapabilityHandler(
   CAPABILITIES.articlesManage,
   { body: ingestBody },
   async ({ req, body, session, requestId }) => {
-    const scraped = await scrapeArticleOrApiError(body.url);
-
-    const outcome = await saveDraftArticle(scraped, (created) => ({
+    const outcome = await scrapeAndSave(body.url, (created) => ({
       req,
       session,
       requestId,
@@ -70,7 +58,7 @@ export const POST = createCapabilityHandler(
     }
 
     if (outcome.status === "failed") {
-      throw new ApiError(422, `Save failed: ${outcome.reason}`);
+      throw intakeError(outcome);
     }
 
     revalidateArticlesCache();

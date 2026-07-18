@@ -398,13 +398,40 @@ before(() => {
   });
   mock.module("@/lib/scraper", {
     namedExports: {
-      saveDraftArticle: async (_article: unknown, auditFactory: (created: { id: string }) => unknown) => {
+      scrapeAndSave: async (
+        url: string,
+        auditFactory: (created: { id: string }) => unknown,
+      ) => {
+        const scraped = scrapeResults.shift() ?? null;
+        if (!scraped) {
+          return {
+            status: "failed",
+            failure: "extract",
+            reason: "could not extract article content",
+            sourceUrl: url,
+          };
+        }
         const outcome = saveOutcomes.shift() ?? { status: "saved" };
-        if (outcome.status === "throw") throw new Error("save crashed");
-        auditCalls.push(auditFactory({ id: "article-new" }));
+        if (outcome.status === "throw") {
+          return {
+            status: "failed",
+            failure: "save",
+            reason: "save crashed",
+            sourceUrl: url,
+          };
+        }
+        if (outcome.status === "failed") {
+          return {
+            ...outcome,
+            failure: "save",
+            sourceUrl: url,
+          };
+        }
+        if (outcome.status === "saved") {
+          auditCalls.push(auditFactory({ id: "article-new" }));
+        }
         return outcome;
       },
-      scrapeUrl: async () => scrapeResults.shift() ?? null,
     },
   });
   mock.module("@/lib/security/audit", {

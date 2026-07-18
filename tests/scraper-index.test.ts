@@ -275,6 +275,7 @@ test("scrapeAndSave returns failed when the scraper feature flag is disabled", a
   assert.equal(outcome.status, "failed");
   if (outcome.status === "failed") {
     assert.match(outcome.reason, /disabled/);
+    assert.equal(outcome.failure, "disabled");
     assert.equal(outcome.sourceUrl, "https://www.noemamag.com/some-article");
   }
 });
@@ -286,6 +287,7 @@ test("scrapeAndSave returns failed when scrapeUrl cannot extract article content
   assert.equal(outcome.status, "failed");
   if (outcome.status === "failed") {
     assert.match(outcome.reason, /extract/);
+    assert.equal(outcome.failure, "extract");
   }
 });
 
@@ -298,6 +300,7 @@ test("scrapeAndSave returns failed when content quality grade is reject", async 
   if (outcome.status === "failed") {
     assert.match(outcome.reason, /quality/);
     assert.match(outcome.reason, /score=15/);
+    assert.equal(outcome.failure, "quality");
   }
 });
 
@@ -353,6 +356,26 @@ test("scrapeAndSave persists and returns saved outcome when quality is ok", asyn
   }
 });
 
+test("scrapeAndSave records audit through the quality-approved save", async () => {
+  const capturedIds: string[] = [];
+  const { scrapeAndSave } = await import("@/lib/scraper");
+
+  const outcome = await scrapeAndSave(
+    "https://www.noemamag.com/the-philosophy-of-networks",
+    (created) => {
+      capturedIds.push(created.id);
+      return {
+        action: "admin.article.ingest",
+        targetType: "article",
+      } as AuditRequestInput;
+    },
+  );
+
+  assert.equal(outcome.status, "saved");
+  assert.deepEqual(capturedIds, ["new-article-id"]);
+  assert.equal(recordedAuditInputs.length, 1);
+});
+
 test("scrapeAndSave saves the article even when quality grade is warn (non-breaking advisory signal)", async () => {
   qualityGrade = "warn";
   qualityScore = 55;
@@ -371,6 +394,7 @@ test("scrapeAndSave captures unexpected thrown errors as a failed outcome", asyn
   assert.equal(outcome.status, "failed");
   if (outcome.status === "failed") {
     assert.match(outcome.reason, /unexpected db failure/);
+    assert.equal(outcome.failure, "save");
   }
 });
 
@@ -391,5 +415,6 @@ test("scrapeAndSave captures non-Error thrown values as a failed outcome using S
   assert.equal(outcome.status, "failed");
   if (outcome.status === "failed") {
     assert.equal(outcome.reason, "plain string error");
+    assert.equal(outcome.failure, "save");
   }
 });

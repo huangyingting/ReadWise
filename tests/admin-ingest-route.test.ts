@@ -62,17 +62,37 @@ before(() => {
 
   mock.module("@/lib/scraper", {
     namedExports: {
-      scrapeUrl: async () => {
-        if (scrapeError) throw scrapeError;
-        return scrapeResult;
-      },
-      saveDraftArticle: async (
-        _article: unknown,
+      scrapeAndSave: async (
+        url: string,
         auditInput: (created: { id: string }) => unknown,
       ) => {
+        if (scrapeError) {
+          return {
+            status: "failed",
+            failure: "scrape",
+            reason: scrapeError instanceof Error ? scrapeError.message : String(scrapeError),
+            sourceUrl: url,
+          };
+        }
+        if (!scrapeResult) {
+          return {
+            status: "failed",
+            failure: "extract",
+            reason: "could not extract article content",
+            sourceUrl: url,
+          };
+        }
         if (saveOutcome.status === "saved") {
           const auditArg = auditInput({ id: saveOutcome.id! });
           auditCalls.push(auditArg as { action: string; targetId?: string });
+          return saveOutcome;
+        }
+        if (saveOutcome.status === "failed") {
+          return {
+            ...saveOutcome,
+            failure: "save",
+            sourceUrl: url,
+          };
         }
         return saveOutcome;
       },

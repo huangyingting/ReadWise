@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-18"
 description: "Documents scraper providers, discovery/extraction pipeline, SSRF/robots controls, source health boundaries, scrape-review feedback retention, and operator guidance."
 ---
 
@@ -20,6 +20,19 @@ ReadWise ingests articles from curated news and magazine sources via a two-phase
 Discovery is governed by robots.txt, content-source enablement, and provider-level URL
 filters. Extraction always flows through `fetchHtml` (SSRF-protected) → `sanitizeArticleHtml`
 (XSS-safe). **Never bypass these layers.**
+
+### Public-library URL intake
+
+All URL-based adapters that create ownerless library drafts use `scrapeAndSave`
+from `src/lib/scraper/index.ts`. The module owns the feature gate, fetch and
+extraction, quality rejection/recovery policy, source-URL deduplication, draft
+persistence, optional transaction-scoped audit write, and structured outcome.
+Admin ingest, admin provider crawls, seed, and scraper CLIs must not split that
+lifecycle into direct `scrapeUrl` plus `saveDraftArticle` calls.
+
+`saveDraftArticle` remains available for already-extracted input such as the
+offline `--file` CLI path. Private user import remains a separate adapter because
+it owns quota, ownership, and private-article creation semantics.
 
 ---
 

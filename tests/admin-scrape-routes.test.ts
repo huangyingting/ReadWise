@@ -44,6 +44,7 @@ let scrapeResult: Record<string, unknown> | null = {
   url: "https://test.example.com/article-1",
   text: "Article body text",
 };
+let qualityRejected = false;
 let saveOutcome: { status: "saved" | "skipped" | "failed" } = { status: "saved" };
 let crawlRunCalls: Array<{ providerKey: string; outcome: Record<string, unknown> }> = [];
 
@@ -117,14 +118,38 @@ before(() => {
 
   mock.module("@/lib/scraper", {
     namedExports: {
-      scrapeUrl: async () => scrapeResult,
-      saveDraftArticle: async (
-        _article: unknown,
-        _auditInput: (created: { id: string }) => unknown,
+      scrapeAndSave: async (
+        url: string,
+        auditInput: (created: { id: string }) => unknown,
       ) => {
-        // Call the audit builder to capture the audit log
-        const auditArg = _auditInput({ id: "article-new" });
-        auditCalls.push(auditArg as { action: string });
+        if (!scrapeResult) {
+          return {
+            status: "failed",
+            failure: "extract",
+            reason: "could not extract article content",
+            sourceUrl: url,
+          };
+        }
+        if (qualityRejected) {
+          return {
+            status: "failed",
+            failure: "quality",
+            reason: "content quality check failed (score=12)",
+            sourceUrl: url,
+          };
+        }
+        if (saveOutcome.status === "saved") {
+          const auditArg = auditInput({ id: "article-new" });
+          auditCalls.push(auditArg as { action: string });
+        }
+        if (saveOutcome.status === "failed") {
+          return {
+            ...saveOutcome,
+            failure: "save",
+            reason: "save failed",
+            sourceUrl: url,
+          };
+        }
         return saveOutcome;
       },
     },
@@ -204,6 +229,7 @@ beforeEach(() => {
   discoverUrls = ["https://test.example.com/article-1"];
   discoverError = null;
   scrapeResult = { title: "Test Article", url: "https://test.example.com/article-1", text: "body" };
+  qualityRejected = false;
   saveOutcome = { status: "saved" };
   crawlRunCalls = [];
 });
@@ -273,6 +299,26 @@ test("POST /api/admin/scrape/trigger records provider health for a successful ru
   assert.equal(typeof crawlRunCalls[0].outcome.durationMs, "number");
   assert.equal(JSON.stringify(crawlRunCalls[0]).includes("https://test.example.com/article-1"), false);
   assert.equal(JSON.stringify(crawlRunCalls[0]).includes("body"), false);
+});
+
+test("POST /api/admin/scrape/trigger rejects low-quality intake without article audit", async () => {
+  qualityRejected = true;
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({ provider: "test-provider" }));
+  const body = await res.json() as {
+    results: Array<{ saved: number; failed: number }>;
+    totalSaved: number;
+  };
+
+  assert.equal(res.status, 200);
+  assert.equal(body.results[0].saved, 0);
+  assert.equal(body.results[0].failed, 1);
+  assert.equal(body.totalSaved, 0);
+  assert.equal(crawlRunCalls[0].outcome.failed, 1);
+  assert.equal(
+    auditCalls.some((call) => call.action === "admin.article.ingest"),
+    false,
+  );
 });
 
 test("POST /api/admin/scrape/trigger records zero-result provider health", async () => {

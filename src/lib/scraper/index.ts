@@ -1,7 +1,9 @@
 /**
  * Public barrel for the scraper subsystem.
  *
- * Persistence (saveDraftArticle, scrapeAndSave, scrapeUrl) lives here.
+ * Public-library URL intake (`scrapeAndSave`) owns feature gating, extraction,
+ * quality policy, dedupe, persistence, optional audit, and outcome mapping.
+ * `saveDraftArticle` remains available for already-extracted input.
  * Discovery lives in `@/lib/scraper/discovery`.
  * Admin scrape trigger orchestration lives in `@/lib/scraper/admin-trigger`.
  * Content-source governance lives in `@/lib/scraper/sources`.
@@ -20,6 +22,21 @@ export type SaveOutcome =
   | { status: "saved"; id: string; article: ScrapedArticle }
   | { status: "skipped"; reason: string; sourceUrl: string }
   | { status: "failed"; reason: string; sourceUrl: string };
+
+export type SaveAuditFactory = (created: { id: string }) => AuditRequestInput;
+
+export type UrlIntakeFailureKind =
+  | "disabled"
+  | "scrape"
+  | "extract"
+  | "quality"
+  | "save";
+
+export type UrlIntakeOutcome =
+  | Extract<SaveOutcome, { status: "saved" | "skipped" }>
+  | (Extract<SaveOutcome, { status: "failed" }> & {
+      failure: UrlIntakeFailureKind;
+    });
 
 const DUPLICATE_SOURCE_URL_REASON = "duplicate sourceUrl";
 
@@ -40,7 +57,7 @@ export async function scrapeUrl(url: string): Promise<ScrapedArticle | null> {
  */
 export async function saveDraftArticle(
   article: ScrapedArticle,
-  audit?: (created: { id: string }) => AuditRequestInput,
+  audit?: SaveAuditFactory,
 ): Promise<SaveOutcome> {
   const existing = await findPublicLibraryArticleBySourceUrl(article.sourceUrl);
   if (existing) {
@@ -82,26 +99,49 @@ export async function saveDraftArticle(
   }
 }
 
-/** Scrapes a single URL and saves it, capturing failures as outcomes. */
-export async function scrapeAndSave(url: string): Promise<SaveOutcome> {
+/**
+ * Runs canonical public-library URL intake and captures every failure as a
+ * structured outcome. Audit data, when supplied, is written in the same
+ * transaction as the new ownerless draft.
+ */
+export async function scrapeAndSave(
+  url: string,
+  audit?: SaveAuditFactory,
+): Promise<UrlIntakeOutcome> {
   if (!isScraperFeatureEnabled()) {
-    return failedOutcome("scraper is disabled", url);
+    return failedIntakeOutcome("disabled", "scraper is disabled", url);
   }
+
+  let article: ScrapedArticle | null;
   try {
-    const article = await scrapeUrl(url);
-    if (!article) {
-      return failedOutcome("could not extract article content", url);
-    }
-    // Run quality checks as a non-breaking signal. A "reject" grade usually
-    // means the extractor produced obvious garbage; only long-enough articles
-    // rejected for weak reading-time/metadata checks are recovered.
+    article = await scrapeUrl(url);
+  } catch (err) {
+    return failedIntakeOutcome("scrape", errorMessage(err), url);
+  }
+  if (!article) {
+    return failedIntakeOutcome("extract", "could not extract article content", url);
+  }
+
+  try {
     const quality = checkContentQuality(article);
     if (isUnrecoverableQualityReject(article, quality)) {
-      return failedOutcome(`content quality check failed (score=${quality.score})`, url);
+      return failedIntakeOutcome(
+        "quality",
+        `content quality check failed (score=${quality.score})`,
+        url,
+      );
     }
-    return await saveDraftArticle(article);
   } catch (err) {
-    return failedOutcome(errorMessage(err), url);
+    return failedIntakeOutcome("quality", errorMessage(err), url);
+  }
+
+  try {
+    const outcome = await saveDraftArticle(article, audit);
+    return outcome.status === "failed"
+      ? { ...outcome, failure: "save" }
+      : outcome;
+  } catch (err) {
+    return failedIntakeOutcome("save", errorMessage(err), url);
   }
 }
 
@@ -111,11 +151,12 @@ function duplicateSourceUrlOutcome(
   return { status: "skipped", reason: DUPLICATE_SOURCE_URL_REASON, sourceUrl };
 }
 
-function failedOutcome(
+function failedIntakeOutcome(
+  failure: UrlIntakeFailureKind,
   reason: string,
   sourceUrl: string,
-): Extract<SaveOutcome, { status: "failed" }> {
-  return { status: "failed", reason, sourceUrl };
+): Extract<UrlIntakeOutcome, { status: "failed" }> {
+  return { status: "failed", failure, reason, sourceUrl };
 }
 
 function isUnrecoverableQualityReject(
