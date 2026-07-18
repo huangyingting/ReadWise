@@ -45,10 +45,12 @@ OpenTelemetry) degrades gracefully when it is not configured.
 - Provider-based scraper with HTML extraction, RSS/WordPress/GraphQL discovery
   hooks, SSRF protections, article dedupe, content source health tracking, and
   admin-triggered ingestion.
-- Current provider registry includes: NBC News, National Geographic, Time,
-  HuffPost, BBC News, Smithsonian Magazine, Knowable Magazine, Nautilus, Aeon,
-  MIT Technology Review, Noema Magazine, Undark, BBC Learning English, and VOA
-  Learning English.
+- Current provider registry contains 21 sources: National Geographic, Time,
+  HuffPost, BBC Features, The Conversation, ProPublica, Smithsonian Magazine,
+  Knowable Magazine, Nautilus, MIT Technology Review, Scientific American,
+  Noema Magazine, Undark, Atlas Obscura, JSTOR Daily, Hakai Magazine, Yale
+  Environment 360, Works in Progress, WIRED, The New Yorker, and Harvard
+  Business Review.
 - Idempotent processor for difficulty, tags, vocabulary, quiz, optional
   translations, and optional speech. Drafts publish only after processing
   completes or degrades safely.
@@ -75,14 +77,14 @@ OpenTelemetry) degrades gracefully when it is not configured.
 
 | Layer | Technology |
 | --- | --- |
-| Framework | Next.js 15 App Router, TypeScript |
+| Framework | Next.js 16 App Router, TypeScript |
 | UI | React 19, Tailwind CSS 4, custom design tokens/components |
-| Database | Prisma 6 + SQLite by default; PostgreSQL parity schema and migrations available |
+| Database | Prisma 7 + SQLite by default; PostgreSQL parity schema and migrations available |
 | Auth | NextAuth v4 + `@auth/prisma-adapter`, database session strategy |
 | AI | Azure OpenAI chat completions over `fetch` |
 | Speech | Azure Cognitive Services Speech SDK |
-| Media storage | Database base64 fallback, local filesystem, or Azure Blob Storage |
-| Background work | DB-backed jobs + worker CLI, Redis available in local parity stack |
+| Media storage | Local filesystem by default, or Azure Blob Storage |
+| Background work | DB-backed jobs + worker CLI |
 | Observability | Structured JSON logs, AsyncLocalStorage request context, metrics, OpenTelemetry tracing |
 | Tests | Node built-in test runner with module mocks; Playwright smoke tests |
 
@@ -91,8 +93,8 @@ OpenTelemetry) degrades gracefully when it is not configured.
 - Node.js **24.x** and npm **11.x** (matching `package.json`, CI, and the
   production container).
 - No database server is required for the default SQLite workflow.
-- Docker Compose is optional, but recommended when testing PostgreSQL/Redis
-  parity locally.
+- Docker Compose is optional, but recommended when testing PostgreSQL parity
+  locally.
 - Azure/OpenTelemetry/Web Push/storage credentials are optional. Missing
   optional providers are reported as degraded/unconfigured, not fatal.
 
@@ -133,30 +135,32 @@ path, see [`docs/platform/authentication.md`](./docs/platform/authentication.md#
 > difficulty is deterministic, and audio stays in local media storage unless
 > object storage is enabled.
 
-## PostgreSQL + Redis parity workflow
+## PostgreSQL parity workflow
 
 The default local database is SQLite. To exercise the PostgreSQL schema,
 migrations, DB-backed rate limiter, and multi-worker job locking, use the local
-compose stack:
+Compose service and export both database settings for the current shell:
 
 ```bash
-docker compose up -d postgres redis
-DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public" \
-  npx prisma migrate deploy --schema prisma/postgresql/schema.prisma
+docker compose up -d postgres
+export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
+export PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
+npm run prisma:migrate:pg
 npm run dev
 ```
 
-This starts loopback-only PostgreSQL on `127.0.0.1:55432` and Redis on
-`127.0.0.1:6379` and deploys PostgreSQL migrations.
+This starts loopback-only PostgreSQL on `127.0.0.1:55432`, deploys its
+migrations, and runs the app against that database. The Compose file also
+contains a reserved Redis service, but the application does not currently use
+Redis.
 
 Useful parity commands:
 
 ```bash
 docker compose ps
-DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public" \
-  npx prisma migrate status --schema prisma/postgresql/schema.prisma
+npx prisma migrate status --schema "$PRISMA_SCHEMA_PATH"
 docker compose down
-docker compose down -v  # destructive reset of local PostgreSQL/Redis volumes
+docker compose down -v  # destructive reset of the local PostgreSQL volume
 ```
 
 See `docs/platform/database.md` and `docs/platform/database-runbooks.md` for migration,
@@ -175,6 +179,13 @@ backup, restore, reset, and SQLite-to-PostgreSQL notes.
 | `NEXTAUTH_SECRET` | Session secret; must be a non-placeholder value of at least 32 characters. |
 | `NEXTAUTH_URL` | Canonical app URL, e.g. `http://localhost:3000`. |
 
+### Application URLs
+
+| Variable | Description |
+| --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | Public canonical URL used for metadata, `robots.txt`, and `sitemap.xml`; falls back to `NEXTAUTH_URL`. |
+| `APP_URL`, `NEXT_PUBLIC_APP_URL` | Optional deployment aliases whose origins are trusted by the same-origin mutation guard. |
+
 ### Sign-in providers
 
 At least one provider is needed for normal sign-in. Missing providers do not
@@ -190,12 +201,13 @@ crash startup.
 | Area | Variables | Notes |
 | --- | --- | --- |
 | Azure OpenAI | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION` | Enables translation, vocab, quiz, tags, grammar, and tutor features. Article difficulty is deterministic. |
+| AI provider/moderation | `AI_PROVIDER`, `AI_MODERATION_ENABLED` | Selects the current provider (`azure`) and optional remote moderation. |
 | AI tuning | `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, `AZURE_OPENAI_MAX_CONTEXT_TOKENS`, `AI_MAX_OUTPUT_TOKENS` | Malformed values fall back to defaults. |
-| AI ledger/cost | `AI_LEDGER_ENABLED`, `AI_COST_PROMPT_PER_1K`, `AI_COST_COMPLETION_PER_1K`, `AI_COST_RATES` | Stores metadata only; prompts/responses are not persisted. |
+| AI ledger/cost | `AI_LEDGER_ENABLED`, `AI_LEDGER_RETENTION_DAYS`, `AI_COST_PROMPT_PER_1K`, `AI_COST_COMPLETION_PER_1K`, `AI_COST_RATES` | Stores metadata only; prompts/responses are not persisted. |
 | AI quotas | `AI_QUOTA_WINDOW_MS`, `AI_QUOTA_USER_DAILY`, `AI_QUOTA_GLOBAL_DAILY`, `AI_QUOTA_BACKGROUND_DAILY`, `AI_QUOTA_FEATURE_DEFAULT_DAILY`, `AI_QUOTA_FEATURE_<FEATURE>_DAILY` | Empty or non-positive limits mean unlimited. |
 | Dictionary | `DICTIONARY_PROVIDER`, `LOCAL_DICTIONARY_DIR`, `LOCAL_DICTIONARY_LANGUAGE` | Defaults to compact bundled local dictionaries in `dict/`; set provider to `free` for dictionaryapi.dev or `hybrid` for local-first fallback. |
-| Azure Speech | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_VOICE`, `AZURE_SPEECH_OUTPUT_FORMAT`, `SPEECH_TIMEOUT_MS` | Enables server-side narration generation. |
-| Object storage | `MEDIA_STORAGE`, `MEDIA_STORAGE_DIR`, `AZURE_STORAGE_CONNECTION_STRING`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_KEY`, `AZURE_STORAGE_CONTAINER` | Default is database/base64. Use `filesystem` locally or `azure` for Azure Blob Storage. |
+| Azure Speech | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_ENDPOINT`, `AZURE_SPEECH_VOICE`, `AZURE_SPEECH_OUTPUT_FORMAT`, `SPEECH_TIMEOUT_MS` | Enables server-side narration and optional REST batch synthesis. |
+| Object storage | `MEDIA_STORAGE`, `MEDIA_STORAGE_DIR`, `AZURE_STORAGE_CONNECTION_STRING`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_KEY`, `AZURE_STORAGE_CONTAINER` | Defaults to local filesystem storage under `MEDIA_STORAGE_DIR`; use `azure` for Azure Blob Storage. |
 
 ### Push, observability, security, and analytics
 
@@ -208,16 +220,21 @@ crash startup.
 | Proxy/IP trust | `TRUSTED_PROXY_HEADER`, `TRUSTED_PROXY_LIST`, `TRUSTED_PROXY_HOPS` |
 | CSRF | `CSRF_ALLOWED_ORIGINS`, `CSRF_ENFORCE` |
 | Security events | `SECURITY_EVENT_ALERT_THRESHOLD`, `SECURITY_EVENT_WINDOW_MS`, `SECURITY_EVENT_BUFFER_SIZE` |
+| Feature switches | `FEATURE_AI_ENABLED`, `FEATURE_TTS_ENABLED`, `FEATURE_PUSH_ENABLED`, `FEATURE_SCRAPER_ENABLED`, `FEATURE_TODAY_SESSION_ENABLED` |
+| Scraper controls | `SCRAPER_FETCH_*`, `SCRAPER_MAX_BYTES`, `SCRAPER_TIMEOUT_MS`, `SCRAPER_HTML_NORMALIZE`, `SCRAPER_READABILITY`, `SCRAPER_QUALITY_CLASSIFIER`, `JINA_API_KEY` |
+| Database/cache timing | `DB_QUERY_TIMING_ENABLED`, `DB_SLOW_QUERY_THRESHOLD_MS`, `READWISE_DISABLE_LISTING_CACHE` |
+| Audit/job retention | `AUDIT_LOG_RETENTION_DAYS`, `JOB_TERMINAL_RETENTION_DAYS` |
 | Product analytics | `ANALYTICS_ENABLED`, `ANALYTICS_RETENTION_DAYS` |
+| Developer/test tooling | `NEXT_DIST_DIR`, `PLAYWRIGHT_*`, `UI_AUDIT_*`, `RUN_DB_INTEGRATION`, `READWISE_BENCHMARK_ALLOW_REMOTE_DB` |
 
 Generate Web Push keys with `npx web-push generate-vapid-keys`; there is no
 package script wrapper for this command.
 
 ## Scripts
 
-The tables below list the supported npm scripts. Other files under `scripts/`
-are advanced/internal entry points; run them through `npm run node-ts --` only
-when a runbook or maintainer explicitly calls for them.
+The tables below list the most common npm scripts. Other files under `scripts/`
+are advanced/internal entry points; use their package script or the invocation
+documented by a runbook rather than calling them directly.
 
 ### Development and quality
 
@@ -238,7 +255,7 @@ when a runbook or maintainer explicitly calls for them.
 | Command | Purpose |
 | --- | --- |
 | `npm run scrape -- --list-providers` | List supported scraper providers. |
-| `npm run scrape -- --provider bbc --limit 5` | Discover and save draft articles from one provider. |
+| `npm run scrape -- --provider bbcfeatures --limit 5` | Discover and save draft articles from one provider. |
 | `npm run scrape -- --all --limit 3` | Scrape every enabled provider. |
 | `npm run scrape -- <url>` | Scrape one or more explicit article URLs. |
 | `npm run process -- --all` | Enrich draft articles and publish them. |
@@ -246,7 +263,7 @@ when a runbook or maintainer explicitly calls for them.
 | `npm run process -- <articleId> --tts --translate es,fr` | Process specific articles with optional TTS/translations. |
 | `npm run worker` | Drain the durable `Job` table with locking/retries/dead letters. |
 | `npm run worker -- --once` | Drain the durable `Job` queue once and exit. |
-| `npm run seed -- --provider nbc --limit 3` | Scrape + process + publish sample articles end-to-end. |
+| `npm run seed -- --provider natgeo --limit 3` | Scrape + process + publish sample articles end-to-end. |
 | `npm run push-reminders -- --dry-run` | Check SRS push-reminder configuration without sending. |
 
 ### Local data, Prisma, and storage
@@ -262,10 +279,10 @@ when a runbook or maintainer explicitly calls for them.
 | `npm run dict:prune -- --dry-run` | Preview cleanup of bundled local dictionary inflection variants. |
 | `npm run dict:prune` | Re-prune bundled compact `dict/` files after updating local dictionaries. |
 
-All TypeScript CLIs use Node's type-stripping harness and auto-load `.env` when
-it exists:
-`node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs ...`.
-The register hook also resolves the `@/*` alias for scripts.
+Application CLIs routed through `npm run node-ts --` use Node's type-stripping
+harness, auto-load `.env` when it exists, and resolve the `@/*` alias through
+`scripts/register-ts.mjs`. Quality, benchmark, and schema scripts define their
+own Node invocation in `package.json` and do not necessarily auto-load `.env`.
 
 ## Architecture overview
 
@@ -288,17 +305,17 @@ src/
 ├── components/                 # Reader, admin, shell, study, and UI components
 ├── lib/
 │   ├── api-handler.ts          # Auth, validation, CSRF, logging, tracing, errors
-│   ├── auth.ts session.ts      # NextAuth config and server page guards
+│   ├── auth/ session.ts        # NextAuth config and server page guards
 │   ├── prisma.ts               # Prisma singleton
-│   ├── articles.ts tags.ts     # Article/tag queries and cached listings
-│   ├── ai/                     # Azure OpenAI facade, budgets, cache, ledger, usage summaries
-│   ├── processing/ worker/     # Enrichment pipeline, processing state, and worker loop
-│   ├── jobs/                   # Durable DB job queue
+│   ├── article-library/        # Article access policy, queries, and listings
+│   ├── ai/                     # Azure OpenAI facade, budgets, cache, ledger
+│   ├── processing/ worker/     # Enrichment pipeline and worker loop
+│   ├── jobs/                   # Durable DB job queue and retry policy
 │   ├── scraper/                # Provider registry, extraction, RSS/WP/GraphQL helpers
-│   ├── translation.ts vocabulary.ts quiz.ts difficulty.ts grammar.ts tutor.ts speech.ts
-│   ├── bookmarks.ts highlights.ts offline-* srs.ts mastery.ts
-│   ├── admin-*.ts analytics*.ts audit.ts security-events.ts rbac.ts
-│   └── config.ts storage.ts tracing*.ts metrics.ts logger.ts
+│   ├── vocabulary/ difficulty/ speech/ bookmarks/ offline/ # Feature modules
+│   ├── admin/ analytics/ classroom/ learning/ study/        # Product domains
+│   ├── runtime-config/ security/ observability/ metrics/    # Platform services
+│   └── storage/ media/ push/                                 # Provider adapters
 └── types/                      # NextAuth and shared type augmentations
 
 prisma/
@@ -361,21 +378,23 @@ development.
 ### Docker
 
 ```bash
-docker build -t readwise .
+docker build --build-arg PRISMA_SCHEMA_PATH=prisma/schema.prisma -t readwise:sqlite .
 
 docker run -p 3000:3000 \
   -v readwise-data:/data \
-  -e DATABASE_URL=file:/data/readwise.db \
+  -e DATABASE_URL="file:/data/readwise.db" \
   -e PRISMA_SCHEMA_PATH=prisma/schema.prisma \
-  -e NEXTAUTH_SECRET=<secret> \
-  -e NEXTAUTH_URL=https://readwise.example.com \
-  readwise
+  -e NEXTAUTH_SECRET="$(openssl rand -hex 32)" \
+  -e NEXTAUTH_URL="http://localhost:3000" \
+  readwise:sqlite
 ```
 
 The entrypoint runs Prisma migrations before starting the standalone Next.js
-server. For production, prefer a managed PostgreSQL database and set the
-matching `DATABASE_URL` + `PRISMA_SCHEMA_PATH` values through your secret
-manager.
+server. Docker images are PostgreSQL-first by default, so the local SQLite
+example explicitly aligns the build and runtime schema. For production, prefer
+a managed PostgreSQL database and follow
+[`docs/platform/database.md`](./docs/platform/database.md#docker-image-with-postgresql-schema)
+to keep the generated client, runtime schema, and `DATABASE_URL` aligned.
 
 ### Health probes
 
@@ -404,4 +423,4 @@ manager.
 - `docs/reader/offline-sync.md` — offline queue and conflict-resolution design.
 - `docs/reader/search-and-indexing.md` — search/indexing strategy.
 - `docs/access/rbac.md` and `docs/access/multi-tenancy.md` — capability model, organizations, classrooms, and assignments.
-- `docs/adr/` — architecture decision records.
+- `docs/architecture/` — architecture decision records and design constraints.
