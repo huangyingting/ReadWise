@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-18"
 description: "Documents Operations-owned admin surfaces, persistent job queue, worker lifecycle, processing state, scripts, and audit-log relationships. Captures current job statuses, retries, locking, backfill/rebuild/repair workflows, dashboards, metrics, source operations, and operator checklists."
 ---
 
@@ -165,9 +165,12 @@ and dead-letter rows.
 ## Worker lifecycle
 
 `runJobWorker(options)` (`src/lib/worker/index.ts`) is the stable public entry
-point. Internally it is split into three modules:
+point. Internally it is split into four modules:
 
-- `loop.ts` — the runtime poll-claim-execute loop (type-agnostic).
+- `loop.ts` — polls and claims Jobs, delegates claimed Jobs, and aggregates
+   worker stats.
+- `claimed-execution.ts` — owns claimed-job execution: start CAS, heartbeat,
+   handler abort scope, ownership-loss guards, and complete/fail CAS.
 - `registry.ts` — maps `JobType` → `JobHandler`; handlers are injectable for
   testing.
 - `types.ts` — shared types for the worker surface.
@@ -183,25 +186,31 @@ point. Internally it is split into three modules:
      own dedicated pipeline; this prevents dead-lettering on unconfigured
      deployments).
 3. Optional `options.handlers` overrides are merged after the defaults.
-4. `runWorkerLoop` starts.
+4. `createClaimedJobExecutor` binds the handlers and Job lifecycle adapters.
+5. `runWorkerLoop` starts with that executor as its execution interface.
 
-### Poll-claim-execute loop
+### Poll and execution modules
 
 ```
-for (;;) {
-  check AbortSignal → stop if aborted
-  claimNextJob()  → null: sleep(pollIntervalMs), continue
-                  → job: startJob → handler(job) → completeJob
-                            ↳ error: failJob → FAILED (retry) or DEAD_LETTER
-}
+runWorkerLoop
+   check AbortSignal -> stop if aborted
+   claimNextJob()  -> null: sleep(pollIntervalMs), continue
+                           -> Job: executeClaimedJob(Job)
+
+executeClaimedJob
+   startJob -> heartbeat + handler -> completeJob
+                                             \-> error: failJob -> FAILED or DEAD_LETTER
+   ownership lost ----------------> abort handler; never complete or fail
 ```
 
 - **Idle poll interval** defaults to 5 000 ms. Configurable via `--interval`.
 - **Once mode** (`--once`): exits when `claimNextJob` returns `null` (queue
   drained). Useful for test runs and one-shot batch drain.
 - **Signals**: `SIGINT`/`SIGTERM` set the `AbortController` signal. The loop
-  finishes the current job then exits cleanly. `stoppedBySignal` is set in the
-  returned `JobWorkerStats`.
+   asks the current handler to abort cooperatively and then exits cleanly.
+   `stoppedBySignal` is set in the returned `JobWorkerStats`.
+- **Lease safety**: heartbeat loss aborts the handler scope. A stale executor
+   never calls `completeJob` or `failJob` after it loses ownership.
 
 ### Worker stats
 

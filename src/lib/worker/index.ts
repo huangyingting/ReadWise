@@ -1,6 +1,8 @@
 import { processArticle } from "@/lib/processing/processor";
 import { createLogger } from "@/lib/observability/logger";
 import { claimNextJob, completeJob, failJob, heartbeatJob, startJob, type JobType } from "@/lib/jobs";
+import { createClaimedJobExecutor } from "./claimed-execution";
+import type { ClaimedJobExecutionDeps } from "./claimed-execution";
 import { sleep } from "./sleep";
 import { createDefaultRegistry } from "./registry";
 import { runWorkerLoop } from "./loop";
@@ -10,6 +12,13 @@ import type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats } from 
 export type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats };
 export { sleep } from "./sleep";
 export { JobHandlerRegistry, makeArticleHandler, createDefaultRegistry } from "./registry";
+export { createClaimedJobExecutor } from "./claimed-execution";
+export type {
+  ClaimedJobExecutionDeps,
+  ClaimedJobExecutionResult,
+  ClaimedJobExecutor,
+  ClaimedJobExecutorOptions,
+} from "./claimed-execution";
 export { runWorkerLoop } from "./loop";
 export type { WorkerLoopOptions, WorkerLoopDeps } from "./loop";
 
@@ -31,14 +40,19 @@ function buildHandlers(options: JobWorkerOptions, processFn: typeof processArtic
   };
 }
 
-function buildWorkerDeps(options: JobWorkerOptions): WorkerLoopDeps {
+function buildWorkerLoopDeps(options: JobWorkerOptions): WorkerLoopDeps {
   return {
     claimNextJob: options.deps?.claimNextJob ?? claimNextJob,
+    sleep: options.deps?.sleep ?? sleep,
+  };
+}
+
+function buildClaimedJobExecutionDeps(options: JobWorkerOptions): ClaimedJobExecutionDeps {
+  return {
     startJob: options.deps?.startJob ?? startJob,
     heartbeatJob: options.deps?.heartbeatJob ?? heartbeatJob,
     completeJob: options.deps?.completeJob ?? completeJob,
     failJob: options.deps?.failJob ?? failJob,
-    sleep: options.deps?.sleep ?? sleep,
   };
 }
 
@@ -56,6 +70,17 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
   const logger = options.logger ?? createConsoleLogger();
   const processFn = options.deps?.processArticle ?? processArticle;
   const handlers = buildHandlers(options, processFn);
+  const executeClaimedJob = createClaimedJobExecutor(
+    {
+      workerId,
+      handlers,
+      logger,
+      lockTtlMs: options.lockTtlMs,
+      signal: options.signal,
+      process: options.process,
+    },
+    buildClaimedJobExecutionDeps(options),
+  );
 
   logger.info("job worker started", {
     workerId,
@@ -66,17 +91,16 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
 
   const stats = await runWorkerLoop(
     workerId,
-    handlers,
+    executeClaimedJob,
     {
       pollIntervalMs: options.pollIntervalMs,
       lockTtlMs: options.lockTtlMs,
       types: options.types,
       once: options.once,
       signal: options.signal,
-      process: options.process,
     },
     logger,
-    buildWorkerDeps(options),
+    buildWorkerLoopDeps(options),
   );
 
   logger.info("job worker stopped", { ...stats });

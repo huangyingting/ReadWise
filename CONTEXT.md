@@ -38,6 +38,12 @@ _Avoid_: Batch TTS, offline speech
 Permanent removal of tracked article media from both relational records and object storage as one lifecycle outcome.
 _Avoid_: Blob cleanup, storage purge, file deletion
 
+### Operations
+
+**Claimed-job execution**:
+The Operations-owned lifecycle for one already-claimed Job, from its start transition through heartbeat-protected handler execution and its terminal transition or ownership-loss outcome.
+_Avoid_: Worker processing, claim-and-run, job runner
+
 ### Content Ingestion
 
 **Public-library URL intake**:
