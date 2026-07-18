@@ -120,6 +120,7 @@ mock.module("react", {
   namedExports: {
     useCallback: (fn: unknown) => fn,
     useEffect: (effect: () => unknown) => rememberCleanup(effect()),
+    useLayoutEffect: (effect: () => unknown) => rememberCleanup(effect()),
     useReducer: useReducerMock,
     useRef: useRefMock,
     useState: useStateMock,

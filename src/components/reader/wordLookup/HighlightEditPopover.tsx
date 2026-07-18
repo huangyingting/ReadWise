@@ -12,7 +12,7 @@
  * Positioning mirrors the SelectionToolbar clamp/flip/mini-player logic.
  */
 
-import { useCallback, useRef, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
@@ -56,6 +56,10 @@ export default function HighlightEditPopover({
   popoverRef,
 }: HighlightEditPopoverProps) {
   const selectedSwatchRef = useRef<HTMLButtonElement>(null);
+  const anchorRef = useMemo<React.RefObject<HTMLElement | null>>(
+    () => ({ current: anchorEl }),
+    [anchorEl],
+  );
 
   const [noteText, setNoteText] = useState(highlight.note ?? "");
   const [noteOpen, setNoteOpen] = useState(!!highlight.note);
@@ -96,7 +100,7 @@ export default function HighlightEditPopover({
   return (
     <ReaderFloatingSurface
       ref={popoverRef}
-      anchor={anchorEl.getBoundingClientRect()}
+      anchor={anchorRef}
       placement="above"
       label="Edit highlight"
       onClose={onClose}

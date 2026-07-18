@@ -2,12 +2,13 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 
 import { computeFloatingLayout } from "@/components/ui/floating-layout";
+import { resolveCssLengthPx } from "@/components/ui/useFloatingPosition";
 
 const GAP = 8;
 const PADDING = 12;
 
 describe("Floating layout", () => {
-  test("centres a Reader surface without entering the mini-player safe area", () => {
+  test("centres a Reader surface without entering the resolved mini-player safe area", () => {
     const layout = computeFloatingLayout({
       anchorRect: { top: 700, right: 195, bottom: 700, left: 195 },
       floatingWidth: 340,
@@ -17,12 +18,55 @@ describe("Floating layout", () => {
       align: "center",
       gap: 12,
       viewportPadding: 12,
-      safeArea: { bottom: 56 },
+      safeArea: { bottom: 80 },
     });
 
     assert.equal(layout.placement, "above");
     assert.equal(layout.left, 25);
-    assert.ok(layout.top + 200 <= 844 - 56 - PADDING);
+    assert.ok(layout.top + 200 <= 844 - 80 - PADDING);
+  });
+
+  test("resolves a scoped calc-based safe-area token to pixels", () => {
+    let removed = false;
+    const probeStyle: Record<string, string> = {};
+    const probe = {
+      style: probeStyle,
+      remove: () => {
+        removed = true;
+      },
+    } as unknown as HTMLElement;
+    let scope: HTMLElement;
+    const view = {
+      getComputedStyle(element: Element) {
+        if (element === scope) {
+          return {
+            getPropertyValue: (property: string) =>
+              property === "--reader-mini-player-height"
+                ? "calc(56px + env(safe-area-inset-bottom, 0px))"
+                : "",
+          };
+        }
+        return { height: "80px" };
+      },
+    } as unknown as Window;
+    const ownerDocument = {
+      defaultView: view,
+      createElement: () => probe,
+    } as unknown as Document;
+    scope = {
+      ownerDocument,
+      appendChild: (element: Node) => {
+        assert.equal(element, probe);
+        return element;
+      },
+    } as unknown as HTMLElement;
+
+    assert.equal(
+      resolveCssLengthPx(scope, "--reader-mini-player-height", 56),
+      80,
+    );
+    assert.equal(probeStyle.height, "var(--reader-mini-player-height)");
+    assert.equal(removed, true);
   });
 
   test("clamps a right-side tooltip without changing its preferred side", () => {
