@@ -4,6 +4,12 @@ Canonical language for article reading, generated narration, and stored media.
 
 ## Language
 
+### Reader
+
+**Reader floating surface**:
+A transient Reader surface that presents actions or derived information in the context of selected or highlighted Reader text.
+_Avoid_: Reader popover, overlay, floating panel
+
 ### Speech
 
 **Narration**:

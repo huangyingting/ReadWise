@@ -4,7 +4,7 @@
  * DictionaryPopover
  *
  * Floating dictionary panel extracted from the inline JSX in WordLookup.
- * Positioned by usePopoverPosition (point anchor, prefer-below / flip-above).
+ * Uses the shared Reader floating-surface lifecycle.
  * Focuses its close button on mount; focus return to the prose is handled by
  * WordLookup's openSurface effect.
  */
@@ -14,12 +14,9 @@ import type { RefObject } from "react";
 import type { DictionaryResult } from "@/lib/lexical/provider";
 import { TIER_LABELS, TIER_VARIANTS } from "@/lib/option-registries";
 import { Badge, Button, IconButton, Inline } from "@/components/ui";
+import { ReaderFloatingSurface } from "@/components/reader/ReaderFloatingSurface";
 import { cn } from "@/lib/cn";
-import { useFocusTrap } from "@/lib/focus-trap";
-import { usePopoverPosition } from "@/lib/use-popover-position";
 
-const POPOVER_WIDTH = 340;
-const POPOVER_HEIGHT = 400;
 const POPOVER_GAP = 12;
 
 interface SaveWordState {
@@ -64,34 +61,21 @@ export default function DictionaryPopover({
 }: DictionaryPopoverProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  usePopoverPosition(popoverRef, anchor, {
-    placement: "below",
-    estimatedHeight: POPOVER_HEIGHT,
-    estimatedWidth: POPOVER_WIDTH,
-    gap: POPOVER_GAP,
-    setMaxHeight: true,
-    deps: [anchor, loading, result, dictError, word],
-  });
-
-  useFocusTrap(popoverRef, true, onClose, {
-    initialFocusRef: closeRef,
-    stopEscapePropagation: true,
-  });
-
   const frequencyTier = result?.frequencyTier ?? null;
   const saveButtonAriaLabel = saveWord.wordSaved
     ? `Remove "${word}" from study list`
     : `Save "${word}" to study list`;
 
   return (
-    <div
+    <ReaderFloatingSurface
       ref={popoverRef}
+      anchor={anchor}
+      placement="below"
+      label={`Dictionary: ${word}`}
+      onClose={onClose}
+      initialFocusRef={closeRef}
       className="word-lookup-popover"
-      role="dialog"
-      aria-modal="false"
-      aria-label={`Dictionary: ${word}`}
-      style={{ left: anchor.x, top: anchor.y, zIndex: 60 }}
-      onMouseUp={(e) => e.stopPropagation()}
+      gap={POPOVER_GAP}
     >
       <div className="word-lookup-header">
         <Inline gap="2">
@@ -110,12 +94,6 @@ export default function DictionaryPopover({
           className="word-lookup-close"
           aria-label="Close"
           onClick={onClose}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              e.preventDefault();
-              onClose();
-            }
-          }}
         >
           ×
         </IconButton>
@@ -213,6 +191,6 @@ export default function DictionaryPopover({
           {getSaveButtonLabel(saveWord)}
         </Button>
       </div>
-    </div>
+    </ReaderFloatingSurface>
   );
 }

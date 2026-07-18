@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn, focusRing } from "@/lib/cn";
+import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import { Tooltip } from "./Tooltip";
 
 /** A single selectable segment within a {@link SegmentedControl}. */
@@ -49,20 +50,6 @@ const SIZE_STYLES = {
 } as const;
 
 const SEGMENT_SELECTOR = "[role='radio']";
-
-function getSelectedIndex<T extends string>(
-  options: ReadonlyArray<SegmentedControlOption<T>>,
-  value: T,
-): number {
-  return Math.max(
-    0,
-    options.findIndex((option) => option.value === value),
-  );
-}
-
-function getSegmentButtons(container: HTMLDivElement | null) {
-  return container?.querySelectorAll<HTMLButtonElement>(SEGMENT_SELECTOR);
-}
 
 function formatAnnouncement<T extends string>(
   label: string,
@@ -118,14 +105,11 @@ export function SegmentedControl<T extends string>({
   const [announcement, setAnnouncement] = React.useState("");
   const groupRef = React.useRef<HTMLDivElement>(null);
   const sizeStyles = SIZE_STYLES[size];
-  const selectedIndex = getSelectedIndex(options, value);
 
-  /** Focus the segment at `index` and emit its value. */
+  /** Activate the segment at `index` and announce its value. */
   function selectIndex(index: number) {
     const option = options[index];
     if (!option) return;
-    const buttons = getSegmentButtons(groupRef.current);
-    buttons?.[index]?.focus();
     if (option.value !== value) {
       onChange(option.value);
     }
@@ -134,31 +118,12 @@ export function SegmentedControl<T extends string>({
     requestAnimationFrame(() => setAnnouncement(formatAnnouncement(label, option)));
   }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    const count = options.length;
-    switch (event.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        event.preventDefault();
-        selectIndex((selectedIndex + 1) % count);
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        event.preventDefault();
-        selectIndex((selectedIndex - 1 + count) % count);
-        break;
-      case "Home":
-        event.preventDefault();
-        selectIndex(0);
-        break;
-      case "End":
-        event.preventDefault();
-        selectIndex(count - 1);
-        break;
-      default:
-        break;
-    }
-  }
+  const { handleKeyDown } = useRovingTabindex(groupRef, {
+    selector: SEGMENT_SELECTOR,
+    orientation: "both",
+    homeEnd: true,
+    onNavigate: selectIndex,
+  });
 
   return (
     <div className={cn("inline-flex flex-col", className)}>

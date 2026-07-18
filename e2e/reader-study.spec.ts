@@ -24,8 +24,14 @@ test("opens the Practice tools panel and shows the quiz tab", async ({ readerPag
   // The tablist should be visible
   await expect(page.getByRole("tablist", { name: "Choose a practice tool" })).toBeVisible();
 
-  // Click the Quiz tab and verify the quiz panel becomes visible
-  await page.getByRole("tab", { name: "Quiz" }).click();
+  // Arrow navigation moves focus and activates the next tool tab.
+  await page.getByRole("tab", { name: "Words" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Quiz" })).toBeFocused();
+  await expect(page.getByRole("tab", { name: "Quiz" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(page.getByRole("tabpanel", { name: /quiz/i })).toBeVisible();
 });
 

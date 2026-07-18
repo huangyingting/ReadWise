@@ -164,6 +164,29 @@ describe("focus trap hook behavior", () => {
     assert.deepEqual(focus.removed, [true]);
   });
 
+  test("does not close when a nested control already handled Escape", async () => {
+    const { useFocusTrap } = await import("@/lib/focus-trap");
+    const focus = installFocusDocument();
+    let escapes = 0;
+    const container = {
+      querySelectorAll: () => [],
+      focus: () => focus.focusOrder.push("container"),
+    } as unknown as HTMLElement;
+
+    beginRender();
+    useFocusTrap(
+      { current: container },
+      true,
+      () => escapes++,
+      { stopEscapePropagation: true },
+    );
+
+    const result = focus.fire({ key: "Escape", defaultPrevented: true });
+
+    assert.equal(escapes, 0);
+    assert.deepEqual(result, { prevented: false, stopped: false });
+  });
+
   test("cycles Tab within tabbables and lets non-boundary Tab movement continue", async () => {
     const { useFocusTrap } = await import("@/lib/focus-trap");
     const focus = installFocusDocument();

@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-18"
 description: "Documents shared platform primitive ownership and relationship to src/lib/primitives/README.md. Captures current primitive classification, contribution guidelines, stability expectations, and import rules."
 ---
 
@@ -51,7 +51,7 @@ it may be safely imported:
 | `@/lib/cn` | `cn`, `focusRing` |
 | `@/lib/storage-keys` | `STORAGE_KEYS`, `lsGet`, `lsSet`, `lsRemove`, `ssGet`, `ssSet`, `ssRemove` |
 | `@/lib/focus-trap` | `getTabbable`, `useFocusTrap` (**security-sensitive** — focus containment) |
-| `@/lib/use-roving-tabindex` | `computeRovingIndex`, `useRovingTabindex` |
+| `@/lib/use-roving-tabindex` | `useRovingTabindex` |
 
 ### Server-only
 
@@ -70,6 +70,10 @@ it may be safely imported:
 - **Remove obsolete compatibility wrappers** rather than expanding them. When a
   shim's only remaining importers can be cheaply repointed to the canonical
   source, do so and delete the shim.
+- Roving keyboard groups delegate enabled-item discovery, wrapping, `tabindex`
+  mutation, and focus movement to `useRovingTabindex`. Callers provide only the
+  item selector, orientation, optional Home/End and Escape policy, and domain
+  activation callback.
 - Security-sensitive helpers in any tier must note the security concern in the
   module header (see `@/lib/safe-json`, `@/lib/focus-trap`, `@/lib/sanitize`).
 

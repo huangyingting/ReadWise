@@ -26,12 +26,9 @@ import {
 } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import { HighlightColorSwatchGroup } from "@/components/ui";
-import { useFocusTrap } from "@/lib/focus-trap";
-import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { HighlightColor } from "@/components/ReaderHighlightsProvider";
-import { useMirroredElementRef } from "./useMirroredElementRef";
+import { ReaderFloatingSurface } from "@/components/reader/ReaderFloatingSurface";
 
-const TOOLBAR_HEIGHT = 48; // approximate; see CSS .rw-sel-toolbar
 const ACTION_BUTTON_CLASS =
   "w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]";
 
@@ -71,36 +68,17 @@ export default function SelectionToolbar({
   toolbarRef,
 }: SelectionToolbarProps) {
   const selectedSwatchRef = useRef<HTMLButtonElement>(null);
-  const { elementRef, setElement } = useMirroredElementRef(toolbarRef);
-
-  usePopoverPosition(elementRef, selectionRect, {
-    placement: "above",
-    estimatedHeight: TOOLBAR_HEIGHT,
-    deps: [selectionRect],
-  });
-  useFocusTrap(elementRef, true, onClose, {
-    initialFocusRef: selectedSwatchRef,
-    stopEscapePropagation: true,
-  });
-
-  function handleToolbarKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    // Single container-level Escape handler. Skip if a child already handled it.
-    if (e.key === "Escape" && !e.defaultPrevented) {
-      e.preventDefault();
-      onClose();
-    }
-  }
 
   return (
-    <div
-      ref={setElement}
+    <ReaderFloatingSurface
+      ref={toolbarRef}
+      anchor={selectionRect}
+      placement="above"
       role="toolbar"
-      aria-label="Text actions"
+      label="Text actions"
+      onClose={onClose}
+      initialFocusRef={selectedSwatchRef}
       className="rw-sel-toolbar"
-      style={{ left: 0, top: 0 }} // overridden by usePopoverPosition
-      onMouseUp={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      onKeyDown={handleToolbarKeyDown}
     >
       <HighlightColorSwatchGroup
         value={color}
@@ -161,6 +139,6 @@ export default function SelectionToolbar({
           Grammar
         </IconButton>
       ) : null}
-    </div>
+    </ReaderFloatingSurface>
   );
 }
