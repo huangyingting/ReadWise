@@ -247,6 +247,24 @@ record path that calls them.
 Completion writes persist **ids / timestamps / flags only** — never article
 text, word text, definitions, examples, context sentences, prompts, or notes.
 
+### Today action delivery
+
+`submitTodayAction` in `src/lib/offline/today-client.ts` owns delivery for the
+four controlled Today Session actions. Its action-discriminated interface maps
+each action to its server result type and selects between two adapters:
+
+- immediate JSON delivery when the network is available;
+- durable IndexedDB queuing for later replay when offline or after a transient
+  delivery failure.
+
+The outcome is either `delivered`, which carries the action-specific server
+result, or `queued`, which carries no synthetic result. Permanent API failures
+remain typed errors. UI callers therefore decide only how to present an outcome;
+they do not select an adapter, construct replay payloads, or retry delivery.
+Both adapters use the same deterministic learner/day idempotency key, and the
+queue adapter accepts only the controlled, content-free fields documented in
+the offline-sync boundary.
+
 ## Cascade & deletion behavior
 
 - **User deletion cascades.** `TodaySession.userId` is a real FK with
@@ -388,9 +406,10 @@ and branches across the no-candidate (browse/import `EmptyState`), skipped,
 active, and completed states. The interactive workflow
 (`_components/TodayWorkflow.tsx`, `"use client"`) drives the read →
 comprehension → word-review steps, showing per-step status, completion progress,
-a resume-vs-new framing, and the manual mark-read and skip actions (calling the
-API routes above). UI is composed only from `src/components/ui/*` primitives and
-design tokens (light/dark/mobile, keyboard-accessible).
+a resume-vs-new framing, and the manual mark-read and skip actions (submitted
+through the Today action-delivery boundary). UI is composed only from
+`src/components/ui/*` primitives and design tokens (light/dark/mobile,
+keyboard-accessible).
 
 ### Dashboard card (`dashboard/_sections/DashboardTodayCard.tsx`)
 

@@ -4,8 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, CheckCircle2, Lightbulb, Sparkles } from "lucide-react";
-import { getJson, postJson } from "@/lib/client-fetch";
-import { submitTodayMutation, isOffline } from "@/lib/offline/today-client";
+import { getJson } from "@/lib/client-fetch";
+import {
+  submitTodayAction,
+  type TodayComprehensionDeliveryResult,
+} from "@/lib/offline/today-client";
 import { Badge, Button, buttonVariants, Card, Inline, Stack } from "@/components/ui";
 
 /** Controlled self-rating answers (mirror COMPREHENSION_SELF_RATINGS). */
@@ -27,12 +30,6 @@ type CheckPayload = {
   alreadySubmitted: boolean;
 };
 
-type SubmitResult = {
-  updated: boolean;
-  mcqCorrect: boolean | null;
-  remediation: { show: boolean; articleHref: string | null };
-};
-
 const FALLBACK_CHECK: CheckPayload = {
   available: true,
   articleId: null,
@@ -48,40 +45,19 @@ export interface TodayComprehensionCheckProps {
   comprehensionComplete: boolean;
   /** True while the session is still active. */
   active: boolean;
-  /** Authenticated user id — used only to key offline Today mutations. */
+  /** Authenticated user id — used only to key Today action delivery. */
   userId: string;
-  /** Learner's local calendar date, "YYYY-MM-DD" (offline mutation anchor). */
+  /** Learner's local calendar date, "YYYY-MM-DD" (action-delivery anchor). */
   localDate: string;
   /** Learner's IANA timezone snapshot for this Today session. */
   timezone: string;
 }
 
-function buildOfflineSubmitPayload(
-  check: CheckPayload | null,
-  selfRating: SelfRating,
-  selectedIndex: number | null,
-) {
-  const hasMcq = check?.question != null;
-  return {
-    selfRating,
-    ...(hasMcq && check?.question?.id ? { questionId: check.question.id } : {}),
-    ...(hasMcq && selectedIndex != null ? { selectedIndex } : {}),
-  };
-}
-
-function buildOnlineSubmitPayload(
-  check: CheckPayload | null,
-  selfRating: SelfRating,
-  selectedIndex: number | null,
-) {
-  return {
-    selfRating,
-    questionId: check?.question?.id,
-    selectedIndex: check?.question ? selectedIndex ?? undefined : undefined,
-  };
-}
-
-function SubmittedComprehensionCard({ result }: { result: SubmitResult }) {
+function SubmittedComprehensionCard({
+  result,
+}: {
+  result: Extract<TodayComprehensionDeliveryResult, { updated: true }>;
+}) {
   return (
     <Card>
       <Stack gap="3">
@@ -131,8 +107,8 @@ function SubmittedComprehensionCard({ result }: { result: SubmitResult }) {
  * back to the article. No learning content is ever stored; only the rating,
  * the question id, and the boolean outcome leave the browser.
  *
- * When offline, the check-in is enqueued in the offline mutation queue (rating /
- * question id / selected index only) and replayed when connectivity returns.
+ * When immediate delivery is unavailable, the check-in is queued with only its
+ * rating / question id / selected index and replayed later.
  */
 export default function TodayComprehensionCheck({
   readingComplete,
@@ -146,10 +122,10 @@ export default function TodayComprehensionCheck({
   const [check, setCheck] = useState<CheckPayload | null>(null);
   const [selfRating, setSelfRating] = useState<SelfRating | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [result, setResult] = useState<SubmitResult | null>(null);
+  const [result, setResult] = useState<TodayComprehensionDeliveryResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [offlineNotice, setOfflineNotice] = useState<string | null>(null);
+  const [queuedNotice, setQueuedNotice] = useState<string | null>(null);
 
   const shouldOffer = readingComplete && !comprehensionComplete && active;
 
@@ -172,24 +148,22 @@ export default function TodayComprehensionCheck({
     if (!selfRating) return;
     setBusy(true);
     setError(null);
-    setOfflineNotice(null);
+    setQueuedNotice(null);
     try {
-      if (isOffline()) {
-        await submitTodayMutation(
-          "today.comprehension",
-          { userId, localDate, timezone },
-          buildOfflineSubmitPayload(check, selfRating, selectedIndex),
-        );
-        setOfflineNotice(
-          "You're offline — your check-in is saved and will sync when you reconnect.",
-        );
+      const outcome = await submitTodayAction(
+        { userId, localDate, timezone },
+        {
+          type: "today.comprehension",
+          selfRating,
+          ...(check?.question?.id ? { questionId: check.question.id } : {}),
+          ...(check?.question && selectedIndex != null ? { selectedIndex } : {}),
+        },
+      );
+      if (outcome.kind === "queued") {
+        setQueuedNotice("Your check-in is saved and will sync automatically.");
         return;
       }
-      const res = await postJson<SubmitResult>(
-        "/api/today/comprehension",
-        buildOnlineSubmitPayload(check, selfRating, selectedIndex),
-      );
-      setResult(res);
+      setResult(outcome.result);
       // Refresh the server-rendered step tracker (comprehension is now done).
       router.refresh();
     } catch {
@@ -278,9 +252,9 @@ export default function TodayComprehensionCheck({
             {error}
           </p>
         ) : null}
-        {offlineNotice ? (
+        {queuedNotice ? (
           <p role="status" className="m-0 text-[length:var(--text-sm)] text-text-muted">
-            {offlineNotice}
+            {queuedNotice}
           </p>
         ) : null}
       </Stack>

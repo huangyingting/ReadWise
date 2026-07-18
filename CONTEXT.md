@@ -49,3 +49,13 @@ _Avoid_: Worker processing, claim-and-run, job runner
 **Public-library URL intake**:
 The lifecycle for accepting a web article URL into the shared library, ending in an ownerless draft or a non-saving outcome.
 _Avoid_: Admin scrape, scrape-and-save
+
+### Today Session
+
+**Today Session action**:
+A controlled learner intent that advances or skips the current learner-local-day workflow without carrying article, question, answer, or word content.
+_Avoid_: Today mutation, step request
+
+**Today action delivery**:
+The client-owned lifecycle for one Today Session action, ending either in immediate delivery with a server result or durable queuing for replay without a server result.
+_Avoid_: Offline Today fetch, Today request helper

@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, CheckCircle2, GraduationCap, SkipForward } from "lucide-react";
-import { postJson } from "@/lib/client-fetch";
-import { submitTodayMutation, isOffline } from "@/lib/offline/today-client";
+import { submitTodayAction } from "@/lib/offline/today-client";
 import { subscribeTodayConflicts } from "@/lib/offline/sync-runtime";
 import {
   Badge,
@@ -28,6 +27,8 @@ const SKIP_REASON_OPTIONS = [
   { value: "too_easy", label: "Too easy" },
   { value: "other", label: "Another reason" },
 ] as const;
+
+type SkipReason = (typeof SKIP_REASON_OPTIONS)[number]["value"];
 
 type StepView = {
   key: keyof TodaySteps;
@@ -161,9 +162,9 @@ export interface TodayWorkflowProps {
   primaryHref: string | null;
   /** Whether the whole day is complete. */
   completed: boolean;
-  /** Authenticated user id — used only to key offline Today mutations. */
+  /** Authenticated user id — used only to key Today action delivery. */
   userId: string;
-  /** Learner's local calendar date, "YYYY-MM-DD" (offline mutation anchor). */
+  /** Learner's local calendar date, "YYYY-MM-DD" (action-delivery anchor). */
   localDate: string;
   /** Learner's IANA timezone snapshot for this Today session. */
   timezone: string;
@@ -175,9 +176,9 @@ export interface TodayWorkflowProps {
  * a controlled skip action. Mutations go through the Today API routes and then
  * refresh the server-rendered view; no learning content is sent or stored.
  *
- * When the device is offline, the skip / mark-read actions are enqueued in the
- * offline mutation queue (privacy-safe: ids/enums/dates only) and replayed when
- * connectivity returns. A replayed action the server already resolved on
+ * When immediate delivery is unavailable, skip / mark-read actions are queued
+ * with privacy-safe ids/enums/dates only and replayed later. A replayed action
+ * the server already resolved on
  * another device surfaces a non-blocking conflict notice — never a data loss.
  */
 export default function TodayWorkflow({
@@ -192,10 +193,10 @@ export default function TodayWorkflow({
 }: TodayWorkflowProps) {
   const router = useRouter();
   const [busy, setBusy] = useState<BusyAction | null>(null);
-  const [skipReason, setSkipReason] = useState<string>(SKIP_REASON_OPTIONS[0].value);
+  const [skipReason, setSkipReason] = useState<SkipReason>(SKIP_REASON_OPTIONS[0].value);
   const [error, setError] = useState<string | null>(null);
   const [skipNotice, setSkipNotice] = useState<string | null>(null);
-  const [offlineNotice, setOfflineNotice] = useState<string | null>(null);
+  const [queuedNotice, setQueuedNotice] = useState<string | null>(null);
   const [conflictNotice, setConflictNotice] = useState<string | null>(null);
 
   // Surface a non-blocking notice when a replayed Today action conflicted with
@@ -208,22 +209,21 @@ export default function TodayWorkflow({
     });
   }, []);
 
-  const mutationContext = { userId, localDate, timezone };
+  const actionContext = { userId, localDate, timezone };
   const stepViews = buildStepViews(steps, primaryHref);
 
   async function markRead() {
     setBusy("read");
     setError(null);
-    setOfflineNotice(null);
+    setQueuedNotice(null);
     try {
-      if (isOffline()) {
-        await submitTodayMutation("today.read-complete", mutationContext);
-        setOfflineNotice(
-          "You're offline — we'll mark today's reading done when you reconnect.",
-        );
+      const outcome = await submitTodayAction(actionContext, {
+        type: "today.read-complete",
+      });
+      if (outcome.kind === "queued") {
+        setQueuedNotice("Today's reading is saved and will sync automatically.");
         return;
       }
-      await postJson("/api/today/read-complete", {});
       router.refresh();
     } catch {
       setError("Couldn't mark today's reading done. Please try again.");
@@ -236,19 +236,17 @@ export default function TodayWorkflow({
     setBusy("skip");
     setError(null);
     setSkipNotice(null);
-    setOfflineNotice(null);
+    setQueuedNotice(null);
     try {
-      if (isOffline()) {
-        await submitTodayMutation("today.skip", mutationContext, { skipReason });
-        setOfflineNotice(
-          "You're offline — your skip is saved and will sync when you reconnect.",
-        );
-        return;
-      }
-      const res = await postJson<{ limitReached: boolean }>("/api/today/skip", {
+      const outcome = await submitTodayAction(actionContext, {
+        type: "today.skip",
         skipReason,
       });
-      if (res.limitReached) {
+      if (outcome.kind === "queued") {
+        setQueuedNotice("Your skip is saved and will sync automatically.");
+        return;
+      }
+      if (outcome.result.limitReached) {
         setSkipNotice("You've already skipped today — browse for something else to read.");
       }
       router.refresh();
@@ -306,7 +304,7 @@ export default function TodayWorkflow({
                 <Select
                   id="today-skip-reason"
                   value={skipReason}
-                  onChange={(e) => setSkipReason(e.target.value)}
+                  onChange={(e) => setSkipReason(e.target.value as SkipReason)}
                   aria-label="Skip reason"
                 >
                   {SKIP_REASON_OPTIONS.map((opt) => (
@@ -332,8 +330,8 @@ export default function TodayWorkflow({
       {skipNotice ? (
         <WorkflowNotice kind="status">{skipNotice}</WorkflowNotice>
       ) : null}
-      {offlineNotice ? (
-        <WorkflowNotice kind="status">{offlineNotice}</WorkflowNotice>
+      {queuedNotice ? (
+        <WorkflowNotice kind="status">{queuedNotice}</WorkflowNotice>
       ) : null}
       {conflictNotice ? (
         <WorkflowNotice kind="status">{conflictNotice}</WorkflowNotice>

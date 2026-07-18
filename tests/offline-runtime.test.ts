@@ -531,6 +531,18 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
   );
   assert.equal(fetches[0].init.body, JSON.stringify({ percent: 42 }));
 
+  const fetchCountBeforeQueue = fetches.length;
+  assert.deepEqual(
+    await runtime.queueMutation({
+      type: "progress",
+      endpoint: "/api/progress",
+      body: { percent: 43 },
+      clientMutationId: "queue-only",
+    }),
+    { sent: false, queued: true },
+  );
+  assert.equal(fetches.length, fetchCountBeforeQueue);
+
   nextStatus = 400;
   assert.deepEqual(
     await runtime.submitMutation({

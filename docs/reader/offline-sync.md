@@ -173,6 +173,19 @@ mints the key; `TODAY_ENDPOINT_BY_TYPE` maps each type to its route. The
 `today.word-review-complete` route is a thin wrapper over the existing
 `markTodayWordReviewComplete` so offline replay has a real endpoint.
 
+### Delivery boundary — `src/lib/offline/today-client.ts`
+
+`submitTodayAction(context, action)` is the sole client entry point for Today
+Session action delivery. Its discriminated action input makes each controlled
+payload shape explicit and maps it to the corresponding typed server result.
+It selects immediate JSON delivery or durable queueing internally, under the
+same deterministic idempotency key.
+
+The returned outcome is `delivered` with a real server result or `queued`
+without one. A transient HTTP/network failure is queued directly after the
+single immediate attempt; the queue fallback does not issue a second request.
+Other `4xx` responses remain `ApiResponseError`s and are not queued.
+
 ### Payload privacy
 
 A Today offline payload may contain **only** these controlled fields
@@ -215,12 +228,13 @@ is added; both `flushQueue` and the Today drain skip `conflict` records.
 
 ### UI — `TodayWorkflow` / `TodayComprehensionCheck`
 
-When `navigator.onLine === false`, the skip / mark-read / comprehension actions
-are enqueued via `submitTodayMutation` (`src/lib/offline/today-client.ts`)
-instead of a direct fetch, and a non-blocking "saved offline, will sync" notice
-is shown. The components subscribe to `subscribeTodayConflicts` and render a
-non-blocking conflict notice when a replayed action conflicted — never a
-blocking error dialog and never data loss.
+The skip / mark-read / comprehension controls call `submitTodayAction` without
+inspecting connectivity or constructing separate online/offline payloads. A
+`queued` outcome produces a non-blocking "saved for sync" notice; a
+`delivered` outcome supplies the typed result needed by the control. The
+components subscribe to `subscribeTodayConflicts` and render a non-blocking
+conflict notice when a replayed action conflicted — never a blocking error
+dialog and never data loss.
 
 ---
 
@@ -331,6 +345,9 @@ runner, so the **pure** logic is unit-tested directly:
 
 - `tests/offline-sync.test.ts` — queue ordering, status classification, backoff,
   permanent-failure detection, `flushQueue` happy/retry/drop paths.
+- `tests/today-action-delivery.test.ts` — the Today action interface, typed
+  immediate results, privacy-safe offline payloads, single-attempt transient
+  fallback, and permanent-error propagation.
 - `tests/offline-conflict.test.ts` — progress forward-only, last-write-wins,
   anchor revalidation (valid/moved/missing + whitespace reflow), note merge
   preserves both texts.
