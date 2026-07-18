@@ -9,7 +9,7 @@
  * evaluated INSIDE the transaction for strict atomicity.
  */
 
-import { prepareOwnedArticleMediaAssetRetirement } from "@/lib/media";
+import { removeAccount } from "@/lib/account-lifecycle/account-removal";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
@@ -122,56 +122,25 @@ export async function deleteMember(
   id: string,
   audit?: AuditFactory<DeleteMemberSuccess>,
 ): Promise<DeleteMemberResult> {
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: { id: true, role: true },
+  const result = await removeAccount(id, {
+    audit: audit
+      ? (removedAccount) =>
+          audit(
+            deleteMemberSuccess(
+              removedAccount.role,
+              removedAccount.ownedArticleCount,
+            ),
+          )
+      : undefined,
+    mediaRetirementOperation: "member-delete",
   });
-  if (!user) {
+
+  if (!result.ok && result.reason === "not-found") {
     return notFound();
   }
-
-  // Article.owner now uses onDelete: Cascade, so deleting the user also deletes
-  // their private imports at the database layer. Private content cannot survive
-  // as ownerless public rows.
-  //
-  // The last-admin guard is re-evaluated INSIDE the transaction so two
-  // concurrent admin deletions can never both pass the guard and leave the
-  // system without an admin.
-  //
-  // Cascade deletes on the user: accounts, sessions, profile, reading progress,
-  // saved words, etc. — all onDelete: Cascade.
-  //
-  // 711-D: Collect object-storage keys for private-article MediaAssets BEFORE
-  // the cascade so bytes can be purged from object storage after the DB delete.
-  const mediaRetirement = await prepareOwnedArticleMediaAssetRetirement(id);
-
-  let ownedArticleCount = 0;
-  try {
-    await prisma.$transaction(async (tx) => {
-      if (user.role === "Admin") {
-        const admins = await tx.user.count({ where: { role: "Admin" } });
-        if (admins <= 1) {
-          throw new AdminGuardError(LAST_ADMIN_DELETE_MESSAGE, 409);
-        }
-      }
-      ownedArticleCount = await tx.article.count({ where: { ownerId: id } });
-      await tx.user.delete({ where: { id } });
-      if (audit) {
-        await recordAuditFromRequest(
-          audit(deleteMemberSuccess(user.role, ownedArticleCount)),
-          tx,
-        );
-      }
-    });
-  } catch (e) {
-    const guardConflict = adminGuardConflict(e);
-    if (guardConflict) return guardConflict;
-    throw e;
+  if (!result.ok) {
+    return conflict(LAST_ADMIN_DELETE_MESSAGE);
   }
 
-  // Best-effort object-storage purge — do not fail the deletion if storage is
-  // down or unconfigured.
-  await mediaRetirement.retire("member-delete");
-
-  return deleteMemberSuccess(user.role, ownedArticleCount);
+  return deleteMemberSuccess(result.role, result.ownedArticleCount);
 }

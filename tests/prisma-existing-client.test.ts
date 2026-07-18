@@ -12,7 +12,6 @@ test("prisma reuses an existing non-production global client", async () => {
   const existingPrisma = { existing: true };
   const result = await importPrismaModule({
     nodeEnv: "test",
-    postgres: false,
     existingPrisma,
   });
 

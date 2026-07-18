@@ -6,60 +6,29 @@
  *
  * @server-only — Must never be imported from a "use client" file.
  */
-import { dirname, isAbsolute, join } from "node:path";
+import { isAbsolute, join } from "node:path";
+import {
+  databaseProviderFromUrl as classifyDatabaseProvider,
+  databaseUrlForPrismaAdapter as normalizeDatabaseUrlForPrismaAdapter,
+  inspectDatabaseSchemaPairing,
+  POSTGRES_PRISMA_SCHEMA_PATH,
+  prismaSchemaProviderFromPath as classifyPrismaSchema,
+  SQLITE_PRISMA_SCHEMA_PATH,
+} from "@/lib/database-provider-policy.mjs";
 import { envValue, positiveIntEnv, type ConfigIssue } from "./env";
-import { hasPostgresUrlPrefix } from "@/lib/db-utils";
 
-export const SQLITE_PRISMA_SCHEMA_PATH = "prisma/schema.prisma";
-export const POSTGRES_PRISMA_SCHEMA_PATH = "prisma/postgresql/schema.prisma";
+export { POSTGRES_PRISMA_SCHEMA_PATH, SQLITE_PRISMA_SCHEMA_PATH };
 
 const DEFAULT_PRISMA_SCHEMA_PATH = SQLITE_PRISMA_SCHEMA_PATH;
-const DATABASE_SCHEMA_MISMATCH_CODE = "database_prisma_schema_mismatch";
-const UNKNOWN_PRISMA_SCHEMA_PATH_CODE = "unknown_prisma_schema_path";
 const DB_QUERY_TIMING_DISABLED_VALUES = new Set(["0", "false", "off", "no"]);
 const DEFAULT_DB_SLOW_QUERY_THRESHOLD_MS = 250;
-
-type DatabaseProvider = "sqlite" | "postgresql";
-type SchemaProvider = DatabaseProvider | "unknown";
 
 function resolveFromCwd(path: string): string {
   return isAbsolute(path) ? path : join(process.cwd(), path);
 }
 
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, "/").replace(/\/+$/, "");
-}
-
-export function databaseProviderFromUrl(databaseUrl: string | null = envValue("DATABASE_URL")): DatabaseProvider | null {
-  if (!databaseUrl) return null;
-  if (databaseUrl.startsWith("file:")) return "sqlite";
-  if (hasPostgresUrlPrefix(databaseUrl)) {
-    return "postgresql";
-  }
-  return null;
-}
-
-function splitSqliteFileUrl(databaseUrl: string): { pathPart: string; suffix: string } {
-  const value = databaseUrl.slice("file:".length);
-  const suffixStart = value.search(/[?#]/);
-  if (suffixStart < 0) return { pathPart: value, suffix: "" };
-  return {
-    pathPart: value.slice(0, suffixStart),
-    suffix: value.slice(suffixStart),
-  };
-}
-
-function isAbsoluteSqlitePath(pathPart: string): boolean {
-  return (
-    pathPart.startsWith("/") ||
-    pathPart.startsWith("\\") ||
-    pathPart.startsWith("//") ||
-    /^[a-zA-Z]:[\\/]/.test(pathPart)
-  );
-}
-
-function normalizeResolvedSqlitePath(path: string): string {
-  return path.replace(/\\/g, "/");
+export function databaseProviderFromUrl(databaseUrl: string | null = envValue("DATABASE_URL")) {
+  return classifyDatabaseProvider(databaseUrl);
 }
 
 /**
@@ -71,31 +40,15 @@ function normalizeResolvedSqlitePath(path: string): string {
  * which can accidentally create/use a root-level `dev.db`.
  */
 export function databaseUrlForPrismaAdapter(databaseUrl: string): string {
-  if (!databaseUrl.startsWith("file:")) return databaseUrl;
-
-  const { pathPart, suffix } = splitSqliteFileUrl(databaseUrl);
-  if (
-    pathPart.length === 0 ||
-    pathPart === ":memory:" ||
-    suffix.toLowerCase().includes("mode=memory") ||
-    isAbsoluteSqlitePath(pathPart)
-  ) {
-    return databaseUrl;
-  }
-
-  const schemaDir = dirname(prismaSchemaPath());
-  return `file:${normalizeResolvedSqlitePath(join(schemaDir, pathPart))}${suffix}`;
+  return normalizeDatabaseUrlForPrismaAdapter(
+    databaseUrl,
+    configuredPrismaSchemaPath(),
+    process.cwd(),
+  );
 }
 
-export function prismaSchemaProviderFromPath(schemaPath = configuredPrismaSchemaPath()): SchemaProvider {
-  const normalized = normalizePath(schemaPath);
-  if (normalized === SQLITE_PRISMA_SCHEMA_PATH || normalized.endsWith(`/${SQLITE_PRISMA_SCHEMA_PATH}`)) {
-    return "sqlite";
-  }
-  if (normalized === POSTGRES_PRISMA_SCHEMA_PATH || normalized.endsWith(`/${POSTGRES_PRISMA_SCHEMA_PATH}`)) {
-    return "postgresql";
-  }
-  return "unknown";
+export function prismaSchemaProviderFromPath(schemaPath = configuredPrismaSchemaPath()) {
+  return classifyPrismaSchema(schemaPath);
 }
 
 export function configuredPrismaSchemaPath(): string {
@@ -124,42 +77,18 @@ export function dbSlowQueryThresholdMs(): number {
   return positiveIntEnv("DB_SLOW_QUERY_THRESHOLD_MS", DEFAULT_DB_SLOW_QUERY_THRESHOLD_MS);
 }
 
-function schemaPathForProvider(provider: DatabaseProvider): string {
-  return provider === "postgresql" ? POSTGRES_PRISMA_SCHEMA_PATH : SQLITE_PRISMA_SCHEMA_PATH;
-}
-
-function providerLabel(provider: DatabaseProvider): string {
-  return provider === "postgresql" ? "PostgreSQL" : "SQLite";
-}
-
 export function prismaSchemaMismatchIssue(): ConfigIssue | null {
-  const databaseProvider = databaseProviderFromUrl();
-  if (!databaseProvider) return null;
+  const pairing = inspectDatabaseSchemaPairing(
+    envValue("DATABASE_URL"),
+    configuredPrismaSchemaPath(),
+  );
+  if (pairing.ok || pairing.code === "invalid_database_url") return null;
 
-  const schemaPath = configuredPrismaSchemaPath();
-  const schemaProvider = prismaSchemaProviderFromPath(schemaPath);
-  if (schemaProvider === databaseProvider) return null;
-
-  if (schemaProvider === "unknown") {
-    return {
-      severity: "error",
-      code: UNKNOWN_PRISMA_SCHEMA_PATH_CODE,
-      message:
-        `PRISMA_SCHEMA_PATH must be ${SQLITE_PRISMA_SCHEMA_PATH} for SQLite or ` +
-        `${POSTGRES_PRISMA_SCHEMA_PATH} for PostgreSQL; the configured path is not recognized.`,
-      env: ["PRISMA_SCHEMA_PATH"],
-    };
-  }
-
-  const expectedPath = schemaPathForProvider(databaseProvider);
   return {
     severity: "error",
-    code: DATABASE_SCHEMA_MISMATCH_CODE,
-    message:
-      `DATABASE_URL targets ${providerLabel(databaseProvider)}, but PRISMA_SCHEMA_PATH selects the ` +
-      `${providerLabel(schemaProvider)} Prisma schema. Set PRISMA_SCHEMA_PATH=${expectedPath} ` +
-      `or use a ${providerLabel(schemaProvider)} DATABASE_URL.`,
-    env: ["DATABASE_URL", "PRISMA_SCHEMA_PATH"],
+    code: pairing.code,
+    message: pairing.message,
+    env: pairing.env,
   };
 }
 

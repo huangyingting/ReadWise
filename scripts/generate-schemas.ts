@@ -17,46 +17,16 @@
  *   this generator's output and that SQLite/PostgreSQL migration directory
  *   names remain aligned.
  */
-import { readFile, writeFile } from "node:fs/promises";
 import { runScript, isMain } from "./lib/cli";
+import { generateSchemas } from "./lib/schema-governance";
 
-const BASE_SCHEMA = "prisma/base.prisma";
-const SQLITE_SCHEMA = "prisma/schema.prisma";
-const POSTGRES_SCHEMA = "prisma/postgresql/schema.prisma";
-
-const PLACEHOLDER = '{{PROVIDER}}';
-
-const OUTPUT_SCHEMAS = [
-  { path: SQLITE_SCHEMA, provider: "sqlite", label: "SQLite" },
-  { path: POSTGRES_SCHEMA, provider: "postgresql", label: "PostgreSQL" },
-] as const;
-
-export function renderSchema(base: string, provider: string): string {
-  return base.replace(PLACEHOLDER, provider);
-}
-
-export async function generateSchemas(): Promise<void> {
-  const base = await readFile(BASE_SCHEMA, "utf8");
-
-  if (!base.includes(PLACEHOLDER)) {
-    throw new Error(
-      `${BASE_SCHEMA} must contain the placeholder '${PLACEHOLDER}' in the datasource provider field.`,
-    );
-  }
-
-  await Promise.all(
-    OUTPUT_SCHEMAS.map(({ path, provider }) =>
-      writeFile(path, renderSchema(base, provider), "utf8"),
-    ),
-  );
-
-  for (const { path, label } of OUTPUT_SCHEMAS) {
-    console.log(`✔ Generated ${path} (${label})`);
-  }
-}
+export { generateSchemas } from "./lib/schema-governance";
 
 export async function main() {
-  await generateSchemas();
+  const generatedSchemas = await generateSchemas();
+  for (const { path, label } of generatedSchemas) {
+    console.log(`✔ Generated ${path} (${label})`);
+  }
   console.log("\n✔ Schema generation complete.");
   console.log(
     "  Run 'git diff -- prisma/schema.prisma prisma/postgresql/schema.prisma' to confirm no drift.",

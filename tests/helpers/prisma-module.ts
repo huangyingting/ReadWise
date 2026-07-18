@@ -24,7 +24,6 @@ type MutableProcessEnv = Omit<NodeJS.ProcessEnv, MutableEnvKey> & {
 type PrismaImportOptions = {
   databaseUrl?: string;
   nodeEnv: string;
-  postgres: boolean;
   existingPrisma?: unknown;
   prismaSchemaPath?: string;
   dbQueryTimingEnabled?: string;
@@ -106,14 +105,6 @@ export async function importPrismaModule(options: PrismaImportOptions) {
   mock.module("@prisma/client", {
     namedExports: { PrismaClient: FakePrismaClient },
   });
-  mock.module("@/lib/db-utils", {
-    namedExports: {
-      isPostgresDatabase: () => options.postgres,
-      hasPostgresUrlPrefix: (url: string) =>
-        url.startsWith("postgresql://") || url.startsWith("postgres://"),
-    },
-  });
-
   importCounter += 1;
   const prismaModule = await import(`${prismaModuleUrl}?testImport=${importCounter}`);
   return {

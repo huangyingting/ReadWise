@@ -8,7 +8,6 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
-import { isPostgresDatabase } from "@/lib/db-utils";
 import {
   assertProductionPrismaSchemaMatchesDatabase,
   databaseProviderFromUrl,
@@ -23,6 +22,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 const databaseUrl = databaseUrlForPrismaAdapter(process.env.DATABASE_URL ?? "file:./dev.db");
+const databaseProvider = databaseProviderFromUrl(databaseUrl);
 const prismaLogLevels: Array<"error" | "warn"> =
   process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"];
 
@@ -50,13 +50,13 @@ function createSqlitePrismaClient(databaseUrl: string): PrismaClient {
 function createPrismaClient(): PrismaClient {
   assertProductionPrismaSchemaMatchesDatabase();
 
-  const client = isPostgresDatabase()
+  const client = databaseProvider === "postgresql"
     ? createPostgresPrismaClient(databaseUrl)
     : createSqlitePrismaClient(databaseUrl);
 
   return instrumentPrismaClient(client, {
     enabled: dbQueryTimingEnabled(),
-    provider: databaseProviderFromUrl(databaseUrl) ?? "unknown",
+    provider: databaseProvider ?? "unknown",
     slowThresholdMs: dbSlowQueryThresholdMs(),
   });
 }

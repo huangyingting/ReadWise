@@ -10,7 +10,7 @@ afterEach(() => {
 
 test("prisma surfaces invalid postgres URLs during client initialization", async () => {
   await assert.rejects(
-    () => importPrismaModule({ databaseUrl: "not a url", nodeEnv: "test", postgres: true }),
+    () => importPrismaModule({ databaseUrl: "postgresql://[", nodeEnv: "test" }),
     TypeError,
   );
 });

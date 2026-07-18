@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 test("prisma initializes the default sqlite client and caches it outside production", async () => {
-  const result = await importPrismaModule({ nodeEnv: "test", postgres: false });
+  const result = await importPrismaModule({ nodeEnv: "test" });
 
   assert.deepEqual(result.sqliteAdapters, [
     { url: `file:${path.join(process.cwd(), "prisma/dev.db").replace(/\\/g, "/")}` },
@@ -28,7 +28,7 @@ test("prisma initializes the default sqlite client and caches it outside product
 
 test("prisma instruments raw query helpers with content-free db metrics", async () => {
   resetMetrics();
-  const result = await importPrismaModule({ nodeEnv: "test", postgres: false });
+  const result = await importPrismaModule({ nodeEnv: "test" });
   const client = result.prisma as { $queryRaw: (...args: unknown[]) => Promise<unknown> };
 
   await client.$queryRaw(["SELECT 1"]);
@@ -48,7 +48,6 @@ test("prisma instruments raw query helpers with content-free db metrics", async 
 test("prisma skips query timing extension when disabled", async () => {
   const result = await importPrismaModule({
     nodeEnv: "test",
-    postgres: false,
     dbQueryTimingEnabled: "false",
   });
 

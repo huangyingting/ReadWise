@@ -13,6 +13,7 @@ import {
   type ConfigIssue,
   type RuntimeConfigReport,
 } from "./env";
+import { isSupportedDatabaseUrl } from "@/lib/database-provider-policy.mjs";
 import { isValidVapidSubject } from "./push";
 import { prismaSchemaMismatchIssue } from "./database";
 import { azureStorageConfig } from "./storage";
@@ -65,18 +66,6 @@ const AZURE_STORAGE_ENV = [
   "AZURE_STORAGE_KEY",
   "AZURE_STORAGE_CONTAINER",
 ];
-
-function isValidDatabaseUrl(value: string): boolean {
-  if (value.startsWith("file:")) {
-    return value.length > "file:".length;
-  }
-  try {
-    const { protocol } = new URL(value);
-    return protocol === "postgresql:" || protocol === "postgres:";
-  } catch {
-    return false;
-  }
-}
 
 function evaluateTuning(): ConfigCheckReport {
   const issues: ConfigIssue[] = [];
@@ -212,7 +201,7 @@ function evaluateStorage(): ConfigCheckReport {
 function validateRuntimeSections() {
   const database = evaluateRequired(["DATABASE_URL"], [
     (values) =>
-      isValidDatabaseUrl(values.DATABASE_URL)
+      isSupportedDatabaseUrl(values.DATABASE_URL)
         ? null
         : issue("error", "invalid_database_url", "DATABASE_URL must be a SQLite file: URL or PostgreSQL URL.", [
             "DATABASE_URL",

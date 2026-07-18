@@ -11,6 +11,7 @@ before(() => {
   mock.module("node:fs/promises", {
     namedExports: {
       readFile: async () => baseSchema,
+      readdir: async () => [],
       writeFile: async (path: string, content: string) => {
         writes.push({ path, content: String(content) });
       },
@@ -21,12 +22,6 @@ before(() => {
 beforeEach(() => {
   baseSchema = 'datasource db {\n  provider = "{{PROVIDER}}"\n}\n';
   writes = [];
-});
-
-test("generate-schemas renderSchema swaps provider placeholder", async () => {
-  const { renderSchema } = await import("../scripts/generate-schemas");
-  assert.equal(renderSchema('provider = "{{PROVIDER}}"', "sqlite"), 'provider = "sqlite"');
-  assert.equal(renderSchema('provider = "{{PROVIDER}}"', "postgresql"), 'provider = "postgresql"');
 });
 
 test("generate-schemas writes SQLite and PostgreSQL outputs", async () => {

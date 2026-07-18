@@ -13,7 +13,6 @@ test("prisma includes warn logs for development sqlite clients", async () => {
   const result = await importPrismaModule({
     databaseUrl: "file:./local-dev.db",
     nodeEnv: "development",
-    postgres: false,
   });
 
   assert.deepEqual(result.sqliteAdapters, [

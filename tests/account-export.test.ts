@@ -231,6 +231,7 @@ before(() => {
           count: async () => stubAdminCount,
           delete: async () => ({}),
         },
+        article: { count: async () => 0 },
         auditLog: { create: async () => ({ id: "audit-1" }) },
       };
       return fn(tx);
