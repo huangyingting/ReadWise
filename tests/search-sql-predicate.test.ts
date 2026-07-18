@@ -1,40 +1,39 @@
 /**
- * Regression tests for the raw SQL readable-article predicate used in
- * PostgreSQL FTS (`buildReadableArticleSqlPredicate`, fulltext.ts).
+ * Regression tests for the raw SQL adapter of the canonical readable-article
+ * policy used by PostgreSQL FTS.
  *
- * This function is a manual mirror of `readableArticleWhere` (article-library
- * policy) for the `$queryRaw` path. These tests lock down the three policy
- * cases so a divergence from `readableArticleWhere` fails loudly here.
- *
- * See Phase 3 migration follow-up note in fulltext.ts (issue #687).
+ * These tests lock down SQL rendering and parameter binding for the same policy
+ * expression consumed by `canReadArticle` and `readableArticleWhere`.
  */
 process.env.LOG_LEVEL = "error";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Prisma } from "@prisma/client";
-import { buildReadableArticleSqlPredicate } from "@/lib/search/fulltext";
-import type { ArticleAccessContext } from "@/lib/article-library";
+import {
+  readableArticleSqlPredicate,
+  type ArticleAccessContext,
+} from "@/lib/article-library/policy";
 
 // Prisma.Sql carries the raw SQL template string (with `?` placeholders) and
 // the bound values array. We inspect those to verify predicate correctness.
 
 test("anonymous context → public-listable-only predicate (no user branch)", () => {
-  const sql = buildReadableArticleSqlPredicate(null);
+  const sql = readableArticleSqlPredicate(null);
   const text = sql.sql;
-  assert.ok(text.includes("published"), "must require published status");
-  assert.ok(text.includes("PUBLIC"), "must require PUBLIC visibility");
+  assert.ok(text.includes("a.status"), "must require published status");
+  assert.ok(text.includes("a.visibility"), "must require PUBLIC visibility");
+  assert.ok(text.includes('::"ArticleStatus"'), "must cast the mapped status value");
+  assert.ok(text.includes('::"ArticleVisibility"'), "must cast the visibility value");
   assert.ok(text.includes('"ownerId" IS NULL'), "must exclude owned articles from anonymous public branch");
-  assert.ok(!text.includes("PRIVATE"), "must not include private branch for anonymous");
-  assert.deepEqual(sql.values, [], "no bound values for anonymous");
+  assert.deepEqual(sql.values, ["published", "PUBLIC"]);
 });
 
 test("admin/system context → TRUE (unrestricted)", () => {
   const adminCtx: ArticleAccessContext = { role: "Admin" };
   const sysCtx: ArticleAccessContext = { role: "System" };
 
-  const adminSql = buildReadableArticleSqlPredicate(adminCtx);
-  const sysSql = buildReadableArticleSqlPredicate(sysCtx);
+  const adminSql = readableArticleSqlPredicate(adminCtx);
+  const sysSql = readableArticleSqlPredicate(sysCtx);
 
   assert.equal(adminSql.sql.trim(), "TRUE", "Admin → TRUE");
   assert.equal(sysSql.sql.trim(), "TRUE", "System → TRUE");
@@ -44,62 +43,78 @@ test("admin/system context → TRUE (unrestricted)", () => {
 
 test("authenticated user context → public-listable OR owned-private predicate", () => {
   const userCtx: ArticleAccessContext = { userId: "user-abc", role: "Reader" };
-  const sql = buildReadableArticleSqlPredicate(userCtx);
+  const sql = readableArticleSqlPredicate(userCtx);
   const text = sql.sql;
 
   assert.ok(text.includes("OR"), "must have OR branch for user context");
-  assert.ok(text.includes("published"), "OR branch must include public-listable status");
-  assert.ok(text.includes("PUBLIC"), "OR branch must include PUBLIC visibility");
-  assert.ok(text.includes("PRIVATE"), "OR branch must include PRIVATE visibility for user's own");
+  assert.ok(text.includes("a.status"), "OR branch must include public-listable status");
+  assert.ok(text.includes("a.visibility"), "OR branch must include visibility checks");
   assert.ok(text.includes("ownerId"), "must scope the PRIVATE branch to the user's ownerId");
-  // The userId must be a bound parameter, not inlined, to prevent SQL injection.
-  assert.deepEqual(sql.values, ["user-abc"], "userId must be a bound parameter");
+  assert.deepEqual(
+    sql.values,
+    ["published", "PUBLIC", "PRIVATE", "user-abc"],
+    "policy values, including userId, must be bound parameters",
+  );
 });
 
 test("user context with no userId falls back to anonymous predicate", () => {
   const noIdCtx: ArticleAccessContext = { role: "Reader" };
-  const sql = buildReadableArticleSqlPredicate(noIdCtx);
+  const sql = readableArticleSqlPredicate(noIdCtx);
   const text = sql.sql;
 
-  // No userId → treated as anonymous, same as readableArticleWhere with no userId.
   assert.ok(text.includes('"ownerId" IS NULL'), "no userId → public branch still excludes owned articles");
-  assert.ok(!text.includes("PRIVATE"), "no userId → no private owner branch");
-  assert.deepEqual(sql.values, []);
+  assert.deepEqual(sql.values, ["published", "PUBLIC"]);
 });
 
-test("predicate mirrors readableArticleWhere for the three policy cases", async () => {
-  // This test imports the Prisma-side readableArticleWhere and checks that the
-  // SQL predicate produces structurally consistent coverage for the same cases:
-  // anonymous → public-listable, user → readable (public OR own), admin → all.
-  const { readableArticleWhere, isArticleOperator } = await import("@/lib/article-library");
+test("organization-only context adds the matching organization branch", () => {
+  const sql = readableArticleSqlPredicate({ role: "Reader", tenantId: "org-legacy" });
+
+  assert.ok(sql.sql.includes("OR"));
+  assert.ok(sql.sql.includes('a."organizationId"'));
+  assert.deepEqual(sql.values, [
+    "published",
+    "PUBLIC",
+    "published",
+    "ORG",
+    "org-legacy",
+  ]);
+});
+
+test("SQL and Prisma adapters cover the same policy branches", async () => {
+  const { readableArticleWhere, isArticleOperator } = await import("@/lib/article-library/policy");
 
   const anonWhere = readableArticleWhere(null);
-  const anonSql = buildReadableArticleSqlPredicate(null);
+  const anonSql = readableArticleSqlPredicate(null);
 
-  // Anonymous: Prisma where uses publicListableArticleWhere; SQL is public-only
   assert.ok(!("OR" in anonWhere), "anon Prisma where has no OR");
   assert.ok(!anonSql.sql.includes("OR"), "anon SQL has no OR");
   assert.ok(anonSql.sql.includes('"organizationId" IS NULL'), "anon SQL excludes org-owned articles from public branch");
 
   const userCtx: ArticleAccessContext = { userId: "u-1", role: "Reader" };
   const userWhere = readableArticleWhere(userCtx);
-  const userSql = buildReadableArticleSqlPredicate(userCtx);
+  const userSql = readableArticleSqlPredicate(userCtx);
 
-  // User: both should have OR (public-listable OR owned-private)
   assert.ok("OR" in userWhere, "user Prisma where has OR");
   assert.ok(userSql.sql.includes("OR"), "user SQL has OR");
 
   const orgCtx: ArticleAccessContext = { userId: "u-1", role: "Reader", orgId: "org-1" };
   const orgWhere = readableArticleWhere(orgCtx);
-  const orgSql = buildReadableArticleSqlPredicate(orgCtx);
+  const orgSql = readableArticleSqlPredicate(orgCtx);
 
   assert.ok("OR" in orgWhere, "org Prisma where has OR");
-  assert.ok(orgSql.sql.includes("visibility = 'ORG'"), "org SQL has tenant branch");
+  assert.deepEqual(orgSql.values, [
+    "published",
+    "PUBLIC",
+    "PRIVATE",
+    "u-1",
+    "published",
+    "ORG",
+    "org-1",
+  ]);
 
   const adminCtx: ArticleAccessContext = { role: "Admin" };
-  // Admin: Prisma where is empty (no filter), SQL is TRUE
   assert.ok(!isArticleOperator(null), "null is not operator");
   assert.ok(isArticleOperator(adminCtx), "Admin is operator");
-  const adminSql = buildReadableArticleSqlPredicate(adminCtx);
+  const adminSql = readableArticleSqlPredicate(adminCtx);
   assert.equal(adminSql.sql.trim(), "TRUE");
 });

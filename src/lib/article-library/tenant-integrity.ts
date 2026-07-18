@@ -1,5 +1,4 @@
 import {
-  ArticleStatus,
   ArticleVisibility,
   type Article,
   type Prisma,
@@ -71,18 +70,6 @@ export function isOrganizationScopedArticle(
   article: Pick<Article, "visibility" | "organizationId">,
 ): boolean {
   return article.visibility === ArticleVisibility.ORG || article.organizationId !== null;
-}
-
-export function orgScopedArticleWhere(
-  orgId: string,
-  extra?: Prisma.ArticleWhereInput,
-): Prisma.ArticleWhereInput {
-  return {
-    ...(extra ?? {}),
-    visibility: ArticleVisibility.ORG,
-    status: ArticleStatus.PUBLISHED,
-    organizationId: orgId,
-  };
 }
 
 export function articleOrganizationIntegrityIssues(
