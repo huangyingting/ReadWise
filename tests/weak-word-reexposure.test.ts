@@ -328,7 +328,6 @@ test("privacy: Today view-model exposes reviewsSavedWords flag + count, no word 
 
   const vm = buildTodayViewModel(
     makeSession({ targetSavedWordIds: ["sw-aaa", "sw-bbb"], reviewTargetCount: 2 }),
-    "UTC",
     displays("a1"),
   );
 
@@ -340,7 +339,7 @@ test("privacy: Today view-model exposes reviewsSavedWords flag + count, no word 
   const json = JSON.stringify(vm);
   assert.ok(!json.includes("sw-aaa") && !json.includes("sw-bbb"));
 
-  const none = buildTodayViewModel(makeSession(), "UTC", displays("a1"));
+  const none = buildTodayViewModel(makeSession(), displays("a1"));
   assert.equal(none.reviewsSavedWords, false);
   assert.equal(none.savedWordCount, 0);
 });

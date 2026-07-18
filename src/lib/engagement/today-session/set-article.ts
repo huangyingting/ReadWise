@@ -33,7 +33,6 @@ import {
 } from "@/lib/article-library";
 import { getOrCreateTodaySession } from "./generator";
 import { updateTodaySession } from "./repository";
-import { resolveLocalDate } from "./local-date";
 import { emitTodayArticleSelected } from "./analytics";
 import type { TodaySessionView } from "./types";
 
@@ -134,18 +133,11 @@ export async function setTodayPrimaryArticle(args: {
     articleId: args.articleId,
   });
 
-  const { localDate, timezone } = await resolveLocalDate({
-    userId,
-    requestTimezone: args.requestTimezone,
-    now,
-  });
-
   // Ensure a stable session exists for the day (created on demand on first
   // contact, exactly like skip/read-complete).
   const session = await getOrCreateTodaySession({
     userId,
-    localDate,
-    timezoneSnapshot: timezone,
+    requestTimezone: args.requestTimezone,
     now,
   });
 
@@ -164,7 +156,7 @@ export async function setTodayPrimaryArticle(args: {
   const replacedId = session.primaryArticleId;
   const nextBackupIds = backupIdsAfterPrimarySwap(session, article.id);
 
-  const updated = await updateTodaySession(userId, localDate, {
+  const updated = await updateTodaySession(userId, session.localDate, {
     primaryArticleId: article.id,
     source: "user_selected",
     backupArticleIds: nextBackupIds,

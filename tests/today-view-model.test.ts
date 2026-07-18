@@ -62,7 +62,7 @@ const displays = (primaryId: string | null, backupIds: string[] = []): TodayArti
 });
 
 test("fresh picks day → start CTA, reading available, no word review", () => {
-  const vm = buildTodayViewModel(makeSession(), "UTC", displays("a1", ["b1"]));
+  const vm = buildTodayViewModel(makeSession(), displays("a1", ["b1"]));
   assert.equal(vm.cta.kind, "start");
   assert.equal(vm.cta.href, "/reader/a1");
   assert.equal(vm.steps.reading.state, "available");
@@ -73,10 +73,22 @@ test("fresh picks day → start CTA, reading available, no word review", () => {
   assert.equal(vm.isNoCandidate, false);
 });
 
+test("daily scope comes from the stable session anchor", () => {
+  const vm = buildTodayViewModel(
+    makeSession({
+      localDate: "2026-07-19",
+      timezoneSnapshot: "Asia/Tokyo",
+    }),
+    displays("a1"),
+  );
+
+  assert.equal(vm.localDate, "2026-07-19");
+  assert.equal(vm.timezone, "Asia/Tokyo");
+});
+
 test("resume day → continue CTA", () => {
   const vm = buildTodayViewModel(
     makeSession({ source: "resume", generationReasonCode: "resume_in_progress" }),
-    "UTC",
     displays("a1"),
   );
   assert.equal(vm.cta.kind, "continue");
@@ -85,7 +97,6 @@ test("resume day → continue CTA", () => {
 test("with target words → word review step available and counted", () => {
   const vm = buildTodayViewModel(
     makeSession({ targetSavedWordIds: ["w1", "w2", "w3"], reviewTargetCount: 3 }),
-    "UTC",
     displays("a1"),
   );
   assert.equal(vm.steps.wordReview.state, "available");
@@ -97,7 +108,6 @@ test("with target words → word review step available and counted", () => {
 test("reading complete advances progress and keeps continue CTA", () => {
   const vm = buildTodayViewModel(
     makeSession({ readingCompletedAt: new Date("2026-06-27T01:00:00Z"), completionTier: "reading" }),
-    "UTC",
     displays("a1"),
   );
   assert.equal(vm.steps.reading.state, "complete");
@@ -114,7 +124,6 @@ test("completed day → completed CTA", () => {
       comprehensionCompletedAt: new Date(),
       completedAt: new Date("2026-06-27T02:00:00Z"),
     }),
-    "UTC",
     displays("a1"),
   );
   assert.equal(vm.cta.kind, "completed");
@@ -124,7 +133,6 @@ test("completed day → completed CTA", () => {
 test("skipped day → browse CTA", () => {
   const vm = buildTodayViewModel(
     makeSession({ status: "skipped", skipped: true, skipReason: "too_busy" }),
-    "UTC",
     displays("a1"),
   );
   assert.equal(vm.cta.kind, "browse");
@@ -134,7 +142,6 @@ test("skipped day → browse CTA", () => {
 test("no-candidate day → browse CTA + isNoCandidate", () => {
   const vm = buildTodayViewModel(
     makeSession({ primaryArticleId: null, backupArticleIds: [], source: "none", generationReasonCode: "no_candidate" }),
-    "UTC",
     displays(null),
   );
   assert.equal(vm.cta.kind, "browse");
@@ -143,14 +150,14 @@ test("no-candidate day → browse CTA + isNoCandidate", () => {
 });
 
 test("primary id present but unreadable → browse CTA, primaryReadable false", () => {
-  const vm = buildTodayViewModel(makeSession({ primaryArticleId: "a1" }), "UTC", displays(null, ["b1"]));
+  const vm = buildTodayViewModel(makeSession({ primaryArticleId: "a1" }), displays(null, ["b1"]));
   assert.equal(vm.hasPrimary, true);
   assert.equal(vm.primaryReadable, false);
   assert.equal(vm.cta.kind, "browse");
 });
 
 test("payload carries only safe display fields (no content)", () => {
-  const vm = buildTodayViewModel(makeSession(), "UTC", displays("a1", ["b1"]));
+  const vm = buildTodayViewModel(makeSession(), displays("a1", ["b1"]));
   const json = JSON.stringify(vm);
   for (const forbidden of ["content", "explanation", "contextSentence", "definition", "prompt"]) {
     assert.ok(!json.includes(forbidden), `payload must not contain ${forbidden}`);

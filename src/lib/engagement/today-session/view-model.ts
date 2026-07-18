@@ -21,7 +21,6 @@ import {
   type ListingArticle,
 } from "@/lib/article-library";
 import { getOrCreateTodaySession } from "./generator";
-import { resolveLocalDate } from "./local-date";
 import { emitTodaySessionViewed } from "./analytics";
 import { getProfile } from "@/lib/profile";
 import { isGoalPath, type GoalPath } from "@/lib/learning/goal-path";
@@ -218,7 +217,6 @@ function buildCta(
  */
 export function buildTodayViewModel(
   session: TodaySessionView,
-  timezone: string,
   displays: TodayArticleDisplays,
   goalPath: GoalPath | null = null,
 ): TodayViewModel {
@@ -229,7 +227,7 @@ export function buildTodayViewModel(
 
   return {
     localDate: session.localDate,
-    timezone,
+    timezone: session.timezoneSnapshot,
     status: session.status,
     source: session.source,
     completionTier: session.completionTier,
@@ -302,16 +300,9 @@ export async function loadTodayViewModel(args: {
   now?: Date;
 }): Promise<TodayViewModel> {
   const now = args.now ?? new Date();
-  const { localDate, timezone } = await resolveLocalDate({
-    userId: args.user.id,
-    requestTimezone: args.requestTimezone,
-    now,
-  });
-
   const session = await getOrCreateTodaySession({
     userId: args.user.id,
-    localDate,
-    timezoneSnapshot: timezone,
+    requestTimezone: args.requestTimezone,
     now,
   });
 
@@ -343,7 +334,6 @@ export async function loadTodayViewModel(args: {
 
   return buildTodayViewModel(
     session,
-    timezone,
     {
       primary,
       backups: readableBackups,
