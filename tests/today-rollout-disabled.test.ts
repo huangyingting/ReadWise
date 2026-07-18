@@ -28,6 +28,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, afterEach, mock, describe } from "node:test";
 import assert from "node:assert/strict";
+import { ApiError } from "@/lib/errors/api-error";
 import { type RouteHandler, jsonPost } from "./support/route";
 import { type AuthState, sessionAuthExports } from "./support/auth-mock";
 
@@ -171,6 +172,25 @@ before(() => {
       loadTodayViewModel: async () => {
         todayViewModelCalls += 1;
         return TODAY_VM_SENTINEL;
+      },
+    },
+  });
+  mock.module("@/lib/engagement/today-session/actions", {
+    namedExports: {
+      enforceTodayGate: () => {
+        if (process.env[FLAG] === "false") {
+          throw new ApiError(404, "Not found");
+        }
+      },
+      markTodayReadingCompleteManual: async () => {
+        if (!sessionRow || sessionRow.skipped || !sessionRow.primaryArticleId) {
+          return null;
+        }
+        Object.assign(sessionRow, {
+          readingCompletedAt: sessionRow.readingCompletedAt ?? new Date(),
+          completionTier: "reading",
+        });
+        return { ...sessionRow };
       },
     },
   });

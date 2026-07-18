@@ -196,8 +196,10 @@ read/completion time.
 
 Today wires **existing** learning facts into step completion — it is **not** the
 source of truth for those facts. The pure tier engine and the marker commands
-live in `today-session/completion.ts`; the public functions are re-exported from
-the barrel.
+live in `today-session/completion.ts`. Reader and Study report completed work
+through the stable `today-session/integrations.ts` interface; learner-owned
+Today routes use `today-session/actions.ts`. Callers do not import the completion
+implementation directly.
 
 ### Tiers (best-available)
 
@@ -304,7 +306,11 @@ for the `TodaySession` row in the deletion/retention matrix.
 
 ```
 src/lib/engagement/today-session/
-  types.ts        — controlled values, validators, public types (pure)
+  index.ts        — root read interface: view model and comprehension check
+  contracts.ts    — client-safe shared types
+  actions.ts      — controlled learner intents for Today route adapters
+  integrations.ts — completion hooks for facts owned by Reader and Study
+  types.ts        — controlled values and validators (pure implementation)
   local-date.ts   — timezone → YYYY-MM-DD resolution (@server-only)
   repository.ts   — user-scoped get/create/update + view mapping (@server-only)
   target-words.ts — privacy-safe SavedWord id selection (@server-only)
@@ -313,8 +319,13 @@ src/lib/engagement/today-session/
   comprehension.ts — lightweight self-check + controlled feedback row (@server-only)
   skip.ts         — terminal day-skip transition + 1/day limit (@server-only)
   view-model.ts   — privacy-safe Today view model + loader (@server-only)
-  index.ts        — stable public barrel
 ```
+
+The root exports only `loadTodayViewModel()` and
+`loadTodayComprehensionCheck()` (plus their result types). Route handlers import
+controlled writes from `actions.ts`, Reader/Study integrations import completion
+hooks from `integrations.ts`, and client components import types from
+`contracts.ts`. The remaining files are private implementation modules.
 
 Repository helpers always scope by the authenticated `userId` passed by the
 caller and never accept a user id from a request body. Server-only modules are

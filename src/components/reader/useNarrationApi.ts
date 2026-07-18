@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postJson } from "@/lib/client-fetch";
 import { base64ToBlobUrl, revokeBlobUrl } from "@/lib/media-blob";
-import type { SpeechWord } from "@/lib/speech";
+import type { SpeechWord } from "@/lib/speech/timing";
 
 const DEFAULT_AUDIO_MIME_TYPE = "audio/mpeg";
 

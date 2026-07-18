@@ -16,8 +16,8 @@ import {
   createSpeechTimingPayloadV2,
   legacySpeechWordsToTimingPayloadV1,
   legacySpeechWordsToTimingPayloadV2,
-  type SpeechWord,
-} from "@/lib/speech/timing";
+} from "@/lib/speech/timing-storage";
+import type { SpeechWord } from "@/lib/speech/timing";
 
 // ── Shared fixture ────────────────────────────────────────────────────────────
 

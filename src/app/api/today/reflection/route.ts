@@ -3,7 +3,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString } from "@/lib/validation";
 import { recordTodayReflection } from "@/lib/learning/review-assets";
 import { HIGHLIGHT_NOTE_MAX } from "@/lib/annotations/anchor";
-import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
+import { enforceTodayGate } from "@/lib/engagement/today-session/actions";
 
 /**
  * POST /api/today/reflection

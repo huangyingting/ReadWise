@@ -7,8 +7,9 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 type ModuleConfig = {
-  name: "speech" | "push" | "jobs";
+  name: "speech" | "push" | "jobs" | "today-session";
   alias: string;
+  relativeDir: string;
   dir: string;
   expectedExports: string[];
   forbiddenExports: string[];
@@ -23,30 +24,12 @@ const MODULES: ModuleConfig[] = [
   {
     name: "speech",
     alias: "@/lib/speech",
+    relativeDir: "src/lib/speech",
     dir: resolve(ROOT_DIR, "src/lib/speech"),
     expectedExports: [
-      "SPEECH_BOUNDARY_PATTERN",
-      "WORD_PATTERN",
-      "buildTokenAlignment",
-      "createAlphanumericKey",
-      "createComparableKey",
-      "createSpeechBoundaryRegex",
-      "createSpeechTimingPayloadV1",
-      "createSpeechTimingPayloadV2",
-      "createWordRegex",
-      "extractSpeechBoundaryTokens",
-      "extractTextTokens",
-      "findSpeechSentenceRange",
       "getArticleSpeechAudio",
       "getOrCreateArticleSpeech",
       "isSpeechConfigured",
-      "legacySpeechWordsToTimingPayloadV1",
-      "legacySpeechWordsToTimingPayloadV2",
-      "parseSpeechTimingPayload",
-      "segmentSpeechPractice",
-      "splitPracticeSentences",
-      "timingEndSeconds",
-      "timingStartSeconds",
     ],
     forbiddenExports: ["synthesize", "resolveMimeType", "saveSpeechResult", "resolveStoredSpeechMedia"],
     privateInternalImports: ["@/lib/speech/provider-azure", "@/lib/speech/repository"],
@@ -54,6 +37,7 @@ const MODULES: ModuleConfig[] = [
   {
     name: "push",
     alias: "@/lib/push",
+    relativeDir: "src/lib/push",
     dir: resolve(ROOT_DIR, "src/lib/push"),
     expectedExports: [
       "isPushConfigured",
@@ -79,6 +63,7 @@ const MODULES: ModuleConfig[] = [
   {
     name: "jobs",
     alias: "@/lib/jobs",
+    relativeDir: "src/lib/jobs",
     dir: resolve(ROOT_DIR, "src/lib/jobs"),
     expectedExports: [
       "ACTIVE_STATUSES",
@@ -127,6 +112,37 @@ const MODULES: ModuleConfig[] = [
       "listAdminJobs",
     ],
     privateInternalImports: ["@/lib/jobs/claim-generic", "@/lib/jobs/claim-postgres"],
+  },
+  {
+    name: "today-session",
+    alias: "@/lib/engagement/today-session",
+    relativeDir: "src/lib/engagement/today-session",
+    dir: resolve(ROOT_DIR, "src/lib/engagement/today-session"),
+    expectedExports: ["loadTodayComprehensionCheck", "loadTodayViewModel"],
+    forbiddenExports: [
+      "buildTodayPlan",
+      "createTodaySession",
+      "emitTodaySessionViewed",
+      "getOrCreateTodaySession",
+      "getTodaySession",
+      "recomputeTodayCompletion",
+      "selectTargetWordIds",
+      "updateTodaySession",
+    ],
+    privateInternalImports: [
+      "@/lib/engagement/today-session/analytics",
+      "@/lib/engagement/today-session/completion",
+      "@/lib/engagement/today-session/comprehension",
+      "@/lib/engagement/today-session/feature-gate",
+      "@/lib/engagement/today-session/generator",
+      "@/lib/engagement/today-session/local-date",
+      "@/lib/engagement/today-session/repository",
+      "@/lib/engagement/today-session/set-article",
+      "@/lib/engagement/today-session/skip",
+      "@/lib/engagement/today-session/target-words",
+      "@/lib/engagement/today-session/types",
+      "@/lib/engagement/today-session/view-model",
+    ],
   },
 ];
 
@@ -186,7 +202,7 @@ function resolveModuleImport(importer: string, specifier: string, config: Module
   for (const candidate of candidates) {
     try {
       const rel = relPath(candidate);
-      if (rel.startsWith(`src/lib/${config.name}/`)) {
+      if (rel.startsWith(`${config.relativeDir}/`)) {
         readFileSync(candidate, "utf8");
         return rel;
       }
@@ -229,7 +245,7 @@ function detectCycles(graph: Map<string, string[]>): string[][] {
 }
 
 for (const config of MODULES) {
-  test(`${config.name} barrel exports only the public service API`, async () => {
+  test(`${config.name} barrel exports only the public module interface`, async () => {
     const mod = await import(config.alias);
     assert.deepEqual(Object.keys(mod).sort(), [...config.expectedExports].sort());
     for (const forbidden of config.forbiddenExports) {
@@ -248,7 +264,7 @@ for (const config of MODULES) {
     for (const file of files) {
       const rel = relPath(file);
       const imports = parseModuleSpecifiers(readFileSync(file, "utf8"));
-      if (rel !== `src/lib/${config.name}/index.ts`) {
+      if (rel !== `${config.relativeDir}/index.ts`) {
         for (const specifier of imports) {
           if ([...BARREL_SUFFIXES].some((suffix) => specifier === `${config.alias}${suffix}`)) {
             barrelBackImports.push(`${rel} -> ${specifier}`);
@@ -278,7 +294,7 @@ for (const config of MODULES) {
     const violations: string[] = [];
     for (const file of walkFiles(SRC_DIR)) {
       const rel = relPath(file);
-      if (rel.startsWith(`src/lib/${config.name}/`)) continue;
+      if (rel.startsWith(`${config.relativeDir}/`)) continue;
       const imports = parseModuleSpecifiers(readFileSync(file, "utf8"));
       for (const specifier of imports) {
         if (config.privateInternalImports.includes(specifier)) {

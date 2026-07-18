@@ -234,6 +234,32 @@ before(() => {
       },
     },
   });
+
+  mock.module("@/lib/engagement/today-session/actions", {
+    namedExports: {
+      COMPREHENSION_SELF_RATINGS: ["confident", "partial", "confused"],
+      COMPREHENSION_SKILL_TAGS: [
+        "main_idea",
+        "detail",
+        "inference",
+        "vocabulary_in_context",
+      ],
+      enforceTodayGate: () => undefined,
+      submitTodayComprehension: async (args: unknown) => {
+        const { submitTodayComprehension } = await importLib();
+        return submitTodayComprehension(args as never);
+      },
+    },
+  });
+
+  mock.module("@/lib/engagement/today-session", {
+    namedExports: {
+      loadTodayComprehensionCheck: async (args: unknown) => {
+        const { loadTodayComprehensionCheck } = await importLib();
+        return loadTodayComprehensionCheck(args as never);
+      },
+    },
+  });
 });
 
 beforeEach(resetMockState);

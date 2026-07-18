@@ -27,43 +27,8 @@ import {
 
 const log = createLogger("speech");
 
-// ── Barrel re-exports ────────────────────────────────────────────────────────
-// Keep @/lib/speech as the single external entry for all speech subsystem APIs.
-export type {
-  WordTiming,
-  SpeechWord,
-  SpeechTimingPayload,
-  SpeechTimingPayloadV1,
-  SpeechTimingPayloadV2,
-  SpeechTimingProvider,
-  ParsedSpeechTimingPayload,
-  TextToken,
-  ComparableToken,
-} from "./timing";
-export {
-  WORD_PATTERN,
-  SPEECH_BOUNDARY_PATTERN,
-  createWordRegex,
-  createSpeechBoundaryRegex,
-  createComparableKey,
-  createAlphanumericKey,
-  extractTextTokens,
-  extractSpeechBoundaryTokens,
-  timingStartSeconds,
-  timingEndSeconds,
-  createSpeechTimingPayloadV1,
-  createSpeechTimingPayloadV2,
-  legacySpeechWordsToTimingPayloadV1,
-  legacySpeechWordsToTimingPayloadV2,
-  parseSpeechTimingPayload,
-} from "./timing";
-export { buildTokenAlignment } from "./timing-alignment";
-export type { PracticeSentenceOptions, SpeechPracticeSegment } from "./practice";
-export {
-  splitPracticeSentences,
-  findSpeechSentenceRange,
-  segmentSpeechPractice,
-} from "./practice";
+// Narration delivery is the public root interface. Runtime timing, alignment,
+// practice, and migration tooling use their explicit public modules.
 export { getArticleSpeechAudio } from "./repository";
 
 export type SpeechResult = {

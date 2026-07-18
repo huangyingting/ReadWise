@@ -10,7 +10,7 @@ import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { quizAttemptBody, type QuizAttemptBody } from "@/lib/reader/schemas";
-import { markTodayComprehensionComplete } from "@/lib/engagement/today-session/completion";
+import { markTodayComprehensionComplete } from "@/lib/engagement/today-session/integrations";
 
 type QuizAttemptResult = Awaited<ReturnType<typeof recordQuizAttempt>>;
 type QuizAttemptRecord = QuizAttemptResult["attempt"];

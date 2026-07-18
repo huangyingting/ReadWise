@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { getMediaStorage, mediaStorageKind } from "@/lib/storage";
+import { buildTokenAlignment } from "@/lib/speech/timing-alignment";
 import {
-  buildTokenAlignment,
   extractSpeechBoundaryTokens,
-  parseSpeechTimingPayload,
   type ComparableToken,
-} from "@/lib/speech";
+} from "@/lib/speech/timing";
+import { parseSpeechTimingPayload } from "@/lib/speech/timing-storage";
 import { runCli, isMain, addUniqueFromCsv, warnUnknown } from "./lib/cli";
 
 type SpeechTimingLike = {

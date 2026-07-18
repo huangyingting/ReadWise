@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
+import type { SpeechWord } from "./timing";
 import {
   createSpeechTimingPayloadV2,
   legacySpeechWordsToTimingPayloadV1,
@@ -7,8 +8,7 @@ import {
   parseSpeechTimingPayload,
   type SpeechTimingPayloadV2,
   type SpeechTimingProvider,
-  type SpeechWord,
-} from "./timing";
+} from "./timing-storage";
 import { enrichSpeechTimingSpans } from "./timing-enrichment";
 import {
   prepareNarrationText,

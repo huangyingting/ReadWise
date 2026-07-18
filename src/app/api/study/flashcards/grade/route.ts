@@ -4,7 +4,7 @@ import { gradeFlashcard, getReviewSummary } from "@/lib/learning/flashcards";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { flashcardGradeBody } from "@/lib/study/schemas";
 import { bestEffortMastery } from "@/lib/learning/primitives";
-import { markTodayWordReviewComplete } from "@/lib/engagement/today-session/completion";
+import { markTodayWordReviewComplete } from "@/lib/engagement/today-session/integrations";
 
 /**
  * POST /api/study/flashcards/grade

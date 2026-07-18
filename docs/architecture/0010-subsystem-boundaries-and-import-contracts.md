@@ -47,7 +47,7 @@ The contract is intentionally pragmatic:
 - treat security, privacy, configuration, provider, and client/server safety
   boundaries as the highest-risk contracts;
 - keep business-domain cleanup incremental and tied to touched code;
-- prefer local public APIs and barrels over deep imports;
+- prefer small, intent-focused public interfaces over aggregate export barrels;
 - document exceptions explicitly rather than hiding them in comments.
 
 ## Agreed principles
@@ -64,6 +64,12 @@ pure primitives should remain lightweight.
 External callers should import a subsystem through its public entry point or an
 explicitly documented public submodule. Deep imports into provider, registry,
 runner, store, internal, or redaction modules are private by default.
+
+A root entry point is not required to aggregate every supported use case.
+Explicit public submodules are preferred when callers have distinct intents or
+runtime constraints. This keeps client-safe contracts, server actions,
+cross-domain integrations, storage formats, and delivery APIs from becoming one
+eagerly evaluated dependency surface.
 
 ### 3. Security, privacy, and configuration boundaries harden first
 
@@ -130,6 +136,11 @@ External code should prefer stable subsystem entry points, for example:
 - `@/lib/jobs` / documented Operations APIs
 - `@/lib/org`, `@/lib/classroom`, `@/lib/account-lifecycle`, and `@/lib/rbac`
   as public modules under the Access & Tenancy boundary.
+- `@/lib/engagement/today-session` for Today reads, with documented
+  `actions`, `integrations`, and `contracts` submodules for their distinct
+  callers.
+- `@/lib/speech` for Narration delivery, with documented `timing`,
+  `timing-storage`, `timing-alignment`, and `practice` submodules.
 
 Some documented submodules can remain public when they are intentionally stable,
 such as prompt registry or schema modules. Public submodules must be called out
@@ -259,8 +270,11 @@ Design-system drift is enforced separately by
 import boundary.
 
 Business-domain boundaries are enforced by documented ownership, public APIs,
-tests, and code review. They should be tightened when relevant code is touched,
-without repository-wide churn for its own sake.
+tests, and code review. `tests/optional-provider-boundaries.test.ts` additionally
+locks the exact value exports, private implementation imports, and cycle-free
+internals for governed modules including Speech and Today Session. Boundaries
+should be tightened when relevant code is touched, without repository-wide
+churn for its own sake.
 
 ## Review checklist
 
