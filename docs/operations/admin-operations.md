@@ -286,6 +286,11 @@ and emits metadata-only JSON: area, retention window, matched count, and deleted
 count. It never reads or logs prompts, article text, selected text, definitions,
 translations, tokens, cookies, or credentials.
 
+`JOB_TERMINAL_RETENTION_DAYS` sets the default window for completed and
+dead-letter jobs (90 days when unset). `--jobs-days` overrides that value for
+one maintenance run. Retention remains opt-in: the application does not invoke
+`pruneTerminalJobs` automatically.
+
 ### Per-user analytics/AI ledger erasure
 
 Account deletion cascades user-owned FK rows, but `AnalyticsEvent` and

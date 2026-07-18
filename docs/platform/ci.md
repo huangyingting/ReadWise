@@ -1,8 +1,8 @@
 ---
 type: "testing"
 status: "current"
-last_updated: "2026-07-10"
-description: "Documents CI quality gates, native coverage, test tiers, UI audit sharding/artifacts, generated-doc drift checks, and release-readiness automation."
+last_updated: "2026-07-18"
+description: "Documents CI quality gates, native coverage, test tiers, isolated Playwright configuration, UI audit sharding/artifacts, generated-doc drift checks, and release-readiness automation."
 ---
 
 # Continuous Integration & release readiness
@@ -101,6 +101,23 @@ npm run test:e2e:ui-audit:full -- --shard=2/4
 npm run test:e2e:ui-audit:full -- --shard=3/4
 npm run test:e2e:ui-audit:full -- --shard=4/4
 ```
+
+### Local Playwright environment
+
+Playwright starts an isolated Next.js server and database rather than reusing
+the normal development process. The relevant optional settings are:
+
+| Variable | Default / behavior |
+| --- | --- |
+| `PLAYWRIGHT_BASE_URL` | `http://127.0.0.1:3100`; controls both the Playwright origin and the web-server host/port. |
+| `PLAYWRIGHT_DATABASE_URL` | `file:./e2e.db`; guarded as a destructive test database and passed to the Playwright web server as `DATABASE_URL`. |
+| `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | Optional absolute Chromium path. When the configured or local cached path does not exist, Playwright uses its normal browser resolution. |
+| `NEXT_DIST_DIR` | Optional Next.js build-output directory for ordinary runs. The Playwright web server forces `.next-e2e` so it can run alongside `npm run dev` without sharing `.next/dev/lock`. |
+| `PLAYWRIGHT_VISUAL_REGRESSION` | Set to `1` to opt into `e2e/visual-regression.spec.ts`; otherwise that suite is skipped. |
+| `UI_AUDIT_ARTIFACT_DIR`, `UI_AUDIT_RUN_ID` | Override the UI audit output directory and run identifier; absent run ids are timestamped locally. |
+
+Keep `PLAYWRIGHT_DATABASE_URL` isolated from development and production data.
+The safety guard rejects an unsafe target before destructive fixture setup.
 
 ### UI audit artifacts
 
