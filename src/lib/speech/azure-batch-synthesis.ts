@@ -6,12 +6,16 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { ArticleVisibility, type ArticleStatus, type Prisma } from "@prisma/client";
-import { articleHtmlToReaderBlocks } from "@/lib/content-pipeline";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_SPEECH_VOICE } from "@/lib/runtime-config/speech";
 import { saveSpeechResult } from "@/lib/speech/repository";
 import { enrichSpeechTimingSpans } from "@/lib/speech/timing-enrichment";
 import type { SpeechWord } from "@/lib/speech/timing";
+import {
+  batchNarrationTextBasis,
+  prepareNarrationText,
+  type NarrationTextBasis,
+} from "@/lib/speech/text-basis";
 import { isObjectStorageConfigured } from "@/lib/storage";
 
 const execFileAsync = promisify(execFile);
@@ -51,6 +55,7 @@ type AzureBatchInput = {
   article: AzureBatchArticle;
   content: string;
   plainText: string;
+  textBasis: NarrationTextBasis;
   voiceSummary: string;
   billableChars: number;
 };
@@ -204,26 +209,6 @@ function attr(
     : ` ${name}="${xmlEscape(String(value))}"`;
 }
 
-function capParagraphs(
-  paragraphs: string[],
-  maxChars: number | null,
-): string[] {
-  if (!maxChars) return paragraphs;
-  const capped: string[] = [];
-  let remaining = maxChars;
-  for (const paragraph of paragraphs) {
-    if (remaining <= 0) break;
-    if (paragraph.length <= remaining) {
-      capped.push(paragraph);
-      remaining -= paragraph.length;
-      continue;
-    }
-    capped.push(paragraph.slice(0, remaining).trim());
-    break;
-  }
-  return capped.filter(Boolean);
-}
-
 function withSentenceBreaks(
   text: string,
   breakMs: number | null,
@@ -306,8 +291,9 @@ function buildSsml(
 ): AzureBatchInput {
   const voices = selectedVoices(options, configuredVoice);
   const voiceMode = effectiveVoiceMode(options, voices);
-  const readerText = articleHtmlToReaderBlocks(article.content);
-  const paragraphs = capParagraphs(readerText.blocks, options.maxChars);
+  const textBasis = batchNarrationTextBasis(options.maxChars);
+  const readerText = prepareNarrationText(article.content, textBasis);
+  const paragraphs = readerText.blocks;
   const voice = selectArticleVoice(voices, voiceMode, articleIndex);
   const voiceBlocks = paragraphs.map((paragraph, index) => {
     const text = wrapExpressAs(
@@ -324,11 +310,12 @@ function buildSsml(
     `xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">` +
     voiceBlocks.join("") +
     `</speak>`;
-  const plainText = options.maxChars ? paragraphs.join(" ") : readerText.plainText;
+  const { plainText } = readerText;
   return {
     article,
     content,
     plainText,
+    textBasis,
     voiceSummary: `${voiceMode}:${voice}`,
     billableChars: plainText.length,
   };
@@ -647,6 +634,7 @@ async function persistJobResults(
         voice: input.voiceSummary,
         provider: "azure-batch",
         words,
+        textBasis: input.textBasis,
       });
       if (!savedResult) {
         logger.warn(

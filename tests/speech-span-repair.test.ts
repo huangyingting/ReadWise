@@ -258,6 +258,34 @@ describe("repairSpeechTimingSpans", () => {
     assert.deepEqual(stored.textEnd, [5, 11]);
   });
 
+  test("repair uses the stored Narration text basis instead of full Reader text", async () => {
+    const { repairSpeechTimingSpans } = await import("@/lib/speech/timing-migration");
+
+    rows = [
+      {
+        id: "row1",
+        articleId: "a1",
+        words: {
+          version: 2,
+          provider: "azure",
+          timeUnit: "ms",
+          textUnit: "utf16",
+          textBasis: { kind: "character-limit", maxChars: 5 },
+          words: ["Second"],
+          startMs: [0],
+          endMs: [0],
+        },
+        plainText: "First Second",
+      },
+    ];
+
+    const result = await repairSpeechTimingSpans({ dryRun: false });
+
+    assert.equal(result.repaired, 0);
+    assert.equal(result.skippedAlignment, 1);
+    assert.equal(updates.length, 0);
+  });
+
   test("idempotent: skips rows that already have valid spans", async () => {
     const { repairSpeechTimingSpans } = await import("@/lib/speech/timing-migration");
 

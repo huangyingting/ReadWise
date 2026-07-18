@@ -16,6 +16,10 @@ _Avoid_: Reader popover, overlay, floating panel
 Synthesized speech audio and word timings attached to an article for reader playback.
 _Avoid_: Speech cache, TTS output, audio track
 
+**Narration text basis**:
+The exact Reader text scope synthesized for a Narration and used to index its word timings.
+_Avoid_: TTS input, speech text, cached plain text
+
 **Reader text**:
 The canonical plain-text form of an article used as the basis for narration and word highlighting.
 _Avoid_: Stripped HTML, article plain text

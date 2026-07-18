@@ -616,6 +616,8 @@ describe("Azure Batch synthesis remote and persistence behavior", () => {
       "1",
       "--timeout-ms",
       "2000",
+      "--max-chars",
+      "11",
     ]);
 
     assert.deepEqual(result, { selected: 2, submitted: 1, persisted: 1 });
@@ -628,6 +630,7 @@ describe("Azure Batch synthesis remote and persistence behavior", () => {
       audio: Buffer;
       mimeType: string;
       provider: string;
+      textBasis?: unknown;
       words: Array<{
         word: string;
         startMs: number;
@@ -639,6 +642,7 @@ describe("Azure Batch synthesis remote and persistence behavior", () => {
     assert.equal(saved.audio.toString(), "audio-one");
     assert.equal(saved.mimeType, "audio/mpeg");
     assert.equal(saved.provider, "azure-batch");
+    assert.deepEqual(saved.textBasis, { kind: "paragraph-limit", maxChars: 11 });
     assert.deepEqual(saved.words, [
       { word: "Hello", startMs: 0, endMs: 10, textStart: 0, textEnd: 5 },
       { word: "world", startMs: 20, endMs: 25, textStart: 6, textEnd: 11 },

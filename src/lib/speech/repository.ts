@@ -17,6 +17,7 @@ import {
   type SpeechTimingProvider,
   type SpeechWord,
 } from "./timing";
+import type { NarrationTextBasis } from "./text-basis";
 
 const log = createLogger("speech");
 
@@ -144,9 +145,18 @@ export async function saveSpeechResult(params: {
   voice: string;
   provider?: SpeechTimingProvider | string;
   words: SpeechWord[];
+  textBasis?: NarrationTextBasis;
 }): Promise<boolean> {
-  const { articleId, audio, mimeType, voice, provider = "azure", words } = params;
-  const timingPayload = createSpeechTimingPayloadV2(provider, words);
+  const {
+    articleId,
+    audio,
+    mimeType,
+    voice,
+    provider = "azure",
+    words,
+    textBasis,
+  } = params;
+  const timingPayload = createSpeechTimingPayloadV2(provider, words, textBasis);
 
   const storage = getMediaStorage();
   if (!storage) {

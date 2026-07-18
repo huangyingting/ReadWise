@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { createLogger } from "@/lib/observability/logger";
 import {
   createSpeechTimingPayloadV2,
@@ -11,6 +10,10 @@ import {
   type SpeechWord,
 } from "./timing";
 import { enrichSpeechTimingSpans } from "./timing-enrichment";
+import {
+  prepareNarrationText,
+  resolveStoredNarrationTextBasis,
+} from "./text-basis";
 
 const log = createLogger("speech");
 const DEFAULT_TIMING_PROVIDER = "azure";
@@ -231,13 +234,6 @@ export async function repairSpeechTimingSpans(
       continue;
     }
 
-    const plainText = articleHtmlToReaderText(row.article.content);
-    if (!plainText) {
-      skippedNoPlainText += 1;
-      log.warn("speech.span_repair_no_plain_text", { articleId: row.articleId });
-      continue;
-    }
-
     const parsed = parseSpeechTimingPayload(row.words);
     if (!parsed) {
       skippedAlignment += 1;
@@ -245,8 +241,20 @@ export async function repairSpeechTimingSpans(
       continue;
     }
 
+    const basis = resolveStoredNarrationTextBasis(parsed.textBasis, parsed.provider);
+    const plainText = prepareNarrationText(row.article.content, basis).plainText;
+    if (!plainText) {
+      skippedNoPlainText += 1;
+      log.warn("speech.span_repair_no_plain_text", { articleId: row.articleId });
+      continue;
+    }
+
     const enriched = enrichSpeechTimingSpans(parsed.words, plainText);
-    const newPayload = createSpeechTimingPayloadV2(v2.provider ?? "azure", enriched);
+    const newPayload = createSpeechTimingPayloadV2(
+      v2.provider ?? "azure",
+      enriched,
+      parsed.textBasis,
+    );
 
     if (v2MissingSpans(newPayload)) {
       skippedAlignment += 1;
