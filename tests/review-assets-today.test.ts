@@ -77,7 +77,7 @@ const displays = (primaryId: string | null): TodayArticleDisplays => ({
 // ---------------------------------------------------------------------------
 
 test("reflection bonus is not offered until reading is complete", () => {
-  const vm = buildTodayViewModel(makeSession(), "UTC", displays("a1"));
+  const vm = buildTodayViewModel(makeSession(), displays("a1"));
   assert.equal(vm.reflectionBonus.available, false);
   assert.equal(vm.reflectionBonus.label, TODAY_REFLECTION_PROMPT);
 });
@@ -85,7 +85,6 @@ test("reflection bonus is not offered until reading is complete", () => {
 test("reflection bonus is offered once reading is complete", () => {
   const vm = buildTodayViewModel(
     makeSession({ readingCompletedAt: new Date("2026-06-27T01:00:00Z") }),
-    "UTC",
     displays("a1"),
   );
   assert.equal(vm.reflectionBonus.available, true);
@@ -100,7 +99,7 @@ test("reflection bonus does NOT change progress, steps, cta, or status", () => {
     comprehensionCompletedAt: new Date("2026-06-27T02:00:00Z"),
     completedAt: new Date("2026-06-27T02:00:00Z"),
   });
-  const vm = buildTodayViewModel(completed, "UTC", displays("a1"));
+  const vm = buildTodayViewModel(completed, displays("a1"));
 
   // The session is already complete regardless of any reflection.
   assert.equal(vm.status, "completed");

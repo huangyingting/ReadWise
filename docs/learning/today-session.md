@@ -126,7 +126,10 @@ as `timezoneSnapshot` so the day's anchor is auditable after the fact.
 or returns the day's session. It is **idempotent on `(userId, localDate)`**.
 
 1. **Resolve the day** — if `localDate`/`timezoneSnapshot` are not supplied,
-   derive them via `resolveLocalDate`.
+  derive them via `resolveLocalDate`. Today commands and loaders normally pass
+  user/request context only, then consume `localDate` and `timezoneSnapshot`
+  from the returned stable session instead of resolving and threading a second
+  copy of the daily scope.
 2. **Return existing** — if a row already exists for `(userId, localDate)`, it is
    returned unchanged. No regeneration, no reshuffling.
 3. **Build the plan** (`buildTodayPlan`):
@@ -325,12 +328,17 @@ target-word review state, per-step states (`reading` / `comprehension` /
 state. It also exposes a privacy-safe weak-word re-exposure explanation (#808):
 `reviewsSavedWords` (true when the day re-exposes saved words) plus
 `savedWordCount` — a flag and COUNT only, so the UI can say "reviews words you
-saved" without any word text reaching the payload. `loadTodayViewModel()` is the
-server loader: it resolves the learner's
-local day, calls `getOrCreateTodaySession`, and hydrates article ids to safe
+saved" without any word text reaching the payload. The builder takes daily
+scope from the session's stable `localDate` / `timezoneSnapshot` anchors; its
+interface does not accept a separately resolved timezone. `loadTodayViewModel()`
+is the server loader: it delegates learner-local-day resolution to
+`getOrCreateTodaySession` and hydrates article ids to safe
 `ListingArticle` cards via `getReadableArticleById` (revalidating ids against
 Article Library access rules). The payload carries **display fields only** — no
 article body, word text, definitions, prompts, or notes.
+`tests/today-view-model-loader.test.ts` exercises this loader interface with
+session-access and Article Library adapters, including inaccessible-backup
+filtering and content-free article selects.
 
 ### API routes (`src/app/api/today/`)
 

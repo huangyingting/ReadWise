@@ -26,7 +26,6 @@
 
 import { getOrCreateTodaySession } from "./generator";
 import { updateTodaySession } from "./repository";
-import { resolveLocalDate } from "./local-date";
 import { assertControlledValue, TODAY_SKIP_REASONS } from "./types";
 import { emitTodaySkip } from "./analytics";
 import type { TodaySkipReason, TodaySessionView } from "./types";
@@ -103,16 +102,9 @@ export async function skipTodaySession(args: {
     "skipReason",
   );
 
-  const { localDate, timezone } = await resolveLocalDate({
-    userId: args.userId,
-    requestTimezone: args.requestTimezone,
-    now,
-  });
-
   const session = await getOrCreateTodaySession({
     userId: args.userId,
-    localDate,
-    timezoneSnapshot: timezone,
+    requestTimezone: args.requestTimezone,
     now,
   });
 
@@ -126,7 +118,7 @@ export async function skipTodaySession(args: {
   // duplicating an id already present in the stable backup list.
   const nextBackupIds = backupIdsWithDismissedPrimary(session);
 
-  const updated = await updateTodaySession(args.userId, localDate, {
+  const updated = await updateTodaySession(args.userId, session.localDate, {
     status: "skipped",
     skipped: true,
     skipReason,
