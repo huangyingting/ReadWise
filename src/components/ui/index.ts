@@ -44,6 +44,8 @@ export { Popover, type PopoverProps } from "./Popover";
 export {
   useFloatingPosition,
   type FloatingAnchor,
+  type FloatingCssLength,
+  type FloatingPositionSafeArea,
   type FloatingPositionOptions,
 } from "./useFloatingPosition";
 export {

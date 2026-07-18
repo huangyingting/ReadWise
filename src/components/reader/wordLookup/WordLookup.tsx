@@ -336,7 +336,7 @@ export default function WordLookup({
     };
   }, [openSurface, surface]);
 
-  // Outside-click / Escape
+  // Outside-click dismissal; ReaderFloatingSurface owns Escape.
   useEffect(() => {
     if (!openSurface) return;
     const onDown = (e: MouseEvent) => {
@@ -351,19 +351,9 @@ export default function WordLookup({
       ])) return;
       closeAll();
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        closeAllAndFocusProse();
-      }
-    };
     document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [openSurface, closeAllAndFocusProse, closeAll]);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [openSurface, closeAll]);
 
   // Toolbar: create highlight — delegates overlap merge to useHighlightActions
   const handleHighlightAction = useCallback(async () => {

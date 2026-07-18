@@ -5,7 +5,6 @@ import {
   computeFloatingLayout,
   type FloatingAlign,
   type FloatingPlacement,
-  type FloatingSafeArea,
   type FloatingViewport,
 } from "./floating-layout";
 
@@ -17,13 +16,27 @@ export type FloatingAnchor =
   | FloatingPoint
   | RefObject<HTMLElement | null>;
 
+export type FloatingCssLength = {
+  cssVariable: `--${string}`;
+  fallback?: number;
+};
+
+type FloatingPositionLength = number | FloatingCssLength;
+
+export type FloatingPositionSafeArea = {
+  top?: FloatingPositionLength;
+  right?: FloatingPositionLength;
+  bottom?: FloatingPositionLength;
+  left?: FloatingPositionLength;
+};
+
 export type FloatingPositionOptions = {
   active?: boolean;
   placement: FloatingPlacement;
   align?: FloatingAlign;
   gap?: number;
   viewportPadding?: number;
-  safeArea?: FloatingSafeArea;
+  safeArea?: FloatingPositionSafeArea;
   flip?: boolean;
   constrainSize?: boolean;
   matchAnchorWidth?: boolean;
@@ -54,20 +67,55 @@ function anchorElement(anchor: FloatingAnchor): HTMLElement | null {
   return isRefAnchor(anchor) ? anchor.current : null;
 }
 
-function readCssLengthPx(variable: string, fallbackPx: number): number {
-  const cssValue = getComputedStyle(document.documentElement)
+export function resolveCssLengthPx(
+  scope: HTMLElement,
+  variable: `--${string}`,
+  fallbackPx = 0,
+): number {
+  const view = scope.ownerDocument.defaultView;
+  if (!view) return fallbackPx;
+
+  const cssValue = view.getComputedStyle(scope)
     .getPropertyValue(variable)
     .trim();
   if (!cssValue) return fallbackPx;
 
-  const numeric = Number.parseFloat(cssValue);
-  if (!Number.isFinite(numeric)) return fallbackPx;
-  if (!cssValue.endsWith("rem")) return numeric;
-
-  const rootFontPx = Number.parseFloat(
-    getComputedStyle(document.documentElement).fontSize,
+  const absoluteLength = cssValue.match(
+    /^(-?(?:\d+(?:\.\d+)?|\.\d+))(px|rem)$/,
   );
-  return Number.isFinite(rootFontPx) ? numeric * rootFontPx : fallbackPx;
+  if (absoluteLength) {
+    const numeric = Number.parseFloat(absoluteLength[1]);
+    if (absoluteLength[2] === "px") return numeric;
+
+    const rootFontPx = Number.parseFloat(
+      view.getComputedStyle(scope.ownerDocument.documentElement).fontSize,
+    );
+    return Number.isFinite(rootFontPx) ? numeric * rootFontPx : fallbackPx;
+  }
+
+  const probe = scope.ownerDocument.createElement("div");
+  probe.style.position = "fixed";
+  probe.style.visibility = "hidden";
+  probe.style.pointerEvents = "none";
+  probe.style.contain = "strict";
+  probe.style.width = "0";
+  probe.style.height = `var(${variable})`;
+  scope.appendChild(probe);
+  try {
+    const resolved = Number.parseFloat(view.getComputedStyle(probe).height);
+    return Number.isFinite(resolved) ? resolved : fallbackPx;
+  } finally {
+    probe.remove();
+  }
+}
+
+function resolveFloatingLengthPx(
+  scope: HTMLElement,
+  length: FloatingPositionLength | undefined,
+): number {
+  if (length === undefined) return 0;
+  if (typeof length === "number") return length;
+  return resolveCssLengthPx(scope, length.cssVariable, length.fallback);
 }
 
 function readComputedPixelLimit(value: string): number | undefined {
@@ -146,15 +194,20 @@ export function useFloatingPosition(
         viewport: currentViewport(),
         preferredPlacement: placement,
         align,
-        gap: gap ?? readCssLengthPx("--space-2", GAP_FALLBACK_PX),
+        gap:
+          gap ?? resolveCssLengthPx(nextFloating, "--space-2", GAP_FALLBACK_PX),
         viewportPadding:
           viewportPadding ??
-          readCssLengthPx("--space-3", VIEWPORT_PADDING_FALLBACK_PX),
+          resolveCssLengthPx(
+            nextFloating,
+            "--space-3",
+            VIEWPORT_PADDING_FALLBACK_PX,
+          ),
         safeArea: {
-          top: safeTop,
-          right: safeRight,
-          bottom: safeBottom,
-          left: safeLeft,
+          top: resolveFloatingLengthPx(nextFloating, safeTop),
+          right: resolveFloatingLengthPx(nextFloating, safeRight),
+          bottom: resolveFloatingLengthPx(nextFloating, safeBottom),
+          left: resolveFloatingLengthPx(nextFloating, safeLeft),
         },
         sizeLimit,
         flip,

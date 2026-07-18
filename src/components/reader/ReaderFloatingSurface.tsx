@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useFloatingPosition } from "@/components/ui";
+import {
+  useFloatingPosition,
+  type FloatingAnchor,
+} from "@/components/ui";
 import { useFocusTrap } from "@/lib/focus-trap";
 
-type ReaderFloatingRect = Pick<DOMRect, "top" | "right" | "bottom" | "left">;
 type ReaderFloatingPoint = { x: number; y: number };
 
-export type ReaderFloatingAnchor = ReaderFloatingRect | ReaderFloatingPoint;
+export type ReaderFloatingAnchor = FloatingAnchor;
 
 export type ReaderFloatingSurfaceProps = {
   anchor: ReaderFloatingAnchor;
@@ -22,7 +24,9 @@ export type ReaderFloatingSurfaceProps = {
   children: React.ReactNode;
 };
 
-const MINI_PLAYER_SAFE_AREA_PX = 56;
+const MINI_PLAYER_SAFE_AREA = {
+  cssVariable: "--reader-mini-player-height",
+} as const;
 
 function isPointAnchor(
   anchor: ReaderFloatingAnchor,
@@ -55,7 +59,7 @@ export const ReaderFloatingSurface = React.forwardRef<
     placement,
     align: isPointAnchor(anchor) || placement === "above" ? "center" : "start",
     gap,
-    safeArea: { bottom: MINI_PLAYER_SAFE_AREA_PX },
+    safeArea: { bottom: MINI_PLAYER_SAFE_AREA },
     constrainSize: true,
   });
   useFocusTrap(surfaceRef, true, onClose, {
