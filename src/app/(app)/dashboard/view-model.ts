@@ -19,7 +19,8 @@ import { getProfile } from "@/features/profile-preferences/repository";
 import { parseTopics } from "@/features/profile-preferences/schema";
 import { getPersonalizedFeed } from "@/lib/feed";
 import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
-import { loadTodayViewModel, type TodayViewModel } from "@/lib/engagement/today-session";
+import { loadTodayViewModel } from "@/lib/engagement/today-session";
+import type { TodayViewModel } from "@/lib/engagement/today-session/contracts";
 
 const NEW_USER_WINDOW_MS = 60 * 60 * 1000;
 const DASHBOARD_FEED_LIMIT = 10;

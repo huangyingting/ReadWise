@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString, optional, string } from "@/lib/validation";
 import {
+  enforceTodayGate,
   setTodayPrimaryArticle,
   SetTodayArticleError,
-  loadTodayViewModel,
-} from "@/lib/engagement/today-session";
-import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
+} from "@/lib/engagement/today-session/actions";
+import { loadTodayViewModel } from "@/lib/engagement/today-session";
 
 /**
  * POST /api/today/set-article

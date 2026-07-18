@@ -13,10 +13,10 @@ import {
 import {
   COMPREHENSION_SELF_RATINGS,
   COMPREHENSION_SKILL_TAGS,
-  loadTodayComprehensionCheck,
+  enforceTodayGate,
   submitTodayComprehension,
-} from "@/lib/engagement/today-session/comprehension";
-import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
+} from "@/lib/engagement/today-session/actions";
+import { loadTodayComprehensionCheck } from "@/lib/engagement/today-session";
 
 function parseTimezone(params: URLSearchParams): string | null {
   return queryString(params, "timezone").trim() || null;

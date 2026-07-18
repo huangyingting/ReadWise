@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object, oneOf, optional, string } from "@/lib/validation";
-import { skipTodaySession, TODAY_SKIP_REASONS } from "@/lib/engagement/today-session";
-import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
+import {
+  enforceTodayGate,
+  skipTodaySession,
+  TODAY_SKIP_REASONS,
+} from "@/lib/engagement/today-session/actions";
 
 /**
  * POST /api/today/skip

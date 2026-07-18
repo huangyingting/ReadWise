@@ -1,12 +1,12 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { buildTokenAlignment } from "@/lib/speech/timing-alignment";
 import {
-  buildTokenAlignment,
   extractSpeechBoundaryTokens,
   extractTextTokens,
   timingEndSeconds,
   timingStartSeconds,
-} from "@/lib/speech";
+} from "@/lib/speech/timing";
 
 describe("speech timing alignment", () => {
   test("aligns word timings to text tokens", () => {

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object, optional, string } from "@/lib/validation";
-import { markTodayWordReviewComplete } from "@/lib/engagement/today-session/completion";
-import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
+import {
+  enforceTodayGate,
+  markTodayWordReviewComplete,
+} from "@/lib/engagement/today-session/actions";
 
 /**
  * POST /api/today/word-review-complete (#811)

@@ -65,7 +65,18 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/speech", {
+  mock.module("@/lib/speech/timing", {
+    namedExports: {
+      extractSpeechBoundaryTokens: (text: string) =>
+        text
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((word) => ({ value: word, normalized: word.toLowerCase() })),
+    },
+  });
+
+  mock.module("@/lib/speech/timing-storage", {
     namedExports: {
       parseSpeechTimingPayload: (value: unknown) => {
         if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -83,12 +94,11 @@ before(() => {
           words: words.map((word, i) => ({ word, startMs: startMs[i] ?? 0, endMs: endMs[i] ?? 0 })),
         };
       },
-      extractSpeechBoundaryTokens: (text: string) =>
-        text
-          .trim()
-          .split(/\s+/)
-          .filter(Boolean)
-          .map((word) => ({ value: word, normalized: word.toLowerCase() })),
+    },
+  });
+
+  mock.module("@/lib/speech/timing-alignment", {
+    namedExports: {
       buildTokenAlignment: (
         tokens: Array<{ normalized?: string }>,
         words: Array<{ word?: string }>,

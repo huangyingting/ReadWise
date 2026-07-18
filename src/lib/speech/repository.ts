@@ -10,13 +10,13 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { getMediaStorage, type PutMediaResult } from "@/lib/storage";
+import type { SpeechWord } from "./timing";
 import {
   createSpeechTimingPayloadV2,
   parseSpeechTimingPayload,
   type ParsedSpeechTimingPayload,
   type SpeechTimingProvider,
-  type SpeechWord,
-} from "./timing";
+} from "./timing-storage";
 import type { NarrationTextBasis } from "./text-basis";
 
 const log = createLogger("speech");

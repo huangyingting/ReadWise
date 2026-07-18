@@ -11,7 +11,7 @@ import Link from "next/link";
 import { ArrowRight, CalendarCheck } from "lucide-react";
 import { Badge, Card, Inline, Stack, type BadgeProps } from "@/components/ui";
 import { buttonVariants } from "@/components/ui/Button";
-import type { TodayViewModel } from "@/lib/engagement/today-session";
+import type { TodayViewModel } from "@/lib/engagement/today-session/contracts";
 
 interface DashboardTodayCardProps {
   today: TodayViewModel;

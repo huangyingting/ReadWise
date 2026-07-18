@@ -6,7 +6,7 @@ import { updateArticleMastery } from "@/lib/learning/article-mastery";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { difficultyFeedbackBody, type VoteValue } from "@/lib/reader/schemas";
 import { submitDifficultyVote } from "@/lib/reader/commands";
-import { markTodayComprehensionComplete } from "@/lib/engagement/today-session/completion";
+import { markTodayComprehensionComplete } from "@/lib/engagement/today-session/integrations";
 
 async function updateMasteryAfterFeedback(userId: string, articleId: string): Promise<void> {
   // Best-effort: difficulty feedback influences article mastery.

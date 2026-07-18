@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Prisma } from "@prisma/client";
-import { legacySpeechWordsToTimingPayloadV2 } from "@/lib/speech";
+import { legacySpeechWordsToTimingPayloadV2 } from "@/lib/speech/timing-storage";
 import {
   parseStoredSpeechTimingPayload,
   parseStoredSpeechWords,

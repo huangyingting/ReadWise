@@ -17,7 +17,7 @@ import {
 import type {
   TodaySteps,
   TodayStepState,
-} from "@/lib/engagement/today-session";
+} from "@/lib/engagement/today-session/contracts";
 
 /** Controlled skip reasons surfaced to the learner (mirrors TODAY_SKIP_REASONS). */
 const SKIP_REASON_OPTIONS = [

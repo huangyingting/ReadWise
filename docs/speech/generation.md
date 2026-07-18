@@ -46,18 +46,36 @@ Operations).
 
 | File | Purpose |
 | ---- | ------- |
-| `src/lib/speech/index.ts` | Public entry point. Exports `getOrCreateArticleSpeech`, timing/practice utilities, and `SpeechResult` type. |
+| `src/lib/speech/index.ts` | Narration delivery interface. Exports `isSpeechConfigured`, `getOrCreateArticleSpeech`, `getArticleSpeechAudio`, and the `SpeechResult` type. |
 | `src/lib/speech/provider-azure.ts` | Azure SDK isolation — the only module that imports `microsoft-cognitiveservices-speech-sdk`. |
 | `src/lib/speech/azure-batch-synthesis.ts` | Full Azure Batch workflow behind `runAzureBatchSynthesis`: selection, SSML, job planning, REST calls, result parsing, timing enrichment, and persistence. |
 | `src/lib/speech/repository.ts` | ArticleSpeech DB reads/writes, corrupt-cache recovery, `MediaAsset` upsert, storage interaction. |
 | `src/lib/speech/text-basis.ts` | Canonical Narration text basis preparation and cache-reconstruction policy for real-time and Batch adapters. |
-| `src/lib/speech/timing.ts` | Word-timing types and utilities (`SpeechWord`, `timingStartSeconds`, `timingEndSeconds`). |
+| `src/lib/speech/timing.ts` | Runtime word-timing types, tokenization, and audio-time utilities. |
+| `src/lib/speech/timing-storage.ts` | Stored Legacy/V1/V2 payload contracts, validation, parsing, and serialization. |
 | `src/lib/speech/timing-alignment.ts` | Token alignment for word-highlight mapping. |
 | `src/lib/speech/timing-enrichment.ts` | Canonical policy for adding reader-text spans to provider word timings. |
 | `src/lib/speech/timing-migration.ts` | Stored timing format migration and span repair; delegates span policy to timing enrichment. |
 | `src/lib/speech/practice.ts` | Sentence segmentation for practice tools. |
 | `src/lib/runtime-config/speech.ts` | Azure Speech env parsing: key, region, voice, format, timeout. |
 | `scripts/batch-synthesis.ts` | Thin CLI adapter for argument parsing, validation, loop control, and process lifecycle. |
+
+## Public module interfaces
+
+`@/lib/speech` is intentionally limited to Narration delivery. Different
+runtimes and intents use explicit stable submodules instead of growing the root
+entry point:
+
+- `@/lib/speech/timing` — runtime `SpeechWord` values, tokenization, and time
+  conversion used by Reader-facing code;
+- `@/lib/speech/timing-storage` — stored payload codecs used by repositories,
+  migrations, and analysis tooling;
+- `@/lib/speech/timing-alignment` — token-to-timing alignment;
+- `@/lib/speech/practice` — sentence segmentation for practice tools.
+
+Provider, repository, enrichment, migration, and Batch orchestration modules are
+Speech-owned implementation details. External callers use the root or one of
+the documented intent-specific submodules above.
 
 ## TTS provider seam
 

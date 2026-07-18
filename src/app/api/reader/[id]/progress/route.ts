@@ -9,7 +9,7 @@ import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { progressBody } from "@/lib/reader/schemas";
 import { revalidateUserCache } from "@/lib/cache";
-import { syncTodayReadingFromProgress } from "@/lib/engagement/today-session/completion";
+import { syncTodayReadingFromProgress } from "@/lib/engagement/today-session/integrations";
 
 type ProgressWrite = {
   percent: number;
