@@ -122,6 +122,14 @@ this soft reference. It provides:
 `canManageClassroom(viewer, classroom, membership)` gates roster/assignment edits
 and full progress reads.
 
+Once that authorization succeeds, `createArticleAssignment` in
+`src/lib/classroom/article-assignments.ts` owns the assignment write invariant.
+It delegates organization/article integrity to
+`getOrganizationAssignableArticle`, preserves its controlled `404` and `409`
+results, validates the optional due date only after article eligibility, trims
+instructions, and performs the insert. Route handlers do not repeat those
+rules.
+
 ### Pages
 
 | Route | Audience | What it shows |

@@ -19,7 +19,12 @@ export * from "./srs";
 export * from "./cloze";
 export * from "./word-mastery";
 export * from "./article-mastery";
-export * from "./skill-mastery";
+export { recordLearnerEvidence, type LearnerEvidence } from "./learner-evidence";
+export {
+  getSkillProfile,
+  recommendLevelChange,
+  type SkillLevelRecommendation,
+} from "./skill-mastery";
 export * from "./quiz-mastery";
 export * from "./flashcards";
 export * from "./review-assets";

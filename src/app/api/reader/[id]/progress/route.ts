@@ -4,7 +4,7 @@ import { idParams } from "@/lib/validation";
 import { saveProgress } from "@/lib/engagement/progress";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { updateArticleMastery } from "@/lib/learning/article-mastery";
-import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
+import { recordLearnerEvidence } from "@/lib/learning/learner-evidence";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { progressBody } from "@/lib/reader/schemas";
@@ -28,9 +28,7 @@ async function recordProgressMastery(userId: string, articleId: string, percent:
     bestEffortMastery("progress.article_mastery", () =>
       updateArticleMastery(userId, articleId),
     ),
-    bestEffortMastery("progress.reading_skill", () =>
-      recordSkillEvidence(userId, "reading", percent / 100, 0.5),
-    ),
+    recordLearnerEvidence(userId, { activity: "reading-progress", percent }),
   ]);
 }
 

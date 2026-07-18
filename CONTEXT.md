@@ -59,3 +59,9 @@ _Avoid_: Today mutation, step request
 **Today action delivery**:
 The client-owned lifecycle for one Today Session action, ending either in immediate delivery with a server result or durable queuing for replay without a server result.
 _Avoid_: Offline Today fetch, Today request helper
+
+### Learning
+
+**Learner evidence**:
+A controlled, content-free description of a completed learner activity that Learning translates into one or more best-effort Skill Mastery signals.
+_Avoid_: Raw skill update, mastery side effect, activity score write

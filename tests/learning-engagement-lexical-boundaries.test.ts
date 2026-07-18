@@ -161,7 +161,7 @@ test("learning barrel keeps mastery/SRS APIs while hiding helper internals", asy
     "recordWordReview",
     "getWordMastery",
     "updateArticleMastery",
-    "recordSkillEvidence",
+    "recordLearnerEvidence",
     "recordQuizAttempt",
     "getDueFlashcards",
     "gradeFlashcard",
@@ -177,6 +177,7 @@ test("learning barrel keeps mastery/SRS APIs while hiding helper internals", asy
   }
 
   for (const internal of [
+    "recordSkillEvidence",
     "bestEffortMastery",
     "clamp01",
     "parseStringArray",
@@ -189,6 +190,18 @@ test("learning barrel keeps mastery/SRS APIs while hiding helper internals", asy
   ]) {
     assert.equal(internal in learning, false, `learning barrel should keep ${internal} internal`);
   }
+});
+
+test("Placement exposes seed helpers separately from attempt submission", async () => {
+  const placement = await import("@/lib/learning/placement");
+  assert.deepEqual(Object.keys(placement).sort(), [
+    "PLACEMENT_SEED_LEVELS",
+    "isPlacementSeedLevel",
+    "seedLevelForProfile",
+  ]);
+
+  const attempt = await import("@/lib/learning/placement-attempt");
+  assert.deepEqual(Object.keys(attempt), ["submitPlacementAttempt"]);
 });
 
 test("engagement barrel exposes only cross-domain read services", async () => {

@@ -28,7 +28,8 @@ flowchart TD
 
 | Primitive | Source | Current role |
 | --- | --- | --- |
-| Fixed-window rate limiter | `src/lib/security/rate-limit/index.ts` | DB-backed counters with in-memory fallback. Scopes include `ai`, `import`, `lookup`, `public`, `admin-job`, and `auth`. |
+| Fixed-window counter | `src/lib/security/fixed-window-counter.ts` | Shared DB/memory adapters, epoch and first-hit window semantics, expiry, sweeping, and database cooldown. |
+| Fixed-window rate limiter | `src/lib/security/rate-limit/index.ts` | Scope/key/limit policy and consistent `429` behavior over the shared counter. Scopes include `ai`, `import`, `lookup`, `public`, `admin-job`, and `auth`. |
 | AI budget / quota | `src/lib/ai/budget.ts` | Per-user, per-feature, global-interactive, and global-background counters. Interactive calls throw `429`; background calls degrade gracefully. |
 | Import daily quota | `src/lib/import/quota.ts` | Five new imported articles per user per UTC day. Checked after de-duplication and before DB write. |
 | SSRF guard | `src/lib/scraper/ssrf.ts` | Validates and pins DNS for outbound fetches; blocks private/metadata IPs. |

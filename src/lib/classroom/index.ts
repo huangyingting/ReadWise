@@ -40,13 +40,16 @@ export {
 } from "./queries";
 export {
   type CreateClassroomInput,
-  type AssignArticleInput,
   createClassroom,
   addClassroomMember,
   removeClassroomMember,
-  assignArticle,
   deleteAssignment,
 } from "./commands";
+export {
+  type CreateArticleAssignmentInput,
+  type CreateArticleAssignmentResult,
+  createArticleAssignment,
+} from "./article-assignments";
 export {
   type RecordCompletionInput,
   getStudentAssignmentContext,

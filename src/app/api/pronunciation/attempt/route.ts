@@ -7,8 +7,7 @@ import {
   sessionUserRateLimitPolicy,
 } from "@/lib/security/rate-limit/index";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-library";
-import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
-import { bestEffortMastery } from "@/lib/learning/primitives";
+import { recordLearnerEvidence } from "@/lib/learning/learner-evidence";
 
 /**
  * Pronunciation scores are computed CLIENT-SIDE by the Azure Speech SDK (by
@@ -41,14 +40,11 @@ async function assertReadableArticle(articleId: string | undefined, user: Parame
 }
 
 async function recordPronunciationMastery(userId: string, body: PronunciationAttemptBody) {
-  await Promise.all([
-    bestEffortMastery("pronunciation.skill", () =>
-      recordSkillEvidence(userId, "pronunciation", body.pronScore / 100),
-    ),
-    bestEffortMastery("pronunciation.listening_skill", () =>
-      recordSkillEvidence(userId, "listening", body.accuracyScore / 100, 0.5),
-    ),
-  ]);
+  await recordLearnerEvidence(userId, {
+    activity: "pronunciation-attempt",
+    pronunciationScore: body.pronScore,
+    accuracyScore: body.accuracyScore,
+  });
 }
 
 /**

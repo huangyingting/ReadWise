@@ -92,8 +92,8 @@ async function assertRateLimitError(action: () => Promise<unknown>, message?: st
 }
 
 async function resetStore(): Promise<void> {
-  const { resetRateLimitStore } = await import("@/lib/security/rate-limit/store");
-  resetRateLimitStore();
+  const { resetFixedWindowCounters } = await import("@/lib/security/fixed-window-counter");
+  resetFixedWindowCounters();
 }
 
 beforeEach(async () => {
@@ -179,6 +179,20 @@ test("resets count after the window elapses (memory)", async () => {
   await assert.doesNotReject(() => checkRateLimitByKey(key, "ai"));
 });
 
+test("memory fallback preserves first-hit windows across an epoch boundary", async (t) => {
+  configureLimits({ store: "memory", aiRequests: "1", windowMs: "1000" });
+  let nowMs = 999;
+  t.mock.method(Date, "now", () => nowMs);
+  const { checkRateLimitByKey } = await loadRateLimit();
+  const key = uniqueKey("first-hit-window");
+
+  await checkRateLimitByKey(key, "ai");
+  nowMs = 1_001;
+  await assertRateLimitError(() => checkRateLimitByKey(key, "ai"));
+  nowMs = 1_999;
+  await assert.doesNotReject(() => checkRateLimitByKey(key, "ai"));
+});
+
 test("checkRateLimit delegates to checkRateLimitByKey using userId", async () => {
   configureLimits({ aiRequests: "1" });
   const { checkRateLimit } = await loadRateLimit();
@@ -235,17 +249,6 @@ test("shared store keeps scopes independent in the DB store", async () => {
   const key = uniqueKey("shared-scope");
   await checkRateLimitByKey(key, "ai"); // fills "ai" (limit 1)
   await assert.doesNotReject(() => checkRateLimitByKey(key, "lookup"));
-});
-
-test("incrementSharedCounter returns increasing counts for the same window", async () => {
-  configureLimits({ store: "database" });
-  const { incrementSharedCounter, windowStartFor } = await import("@/lib/security/rate-limit/store");
-  const windowMs = 60000;
-  const ws = windowStartFor(Date.now(), windowMs);
-  const key = uniqueKey("incr");
-  assert.equal(await incrementSharedCounter(key, ws, windowMs), 1);
-  assert.equal(await incrementSharedCounter(key, ws, windowMs), 2);
-  assert.equal(await incrementSharedCounter(key, ws, windowMs), 3);
 });
 
 // ---- fallback to memory when the shared store is unavailable -----------------

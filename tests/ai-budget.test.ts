@@ -80,8 +80,8 @@ beforeEach(async () => {
   disableAi();
   // Clear all AI_QUOTA_* knobs so each test starts with quotas disabled.
   clearAiQuotaEnv();
-  const { resetAiBudget } = await import("@/lib/ai/budget");
-  resetAiBudget();
+  const { resetFixedWindowCounters } = await import("@/lib/security/fixed-window-counter");
+  resetFixedWindowCounters();
 });
 
 let seq = 0;

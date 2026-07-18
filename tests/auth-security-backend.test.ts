@@ -16,6 +16,7 @@ let bufferThrows: boolean;
 let ambientContext: { userId?: string; requestId?: string; path?: string } | null;
 let trustedProxy: { header: string | null; list: string[]; hops: number | null };
 let metricsSnapshot: unknown;
+let localCounters: Map<string, number>;
 
 async function withPatchedClock<T>(run: () => Promise<T>): Promise<T> {
   const realDateNow = Date.now;
@@ -125,14 +126,20 @@ before(() => {
       trustedProxyConfig: () => trustedProxy,
     },
   });
-  mock.module("@/lib/security/rate-limit/store", {
+  mock.module("@/lib/security/fixed-window-counter", {
     namedExports: {
-      incrementSharedCounter: async () => {
-        if (sharedCounterError) throw sharedCounterError;
-        return sharedCounterCount;
+      consumeFixedWindow: async (input: { key: string }) => {
+        if (sharedStoreEnabled && !sharedCounterError) return sharedCounterCount;
+        const next = (localCounters.get(input.key) ?? 0) + 1;
+        localCounters.set(input.key, next);
+        return next;
       },
-      isSharedStoreEnabled: () => sharedStoreEnabled,
-      windowStartFor: (nowMs: number, windowMs: number) => nowMs - (nowMs % windowMs),
+      observeFixedWindow: (input: { key: string }) => {
+        const next = (localCounters.get(input.key) ?? 0) + 1;
+        localCounters.set(input.key, next);
+        return next;
+      },
+      resetFixedWindowCounters: () => localCounters.clear(),
     },
   });
 });
@@ -151,6 +158,7 @@ beforeEach(() => {
   ambientContext = { userId: "ambient-user", requestId: "req-ambient", path: "/ambient" };
   trustedProxy = { header: null, list: [], hops: null };
   metricsSnapshot = { counters: [], gauges: [], histograms: [] };
+  localCounters = new Map();
 });
 
 test("auth options enrich sessions and bootstrap first users", async () => {
@@ -204,7 +212,6 @@ test("rate limiter maps scopes, propagates 429s, and falls back to memory on sto
 
     sharedCounterError = new Error("store down");
     await checkRateLimitByKey("fallback", "lookup");
-    assert.ok(JSON.stringify(loggerWarnings).includes("rate_limit.fallback_memory"));
 
     sharedStoreEnabled = false;
     sharedCounterError = null;

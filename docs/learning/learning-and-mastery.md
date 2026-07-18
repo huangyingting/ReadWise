@@ -174,12 +174,27 @@ Submission also updates learning signals as best-effort side effects:
 
 - `updateArticleMastery(userId, articleId)` refreshes article comprehension
   aggregates;
-- `recordSkillEvidence` records low-weight comprehension evidence from the
-  self-rating;
-- an MCQ outcome records comprehension or vocabulary evidence depending on the
-  controlled skill tag.
+- `recordLearnerEvidence(userId, activity)` receives one controlled
+  `today-comprehension` activity and translates the self-rating and optional
+  MCQ outcome into the appropriate weighted Skill Mastery signals.
 
 If any mastery side effect fails, Today completion still succeeds.
+
+## Learner evidence
+
+Feature code reports completed activity through
+`src/lib/learning/learner-evidence.ts` rather than selecting Skill Mastery
+dimensions, normalized outcomes, weights, or failure labels itself. The
+controlled `LearnerEvidence` union currently covers reading progress, completed
+quizzes, pronunciation attempts, grammar help, flashcard reviews, and Today
+comprehension.
+
+`recordLearnerEvidence(userId, activity)` owns activity-to-skill mapping and
+normalization. It attempts every signal independently through the existing
+best-effort mastery boundary, so a failed Skill Mastery write cannot roll back
+the learner activity and cannot suppress sibling signals. The interface accepts
+controlled numbers and enums only; it never accepts article text, selected
+text, questions, answers, words, definitions, or prompts.
 
 ## Skill mastery
 
@@ -194,9 +209,9 @@ and the standard Prisma-managed `updatedAt` timestamp.
 
 ### Evidence update
 
-`recordSkillEvidence(userId, skill, outcome, weight = 1)` clamps outcome to 0-1
-and weight to 0-5. The first observation sets confidence. Later observations use
-an exponential moving average:
+The internal Skill Mastery writer clamps outcome to 0-1 and weight to 0-5. The
+first observation sets confidence. Later observations use an exponential moving
+average:
 
 $$
 alpha = min(0.8, 0.3 \times weight)

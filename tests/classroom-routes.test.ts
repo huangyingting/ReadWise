@@ -78,6 +78,10 @@ let assignmentClassroomResult: { id: string; classroomId: string } | null = {
   id: "asgn1",
   classroomId: "c1",
 };
+let articleAssignmentFailure: {
+  status: 400 | 404 | 409;
+  reason: "invalid_due_date" | "article_not_found" | "org_reference_orphaned";
+} | null = null;
 const removeClassroomMemberCalls: Array<{ classroomId: string; userId: string }> = [];
 const deleteAssignmentCalls: string[] = [];
 
@@ -139,7 +143,6 @@ before(() => {
       removeClassroomMember: async (classroomId: string, userId: string) => {
         removeClassroomMemberCalls.push({ classroomId, userId });
       },
-      assignArticle: async () => assignArticleResult,
       getAssignmentClassroom: async () => assignmentClassroomResult,
       deleteAssignment: async (assignmentId: string) => {
         deleteAssignmentCalls.push(assignmentId);
@@ -163,6 +166,22 @@ before(() => {
   mock.module("@/lib/classroom/queries", {
     namedExports: {
       getClassroom: async () => classroomStub,
+    },
+  });
+  mock.module("@/lib/classroom/article-assignments", {
+    namedExports: {
+      createArticleAssignment: async (input: { dueDate?: string }) => {
+        if (articleAssignmentFailure) {
+          return { ok: false, ...articleAssignmentFailure };
+        }
+        if (!articleStub) {
+          return { ok: false, status: 404, reason: "article_not_found" };
+        }
+        if (input.dueDate && Number.isNaN(new Date(input.dueDate).getTime())) {
+          return { ok: false, status: 400, reason: "invalid_due_date" };
+        }
+        return { ok: true, assignment: assignArticleResult };
+      },
     },
   });
 
@@ -219,6 +238,7 @@ beforeEach(() => {
   completionResult = { id: "comp1", userId: "user-1", assignmentId: "asgn1", status: "COMPLETED" };
   assignmentContext = { id: "asgn1" };
   assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  articleAssignmentFailure = null;
   membershipStub = null;
   isOrgAdminStub = false;
   analyticsViewerRoleStub = "teacher";
@@ -639,6 +659,20 @@ test("POST /api/classrooms/[id]/assignments returns 400 for an invalid due date"
   assert.equal(res.status, 400);
   const body = await res.json() as { error: string };
   assert.match(body.error, /due date/i);
+});
+
+test("POST /api/classrooms/[id]/assignments returns 409 for invalid article organization scope", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  articleAssignmentFailure = {
+    status: 409,
+    reason: "org_reference_orphaned",
+  };
+
+  const res = await postClassroomAssignment("c1", { articleId: "a1" });
+
+  assert.equal(res.status, 409);
+  const body = await res.json() as { error: string };
+  assert.match(body.error, /organization scope/i);
 });
 
 test("POST /api/classrooms/[id]/assignments returns 201 with assignment on success", async () => {

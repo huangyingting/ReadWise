@@ -4,8 +4,8 @@
  *
  * Backed by a SHARED (DB-backed) store (RW-026) so limits are enforced
  * consistently across app instances. The in-memory limiter remains a graceful
- * FALLBACK for dev/tests and whenever the shared store is unavailable — see
- * {@link "@/lib/security/rate-limit/store"}.
+ * FALLBACK for dev/tests and whenever the shared store is unavailable through
+ * the fixed-window counter module.
  *
  * Keyed by an arbitrary string `key` + `scope`. On each call within the current
  * window the counter increments; when it exceeds the limit an {@link ApiError}
@@ -26,8 +26,8 @@
  *   RATE_LIMIT_STORE               — auto | database | memory
  */
 import { ApiError } from "@/lib/errors/api-error";
-import { createLogger } from "@/lib/observability/logger";
 import { clientIpKey } from "@/lib/security/client-ip";
+import { consumeFixedWindow } from "@/lib/security/fixed-window-counter";
 import {
   rateLimitAdminJobRequests,
   rateLimitAiRequests,
@@ -37,14 +37,6 @@ import {
   rateLimitPublicRequests,
   rateLimitWindowMs,
 } from "@/lib/runtime-config/rate-limit";
-import {
-  incrementSharedCounter,
-  isSharedStoreEnabled,
-  windowStartFor,
-} from "@/lib/security/rate-limit/store";
-
-const log = createLogger("rate-limit");
-
 const LIMIT_RESOLVERS = {
   lookup: rateLimitLookupRequests,
   public: rateLimitPublicRequests,
@@ -71,64 +63,6 @@ function rateLimitError(limit: number, windowMs: number): ApiError {
   );
 }
 
-// --- in-memory fallback ----------------------------------------------------
-
-interface Bucket {
-  count: number;
-  windowStart: number;
-}
-
-const buckets = new Map<string, Bucket>();
-
-/** Purge entries whose window expired more than one window ago. */
-function purgeStale(nowMs: number, windowMs: number): void {
-  const cutoff = nowMs - windowMs * 2;
-  for (const [key, bucket] of buckets) {
-    if (bucket.windowStart < cutoff) buckets.delete(key);
-  }
-}
-
-/** Process-local fixed-window check (fallback when the shared store is down). */
-function checkInMemory(bucketKey: string, limit: number, windowMs: number, nowMs: number): void {
-  if (Math.random() < 0.05) purgeStale(nowMs, windowMs);
-
-  const bucket = buckets.get(bucketKey);
-  if (!bucket || nowMs - bucket.windowStart >= windowMs) {
-    buckets.set(bucketKey, { count: 1, windowStart: nowMs });
-    return;
-  }
-
-  if (bucket.count >= limit) {
-    throw rateLimitError(limit, windowMs);
-  }
-
-  bucket.count += 1;
-}
-
-async function checkSharedStore(
-  bucketKey: string,
-  scope: RateLimitScope,
-  limit: number,
-  windowMs: number,
-  nowMs: number,
-): Promise<boolean> {
-  if (!isSharedStoreEnabled(nowMs)) return false;
-
-  try {
-    const windowStartMs = windowStartFor(nowMs, windowMs);
-    const count = await incrementSharedCounter(bucketKey, windowStartMs, windowMs);
-    if (count > limit) {
-      throw rateLimitError(limit, windowMs);
-    }
-    return true;
-  } catch (err) {
-    // A genuine 429 must propagate; only a store failure falls back to memory.
-    if (err instanceof ApiError) throw err;
-    log.warn("rate_limit.fallback_memory", { scope });
-    return false;
-  }
-}
-
 /**
  * Core rate-limit check by an arbitrary key (userId, hashed IP, etc.) and scope.
  * Tries the shared DB store first, then falls back to the in-memory limiter when
@@ -141,13 +75,12 @@ export async function checkRateLimitByKey(
   const windowMs = getWindowMs();
   const limit = getLimitForScope(scope);
   const bucketKey = `${key}:${scope}`;
-  const nowMs = Date.now();
-
-  if (await checkSharedStore(bucketKey, scope, limit, windowMs, nowMs)) {
-    return;
-  }
-
-  checkInMemory(bucketKey, limit, windowMs, nowMs);
+  const count = await consumeFixedWindow({
+    key: bucketKey,
+    windowMs,
+    fallbackWindowAnchor: "first-hit",
+  });
+  if (count > limit) throw rateLimitError(limit, windowMs);
 }
 
 /**

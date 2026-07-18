@@ -10,14 +10,11 @@ import {
   type Schema,
   type ValidationResult,
 } from "@/lib/validation";
-import { getPublicListableArticleById } from "@/lib/article-library";
-import { prisma } from "@/lib/prisma";
-import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import {
-  computePlacementScore,
   PLACEMENT_SEED_LEVELS,
   type PlacementSeedLevel,
 } from "@/lib/learning/placement";
+import { submitPlacementAttempt } from "@/lib/learning/placement-attempt";
 import { loadPlacementPassage } from "@/lib/learning/placement-passage";
 
 /**
@@ -53,20 +50,6 @@ type PlacementBody = {
   attempt: PlacementAttempt | undefined;
 };
 
-type PlacementRecommendedLevel = ReturnType<typeof computePlacementScore>;
-
-type PlacementPersistence = {
-  passageArticleId: string;
-  seedLevel: PlacementSeedLevel;
-  recommendedLevel: PlacementRecommendedLevel;
-  questionCount: number;
-  correctCount: number;
-  lookupCount: number;
-  skipped: boolean;
-  attempt: PlacementAttempt;
-  completedAt: Date | null;
-};
-
 const placementSchema = object({
   articleId: nonEmptyString(200),
   correctCount: number({ int: true, min: 0, max: MAX_QUESTION_COUNT }),
@@ -87,46 +70,6 @@ function placementQuery(
   return { ok: true, value: { seedLevel: res.value } };
 }
 
-function assertValidPlacementCounts(body: PlacementBody): void {
-  if (body.correctCount > body.totalCount) {
-    throw new ApiError(400, "correctCount cannot exceed totalCount");
-  }
-}
-
-function recommendedLevelFor(
-  body: PlacementBody,
-  skipped: boolean,
-  articleWordCount: number | null,
-): PlacementRecommendedLevel {
-  if (skipped) return body.seedLevel;
-  return computePlacementScore(
-    body.seedLevel,
-    body.correctCount,
-    body.totalCount,
-    body.lookupCount,
-    articleWordCount ?? 0,
-  );
-}
-
-function buildPlacementPersistence(
-  body: PlacementBody,
-  recommendedLevel: PlacementRecommendedLevel,
-  skipped: boolean,
-  attempt: PlacementAttempt,
-): PlacementPersistence {
-  return {
-    passageArticleId: body.articleId,
-    seedLevel: body.seedLevel,
-    recommendedLevel,
-    questionCount: body.totalCount,
-    correctCount: body.correctCount,
-    lookupCount: body.lookupCount,
-    skipped,
-    attempt,
-    completedAt: skipped ? null : new Date(),
-  };
-}
-
 export const GET = createHandler(
   { query: placementQuery },
   async ({ query }) => {
@@ -141,49 +84,13 @@ export const GET = createHandler(
 export const POST = createHandler(
   { body: placementSchema },
   async ({ session, body }) => {
-    const userId = session.user.id;
-
-    assertValidPlacementCounts(body);
-
-    // 404 when the passage is not a public-library article (reuses the shared
-    // access helper — never hand-rolled visibility checks).
-    const article = await getPublicListableArticleById(body.articleId, {
-      select: { id: true, wordCount: true },
-    });
-    if (!article) {
+    const result = await submitPlacementAttempt(session.user.id, body);
+    if (!result.ok && result.reason === "invalid-counts") {
+      throw new ApiError(400, "correctCount cannot exceed totalCount");
+    }
+    if (!result.ok) {
       throw new ApiError(404, "Article not found in public library");
     }
-
-    const skipped = body.skipped ?? false;
-    const attempt: PlacementAttempt = body.attempt ?? "initial";
-
-    // Skipped placements still seed Today: recommendedLevel coerces to the
-    // self-reported seed level rather than running the scorer.
-    const recommendedLevel = recommendedLevelFor(body, skipped, article.wordCount);
-
-    // Single per-user row — upsert keeps retake idempotent (no duplicates).
-    const persisted = buildPlacementPersistence(body, recommendedLevel, skipped, attempt);
-    await prisma.placementResult.upsert({
-      where: { userId },
-      create: { userId, ...persisted },
-      update: persisted,
-    });
-
-    // Product analytics (#806): metadata only — controlled levels + counts.
-    // Deliberately NO article id and NO free text (privacy plan §1).
-    await recordEvent({
-      type: ANALYTICS_EVENT_TYPES.placementCompleted,
-      userId,
-      properties: {
-        seedLevel: body.seedLevel,
-        recommendedLevel,
-        skipped,
-        questionCount: body.totalCount,
-        correctCount: body.correctCount,
-        attempt,
-      },
-    });
-
-    return NextResponse.json({ ok: true, recommendedLevel, skipped });
+    return NextResponse.json(result);
   },
 );

@@ -47,8 +47,8 @@ groups all security-sensitive subsystems with narrow public boundaries:
 | Security events | `src/lib/security/events.ts` | Ring-buffered event monitoring (RW-029) |
 | Audit | `src/lib/security/audit.ts` | Durable audit log with metadata redaction |
 | Redaction | `src/lib/security/redaction.ts` | Sensitive metadata redaction policy |
-| Rate limit | `src/lib/security/rate-limit/index.ts` | Fixed-window limiter with shared store (RW-026) |
-| Rate limit store | `src/lib/security/rate-limit/store.ts` | DB-backed counter store with circuit-breaker |
+| Fixed-window counter | `src/lib/security/fixed-window-counter.ts` | DB/memory adapters, window math, sweeping, and database cooldown shared by rate limits, AI budgets, and security-event spike counts |
+| Rate limit | `src/lib/security/rate-limit/index.ts` | Scope/key/limit policy and consistent `429` responses over the shared counter (RW-026) |
 
 Use the focused modules under `src/lib/security/*` directly. The barrel
 `src/lib/security/index.ts` exports the full public surface for code that needs

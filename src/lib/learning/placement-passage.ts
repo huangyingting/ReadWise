@@ -8,7 +8,7 @@
  *
  * The passage + question text returned here is SENT to the client to render and
  * self-score; it is NEVER persisted. Only structured counts come back through
- * `POST /api/placement` (see {@link computePlacementScore}).
+ * `POST /api/placement` (see the Placement attempt submission module).
  */
 
 import { prisma } from "@/lib/prisma";

@@ -3,8 +3,7 @@ import { createHandler } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { explainGrammar } from "@/lib/grammar";
 import { requireReadableArticleForAI } from "@/lib/reader/route-guard";
-import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
-import { bestEffortMastery } from "@/lib/learning/primitives";
+import { recordLearnerEvidence } from "@/lib/learning/learner-evidence";
 import { grammarBody } from "@/lib/reader/schemas";
 
 const DEFAULT_CONTEXT_SENTENCE = "";
@@ -12,9 +11,7 @@ const DEFAULT_ARTICLE_DIFFICULTY = "B1";
 
 async function recordGrammarPractice(userId: string) {
   // Best-effort: engaging with grammar help is mild grammar-skill evidence.
-  await bestEffortMastery("grammar.skill", () =>
-    recordSkillEvidence(userId, "grammar", 0.5, 0.3),
-  );
+  await recordLearnerEvidence(userId, { activity: "grammar-help-used" });
 }
 
 export const POST = createHandler(

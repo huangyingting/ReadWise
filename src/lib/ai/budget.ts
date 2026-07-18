@@ -14,7 +14,7 @@
  *
  * Storage / accounting:
  *   - ENFORCEMENT uses cheap fixed-window COUNTERS via the shared (DB-backed)
- *     rate-limit store ({@link "@/lib/security/rate-limit/store"}) so limits hold across
+ *     fixed-window counter module so limits hold across
  *     app instances, with the same in-memory FALLBACK + circuit breaker the
  *     rate limiter uses (graceful degradation for dev / tests / DB outage).
  *   - REPORTING ({@link getAiBudgetStatus}) reads real usage from the AI
@@ -39,10 +39,9 @@ import {
   type AiQuotaConfig,
 } from "@/lib/runtime-config/ai";
 import {
-  incrementSharedCounter,
-  isSharedStoreEnabled,
-  windowStartFor,
-} from "@/lib/security/rate-limit/store";
+  consumeFixedWindow,
+  fixedWindowStart,
+} from "@/lib/security/fixed-window-counter";
 import { summarizeAiUsage } from "@/lib/ai/usage-summary";
 
 const log = createLogger("ai-budget");
@@ -97,42 +96,10 @@ export function getAiContext(): AiContext | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Windowed counters (shared store first, in-memory fallback)
+// Windowed counters
 // ---------------------------------------------------------------------------
 
 const BUCKET_PREFIX = "aibudget:";
-
-interface MemBucket {
-  count: number;
-  windowStart: number;
-}
-
-const memBuckets = new Map<string, MemBucket>();
-
-/** Reset the in-memory budget counters (test seam). */
-export function resetAiBudget(): void {
-  memBuckets.clear();
-}
-
-/** Purge in-memory buckets whose window ended more than one window ago. */
-function purgeStaleMem(nowMs: number, windowMs: number): void {
-  const cutoff = nowMs - windowMs * 2;
-  for (const [key, bucket] of memBuckets) {
-    if (bucket.windowStart < cutoff) memBuckets.delete(key);
-  }
-}
-
-function incMemory(key: string, windowMs: number, nowMs: number): number {
-  if (Math.random() < 0.05) purgeStaleMem(nowMs, windowMs);
-  const windowStart = windowStartFor(nowMs, windowMs);
-  const bucket = memBuckets.get(key);
-  if (!bucket || bucket.windowStart !== windowStart) {
-    memBuckets.set(key, { count: 1, windowStart });
-    return 1;
-  }
-  bucket.count += 1;
-  return bucket.count;
-}
 
 /**
  * Atomically increment a budget counter for the current window and return the
@@ -140,17 +107,12 @@ function incMemory(key: string, windowMs: number, nowMs: number): number {
  * falling back to the in-memory counter when that store is unavailable.
  */
 async function incrementBudget(key: string, windowMs: number, nowMs: number): Promise<number> {
-  const bucketKey = `${BUCKET_PREFIX}${key}`;
-  if (isSharedStoreEnabled(nowMs)) {
-    try {
-      const windowStartMs = windowStartFor(nowMs, windowMs);
-      return await incrementSharedCounter(bucketKey, windowStartMs, windowMs);
-    } catch {
-      // Store unavailable — the circuit breaker is tripped inside the store;
-      // fall back to the in-memory counter so enforcement still degrades safely.
-    }
-  }
-  return incMemory(bucketKey, windowMs, nowMs);
+  return consumeFixedWindow({
+    key: `${BUCKET_PREFIX}${key}`,
+    windowMs,
+    nowMs,
+    fallbackWindowAnchor: "epoch",
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -359,7 +321,7 @@ function limitStatus(limit: number | null, used: number): AiBudgetLimitStatus {
  */
 export async function getAiBudgetStatus(now: number = Date.now()): Promise<AiBudgetStatus> {
   const cfg = aiQuotaConfig();
-  const windowStartMs = windowStartFor(now, cfg.windowMs);
+  const windowStartMs = fixedWindowStart(now, cfg.windowMs);
   const since = new Date(windowStartMs);
   const summary = await summarizeAiUsage({ since });
 

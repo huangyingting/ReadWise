@@ -26,7 +26,7 @@
  *   only reflects the events seen by the responding instance, and a coordinated
  *   attack spread across N instances may not trip the threshold on any single
  *   node. Cross-instance spike counts ARE written to the shared DB store
- *   (best-effort, fire-and-forget via `incrementSharedCounter`) for future
+ *   (best-effort, fire-and-forget via the fixed-window counter) for future
  *   cluster-level aggregation, but the immediate alert gate remains local.
  *   A future issue (#622) will add a cluster-level spike reader. The admin UI
  *   should surface this note alongside the event list.
@@ -40,10 +40,9 @@ import {
   securityEventWindowMs,
 } from "@/lib/runtime-config/security";
 import {
-  incrementSharedCounter,
-  isSharedStoreEnabled,
-  windowStartFor,
-} from "@/lib/security/rate-limit/store";
+  observeFixedWindow,
+  resetFixedWindowCounters,
+} from "@/lib/security/fixed-window-counter";
 
 const log = createLogger("security");
 
@@ -102,56 +101,8 @@ export type SecurityEventRecord = {
   timestamp: string;
 };
 
-// ---- rolling-window spike counter ----------------------------------------
-
-type SpikeBucket = { windowStart: number; count: number };
-
-/**
- * In-process spike buckets. Bounded via probabilistic eviction (see
- * `purgeStaleBuckets`). The synchronous threshold check always uses this local
- * counter; cross-instance counts are written to the shared DB store
- * best-effort (see INSTANCE-LOCAL LIMITATION in the module JSDoc).
- */
-const spikeBuckets = new Map<string, SpikeBucket>();
-
-/** Cooldown applied locally after a spike-store write failure. */
-const SPIKE_STORE_COOLDOWN_MS = 30_000;
-let spikeStoreDisabledUntil = 0;
-
-/**
- * Evict entries whose window expired more than one window ago. Called
- * probabilistically (5% of bumps) to keep the map bounded without paying the
- * full scan cost on every event — mirrors the pattern in rate-limit/index.ts.
- */
-function purgeStaleBuckets(nowMs: number, windowMs: number): void {
-  const cutoff = nowMs - windowMs * 2;
-  for (const [key, bucket] of spikeBuckets) {
-    if (bucket.windowStart < cutoff) spikeBuckets.delete(key);
-  }
-}
-
 function bumpSpike(key: string, nowMs: number, windowMs: number): number {
-  // Probabilistic eviction — bounds the map to O(distinct active keys).
-  if (Math.random() < 0.05) purgeStaleBuckets(nowMs, windowMs);
-
-  // Best-effort: fire an async DB increment for cluster-wide visibility.
-  // `recordSecurityEvent` stays synchronous; the local counter drives the
-  // immediate threshold check (see INSTANCE-LOCAL LIMITATION in module JSDoc).
-  const storeReady = isSharedStoreEnabled(nowMs) && nowMs >= spikeStoreDisabledUntil;
-  if (storeReady) {
-    const windowStartMs = windowStartFor(nowMs, windowMs);
-    void incrementSharedCounter(`spike:${key}`, windowStartMs, windowMs).catch(() => {
-      spikeStoreDisabledUntil = Date.now() + SPIKE_STORE_COOLDOWN_MS;
-    });
-  }
-
-  const bucket = spikeBuckets.get(key);
-  if (!bucket || nowMs - bucket.windowStart >= windowMs) {
-    spikeBuckets.set(key, { windowStart: nowMs, count: 1 });
-    return 1;
-  }
-  bucket.count += 1;
-  return bucket.count;
+  return observeFixedWindow({ key: `spike:${key}`, nowMs, windowMs });
 }
 
 // ---- recent-event ring buffer --------------------------------------------
@@ -173,8 +124,7 @@ export function getRecentSecurityEvents(limit = 100): SecurityEventRecord[] {
 /** Clears the ring buffer + spike counters (used by tests). */
 export function resetSecurityEvents(): void {
   ring.length = 0;
-  spikeBuckets.clear();
-  spikeStoreDisabledUntil = 0;
+  resetFixedWindowCounters();
 }
 
 // ---- severity mapping ----------------------------------------------------
