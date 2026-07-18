@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-18"
 description: "Documents common lifecycle and health model for optional external providers. Captures current provider states, credential rotation, outage response, degradation, drift handling, and operator actions."
 ---
 
@@ -314,9 +314,13 @@ will be pruned after `MAX_CONSECUTIVE_FAILURES` transient failures. See
 | `AZURE_STORAGE_CONNECTION_STRING` | when `azure` | Full connection string (alternative to account+key) |
 | `AZURE_STORAGE_ACCOUNT` | when `azure` | Account name (alternative to connection string) |
 | `AZURE_STORAGE_KEY` | when `azure` | Account key (alternative to connection string) |
-| `AZURE_STORAGE_CONTAINER` | when `azure` | Blob container name; default `media` |
+| `AZURE_STORAGE_CONTAINER` | when `azure` | Blob container name; runtime fallback `media`, while `.env.example` explicitly selects `tts` |
 
 Sources: `src/lib/runtime-config/storage.ts`, `src/lib/storage/runtime.ts`.
+
+Do not change the container for an existing deployment without migrating its
+objects; otherwise persisted `MediaAsset.storageKey` values are looked up in
+the new container and existing narration becomes unavailable.
 
 ### Health signals
 

@@ -1,7 +1,7 @@
 ---
 type: "index"
 status: "current"
-last_updated: "2026-07-10"
+last_updated: "2026-07-18"
 description: "Maps durable subsystem documentation for the current ReadWise codebase. Keeps docs flat by subsystem and links feature docs, ADRs, runbooks, generated catalogs, and governance references."
 ---
 
@@ -148,7 +148,6 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`reader/reader-tools.md`](./reader/reader-tools.md) | Reader learning tools: vocabulary, quiz, tutor, dictation, pronunciation, grammar, selection tools, fallbacks, offline behavior, and privacy boundaries. |
 | [`reader/recommendations.md`](./reader/recommendations.md) | Scored Picks candidate boundary, per-user context, scoring weights, diversity pass, explanations, and privacy. |
 | [`reader/search-and-indexing.md`](./reader/search-and-indexing.md) | Search and indexing strategy. |
-| [`reader/speech-synthesis.md`](./reader/speech-synthesis.md) | Narration access checks, Azure Speech provider seam, speech cache lifecycle, storage fallback, and streaming playback. |
 | [`reader/playback.md`](./reader/playback.md) | `ReaderAudioProvider` context, `ReaderMiniPlayer` transport controls, word highlighting, speed/sentence-loop controls, and access-checked playback initiation. |
 | [`reader/translation.md`](./reader/translation.md) | Full-article and sentence translation cache keys, chunking, prompt versions, fallbacks, and privacy boundaries. |
 
@@ -173,7 +172,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | --- | --- |
 | [`ui/accessibility.md`](./ui/accessibility.md) | Accessibility baseline, automated axe/Playwright checks, configuration, and outstanding manual-verification gaps. |
 | [`ui/design-system-governance.md`](./ui/design-system-governance.md) | Design-system governance and visual regression plan: component ownership, token conventions, primitive import rules, density rules, ESLint drift checks, and CI screenshot gating. |
-| [`ui/mobile-reader-pwa.md`](./ui/mobile-reader-pwa.md) | Mobile/touch behavior baseline for the Reader, offline library, and PWA install surface grounded in the service worker, manifest, and Reader components. |
+| [`ui/mobile-reader-pwa.md`](./ui/mobile-reader-pwa.md) | Mobile/touch baseline for shell safe areas, Reader floating surfaces, the offline library, and PWA install/caching behavior. |
 
 ## Maintenance rules
 

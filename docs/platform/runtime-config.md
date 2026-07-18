@@ -1,8 +1,8 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-11"
-description: "Documents server-side runtime-config ownership, direct process.env allowlist, and typed environment variable helpers. Captures current env-var ownership tables, feature switches, optional-provider config, and server-only import boundaries."
+last_updated: "2026-07-18"
+description: "Documents server-side runtime-config ownership, the direct process.env allowlist, typed environment helpers, and narrow build/test/maintenance adapters. Captures current env-var ownership, feature switches, optional-provider config, and server-only import boundaries."
 ---
 
 # Runtime configuration and process.env allowlist
@@ -83,15 +83,29 @@ constant in one place.
 | `src/lib/db-utils.ts` | `isPostgresDatabase()` — dialect selection for raw SQL queries; `hasPostgresUrlPrefix(url)` — pure URL-prefix predicate shared with runtime-config. |
 | `src/lib/runtime-config/database.ts` | `databaseProviderFromUrl()`, `prismaSchemaMismatchIssue()`, and production startup assertion for database/schema provider safety. Delegates PostgreSQL URL recognition to `db-utils`. |
 
-### 6. Testing and CI guards (`src/lib/testing/`)
+### 6. Build, test, and CI adapters
 
-Environment reads in modules under `src/lib/testing/` are permitted because they
-are test/CI infrastructure that must never enter production bundles.
+These reads belong to framework configuration, test-only code, or guarded
+developer scripts rather than application business behavior. Test modules must
+not enter production bundles.
 
-| Variable | File | Purpose |
+| Variable | Files | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | `src/lib/testing/db-guard.ts` | Confirm test DATABASE_URL is not a real production DB. |
-| `PLAYWRIGHT_DATABASE_URL` | `src/lib/testing/db-guard.ts` | E2E test database URL. |
+| `NEXT_DIST_DIR` | `next.config.ts` | Optional Next.js output directory; Playwright uses `.next-e2e` to avoid the normal dev-server lock. |
+| `DATABASE_URL`, `PLAYWRIGHT_DATABASE_URL` | `src/lib/testing/db-guard.ts` | Confirm destructive test setup cannot target a production database and resolve the isolated E2E URL. |
+| `PLAYWRIGHT_BASE_URL`, `PLAYWRIGHT_DATABASE_URL`, `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | `playwright.config.ts` | Isolated E2E origin/database and optional local browser executable. |
+| `PLAYWRIGHT_BASE_URL` | `e2e/smoke.spec.ts`, `e2e/support/seed.ts` | Reach the same isolated Playwright server from smoke setup and fixture seeding. |
+| `PLAYWRIGHT_VISUAL_REGRESSION` | `e2e/visual-regression.spec.ts` | Explicit opt-in gate for screenshot regression tests. |
+| `UI_AUDIT_ARTIFACT_DIR`, `UI_AUDIT_RUN_ID` | `e2e/support/ui-audit.ts` | Audit artifact location and deterministic CI shard/run identity. |
+| `RUN_DB_INTEGRATION` | `tests/db/support/db-config.ts` | Explicit opt-in gate for PostgreSQL integration tests. |
+| `READWISE_BENCHMARK_ALLOW_REMOTE_DB` | `scripts/benchmark-listings.ts` | Explicit safety override before a listing benchmark may use a non-SQLite database. |
+
+### 7. Job-retention policy adapter
+
+`src/lib/jobs/retention.ts` is the sole direct owner of
+`JOB_TERMINAL_RETENTION_DAYS`. Its typed `jobTerminalRetentionDays()` helper
+accepts only positive integers and otherwise returns 90 days. The setting
+controls opt-in maintenance pruning; it does not schedule deletion itself.
 
 ---
 
@@ -162,7 +176,7 @@ variable or changes a default.
 | `MEDIA_STORAGE_DIR` | `./.media` resolved from project root | `storage.ts` |
 | `AZURE_STORAGE_CONNECTION_STRING` | optional Azure Blob auth path | `storage.ts` |
 | `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_KEY` | account/key Azure Blob auth path | `storage.ts` |
-| `AZURE_STORAGE_CONTAINER` | `media` | `storage.ts` |
+| `AZURE_STORAGE_CONTAINER` | Runtime fallback `media`; `.env.example` explicitly sets `tts` for fresh template-based environments. | `storage.ts` |
 
 ### Scraper tuning
 
@@ -200,6 +214,7 @@ variable or changes a default.
 | `SECURITY_EVENT_WINDOW_MS` | `60000` | `security.ts` |
 | `SECURITY_EVENT_BUFFER_SIZE` | `200`, max 2000 | `security.ts` |
 | `AUDIT_LOG_RETENTION_DAYS` | `730` | `security.ts` |
+| `JOB_TERMINAL_RETENTION_DAYS` | `90`; positive integers only; pruning is opt-in | `src/lib/jobs/retention.ts` |
 | `RATE_LIMIT_AI_REQUESTS`, `RATE_LIMIT_LOOKUP_REQUESTS`, `RATE_LIMIT_PUBLIC_REQUESTS`, `RATE_LIMIT_IMPORT_REQUESTS`, `RATE_LIMIT_ADMIN_JOB_REQUESTS`, `RATE_LIMIT_AUTH_REQUESTS`, `RATE_LIMIT_WINDOW_MS` | fixed-window thresholds | `rate-limit.ts` |
 | `RATE_LIMIT_STORE` | `auto` outside test, `memory` in test; supports `auto`, `database`, `memory` | `rate-limit.ts` |
 | `READWISE_DISABLE_LISTING_CACHE` | off unless truthy in listing-cache code | `src/lib/cache.ts` |

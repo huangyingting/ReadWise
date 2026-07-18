@@ -1,13 +1,23 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-04"
-description: "Documents mobile Reader/PWA UX baseline across service worker, manifest, offline library, and touch interactions. Captures current mobile layout, safe-area/offline/install behavior, touch/focus expectations, known gaps, and e2e coverage."
+last_updated: "2026-07-18"
+description: "Documents the mobile Reader/PWA baseline across shell and Reader safe areas, floating text actions, service-worker caching, the offline library, and touch interactions. Captures current layout, viewport reflow, offline/install behavior, known gaps, and test coverage."
 ---
 
 # Mobile Reader and PWA experience baseline
 
 This document defines the mobile/touch behavior baseline for the ReadWise Reader, offline library, and PWA install surface. It is grounded in the actual service worker (`public/sw.js`), web-app manifest (`src/app/manifest.ts`), offline library page (`src/app/(app)/offline/page.tsx`), and Reader component set (`src/components/Reader*`).
+
+## Code map
+
+| Area | Code | Purpose |
+| --- | --- | --- |
+| Mobile shell | `src/app/tokens.css`, `src/components/shell/AppShell.tsx`, `src/components/shell/BottomTabBar.tsx`, `src/components/ui/Sheet.tsx` | Shared bottom-bar sizing, content reservation, home-indicator padding, and bottom-sheet behavior. |
+| Reader layout | `src/app/styles/reader-layout.css`, `src/components/ReaderMiniPlayer.tsx` | Mini-player height and final-content clearance. |
+| Reader floating actions | `src/components/reader/ReaderFloatingSurface.tsx`, `src/components/ui/floating-layout.ts`, `src/components/ui/useFloatingPosition.ts` | Reader semantics over shared placement, safe-area, constraint, and viewport-reflow mechanics. |
+| Offline/PWA | `public/sw.js`, `src/app/manifest.ts`, `src/app/(app)/offline/page.tsx`, `src/lib/offline/` | Manifest, caching, saved articles, and mutation replay. |
+| Coverage | `tests/safe-area-contract.test.ts`, `tests/ui-popover-layout.test.ts`, `tests/use-floating-position.test.ts`, `e2e/mobile-safe-area.spec.ts`, `e2e/mobile-reader-pwa.spec.ts` | Deterministic geometry/contracts plus mobile browser smoke coverage. |
 
 ---
 
@@ -26,7 +36,22 @@ The offline fallback pages (`/offline.html`, `/offline-reader.html`) use `min-he
 
 ### Safe-area insets
 
-The Reader app defines `--reader-mini-player-height` with `env(safe-area-inset-bottom, 0px)` and reserves `--reader-bottom-clearance` on `.reader-column`, so fixed bottom audio controls and the iOS/Android home-indicator area do not obscure final content. Offline fallback pages use standalone CSS with their own bottom padding.
+Mobile shell geometry uses two distinct tokens. `--bottom-bar-h` is the 56 px
+content/touch-target height; `--bottom-bar-total-h` adds
+`env(safe-area-inset-bottom, 0px)`. `BottomTabBar` applies the inset as its own
+bottom padding, while `AppShell` reserves the total height below page content
+and resets that reservation at the desktop breakpoint. Bottom Sheets and the
+Reader tools surface apply their own safe-area padding rather than relying on
+the shell reservation.
+
+The Reader has a separate transport contract:
+`--reader-mini-player-height` includes the bottom inset, and
+`--reader-bottom-clearance` reserves the player plus a tokenized gap on
+`.reader-column`. Reader text-action surfaces pass the mini-player height to
+the shared floating-position hook as a bottom safe area, so selection actions,
+dictionary lookup, highlight editing, grammar, and sentence translation cannot
+open behind the transport bar. Offline fallback pages use standalone CSS with
+their own bottom padding.
 
 ---
 
@@ -122,6 +147,22 @@ An `aria-live="polite"` region persists in the DOM for font-size announcements r
 
 `ReaderMiniPlayer` is fixed to the bottom of the viewport. On mobile it occupies the full width. The reader column reserves bottom padding equal to the mini-player height plus the safe-area inset and an additional tokenized gap, so body text, study actions, and keep-reading cards remain scrollable above the player.
 
+### Reader floating-surface positioning
+
+Reader text actions use `ReaderFloatingSurface`, which composes the shared
+`useFloatingPosition` hook. Anchors may be a pointer coordinate, a captured
+rectangle, or a live element ref; highlight editing uses a live ref so scrolling
+or layout changes remeasure the current `<mark>` position rather than a stale
+snapshot.
+
+Layout uses the visual viewport when the browser exposes it, including its
+offset during zoom or on-screen-keyboard changes. Recalculation is scheduled on
+anchor/surface resize, window resize or orientation change, capture-phase
+scroll, and visual-viewport resize/scroll. The geometry layer then flips or
+clamps the surface inside viewport padding and the Reader mini-player safe area,
+while preserving a stricter authored maximum size and enabling internal scroll
+when vertical space is limited.
+
 ---
 
 ## 7. Known limitations and gaps
@@ -131,7 +172,7 @@ An `aria-live="polite"` region persists in the DOM for font-size announcements r
 | iOS Safari private browsing | IndexedDB is available in private browsing on iOS 16.4+ but older Safari may return an error; the Offline Library shows a graceful message (`role="status"`). |
 | Push / Background-sync | `BackgroundSync` is not supported in WebKit/Safari; the mutation-queue flush falls back to a `message`-based mechanism initiated on reconnect by `ReaderTimeTracker`. |
 | Reduced motion | `prefers-reduced-motion` is not explicitly applied to the Sheet/Popover animation. CSS `transition` durations should be conditionally disabled; this is a gap relative to the accessibility baseline. |
-| Text selection popovers | Long-press text selection on mobile triggers native OS selection UI before any custom highlight popover can appear. Popover positioning has not been validated for bottom-sheet overlap on small viewports. |
+| Hardware notch verification | Chromium smoke tests expose a zero-pixel safe-area inset. Token arithmetic and zero-inset geometry are automated, but a non-zero home-indicator inset still requires a physical device or explicit browser viewport override. |
 
 ---
 
@@ -144,6 +185,18 @@ Smoke tests for the mobile viewport are in `e2e/mobile-reader-pwa.spec.ts`. They
 - Reader mini-player clearance keeps final content and page actions above the fixed player.
 - Offline library page loads on mobile with the correct heading.
 - `/manifest.webmanifest` is reachable and contains the expected `name` and `display` fields.
+
+Additional focused coverage:
+
+- `tests/safe-area-contract.test.ts` locks shell token arithmetic, mobile content
+	reservation, BottomTabBar sizing, and Sheet/Reader safe-area padding.
+- `tests/ui-popover-layout.test.ts` covers Reader mini-player avoidance,
+	flip/clamp behavior, constrained landscape sizing, and CSS-variable length
+	resolution.
+- `tests/use-floating-position.test.ts` verifies that scroll-triggered layout
+	remeasures a live element anchor.
+- `e2e/mobile-safe-area.spec.ts` probes two mobile viewport sizes in light/dark
+	shell states, final-content clearance, bottom Sheet actions, and Reader tools.
 
 Run the full E2E suite to exercise these specs:
 

@@ -233,6 +233,16 @@ Shared interaction mechanics have one owner:
   `ReaderFloatingSurface`; it adds real Reader semantics rather than aliasing a
   generic primitive.
 
+| Module | Contract |
+| --- | --- |
+| `src/components/ui/floating-layout.ts` | `computeFloatingLayout(...)` is the pure geometry layer. It accepts an anchor rectangle, viewport rectangle, preferred placement/alignment, gap, viewport padding, numeric safe-area insets, optional authored size limits, and flip policy. It returns the final placement, coordinates, maximum dimensions, and whether the content needs internal scrolling. |
+| `src/components/ui/useFloatingPosition.ts` | `useFloatingPosition(...)` accepts a point, rectangle, or live element ref. It measures against `window.visualViewport` when available, remeasures live refs on scheduled layouts, and reacts to anchor/surface resize, window resize/orientation/scroll, and visual-viewport resize/scroll. Safe-area values may be pixels or scoped CSS custom-property references such as `--reader-mini-player-height`. |
+| `src/components/reader/ReaderFloatingSurface.tsx` | Reader composition layer. It applies the mini-player bottom safe area and constrained sizing while retaining Reader focus, Escape, ARIA, and selection-event behavior. |
+
+The shared contract is covered by `tests/ui-popover-layout.test.ts` for pure
+geometry and CSS-length resolution, and `tests/use-floating-position.test.ts`
+for live-anchor remeasurement through the hook.
+
 Do not copy viewport arithmetic, observer setup, arrow-key index arithmetic, or
 focus mutation into feature callers. Preserve feature-authored CSS maximum
 sizes; viewport constraints apply the stricter available limit.

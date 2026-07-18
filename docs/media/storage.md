@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-02"
+last_updated: "2026-07-18"
 description: "Documents local/Azure media storage, readiness behavior, storage interface, speech audio persistence, streaming endpoint, and troubleshooting rules."
 ---
 
@@ -52,7 +52,12 @@ filesystem storage instead.
 | `AZURE_STORAGE_CONNECTION_STRING` | one of these two auth options | Full Azure Storage connection string. |
 | `AZURE_STORAGE_ACCOUNT` | alternative to connection string | Azure Storage account name. |
 | `AZURE_STORAGE_KEY` | with account name | Azure Storage account key. |
-| `AZURE_STORAGE_CONTAINER` | no (default: `media`) | Blob container name. |
+| `AZURE_STORAGE_CONTAINER` | no | Blob container name. The runtime fallback is `media`; `.env.example` explicitly selects `tts` for fresh template-based environments. |
+
+Keep an existing deployment on its current container unless its stored objects
+are migrated deliberately. Changing only `AZURE_STORAGE_CONTAINER` makes
+existing `MediaAsset.storageKey` values resolve against a different container
+and therefore appear unavailable.
 
 When `MEDIA_STORAGE=azure` but credentials are missing, `getMediaStorage()`
 returns `null`, readiness reports `checks.providers.storage = "degraded"`, and
