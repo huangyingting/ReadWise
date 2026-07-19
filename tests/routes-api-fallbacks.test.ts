@@ -146,6 +146,8 @@ before(() => {
   });
   mock.module("@/lib/learning/primitives", {
     namedExports: {
+      clamp01: (value: number) => Math.min(1, Math.max(0, value)),
+      parseStringArray: (value: unknown) => (Array.isArray(value) ? value.filter((v) => typeof v === "string") : []),
       bestEffortMastery: async (label: string, fn: () => unknown) => {
         masteryCalls.push(label);
         return fn();
@@ -165,9 +167,21 @@ before(() => {
   });
   mock.module("@/lib/cache", {
     namedExports: {
+      ARTICLES_CACHE_TAG: "articles",
+      TAGS_CACHE_TAG: "tags",
+      ORG_CACHE_TAG: "org",
+      LISTING_REVALIDATE_SECONDS: 300,
+      MAX_TENANT_CACHE_SIZE: 500,
+      orgCacheTag: (orgId: string) => `org:${orgId}`,
+      userCacheTag: (userId: string) => `user:${userId}`,
+      createCachedListing: <Args extends unknown[], T>(fn: (...args: Args) => Promise<T>) => fn,
+      createTenantCachedListing: <Args extends unknown[], T>(fn: (...args: Args) => Promise<T>) => fn,
+      tenantCacheKeyParts: () => [],
       revalidateArticlesCache: () => {
         revalidateArticlesCalls++;
       },
+      revalidateOrgCache: () => {},
+      revalidateTagsCache: () => {},
       revalidateUserCache: (userId: string) => {
         revalidatedUsers.push(userId);
       },
@@ -191,6 +205,7 @@ before(() => {
       getOrCreateArticleTags: async () => tagsResult,
       IMPORTS_MAX_LIMIT: 50,
       IMPORTS_PAGE_SIZE: 20,
+      publicListableArticleWhere: (extra?: unknown) => ({ visibility: "PUBLIC", ...((extra as object) ?? {}) }),
       readingMinutesFor: () => 7,
     },
   });
@@ -234,6 +249,21 @@ before(() => {
     namedExports: {
       SEARCH_MAX_LIMIT: 50,
       SEARCH_PAGE_SIZE: 20,
+      SEARCH_CANDIDATE_LIMIT: 500,
+      ARTICLE_SEARCH_FIELDS: ["title", "excerpt", "content", "author", "source", "category"],
+      TITLE_ARTICLE_SEARCH_FIELDS: ["title"],
+      BYLINE_ARTICLE_SEARCH_FIELDS: ["author", "source"],
+      HIGHLIGHT_SEARCH_FIELDS: ["quote", "note"],
+      SAVED_WORD_SEARCH_FIELDS: ["word", "explanation", "example", "contextSentence"],
+      buildSearchTerms: (raw: string) => raw.trim().split(/\s+/).filter(Boolean),
+      containsFilter: (value: string) => ({ contains: value, mode: "insensitive" }),
+      candidateTake: (offset: number, limit: number) => offset + limit * 10,
+      priorityTake: (offset: number, limit: number) => offset + limit,
+      articleFieldsWhere: () => ({}),
+      articleTextWhere: () => ({}),
+      articleExactWhere: () => ({}),
+      highlightTextWhere: () => ({}),
+      savedWordTextWhere: () => ({}),
     },
   });
   mock.module("@/lib/search/providers", {
@@ -312,6 +342,25 @@ before(() => {
       submitTodayComprehension: async () => todaySubmitResult,
     },
   });
+  mock.module("@/lib/engagement/today-session/actions", {
+    namedExports: {
+      enforceTodayGate: () => {
+        if (!todayFeatureEnabled) throw new MockApiError(404, "Not found");
+      },
+      COMPREHENSION_SELF_RATINGS: ["easy", "ok", "hard"],
+      COMPREHENSION_SKILL_TAGS: ["main_idea", "detail"],
+      submitTodayComprehension: async () => todaySubmitResult,
+      setTodayPrimaryArticle: async () => {
+        if (setTodayError) throw setTodayError;
+      },
+      SetTodayArticleError: MockSetTodayArticleError,
+      skipTodaySession: async () => ({ skipped: true }),
+      TODAY_DAILY_SKIP_LIMIT: 2,
+      TODAY_SKIP_REASONS: ["too_hard", "already_read", "not_interesting"],
+      markTodayReadingCompleteManual: async () => {},
+      markTodayWordReviewComplete: async () => {},
+    },
+  });
   mock.module("@/lib/runtime-config/feature-flags", {
     namedExports: {
       isTodaySessionFeatureEnabled: () => todayFeatureEnabled,
@@ -332,6 +381,7 @@ before(() => {
     namedExports: {
       SetTodayArticleError: MockSetTodayArticleError,
       loadTodayViewModel: async () => todayView,
+      loadTodayComprehensionCheck: async () => todayCheck,
       setTodayPrimaryArticle: async () => {
         if (setTodayError) throw setTodayError;
       },
@@ -389,6 +439,9 @@ before(() => {
     namedExports: {
       PROVIDERS: adminProviders,
       getProvider: (key: string) => adminProviders.find((provider) => provider.key === key) ?? null,
+      getProviderByName: (name: string) =>
+        adminProviders.find((provider) => provider.name?.toLowerCase() === name.trim().toLowerCase()) ?? null,
+      isProviderCategoryReadingSuitable: (_provider: unknown, _category: string | null) => true,
     },
   });
   mock.module("@/lib/scraper/discovery", {

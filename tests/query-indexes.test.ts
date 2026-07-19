@@ -74,7 +74,13 @@ test("public feed predicate matches ownerless partial-index contract", () => {
   )?.[0];
 
   assert.match(articlePolicy, /publicListableArticleWhere[\s\S]{0,250}publicListableAccessWhere\(\)/);
-  assert.match(publicAccessWhere ?? "", /ownerId:\s*null/);
+  // The function now returns { ...PUBLIC_LISTABLE_RULE }; verify it spreads the const
+  assert.match(publicAccessWhere ?? "", /\.\.\.\s*PUBLIC_LISTABLE_RULE/);
+  // The ownerless guarantee lives in the const itself
+  const publicListableRule = articlePolicy.match(
+    /PUBLIC_LISTABLE_RULE\s*=\s*\{[\s\S]*?\}/,
+  )?.[0];
+  assert.match(publicListableRule ?? "", /ownerId:\s*null/);
   assert.match(docs, /ownerId IS NULL/);
   assert.match(migration, /"ownerId" IS NULL/);
 });
