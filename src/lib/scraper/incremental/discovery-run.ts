@@ -22,7 +22,7 @@
  * failing provider can never stop the loop or block other sources. The handler
  * NEVER throws to the loop and NEVER enqueues body work.
  */
-import { DiscoverySourceHealth, type DiscoverySource } from "@prisma/client";
+import { DiscoverySourceHealth, DiscoverySourceLifecycleMode, type DiscoverySource } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { redactUrlForLog } from "@/lib/scraper/url-redaction";
@@ -32,6 +32,8 @@ import type { DiscoveryPageResult } from "./page-commit";
 import { commitFrontierState } from "./frontier-commit";
 import { decideRunCompletion } from "./frontier";
 import { computeNextRunAt, failureBackoffSeconds } from "./schedule";
+import { nextZeroDiscoveryStreak } from "./degradation";
+import { evaluateAndApplyDegradation } from "./observability-query";
 import type { ClaimedDiscoverySource } from "./discovery-claim";
 
 const SECOND_MS = 1000;
@@ -123,6 +125,7 @@ async function finalizeSuccess(
   source: DiscoverySource,
   boundaryReached: boolean,
   now: Date,
+  zeroDiscoveryStreak: number,
 ): Promise<boolean> {
   return releaseSource(
     source,
@@ -131,6 +134,7 @@ async function finalizeSuccess(
       lastRunAt: now,
       backoffLevel: 0,
       consecutiveFailures: 0,
+      consecutiveZeroDiscoveryRuns: zeroDiscoveryStreak,
       backoffUntil: null,
       lastError: null,
     },
@@ -224,7 +228,27 @@ export async function runClaimedDiscoverySource(
       return { status: "lease-lost" };
     }
 
-    const finalized = await finalizeSuccess(source, pageResult.boundaryReached, now);
+    // Auto-degradation (#1089): a sustained HTTP-200/zero-discovery drift (or a
+    // stalled watermark) demotes an ACTIVE source back to SHADOW under the still-
+    // held lease, WITHOUT touching checkpoint/candidate/watermark state and
+    // reversibly. `nextZeroDiscoveryStreak` counts a boundary-reached scan that
+    // discovered no NEW eligible identities; any new discovery resets it. The
+    // evaluation is no-throw so a degradation fault never breaks the loop.
+    const newlyDiscovered = pageResult.outcomes.eligible;
+    const zeroDiscoveryStreak = nextZeroDiscoveryStreak({
+      previousStreak: source.consecutiveZeroDiscoveryRuns,
+      boundaryReached: pageResult.boundaryReached,
+      newlyDiscovered,
+    });
+    const degradation = await evaluateAndApplyDegradation({
+      source,
+      zeroDiscoveryStreak,
+      now,
+      logger,
+    });
+    if (degradation.demoted) source.lifecycleMode = DiscoverySourceLifecycleMode.SHADOW;
+
+    const finalized = await finalizeSuccess(source, pageResult.boundaryReached, now, zeroDiscoveryStreak);
     if (!finalized) return { status: "lease-lost" };
 
     return {

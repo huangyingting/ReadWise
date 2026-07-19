@@ -22,6 +22,7 @@ export const AUDIT_ACTIONS = {
   adminScrapeTrigger: "admin.scrape.trigger",
   adminSourceToggle: "admin.source.toggle",
   adminSourceSync: "admin.source.sync",
+  adminDiscoverySourceLifecycle: "admin.discovery_source.lifecycle",
   adminArticleReview: "admin.article.review",
   adminArticleTakedown: "admin.article.takedown",
   adminJobRetry: "admin.job.retry",
