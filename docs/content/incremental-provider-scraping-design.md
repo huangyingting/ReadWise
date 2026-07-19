@@ -1848,6 +1848,136 @@ the taxonomy but rejected explicitly here; both are Phase 3 (epic #1080) work.
 Production body-fetch dispatch remains the injected `prepareDraft` seam from
 Phase 2.5.
 
+## Phase 2.8 — Roll out public providers in measured batches (#1098) — current
+
+Phases 2.5–2.7 built the atomic Article save, the activation-generation guard,
+and the active→shadow rollback. Phase 2.8 makes it SAFE to enable REAL body
+ingestion for public providers *gradually*: expand only while a metadata-only
+set of rollout gates stays green, and prove the three canaries under load before
+widening. This issue is heavily OPERATIONAL; the code deliverables below make a
+measured rollout **possible and safe**, and the live-operation parts are called
+out explicitly under "Deferred to live operation" — they are honest follow-ups,
+not fabricated evidence.
+
+### Rollout-gate model (`rollout-gates.ts`)
+
+A PURE evaluator (no DB/network/clock; takes `now` + a metadata-only snapshot),
+modeled on the Phase-1.10 `exit-gates.ts`. It reuses the #1089
+`SourceMetricSummary`, the #1090 `ReconciliationResult`, and controlled count
+inputs, and returns a per-gate pass/fail with a **go / hold** verdict. Every
+`detail` is a controlled count/label/enum — never a URL, body, secret, or article
+text (AC4). The eight gates, with explicit named thresholds at the top of the
+module:
+
+| Gate | Class | Bound |
+| --- | --- | --- |
+| `discovery-latency` | advisory | p90 publication→discovery lag ≤ `MAX_DISCOVERY_LAG_SECONDS` **and** last completed run age ≤ `MAX_DISCOVERY_RUN_AGE_SECONDS` (fails closed when the source never ran) |
+| `no-old-item-false-positives` | **blocking** | `=== 0` (governing invariant: never revive a known identity) |
+| `no-duplicate-work` | **blocking** | `=== 0` (no duplicate ingest jobs / Articles per identity) |
+| `queue-health` | advisory | worker queue depth ≤ `MAX_QUEUE_DEPTH` and oldest pending age ≤ `MAX_QUEUE_AGE_SECONDS` |
+| `retry-quarantine-rate` | advisory | retry rate ≤ `MAX_RETRY_RATE`, quarantine rate ≤ `MAX_QUARANTINE_RATE` |
+| `no-unexplained-gaps` | **blocking** | reconciliation `unexplainedMisses === 0` |
+| `provider-http-health` | advisory | source health not DEGRADED/FAILING/BLOCKED and no active host pause |
+| `cost-budget` | advisory | within per-run discovery budget + per-day body-ingestion budget, no governor budget exhaustion, no `spike` volume anomaly |
+
+The three **blocking** gates are correctness HARD ZEROS — never relaxed to make a
+source pass (explicit non-goal). The verdict is `go` only when EVERY gate passes;
+`blockingFailures` and `advisoryFailures` are surfaced separately so an operator
+sees which reds are absolute correctness stops versus tunable-threshold warnings.
+
+### Batch / tier configuration (`rollout-batches.ts`)
+
+A DATA-ONLY declarative module (house convention, mirrors `canaries.ts`).
+Rollout is grouped into ordered batches by discovery STRATEGY / RISK class, so a
+framework defect (present across every channel) is distinguishable from a
+provider-adapter defect (isolated to one channel), with LOW per-day
+body-ingestion + downstream-work limits that ramp up across tiers:
+
+| Order | Batch | Risk class | Per-day body cap | Concurrent |
+| --- | --- | --- | --- | --- |
+| 0 | `tier-0-canaries` | canary (all three channels) | 25 | 3 |
+| 1 | `tier-1-rss` | RSS (trusted feed date) | 100 | 5 |
+| 2 | `tier-2-sitemap` | sitemap (trusted `<lastmod>`) | 250 | 8 |
+| 3 | `tier-3-seed-html` | seed-HTML (untrusted date) | 500 | 8 |
+
+The **first** batch is exactly the three Phase-1 canaries. Expansion batches
+(1–3) carry the tier limits and risk class but start EMPTY of additional members:
+operators append public same-channel sources, each of which still passes its OWN
+baseline → shadow acceptance. `tier-3-seed-html` carries the highest cap safely
+because untrusted-date drafts NEVER auto-publish (Phase 2.6) — they all land as
+review-required drafts, so ingest volume carries no publication risk. Pure guards
+enforce the safety invariants: `assertNoBatchSkipsBaseline` (registry sync alone
+can never activate a member — the `autoActivate: false` literal + runtime check),
+`assertNoAuthenticatedProviderInBatch` (authenticated providers are excluded from
+every public batch — auth is #1099's scope), and `assertBatchesOrdered` (a batch
+never skips ahead of an earlier, less-proven tier).
+
+### Acceptance matrix (`evaluateActivationReadiness`, in `rollout-gates.ts`)
+
+A pure, FAIL-CLOSED predicate (mirrors `canary-exit-gate-eval.ts`) run **before
+every batch** (AC1). It checks that each provider activation has attached
+baseline evidence, a passing shadow exit-gate verdict, an explicit operator
+approval, an active definition version, configured per-run + per-day budgets, and
+a named rollback owner. Absent evidence (`null`) fails the requirement — a source
+with no attached evidence is never ready. Operator identities (approver, rollback
+owner) are reported as presence flags only, never echoed into details.
+
+### Rollback drill (AC3, `tests/db/rollout-rollback-drill.test.ts`)
+
+The key testable AC — "a rollback drill proves no stale task can write an Article
+after mode generation changes" — exercised end-to-end against the live database
+(engine-agnostic; runs on SQLite and PostgreSQL, `{ skip: !enabled }`). The drill
+ties together #1097 `rollbackActiveToShadow` and #1095's activation-generation
+guard: (1) set up an ACTIVE source at generation N and capture the in-flight
+task's snapshot; (2) roll ACTIVE → SHADOW → generation N+1, the PENDING
+candidate-ingest job is DEAD_LETTERed and candidates/observations are preserved;
+(3) the STALE in-flight task's save with the generation-N snapshot is REJECTED
+(`revalidation-failed` / `stale-generation`) — no Article written, candidate
+untouched; (4) a fresh task at generation N+1 in the correct (re-activated) mode
+saves exactly one Article.
+
+### Rollback triggers
+
+A red **blocking** gate (`no-old-item-false-positives`, `no-duplicate-work`,
+`no-unexplained-gaps`) is an active→shadow rollback trigger: it means a
+correctness invariant has been violated, so the source must stop ingesting
+immediately (the admin/CLI `rollback` path from #1097 flips ACTIVE → SHADOW,
+bumps the generation, and cancels PENDING ingest jobs; in-flight jobs fail closed
+at commit via the generation guard). A red **advisory** gate holds expansion —
+the current tier is paused and the next batch is not started until the threshold
+is back within bounds — but does not by itself force a rollback unless it
+persists or is paired with a blocking failure.
+
+### Final public-provider coverage + intentionally disabled sources
+
+- **Covered by rollout:** the three unauthenticated Phase-1 canaries (RSS —
+  The Conversation; sitemap — Works in Progress; seed-HTML — Undark) form
+  `tier-0`, then per-channel expansion frames (`tier-1-rss`, `tier-2-sitemap`,
+  `tier-3-seed-html`) into which operators add public same-channel sources under
+  ramping caps, each gated through its own baseline → shadow acceptance.
+- **Intentionally DISABLED:** authenticated / credentialed providers are excluded
+  from every public batch (deferred to #1099 and enforced by
+  `assertNoAuthenticatedProviderInBatch`). Seed-HTML sources (untrusted per-item
+  date) remain publication-disabled by the Phase-2.6 gate — they ingest as
+  review-required drafts and never auto-publish. `backfill` / `force-rescrape`
+  refresh of KNOWN Articles stays out of scope (Phase 3, #1080).
+
+### Deferred to live operation (follow-up)
+
+This issue is heavily operational; the following CANNOT be executed without live
+providers running under real load and are **honest follow-ups**, not done here:
+
+- Actually STARTING the canaries (and later batches) ingesting bodies under real
+  provider load, and observing real publication cycles at each tier.
+- Attaching real dashboards / metadata reports and feeding the live
+  `SourceMetricSummary` + reconciliation into `evaluateRolloutGates` on a cadence.
+- Recording live go / no-go decisions per batch (the acceptance matrix is
+  automated; the human sign-off + approval evidence is captured operationally).
+- Live smoke checks and soak observation before widening each tier.
+
+No live-operation evidence is fabricated in this PR. It is recommended these
+operational steps be filed as a separate follow-up issue.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -1880,7 +2010,10 @@ The following phases build on the Phase 1 ledger and are documented as they land
   "Phase 2.6" above. Moving admin + CLI triggers to explicit incremental mode
   with active→shadow rollback #1097 has landed — see "Phase 2.7" above; it closes
   the legacy synchronous discover-and-save paths and defines (but defers)
-  `backfill`/`force-rescrape`.)*
+  `backfill`/`force-rescrape`. The measured public-provider rollout gates, batch/
+  tier config, acceptance matrix & rollback drill #1098 have landed — see
+  "Phase 2.8" above; starting live canaries under load and recording go/no-go
+  decisions remain operational follow-ups.)*
 - **Phase 3 — operator review, backfill, and controlled refresh** (epic #1080):
   canonical-conflict review UI, bounded historical backfill under a separate
   budget, and explicitly operator-triggered refresh. *(The `backfill` and
