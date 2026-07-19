@@ -1599,6 +1599,22 @@ model DiscoverySource {
   canRepublishPublicly  Boolean @default(false)
   autoPublishTrusted    Boolean @default(false)
 
+  /// Authenticated-provider ingestion settings (#1099, Phase 2.9). Both fields
+  /// are SECRET-FREE metadata; the actual credential is NEVER persisted here.
+  ///   - credentialRef: a stable NAME/handle (e.g. an env-var key or secret-store
+  ///     key) the worker resolves to a live credential IN MEMORY at request time
+  ///     (`resolveCredential`). It is NEVER the secret value, a token, a signed
+  ///     URL, or an Authorization header. Rotating the secret behind a fixed
+  ///     credentialRef requires NO candidate/job rewrite (AC2).
+  ///   - authIdentityKind: how this source's items are identified. Only a stable,
+  ///     secret-free identity ("stable-provider-id" / "canonical-url") may be
+  ///     activated for automatic incremental ingestion; a source whose items are
+  ///     identified ONLY by rotating signed URLs ("signed-url-only") is REFUSED
+  ///     activation (AC3). Null means the identity kind is unspecified (treated as
+  ///     a public/stable source with no authenticated-fetch requirement).
+  credentialRef    String?
+  authIdentityKind String?
+
   /// Completeness gap surfaced to operators.
   gapState      DiscoveryGapState @default(NONE)
   gapDetectedAt DateTime?

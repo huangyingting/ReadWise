@@ -48,11 +48,19 @@ export type LifecycleActionFailure =
   | "invalid-transition"
   | "lease-lost"
   | "baseline-incomplete"
-  | "exit-gates-failed";
+  | "exit-gates-failed"
+  | "auth-identity-ineligible";
 
 /** Outcome of an admin lifecycle action. */
 export type LifecycleActionResult =
-  | { ok: false; reason: LifecycleActionFailure; incompleteSegments?: string[]; failingGates?: string[] }
+  | {
+      ok: false;
+      reason: LifecycleActionFailure;
+      incompleteSegments?: string[];
+      failingGates?: string[];
+      /** Present for `auth-identity-ineligible`: the sanitized reason (AC3). */
+      credentialEligibility?: string;
+    }
   | {
       ok: true;
       action: LifecycleActionName;
@@ -147,6 +155,9 @@ export async function applyLifecycleAction(
         ok: false,
         reason: result.reason,
         ...(result.failingGates ? { failingGates: result.failingGates } : {}),
+        ...(result.credentialEligibility
+          ? { credentialEligibility: result.credentialEligibility }
+          : {}),
       };
     }
     return {
