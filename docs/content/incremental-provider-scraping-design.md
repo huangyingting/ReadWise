@@ -2,7 +2,7 @@
 type: "design"
 status: "current"
 last_updated: "2026-07-19"
-description: "Design for stateful incremental provider ingestion: the governing invariant, the durable discovery ledger data model (DiscoverySource, CrawlCandidate, UrlAlias, DiscoveryObservation, CanonicalConflict), its enums, uniqueness constraints, cascade/retention decisions, versioned URL normalization / public article identity (Phase 1.2), and the idempotent baseline seed / conflict isolation from existing public Articles (Phase 1.3), and the SSRF-safe discovery fetch seam exposing response metadata / conditional requests / typed outcomes (Phase 1.4). Later phases are stubbed."
+description: "Design for stateful incremental provider ingestion: the governing invariant, the durable discovery ledger data model (DiscoverySource, CrawlCandidate, UrlAlias, DiscoveryObservation, CanonicalConflict), its enums, uniqueness constraints, cascade/retention decisions, versioned URL normalization / public article identity (Phase 1.2), and the idempotent baseline seed / conflict isolation from existing public Articles (Phase 1.3), the SSRF-safe discovery fetch seam exposing response metadata / conditional requests / typed outcomes (Phase 1.4), and the atomic paged discovery commit + candidate classification (Phase 1.5). Later phases are stubbed."
 ---
 
 # Incremental provider scraping design
@@ -16,8 +16,9 @@ scraper reference in [`scrapers.md`](./scrapers.md) and the source governance in
 
 The document is filled in phase by phase as implementation lands. The data model
 (#1081), URL normalization / public article identity (Phase 1.2, #1082), the
-baseline seed / conflict isolation (Phase 1.3, #1083), and the discovery fetch
-seam (Phase 1.4, #1084) are **current** below; later phases are **planned** stubs.
+baseline seed / conflict isolation (Phase 1.3, #1083), the discovery fetch
+seam (Phase 1.4, #1084), and the atomic paged commit + classification
+(Phase 1.5, #1085) are **current** below; later phases are **planned** stubs.
 
 ## Program overview
 
@@ -457,6 +458,100 @@ defaults to `fetchDiscoveryResponse` and is passed to `urlExtractor` via the new
 optional `UrlExtractorContext.fetchResponse`, so RSS/API/sitemap/HTML discovery
 tests stay network-free by injecting a canned `DiscoveryFetchResult`.
 
+## Phase 1.5 — atomic page commit & classification — current
+
+Phase 1.5 (#1085) makes one bounded discovery **page** replay-safe: every item is
+durably classified BEFORE the source's continuation checkpoint can advance. The
+orchestration lives under `src/lib/scraper/incremental/` (`classify.ts` for the
+PURE classifier, `page-commit.ts` for the single-transaction commit). Routes,
+scripts, and workers call `commitDiscoveryPage` and MUST NOT re-implement the
+admission/classification rules.
+
+### Page-oriented adapter result (as built)
+
+`DiscoveryPageResult` (built on the Phase 1.4 `DiscoveredUrl` shape) is the unit
+committed atomically:
+
+- `items: DiscoveryPageItem[]` — each item carries the discovered `url`, an
+  optional adapter-provided `stableId`, a controlled `publishedAt` +
+  `dateProvenance` (`CandidateDateProvenance`), and optional `positionRank` /
+  `httpStatus`. `pageItemFromDiscoveredUrl` maps a `DiscoveredUrl` to an item with
+  a channel-derived default provenance (rss/api→`FEED`, sitemap→`PAGE_METADATA`,
+  else `URL`).
+- `continuation: { cursor?, page? } | null` — the sanitized checkpoint to persist
+  after the page fully commits (`null` leaves the checkpoint unchanged).
+- `boundaryReached: boolean` — whether the configured discovery boundary was hit.
+- `validators?: { etag?, lastModified?, validatorVersion? }` — validator updates;
+  `validatorVersion` is persisted to `DiscoverySource.validatorVersion`.
+
+### Classification outcomes (pure, no article-body fetch)
+
+`classifyPage` normalizes each URL via `deriveProvisionalIdentity` (#1082),
+resolves the owning provider from the identity hostname (`providerForUrl`),
+applies the same versioned provider admission gate as discovery
+(`articleUrlPattern` + `articleUrlFilter`), and assigns EXACTLY ONE outcome. The
+identity mapping is kept consistent with the Phase 1.3 baseline seed
+(`identityVersionToInt`, full `"v1:<sha256hex>"` key as `provisionalKey`):
+
+- **`policy-rejected`** — unparseable / unsupported-scheme URL, no registered
+  provider, or admission-pattern/filter miss. Observation-only (no candidate);
+  rejections stay re-evaluable on an admission-version bump.
+- **`existing-identity`** — the identity is already in the ledger. Re-observed and
+  its `lastObservedAt` touched, but `status`/`observedInBaseline`/`articleId` are
+  NEVER changed (governing invariant: a known identity is never revived or
+  re-ingested). Takes precedence over mode/window logic in every mode.
+- **`baseline-shadow`** — any non-`ACTIVE` source (BASELINE/SHADOW/…): a new
+  identity is recorded as a candidate with `status = BASELINE`,
+  `observedInBaseline = true`, and NO Article/body fetch/ingest job.
+- **`outside-window`** — ACTIVE source, admitted, dated at/before the frontier
+  window (`watermarkAt ?? baselineCompletedAt`, exclusive). Observation-only.
+- **`review-required`** — ACTIVE source, admitted, but undated (no trusted date
+  and provenance). Observation-only; held for later dating/review.
+- **`eligible`** — ACTIVE source, admitted, dated, first observed AFTER the
+  frontier: a new active candidate (`status = DISCOVERED`,
+  `observedInBaseline = false`, trusted date + provenance recorded).
+
+Every item — regardless of outcome — is represented by exactly one idempotent
+`DiscoveryObservation`. Its `observationKey` is the versioned identity key when
+derivable, otherwise a one-way digest of the stable ID / URL (`id:…` / `url:…`,
+never the raw URL).
+
+### Single-transaction ordering
+
+`commitDiscoveryPage` performs ALL classification reads (source snapshot, known
+identity keys) BEFORE opening the transaction, then inside ONE interactive
+`prisma.$transaction`:
+
+1. **Re-read + revalidate the lease/version** — confirm `leaseOwner` still matches
+   the caller's token AND `definitionVersion` matches; abort (roll back, no
+   writes) otherwise. (A cheaper identical pre-check also runs before the tx.)
+2. **Upsert candidates** (eligible/baseline-shadow) and **touch** existing ones.
+3. **Upsert the provisional `UrlAlias`** for each candidate-bearing item.
+4. **Upsert one observation per item** (the universal durable outcome record).
+5. **Advance the checkpoint** via a guarded conditional `updateMany` scoped to
+   `{ id, leaseOwner, definitionVersion }` — a zero-row result means the lease was
+   stolen mid-commit, which throws and rolls the WHOLE page back.
+
+Because the checkpoint advances only after every write in the same transaction, a
+fault after any write boundary rolls back atomically and the checkpoint never
+advances with a missing candidate/observation outcome.
+
+### Idempotent-race handling (cross-engine)
+
+Candidate/alias/observation writes use `upsert` (INSERT … ON CONFLICT), never a
+catch-`P2002`-inside-the-transaction (which would poison a PostgreSQL
+transaction). Two concurrent commits of the same page therefore converge on ONE
+candidate/alias/observation set and one checkpoint; a uniqueness race is resolved
+by the DB winner and NEVER drops an item. Replaying the same page produces no
+extra candidate, alias, observation, or (Phase-2) ingest job.
+
+### Network-outside-transaction rule
+
+The page is fetched via the Phase 1.4 `fetchDiscoveryResponse` seam by the caller
+BEFORE `commitDiscoveryPage` is invoked; only DB writes and lease revalidation run
+inside the transaction. Baseline/shadow commits create NO Article, NO body fetch,
+and NO `ARTICLE_INGEST` job — enqueuing ingest work is Phase 2 (#1091).
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -465,7 +560,8 @@ The following phases build on the Phase 1 ledger and are documented as they land
   discovery, baseline completion, watermark advance, and observation idempotency
   proving. *(Ledger schema #1081, versioned URL identity #1082, and the baseline
   seed #1083 have landed — see "Data model", "Phase 1.2", and "Phase 1.3" above.
-  The discovery fetch seam #1084 has landed — see "Phase 1.4" above.)*
+  The discovery fetch seam #1084 has landed — see "Phase 1.4" above. The atomic
+  page commit & classification #1085 has landed — see "Phase 1.5" above.)*
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
   creation for genuinely new identities.
