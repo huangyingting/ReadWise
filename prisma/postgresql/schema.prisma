@@ -1548,6 +1548,12 @@ model DiscoverySource {
   backoffLevel        Int       @default(0)
   consecutiveFailures Int       @default(0)
 
+  /// Auto-degradation drift signal (#1089): consecutive successful
+  /// (boundary-reached HTTP-200) runs that discovered ZERO new identities. Reset
+  /// to 0 on any new discovery. A sustained streak demotes an ACTIVE source back
+  /// to SHADOW (state-preserving + reversible).
+  consecutiveZeroDiscoveryRuns Int @default(0)
+
   /// Separate budgets/priorities for discovery, body fetching, and historical
   /// backfill work (#1077).
   discoveryBudgetPerRun Int?

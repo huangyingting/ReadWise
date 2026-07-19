@@ -123,6 +123,28 @@ export function formatLockAge(ms: number | null | undefined): string {
   return `${Math.round(m / 60)}h`;
 }
 
+/**
+ * Formats a whole-second duration as a compact age, extending {@link formatLockAge}
+ * to days for multi-day spans (e.g. a watermark stall). Yields the two most
+ * significant units at most: "45s", "12m", "3h", "5d", "5d 4h". Returns "—" for
+ * null / undefined.
+ */
+export function formatAgeSeconds(seconds: number | null | undefined): string {
+  if (seconds == null) return DASH;
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) {
+    const remM = m % 60;
+    return remM > 0 ? `${h}h ${remM}m` : `${h}h`;
+  }
+  const d = Math.floor(h / 24);
+  const remH = h % 24;
+  return remH > 0 ? `${d}d ${remH}h` : `${d}d`;
+}
+
 // ---------------------------------------------------------------------------
 // Relative time
 // ---------------------------------------------------------------------------

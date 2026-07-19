@@ -789,6 +789,86 @@ partial activation (a retry queues only the still-eligible remainder without
 re-stamping `activatedAt`). Queuing to `QUEUED` is the Phase-1 terminal state;
 real ingestion is Phase 2 (#1091).
 
+### Observability, auto-degradation & minimal admin controls (Phase 1.9, #1089)
+
+Phase 1.9 makes a source's operational state legible to operators and lets a
+drifting source demote itself, following the pure-logic + thin-persistence house
+style. NONE of this triggers body work or ingestion — it only READS state and
+flips lifecycle mode.
+
+- **Pure metrics (`observability.ts`).** `computeSourceMetrics` takes a
+  metadata-only snapshot (source columns + per-status `CrawlCandidate` counts +
+  recent observation timings) and `now`, and derives per-source signals:
+  publication-to-discovery delay percentiles, zero-discovery streak, watermark
+  stall age, gap age, candidate rollups (total / backlog / discovered / ingested
+  / rejected / failed / conflict), conflict rate, and a volume anomaly. It
+  collapses these into ONE `OperationalStatus` badge via
+  `deriveOperationalStatus` — precedence `gap-detected` > `stalled` > `partial` >
+  `healthy-backlog` > `healthy-caught-up` — so the admin UI renders a source
+  without inspecting the database (AC1). Every field is a controlled id, count,
+  status, or duration; no URL, article content, or secret is ever read into a
+  metric or emitted (AC4).
+- **Pure degradation (`degradation.ts`).** `decideDegradation` takes a drift
+  snapshot + provider-aware thresholds and returns `keep` or `demote-to-shadow`.
+  Only ACTIVE sources are considered. A sustained HTTP-200/zero-discovery drift
+  (`consecutiveZeroDiscoveryRuns >= maxZeroDiscoveryStreak`, default 8) or a
+  stalled watermark (`>= maxWatermarkStallMs`, default 21 days) demotes the
+  source; run failures are left to the existing backoff. `nextZeroDiscoveryStreak`
+  is the single pure accounting for the durable `consecutiveZeroDiscoveryRuns`
+  counter (added to `DiscoverySource`): a boundary-reached run discovering no new
+  eligible identities increments it, any new discovery resets it, a mid-scan run
+  leaves it unchanged.
+- **Auto-degradation wiring.** The discovery run finalizer computes the new
+  streak and calls `evaluateAndApplyDegradation` UNDER the worker's still-held
+  lease. A `demote-to-shadow` decision applies the guarded ACTIVE→SHADOW
+  `transitionDiscoveryLifecycle` (a "rollback" edge), so checkpoint, candidate,
+  and watermark state are preserved and the source is fully recoverable
+  (SHADOW→ACTIVE re-activates it) — AC3. The evaluation is no-throw: a
+  degradation fault can never break the discovery loop (failure isolation).
+- **Capability-protected admin API.** Three routes under
+  `/api/admin/discovery-sources`, all gated on `sources.manage` via
+  `createCapabilityHandler` (deny-by-default 401/403, CSRF, and security-event
+  recording handled by the wrapper — no hand-rolled auth), expose read + minimal
+  lifecycle control without touching the schema's URL/secret columns:
+  `GET /` (list summaries), `GET /{id}` (detail summary), and
+  `POST /{id}/lifecycle` (`{ action }`: begin-baseline | activate | pause |
+  resume | rollback | disable | retire). The action + id are validated, and the
+  mutation dispatcher (`applyLifecycleAction`) reuses the guarded lifecycle
+  commits on an IDLE source (refusing a worker-held one), never writing a new
+  transition path. Every successful mutation writes a sanitized audit log
+  (`admin.discovery_source.lifecycle`: sourceId, from/to mode, counts — never a
+  URL/content/secret) — AC2. Review, backfill, conflict resolution,
+  authenticated-source secrets, and force-rescrape are deliberately NOT exposed
+  in this phase.
+- **Minimal admin UI (`/admin/discovery-sources`).** Two capability-gated App
+  Router pages (both `requireCapability(sources.manage)`), built entirely from
+  the shared design-system primitives (`@/components/admin`, `@/components/ui`)
+  and design tokens — no raw colours/font-sizes:
+  - the **list** (`page.tsx`) reads `listDiscoverySourceMetrics` server-side and
+    renders one row per source with a coloured **operational-status badge**
+    (caught-up / backlog / partial / stalled / gap-detected — AC1), lifecycle
+    mode, automation policy, role, health, last run, watermark stall age, backlog
+    count, and gap state, plus a provider-key + lifecycle-mode filter and an
+    empty state;
+  - the **detail** (`[id]/page.tsx`) reads `getDiscoverySourceMetrics` and shows
+    the full metric summary (lifecycle/role, runs + watermark + baseline, gap,
+    drift signals — zero-discovery streak, backoff, publication→discovery delay
+    percentiles, volume anomaly, conflict rate, validator failures — and
+    candidate counts by status), plus the lifecycle **action controls**.
+  - The action controls (`AdminDiscoverySourceActions.tsx`, a client component)
+    render the seven actions; each is DISABLED when it is not valid from the
+    source's current mode (derived by the pure `lifecycle-action-eligibility.ts`
+    mirror — e.g. `activate` only from SHADOW, `begin-baseline` only from
+    DISABLED), and the unwind/stop actions (rollback / disable / retire) require
+    an inline confirm. Each action POSTs to `POST /{id}/lifecycle`; the backend
+    stays the source of truth, so a 409 (busy / invalid-transition /
+    baseline-incomplete) is surfaced as an inline error and the page refreshes on
+    success. The UI renders ONLY the PII-free DTO fields (ids/counts/statuses/
+    durations) — never a URL, article content, or credential (AC4). States
+    covered: loading (button spinner), empty (no sources), error (409 alert),
+    disabled-action, compact mobile, and light/dark. Playwright coverage lives in
+    `e2e/admin-discovery-sources.spec.ts`.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -802,7 +882,8 @@ The following phases build on the Phase 1 ledger and are documented as they land
   watermark / overlap / calibration / gap frontier #1086 has landed — see
   "Phase 1.6" above. Leased discovery-source scheduling in the worker #1087 has
   landed — see "Phase 1.7" above. The baseline & strict shadow lifecycle #1088
-  has landed — see "Phase 1.8" above.)*
+  has landed — see "Phase 1.8" above. Source observability, auto-degradation &
+  minimal admin controls #1089 have landed — see "Phase 1.9" above.)*
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
   creation for genuinely new identities.
