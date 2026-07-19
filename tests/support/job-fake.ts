@@ -219,6 +219,33 @@ function makeJobDelegate(store: Map<string, JobRow>, counter: { value: number })
       touch(row, data);
       return clone(row);
     },
+    upsert: async ({
+      where,
+      create,
+      update,
+    }: {
+      where: Where;
+      create: Where;
+      update: Where;
+    }) => {
+      // Locate an existing row by the unique selector (id or dedupeKey).
+      const existing =
+        where.id != null
+          ? store.get(where.id as string)
+          : where.dedupeKey != null
+            ? findByDedupeKey(store, where.dedupeKey)
+            : undefined;
+      if (existing) {
+        // Empty update = no-op (reuse the winner, never reset). Matches the
+        // ON CONFLICT DO UPDATE (no-op) semantics of enqueueJobInTx.
+        if (Object.keys(update).length > 0) touch(existing, update);
+        return clone(existing);
+      }
+      const id = (create.id as string) ?? `job-${++counter.value}`;
+      const row = makeJobRow(create, id, true);
+      store.set(id, row);
+      return clone(row);
+    },
     updateMany: async ({
       where,
       data,
