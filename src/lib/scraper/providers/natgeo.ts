@@ -269,6 +269,13 @@ const natgeo: Provider = {
     dropSelectors: ["video", "iframe", "aside"],
     dropClassKeywords: ["related", "social", "newsletter", "promo"],
   },
+  urlIdentity: {
+    // NatGeo article identity never depends on query params — discovery already
+    // discards the query string (see `normalizeDiscoveredUrl`). Declaring an
+    // empty keep-list makes that explicit and stable for identity derivation.
+    meaningfulParams: [],
+    trailingSlash: "strip",
+  },
 };
 
 export default natgeo;

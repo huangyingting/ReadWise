@@ -121,6 +121,12 @@ const bbcFeatures: Provider = {
     ],
   },
   urlExtractor: rssUrlExtractor(BBC_FEATURES_RSS_FEEDS),
+  urlIdentity: {
+    canonicalHost: "www.bbc.com",
+    hostnameAliases: { "bbc.com": "www.bbc.com" },
+    trailingSlash: "strip",
+    associatedDomains: ["bbc.co.uk"],
+  },
 };
 
 export default bbcFeatures;

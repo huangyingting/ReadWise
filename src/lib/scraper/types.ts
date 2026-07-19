@@ -154,6 +154,60 @@ export type ProviderDeclutterPolicy = {
   terminalParagraphMarks?: string[];
 };
 
+/** Trailing-slash canonicalization applied to a URL path during identity derivation. */
+export type TrailingSlashMode = "preserve" | "strip" | "add";
+
+/**
+ * Provider-owned URL-identity rules consumed by `src/lib/scraper/url-identity.ts`.
+ *
+ * This is DATA-ONLY (no arbitrary functions) — matching the declarative style of
+ * {@link ProviderCleanup} / {@link ProviderDeclutterPolicy}. Every field is
+ * additive: omitting this policy (or any field) leaves a provider's identity
+ * behavior at the shared, generic default. The shared normalizer always
+ * lowercases scheme/host, drops fragments/default ports, strips centrally
+ * approved tracking params, and removes credential/signature material; these
+ * rules only add provider-specific canonicalization on top.
+ */
+export type ProviderUrlIdentityPolicy = {
+  /**
+   * Query parameters that carry article-identity meaning for this provider.
+   * When defined, ONLY these params are kept (after tracking/credential
+   * removal) and all others are dropped — a provider-owned decision that MUST
+   * be proven by tests never to merge distinct content. An empty array drops
+   * ALL query params. When omitted, every non-tracking, non-credential param is
+   * preserved (the safe default that never merges distinct URLs). Matching is
+   * case-insensitive; surviving params are sorted for a stable key.
+   */
+  meaningfulParams?: string[];
+  /** Trailing-slash canonicalization on the path. Defaults to `"preserve"`. */
+  trailingSlash?: TrailingSlashMode;
+  /**
+   * AMP / mobile variant folding. Matched host/path variants are rewritten to
+   * the canonical form so they share one identity with the canonical article.
+   */
+  amp?: {
+    /** Hostnames that serve AMP/mobile variants (folded to `canonicalHost`). */
+    hosts?: string[];
+    /** Leading path segments marking an AMP variant (e.g. `"amp"` for `/amp/…`). */
+    pathPrefixes?: string[];
+    /** Trailing path segments marking an AMP variant (e.g. `"amp"` for `…/amp`). */
+    pathSuffixes?: string[];
+  };
+  /**
+   * Hostname aliases folded to a canonical host, e.g. `{ "bbc.com": "www.bbc.com" }`.
+   * Keys and values are lowercased. Only hosts this provider owns belong here.
+   */
+  hostnameAliases?: Record<string, string>;
+  /** Canonical host all owned variants fold to (defaults to leaving the host as-is). */
+  canonicalHost?: string;
+  /**
+   * Domains explicitly associated with this provider for canonical ownership.
+   * A trusted canonical URL on one of these (different) domains is accepted as
+   * belonging to this provider; its host is preserved (not rewritten).
+   */
+  associatedDomains?: string[];
+};
+
 /** A news source the scraper knows how to crawl and categorize. */
 export type Provider = {
   /** Short CLI key, e.g. "huffpost". */
@@ -238,4 +292,10 @@ export type Provider = {
    * generic article/digest signals; branded provider phrases live here.
    */
   quality?: ProviderQuality;
+  /**
+   * Provider-owned URL-normalization / article-identity rules consumed by
+   * `src/lib/scraper/url-identity.ts`. Data-only and additive: omitting it (or
+   * any field) leaves identity behavior at the shared generic default.
+   */
+  urlIdentity?: ProviderUrlIdentityPolicy;
 };
