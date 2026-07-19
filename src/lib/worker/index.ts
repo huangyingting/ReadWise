@@ -13,7 +13,13 @@ import type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats } from 
 export type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats };
 export { sleep } from "./sleep";
 export { JobHandlerRegistry, makeArticleHandler, makeCandidateIngestHandler, createDefaultRegistry } from "./registry";
-export type { CandidateIngestRow, LoadCandidateFn } from "./registry";
+export type {
+  CandidateIngestRow,
+  LoadCandidateFn,
+  CandidateIngestDeps,
+  IngestAttemptRunner,
+  IngestAttemptResult,
+} from "./registry";
 export { createClaimedJobExecutor } from "./claimed-execution";
 export type {
   ClaimedJobExecutionDeps,
@@ -39,7 +45,7 @@ export function createConsoleLogger(): WorkerLogger {
 
 function buildHandlers(options: JobWorkerOptions, processFn: typeof processArticle): Partial<Record<JobType, JobHandler>> {
   return {
-    ...createDefaultRegistry(processFn).toRecord(),
+    ...createDefaultRegistry(processFn, undefined, options.candidateIngest ?? {}).toRecord(),
     ...options.handlers,
   };
 }

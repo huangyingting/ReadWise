@@ -40,6 +40,8 @@ export {
   enqueueJobInTx,
   enqueueCandidateIngestInTx,
   enqueueArticleProcess,
+  enqueueArticleProcessInTx,
+  articleProcessDedupeKey,
   enqueueArticleIngest,
   enqueueAiRebuild,
   enqueueTtsGenerate,
