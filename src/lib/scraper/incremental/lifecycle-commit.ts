@@ -40,6 +40,11 @@ import { createLogger } from "@/lib/observability/logger";
 
 import type { CompoundWatermark } from "./frontier";
 import {
+  decideAuthenticatedActivation,
+  parseAuthIdentityKind,
+  type CredentialActivationReason,
+} from "./credential-policy";
+import {
   classifyLifecycleTransition,
   decideBaselineCompletion,
   selectActivationCatchUp,
@@ -80,7 +85,8 @@ export type LifecycleCommitFailure =
   | "lease-lost"
   | "invalid-transition"
   | "baseline-incomplete"
-  | "exit-gates-failed";
+  | "exit-gates-failed"
+  | "auth-identity-ineligible";
 
 /** Rolls the whole transaction back on a lost/stolen lease or concurrent transition. */
 class LeaseLostError extends Error {
@@ -147,6 +153,9 @@ async function loadSource(base: LifecycleCommitBase) {
       watermarkAt: true,
       watermarkKey: true,
       activatedAt: true,
+      canFetchAuthenticated: true,
+      credentialRef: true,
+      authIdentityKind: true,
     },
   });
   if (!source) return { ok: false as const, reason: "source-not-found" as const };
@@ -285,7 +294,13 @@ function watermarkAdvances(
 // ---------------------------------------------------------------------------
 
 export type ActivateResult =
-  | { committed: false; reason: LifecycleCommitFailure; failingGates?: string[] }
+  | {
+      committed: false;
+      reason: LifecycleCommitFailure;
+      failingGates?: string[];
+      /** Present for `auth-identity-ineligible`: the sanitized reason (AC3). */
+      credentialEligibility?: CredentialActivationReason;
+    }
   | {
       committed: true;
       mode: DiscoverySourceLifecycleMode;
@@ -339,6 +354,33 @@ export async function activateDiscoverySource(
   const isRetry = from === M.ACTIVE;
   if (!isRetry && classifyLifecycleTransition(from, M.ACTIVE) !== "forward") {
     return { committed: false, reason: "invalid-transition" };
+  }
+
+  // AC3 (authenticated-provider activation gate): a source authorized to fetch
+  // WITH credentials may only be activated for automatic incremental ingestion
+  // when it has a STABLE, secret-free identity AND a persisted credentialRef.
+  // A source identified ONLY by rotating signed URLs (or missing a credentialRef)
+  // is REFUSED here — the single code path to ACTIVE — so no shortcut can bypass
+  // it. Enforced on the forward SHADOW→ACTIVE edge only (an idempotent retry of
+  // an already-ACTIVE source does not re-litigate eligibility). The reason is a
+  // sanitized label, never a URL/secret.
+  if (!isRetry) {
+    const eligibility = decideAuthenticatedActivation({
+      canFetchAuthenticated: loaded.source.canFetchAuthenticated,
+      credentialRef: loaded.source.credentialRef,
+      authIdentityKind: parseAuthIdentityKind(loaded.source.authIdentityKind),
+    });
+    if (!eligibility.eligible) {
+      log.warn("discovery source activation refused: authenticated-identity ineligible", {
+        sourceId: base.sourceId,
+        credentialEligibility: eligibility.reason,
+      });
+      return {
+        committed: false,
+        reason: "auth-identity-ineligible",
+        credentialEligibility: eligibility.reason,
+      };
+    }
   }
 
   // Exit-gate enforcement (AC2): a source that fails a Phase-1 exit gate MUST
