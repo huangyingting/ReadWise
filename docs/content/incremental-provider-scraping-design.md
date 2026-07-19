@@ -980,6 +980,79 @@ soak against the real canary endpoints is an operational follow-up; the
 fixture-driven equivalent exercises the same baseline→shadow→(gated)activate path
 and the same exit-gate evaluation.
 
+## Phase 2.1 — atomically enqueue candidate-based ingestion work (#1091) — current
+
+Phase 2 turns eligible NEW candidates into durable ingestion work. Phase 2.1
+enqueues that work atomically with the discovery page commit; it does NOT fetch,
+extract, or create an Article (that is #1095). The governing invariant is
+unchanged: normal incremental ingestion acts ONLY on identities first observed
+AFTER a completed baseline, and a known public identity is never auto-refetched
+or revived.
+
+### Transaction-aware idempotent enqueue (`enqueueJobInTx`)
+
+`enqueueJobInTx(tx, type, payload, dedupeKey, opts)` participates in the CALLER'S
+existing interactive transaction. Idempotency inside the transaction uses
+`upsert` (INSERT … ON CONFLICT) on the unique `Job.dedupeKey`, never a
+catch-`P2002`-inside-the-transaction — a caught `P2002` poisons a PostgreSQL
+transaction and would abort the whole page commit. The `ON CONFLICT` update is a
+deliberate no-op: an existing Job — ACTIVE **or** TERMINAL — is REUSED, never
+reset. Concurrent or replayed enqueues therefore converge on the single database
+winner (the upsert returns it), and a terminal Job is never revived by ordinary
+rediscovery. The type's retry policy, priority, run-after, and empty
+error-history initialization are preserved. The standalone `enqueueJob` /
+`enqueueDeduped` (which DO reset a terminal job) are unchanged for
+non-incremental callers.
+
+### Candidate-based payload + dedupe key (metadata only)
+
+Incremental ingestion is keyed on the ledger CANDIDATE identity, never on a URL.
+The Job payload carries ONLY `{ candidateId, processingVersion }` — no URL,
+provider policy, credential, article data, or mutable candidate field. The pure,
+DB-free seam `src/lib/jobs/candidate-ingest.ts` builds/validates the payload and
+constructs the dedupe key `article-ingest:candidate:<candidateId>:v<processingVersion>`.
+`processingVersion` is a code-defined constant (`CANDIDATE_INGEST_PROCESSING_VERSION`),
+so no schema change is required; bumping it in code starts a fresh,
+independently-deduped attempt without disturbing prior terminal Job history.
+
+### Enqueue inside the page-commit transaction (eligible + ACTIVE only)
+
+`commitDiscoveryPage` enqueues one candidate-based `ARTICLE_INGEST` job for every
+item classified `eligible` in `ACTIVE` lifecycle mode, INSIDE the same
+`$transaction` that upserts the candidate/alias/observation and advances the
+guarded checkpoint. Because the enqueue shares that transaction, any later
+rollback — a write fault, or a lost lease at the guarded checkpoint advance —
+rolls the Job back too, so a committed checkpoint NEVER points past a missing
+Job. Baseline, shadow, existing-identity, review-required, outside-window, and
+policy-rejected outcomes enqueue NOTHING (`eligible` is only ever emitted by the
+pure classifier in ACTIVE mode; the explicit mode check is belt-and-suspenders).
+Still, no Article is created and no body is fetched here.
+
+### Worker dispatch + #1095 hand-off boundary
+
+The `ARTICLE_INGEST` handler dispatches on payload shape: a candidate-based
+payload resolves the candidate from the ledger by id at execution time; the
+legacy url/articleId ArticleIngest payload keeps delegating to the article
+processor (no runtime compatibility layer was added for the old shape). For a
+candidate payload the handler guards the governing invariant — a missing
+candidate is a permanent failure, and a terminal / baseline-observed /
+already-linked candidate is a safe no-op (never re-ingested) — then stops at a
+clear no-op hand-off point. Fetch / extract / Article creation is explicitly
+OUT OF SCOPE and lands in #1095. No URL or article content is ever logged.
+
+### Acceptance evidence
+
+- **AC1 (atomicity)**: an eligible ACTIVE commit yields exactly one active
+  `ARTICLE_INGEST` job; fault injection after the item write, and a lease steal
+  at the guarded checkpoint advance, both roll the whole page back (no candidate,
+  no job, unadvanced checkpoint). `tests/db/candidate-ingest-enqueue.test.ts`.
+- **AC2 (idempotency)**: replaying and concurrently committing the same page
+  converge on one job.
+- **AC3 (terminal not reset)**: a `COMPLETED` job survives ordinary rediscovery
+  of the same candidate/version — the dedupe winner is reused, not recreated.
+- **AC4 (PII-free)**: the payload is `{ candidateId, processingVersion }` and the
+  error history is empty; unit + DB tests assert no URL/scheme leaks.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -999,7 +1072,9 @@ The following phases build on the Phase 1 ledger and are documented as they land
   the "Phase 1 go/no-go checklist" below.)*
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
-  creation for genuinely new identities.
+  creation for genuinely new identities. *(The atomic candidate-based
+  `ARTICLE_INGEST` enqueue #1091 has landed — see "Phase 2.1" above; fetch /
+  extract / Article creation is #1095.)*
 - **Phase 3 — operator review, backfill, and controlled refresh** (epic #1080):
   canonical-conflict review UI, bounded historical backfill under a separate
   budget, and explicitly operator-triggered refresh.

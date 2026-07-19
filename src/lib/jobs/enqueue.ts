@@ -7,6 +7,11 @@ import { createLogger } from "@/lib/observability/logger";
 import { recordJobQueueEvent } from "@/lib/metrics";
 import { retryPolicyFor } from "./retry-policy";
 import { ACTIVE_STATUSES, type JobPayload, type ArticleJobPayload, type ArticleIngestPayload, type PushReminderPayload } from "./types";
+import {
+  CANDIDATE_INGEST_PROCESSING_VERSION,
+  buildCandidateIngestPayload,
+  candidateIngestDedupeKey,
+} from "./candidate-ingest";
 
 export type { ArticleJobPayload, ArticleIngestPayload, PushReminderPayload, JobPayload };
 
@@ -159,6 +164,65 @@ function pendingJobData(
     runAfter: base.runAfter,
     ...(dedupeKey ? { dedupeKey } : {}),
   };
+}
+
+/**
+ * Transaction-aware idempotent enqueue that participates in an EXISTING Prisma
+ * interactive transaction (issue #1091). Unlike the standalone
+ * {@link enqueueDeduped} — which runs on its own connection and can safely
+ * catch a `P2002` — an enqueue INSIDE an interactive transaction MUST use
+ * `upsert` (INSERT … ON CONFLICT): a caught `P2002` POISONS a PostgreSQL
+ * transaction and aborts the whole page commit.
+ *
+ * The `update: {}` no-op is deliberate: an existing Job for this dedupe key —
+ * ACTIVE or TERMINAL — is REUSED, never reset. Concurrent or replayed enqueues
+ * of the same key therefore converge on the single database winner (upsert
+ * returns it), and a terminal Job is never revived by ordinary rediscovery
+ * (AC2/AC3). Preserves the type's retry policy, priority, run-after, and
+ * empty-error-history initialization.
+ *
+ * No queue metric is emitted here: the surrounding transaction may still roll
+ * back, so counting an "enqueued" event before commit would be incorrect.
+ */
+export function enqueueJobInTx(
+  tx: Prisma.TransactionClient,
+  type: JobType,
+  payload: JobPayload,
+  dedupeKey: string,
+  opts: EnqueueOptions = {},
+): Promise<Job> {
+  const policy = retryPolicyFor(type);
+  const maxAttempts = Math.max(1, opts.maxAttempts ?? policy.maxAttempts);
+  const runAfter = opts.runAfter ?? new Date();
+  const priority = opts.priority ?? 0;
+
+  return tx.job.upsert({
+    where: { dedupeKey },
+    create: pendingJobData(type, payload, { maxAttempts, runAfter, priority }, dedupeKey),
+    update: {},
+  });
+}
+
+/**
+ * Enqueues candidate-based ARTICLE_INGEST work for an ELIGIBLE new candidate,
+ * INSIDE the caller's interactive transaction (the page-commit tx, #1091). The
+ * payload carries ONLY `{ candidateId, processingVersion }` — never a URL,
+ * provider policy, credential, or article data (AC4). Idempotent + terminal-Job
+ * safe via {@link enqueueJobInTx}.
+ */
+export function enqueueCandidateIngestInTx(
+  tx: Prisma.TransactionClient,
+  candidateId: string,
+  opts: EnqueueOptions = {},
+): Promise<Job> {
+  const processingVersion = CANDIDATE_INGEST_PROCESSING_VERSION;
+  return enqueueJobInTx(
+    tx,
+    JobType.ARTICLE_INGEST,
+    buildCandidateIngestPayload(candidateId, processingVersion),
+    candidateIngestDedupeKey(candidateId, processingVersion),
+    opts,
+  );
 }
 
 export function enqueueArticleProcess(

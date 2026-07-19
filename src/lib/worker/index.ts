@@ -12,7 +12,8 @@ import type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats } from 
 
 export type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats };
 export { sleep } from "./sleep";
-export { JobHandlerRegistry, makeArticleHandler, createDefaultRegistry } from "./registry";
+export { JobHandlerRegistry, makeArticleHandler, makeCandidateIngestHandler, createDefaultRegistry } from "./registry";
+export type { CandidateIngestRow, LoadCandidateFn } from "./registry";
 export { createClaimedJobExecutor } from "./claimed-execution";
 export type {
   ClaimedJobExecutionDeps,

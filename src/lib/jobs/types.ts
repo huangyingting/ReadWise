@@ -38,6 +38,17 @@ export type ArticleIngestPayload = {
   ownerId?: string;
 } & Record<string, unknown>;
 
+/**
+ * Candidate-based ARTICLE_INGEST payload for incremental ingestion (#1091).
+ * METADATA ONLY — carries the ledger candidate identity + a controlled
+ * processing version, NEVER a URL, provider policy, credentials, or article
+ * data. See `candidate-ingest.ts` for the builder/validator/dedupe-key.
+ */
+export type CandidateIngestPayload = {
+  candidateId: string;
+  processingVersion: number;
+};
+
 export type PushReminderPayload = {
   userId?: string;
 } & Record<string, unknown>;
