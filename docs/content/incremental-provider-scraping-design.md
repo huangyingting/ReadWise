@@ -1283,6 +1283,163 @@ The real fetch / extraction / Article-creation that produces an
 reactivation passes, are #1095. Phase 2.3 delivers the pure classifier, the
 guarded persistence, and the worker seam #1095 will call.
 
+## Phase 2.4 — hostname budgets, provider fairness, priorities & cost budgets (#1094) — current
+
+Phase 2.4 governs *how fast and in what order* discovery and (future) body work
+may hit each publication, so a high-volume provider can never monopolize the
+global worker pool and real-time incremental work can never be starved by
+historical backfill. All decision logic is pure and injected-clock testable
+(`rate-governor.ts`); persistence is a thin guarded-tx layer
+(`rate-governor-commit.ts`) over two durable tables; wiring reads runtime config
+(`rate-governor-config.ts`). No external broker is introduced (explicit
+non-goal — no Redis / external queue).
+
+### Pure governor (`rate-governor.ts`)
+
+Takes an injected `now: Date` plus plain metadata snapshots and returns
+decisions — never touches the DB, network, or the wall clock:
+
+- **Shared hostname budget (AC1).** `admitHostnameRequest` enforces ONE budget
+  shared across RSS, sitemap, AND article-body requests to the same hostname:
+  a max in-flight `maxConcurrency`, a `minIntervalMs` minimum spacing between
+  requests, and a per-UTC-day `dailyCeiling`. `0` on any knob means
+  unlimited/disabled. It returns `admit` / `defer(reason)` / `paused(until)`.
+- **Priority reservation (req4).** `effectiveConcurrencyLimit` reserves
+  `incrementalReservedSlots` of `maxConcurrency` for the `incremental` tier, so
+  `backfill` may only occupy `maxConcurrency − reservedSlots`; at least the
+  reserved slots are ALWAYS available for new-article work. A backfill request
+  blocked purely by that reservation defers with reason `reserved-for-incremental`.
+- **Provider fairness (AC2).** `selectNextProvider` filters providers that are
+  eligible (pending candidates > 0, under their daily quota) and orders them by
+  `compareProviderFairness`: incremental tier first, then FEWEST in-flight (the
+  anti-starvation lever), then OLDEST pending (FIFO within equal priority), then
+  provider key. A busy provider therefore yields to a quieter one with ready
+  incremental candidates.
+- **Cost budgets (req5/req6).** `classifyCostBudget` tracks three INDEPENDENT
+  daily ledgers — `discovery`, `body`, `ai`. `admitCostlyWork` defers body/AI
+  work when its budget is exhausted, but `isAiBudgetExhausted` is advisory only:
+  an exhausted AI/narration budget NEVER stops discovery or candidate
+  persistence (explicit non-goal). Low-cost discovery keeps running and durable
+  candidates accumulate; only the expensive downstream job defers until capacity
+  returns, then the OLDEST real-time backlog resumes first.
+- **Backoff / pause (AC3).** `applyResponseSignal` honors an explicit
+  `Retry-After` (pause exactly that long, reason `retry_after`) and auto-pauses a
+  hostname once a 429/403/5xx streak reaches `errorThreshold`, with a capped
+  exponential window (`basePauseMs · 2ⁿ`, clamped to `maxPauseMs`). A success
+  clears the streak and pause; non-throttle statuses (404/410) are left
+  untouched. Reason codes are machine strings (`http_429`, `http_403`,
+  `http_5xx`, `retry_after`) — never a URL.
+- **Backlog throttle (req7).** `evaluateBacklog` compares the candidate backlog
+  to a configured capacity threshold and, as it approaches, emits a
+  throttle signal (reduce low-priority source frequency) and an alert signal.
+  It NEVER deletes or drops candidates.
+
+### Durable persistence + guarded increments (`rate-governor-commit.ts`)
+
+Two small tables back the durable state; in-flight CONCURRENCY is deliberately
+NOT stored (see tradeoff below):
+
+- **`ScraperBudgetWindow`** — a per-`(scope, scopeKey, utcDay)` counter
+  (`@@unique`), used for the hostname daily ceiling (`scope="hostname"`,
+  `scopeKey=hostKey`), the provider daily quota (`scope="provider"`), and the
+  three cost budgets (`scope∈{discovery,body,ai}_budget`, `scopeKey="global"`).
+  Bucketing by UTC day means the window auto-resets at midnight with no sweeper.
+  `scope` is a plain string (not a Prisma enum) so adding a budget kind needs no
+  PostgreSQL `ALTER TYPE`.
+- **`HostnameGovernorState`** — a per-`hostKey` row holding the cross-day
+  `lastRequestAt` (min-interval anchor), `pausedUntil`, `consecutiveErrors`, and
+  `lastFailureReason`. These MUST survive a UTC-day boundary and a worker
+  restart, so they are separate from the daily counter.
+
+Every increment is an idempotent `upsert` (INSERT..ON CONFLICT) — NEVER a
+catch-P2002-inside-a-transaction (which would poison a PostgreSQL tx).
+`reserveHostnameRequest` reads a snapshot, runs the pure decision, and — only on
+`admit` — opens ONE interactive `$transaction` that re-reads host state,
+re-validates pause + min-interval, atomically increments the day counter, then
+GUARDS the daily ceiling on the NEW count (over → throw `ReservationConflictError`
+→ rollback → return `defer`), and finally advances the `lastRequestAt` anchor. A
+non-admit short-circuits WITHOUT a transaction, so no counter is spent on a
+deferred request. `consumeCostBudget` and `consumeProviderQuota` use the same
+increment-then-guard-then-rollback shape; `recordHostnameResponse` is a
+standalone idempotent upsert of the pure backoff result.
+
+### Durability tradeoff (documented)
+
+**In-flight concurrency is ephemeral and derived, not stored.** It is computed
+from currently-leased DiscoverySources (and, once #1095 lands, locked
+`ARTICLE_INGEST` jobs) so it self-heals across a worker restart — a crashed
+worker's lease expiry frees its slots automatically, with no stale mutable
+counter to reconcile. The daily ceiling, provider quota, cost budgets,
+min-interval anchor, and pause window CANNOT be derived and MUST persist, so they
+live in the two tables above. The cost of this split is that in-flight is only as
+accurate as lease/lock visibility (eventually consistent within a poll), which is
+acceptable because the durable daily ceiling is the hard cap and the pure
+concurrency check is a soft smoothing limit.
+
+### Wiring & observability
+
+`makeDiscoveryGovernorGate` (config layer) injects an OPTIONAL gate into
+`runClaimedDiscoverySource`: before spending a fetch it calls
+`reserveHostnameRequest`; a `defer`/`paused` reschedules the source to the
+governor-supplied `nextRunAt` WITHOUT fetching and WITHOUT applying failure
+backoff (a governed defer is not a failure), surfacing a new `deferred` run
+outcome/stat. The gate defaults OFF, so the worker's behavior is unchanged until
+the knobs are set. `deriveHostnameInFlight` counts a provider's currently-leased
+sources (excluding self) for the shared concurrency input; `resolveHostKey` maps
+a provider to its first owned hostname so discovery and body to one publication
+share one budget. Body-fetch dispatch wiring and body in-flight derivation are
+the #1095 hand-off boundary (see Deferred).
+
+`observability.ts` surfaces the governor state for source health (AC4) WITHOUT
+leaking URLs: `SourceMetricSummary` gains `hostPauseActive` / `hostPauseSeconds`
+/ `hostPausedUntil` / `hostConsecutiveErrors` / `hostLastFailureReason`,
+`discoveryBudgetExhausted` / `bodyBudgetExhausted` / `aiBudgetExhausted`, and
+`backlogThrottleActive` / `backlogAlert` / `backlogUtilization`. An active
+hostname pause flips a healthy source to `partial` status. All fields are counts,
+timestamps, booleans, or machine reason codes.
+
+### Configuration (`runtime-config/scraper.ts`)
+
+Twelve new knobs, each with a documented default and individually overridable via
+env; `0` means unlimited/disabled where that reading is natural:
+`SCRAPER_HOST_CONCURRENCY`, `SCRAPER_HOST_MIN_INTERVAL_MS`,
+`SCRAPER_HOST_DAILY_CEILING`, `SCRAPER_PROVIDER_DAILY_QUOTA`,
+`SCRAPER_DISCOVERY_DAILY_BUDGET`, `SCRAPER_BODY_DAILY_BUDGET`,
+`SCRAPER_AI_DAILY_BUDGET`, `SCRAPER_INCREMENTAL_RESERVED_SLOTS`,
+`SCRAPER_BACKLOG_CAPACITY_THRESHOLD`, `SCRAPER_HOST_ERROR_PAUSE_THRESHOLD`,
+`SCRAPER_HOST_PAUSE_BASE_MS`, `SCRAPER_HOST_PAUSE_MAX_MS`.
+
+### Acceptance evidence
+
+- **AC1 (shared hostname cap)**: concurrent RSS + sitemap + body reservations to
+  one hostname never exceed the shared concurrency / min-interval / daily ceiling
+  — fake-clock tests in `tests/scraper-rate-governor.test.ts` and the durable
+  ceiling-rollback test in `tests/db/rate-governor.test.ts` (counter never
+  exceeds the cap).
+- **AC2 (no provider starvation)**: `selectNextProvider` / `compareProviderFairness`
+  fairness + FIFO + quota tests in `tests/scraper-rate-governor.test.ts`, plus the
+  durable per-provider quota guard in `tests/db/rate-governor.test.ts`.
+- **AC3 (budget exhaustion keeps candidates durable & resumes oldest first)**:
+  cost-budget exhaustion tests prove discovery + candidate persistence keep
+  running while body/AI defer, and the oldest real-time backlog resumes before
+  lower-priority work — `tests/scraper-rate-governor.test.ts`; the durable
+  body-budget rollback is in `tests/db/rate-governor.test.ts`.
+- **AC4 (backoff/pause/recovery visible without URLs)**: Retry-After +
+  429/403/5xx pause + recovery pure tests, the durable pause/recovery test in
+  `tests/db/rate-governor.test.ts` (asserts no URL persisted), and the
+  observability field tests in `tests/scraper-observability.test.ts` (pause →
+  `partial`, no URL in the summary).
+
+### Deferred
+
+Body-fetch DISPATCH wiring and per-provider/hostname BODY in-flight derivation
+depend on the #1095 fetch/extract/Article-creation pipeline (the same hand-off
+boundary as Phase 2.3). Phase 2.4 delivers the pure governor, the durable guarded
+persistence, the discovery-path gate, observability, and the config knobs #1095
+will consume; the Job payload carries only `{candidateId, processingVersion}`
+today (no hostname/provider and no Job→CrawlCandidate relation), so body in-flight
+cannot yet be derived by join and is left to #1095.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -1306,8 +1463,9 @@ The following phases build on the Phase 1 ledger and are documented as they land
   `ARTICLE_INGEST` enqueue #1091 has landed — see "Phase 2.1" above. Final
   canonical identity + body fingerprint resolution / convergence #1092 has landed
   — see "Phase 2.2" above. Propagation retries, quarantine & extractor-version
-  reactivation #1093 has landed — see "Phase 2.3" above; fetch / extract /
-  Article creation is #1095.)*
+  reactivation #1093 has landed — see "Phase 2.3" above. Hostname budgets,
+  provider fairness, priorities & cost budgets #1094 have landed — see
+  "Phase 2.4" above; fetch / extract / Article creation is #1095.)*
 - **Phase 3 — operator review, backfill, and controlled refresh** (epic #1080):
   canonical-conflict review UI, bounded historical backfill under a separate
   budget, and explicitly operator-triggered refresh.

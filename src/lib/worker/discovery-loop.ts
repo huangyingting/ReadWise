@@ -30,11 +30,12 @@ export type DiscoveryLoopStats = {
   committed: number;
   failed: number;
   leaseLost: number;
+  deferred: number;
   stoppedBySignal: boolean;
 };
 
 function initialStats(): DiscoveryLoopStats {
-  return { polls: 0, claimed: 0, committed: 0, failed: 0, leaseLost: 0, stoppedBySignal: false };
+  return { polls: 0, claimed: 0, committed: 0, failed: 0, leaseLost: 0, deferred: 0, stoppedBySignal: false };
 }
 
 function errorMessage(err: unknown): string {
@@ -65,6 +66,7 @@ export async function runDiscoveryLoop(
     commitPage: deps.commitPage,
     commitFrontier: deps.commitFrontier,
     now: deps.now,
+    governor: deps.governor,
   };
   const stats = initialStats();
 
@@ -98,6 +100,9 @@ export async function runDiscoveryLoop(
           break;
         case "lease-lost":
           stats.leaseLost++;
+          break;
+        case "deferred":
+          stats.deferred++;
           break;
       }
     }

@@ -23,6 +23,37 @@ const DEFAULT_INGEST_PROPAGATION_GRACE_MS = 6 * 60 * 60 * 1000;
 /** Default bounded budget of candidates reactivated per extractor-version upgrade. */
 const DEFAULT_REACTIVATION_BUDGET = 50;
 
+/**
+ * Rate-governor defaults (#1094, Phase 2.4). Every knob is individually
+ * overridable and, where the reading is natural, `0` means "disabled/unlimited"
+ * (documented per accessor). These feed the PURE governor in
+ * `src/lib/scraper/incremental/rate-governor.ts`; nothing here reads a clock or DB.
+ */
+/** Default max simultaneous in-flight requests (discovery + body) to one hostname. */
+const DEFAULT_HOST_CONCURRENCY = 2;
+/** Default minimum interval (ms) between two requests to the same hostname. */
+const DEFAULT_HOST_MIN_INTERVAL_MS = 1_000;
+/** Default per-hostname per-UTC-day request ceiling (discovery + body combined). */
+const DEFAULT_HOST_DAILY_CEILING = 5_000;
+/** Default per-provider per-UTC-day request quota. */
+const DEFAULT_PROVIDER_DAILY_QUOTA = 10_000;
+/** Default per-UTC-day discovery-request (RSS/sitemap) budget. */
+const DEFAULT_DISCOVERY_DAILY_BUDGET = 20_000;
+/** Default per-UTC-day article-body-fetch budget. */
+const DEFAULT_BODY_DAILY_BUDGET = 5_000;
+/** Default per-UTC-day AI/narration budget. */
+const DEFAULT_AI_DAILY_BUDGET = 2_000;
+/** Default hostname-concurrency slots reserved for real-time incremental work. */
+const DEFAULT_INCREMENTAL_RESERVED_SLOTS = 1;
+/** Default candidate-backlog capacity threshold that triggers low-priority throttling. */
+const DEFAULT_BACKLOG_CAPACITY_THRESHOLD = 10_000;
+/** Default consecutive 429/403/5xx responses before a hostname is auto-paused. */
+const DEFAULT_HOST_ERROR_PAUSE_THRESHOLD = 3;
+/** Default base auto-pause duration (ms) once the error threshold is crossed. */
+const DEFAULT_HOST_PAUSE_BASE_MS = 60_000;
+/** Default maximum auto-pause duration (ms). */
+const DEFAULT_HOST_PAUSE_MAX_MS = 60 * 60_000;
+
 /** Default same-strategy retries for scraper HTTP 429 rate limits. */
 const DEFAULT_FETCH_429_RETRIES = 3;
 /** Default base delay in ms for scraper HTTP 429 retry backoff. */
@@ -44,6 +75,18 @@ type EnvName =
   | "SCRAPER_FETCH_429_MAX_MS"
   | "SCRAPER_INGEST_PROPAGATION_GRACE_MS"
   | "SCRAPER_REACTIVATION_BUDGET"
+  | "SCRAPER_HOST_CONCURRENCY"
+  | "SCRAPER_HOST_MIN_INTERVAL_MS"
+  | "SCRAPER_HOST_DAILY_CEILING"
+  | "SCRAPER_PROVIDER_DAILY_QUOTA"
+  | "SCRAPER_DISCOVERY_DAILY_BUDGET"
+  | "SCRAPER_BODY_DAILY_BUDGET"
+  | "SCRAPER_AI_DAILY_BUDGET"
+  | "SCRAPER_INCREMENTAL_RESERVED_SLOTS"
+  | "SCRAPER_BACKLOG_CAPACITY_THRESHOLD"
+  | "SCRAPER_HOST_ERROR_PAUSE_THRESHOLD"
+  | "SCRAPER_HOST_PAUSE_BASE_MS"
+  | "SCRAPER_HOST_PAUSE_MAX_MS"
   | "SCRAPER_QUALITY_CLASSIFIER";
 
 /**
@@ -226,4 +269,140 @@ export function scraperIngestPropagationGraceMs(): number {
  */
 export function scraperReactivationBudget(): number {
   return readEnvNonNegativeInt("SCRAPER_REACTIVATION_BUDGET", DEFAULT_REACTIVATION_BUDGET, 0);
+}
+
+/**
+ * Max simultaneous in-flight requests (discovery RSS/sitemap + article body,
+ * shared) to ONE hostname (`SCRAPER_HOST_CONCURRENCY`, default 2; #1094).
+ *
+ * Set to `0` for UNLIMITED concurrency (no per-hostname cap).
+ */
+export function scraperHostConcurrency(): number {
+  return readEnvNonNegativeInt("SCRAPER_HOST_CONCURRENCY", DEFAULT_HOST_CONCURRENCY, 0);
+}
+
+/**
+ * Minimum interval (ms) between two requests to the same hostname
+ * (`SCRAPER_HOST_MIN_INTERVAL_MS`, default 1000; #1094).
+ *
+ * Set to `0` to DISABLE the min-interval throttle.
+ */
+export function scraperHostMinIntervalMs(): number {
+  return readEnvNonNegativeInt("SCRAPER_HOST_MIN_INTERVAL_MS", DEFAULT_HOST_MIN_INTERVAL_MS, 0);
+}
+
+/**
+ * Per-hostname per-UTC-day request ceiling, discovery + body combined
+ * (`SCRAPER_HOST_DAILY_CEILING`, default 5000; #1094).
+ *
+ * Set to `0` for an UNLIMITED daily ceiling.
+ */
+export function scraperHostDailyCeiling(): number {
+  return readEnvNonNegativeInt("SCRAPER_HOST_DAILY_CEILING", DEFAULT_HOST_DAILY_CEILING, 0);
+}
+
+/**
+ * Per-provider per-UTC-day request quota (`SCRAPER_PROVIDER_DAILY_QUOTA`,
+ * default 10000; #1094).
+ *
+ * Set to `0` for an UNLIMITED per-provider quota.
+ */
+export function scraperProviderDailyQuota(): number {
+  return readEnvNonNegativeInt("SCRAPER_PROVIDER_DAILY_QUOTA", DEFAULT_PROVIDER_DAILY_QUOTA, 0);
+}
+
+/**
+ * Per-UTC-day discovery-request (RSS/sitemap) budget
+ * (`SCRAPER_DISCOVERY_DAILY_BUDGET`, default 20000; #1094).
+ *
+ * Set to `0` for an UNLIMITED discovery budget. Discovery is the cheap work
+ * that stays alive even when the body/AI budgets are exhausted.
+ */
+export function scraperDiscoveryDailyBudget(): number {
+  return readEnvNonNegativeInt("SCRAPER_DISCOVERY_DAILY_BUDGET", DEFAULT_DISCOVERY_DAILY_BUDGET, 0);
+}
+
+/**
+ * Per-UTC-day article-body-fetch budget (`SCRAPER_BODY_DAILY_BUDGET`,
+ * default 5000; #1094).
+ *
+ * Set to `0` for an UNLIMITED body-fetch budget. When exhausted, body/downstream
+ * work is DEFERRED while low-cost discovery + candidate persistence keep running.
+ */
+export function scraperBodyDailyBudget(): number {
+  return readEnvNonNegativeInt("SCRAPER_BODY_DAILY_BUDGET", DEFAULT_BODY_DAILY_BUDGET, 0);
+}
+
+/**
+ * Per-UTC-day AI/narration budget (`SCRAPER_AI_DAILY_BUDGET`, default 2000; #1094).
+ *
+ * Set to `0` for an UNLIMITED AI/narration budget. Exhausting it NEVER stops
+ * discovery (explicit non-goal); only the AI/narration downstream is deferred.
+ */
+export function scraperAiDailyBudget(): number {
+  return readEnvNonNegativeInt("SCRAPER_AI_DAILY_BUDGET", DEFAULT_AI_DAILY_BUDGET, 0);
+}
+
+/**
+ * Hostname-concurrency slots RESERVED for real-time incremental work so future
+ * backfill can never starve new-article ingestion
+ * (`SCRAPER_INCREMENTAL_RESERVED_SLOTS`, default 1; #1094).
+ *
+ * Set to `0` to DISABLE reservation (backfill may use the full concurrency).
+ * Clamped to the hostname concurrency by the pure governor.
+ */
+export function scraperIncrementalReservedSlots(): number {
+  return readEnvNonNegativeInt(
+    "SCRAPER_INCREMENTAL_RESERVED_SLOTS",
+    DEFAULT_INCREMENTAL_RESERVED_SLOTS,
+    0,
+  );
+}
+
+/**
+ * Candidate-backlog capacity threshold (`SCRAPER_BACKLOG_CAPACITY_THRESHOLD`,
+ * default 10000; #1094).
+ *
+ * When the pending candidate backlog approaches this size the governor throttles
+ * low-priority source frequency and raises an alert signal; candidates are NEVER
+ * deleted or silently dropped. Set to `0` to DISABLE backlog throttling.
+ */
+export function scraperBacklogCapacityThreshold(): number {
+  return readEnvNonNegativeInt(
+    "SCRAPER_BACKLOG_CAPACITY_THRESHOLD",
+    DEFAULT_BACKLOG_CAPACITY_THRESHOLD,
+    0,
+  );
+}
+
+/**
+ * Consecutive 429/403/5xx responses from one hostname before it is auto-paused
+ * (`SCRAPER_HOST_ERROR_PAUSE_THRESHOLD`, default 3; #1094).
+ *
+ * A server `Retry-After` pauses immediately regardless of this count. Set to `0`
+ * to DISABLE threshold-based auto-pause (only `Retry-After` then pauses).
+ */
+export function scraperHostErrorPauseThreshold(): number {
+  return readEnvNonNegativeInt(
+    "SCRAPER_HOST_ERROR_PAUSE_THRESHOLD",
+    DEFAULT_HOST_ERROR_PAUSE_THRESHOLD,
+    0,
+  );
+}
+
+/**
+ * Base auto-pause duration (ms) applied once a hostname crosses the error
+ * threshold (`SCRAPER_HOST_PAUSE_BASE_MS`, default 60000; #1094). The pause grows
+ * exponentially with each extra error, capped at {@link scraperHostPauseMaxMs}.
+ */
+export function scraperHostPauseBaseMs(): number {
+  return readEnvNonNegativeInt("SCRAPER_HOST_PAUSE_BASE_MS", DEFAULT_HOST_PAUSE_BASE_MS, 0);
+}
+
+/**
+ * Maximum auto-pause duration (ms) for a backed-off hostname
+ * (`SCRAPER_HOST_PAUSE_MAX_MS`, default 3600000; #1094).
+ */
+export function scraperHostPauseMaxMs(): number {
+  return readEnvNonNegativeInt("SCRAPER_HOST_PAUSE_MAX_MS", DEFAULT_HOST_PAUSE_MAX_MS, 0);
 }
