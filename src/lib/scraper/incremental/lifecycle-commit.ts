@@ -55,8 +55,13 @@ const M = DiscoverySourceLifecycleMode;
 export type LifecycleCommitBase = {
   /** Target `DiscoverySource.id`. */
   sourceId: string;
-  /** Opaque worker lease token. Must still match `DiscoverySource.leaseOwner`. */
-  leaseOwner: string;
+  /**
+   * Opaque worker lease token. Must still match `DiscoverySource.leaseOwner` on
+   * the guarded update. A worker passes its held token; an admin lifecycle
+   * action on an IDLE source passes `null`, so the guard applies only while the
+   * source remains unclaimed (a worker claiming it concurrently aborts the write).
+   */
+  leaseOwner: string | null;
   /** Expected `DiscoverySource.definitionVersion`. Mismatch = a stale definition. */
   definitionVersion: number;
   /** Override "now" (testing / determinism). */
