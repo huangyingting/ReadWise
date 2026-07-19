@@ -2,7 +2,7 @@
 type: "design"
 status: "current"
 last_updated: "2026-07-19"
-description: "Design for stateful incremental provider ingestion: the governing invariant, the durable discovery ledger data model (DiscoverySource, CrawlCandidate, UrlAlias, DiscoveryObservation, CanonicalConflict), its enums, uniqueness constraints, cascade/retention decisions, and versioned URL normalization / public article identity (Phase 1.2). Later phases are stubbed."
+description: "Design for stateful incremental provider ingestion: the governing invariant, the durable discovery ledger data model (DiscoverySource, CrawlCandidate, UrlAlias, DiscoveryObservation, CanonicalConflict), its enums, uniqueness constraints, cascade/retention decisions, versioned URL normalization / public article identity (Phase 1.2), and the idempotent baseline seed / conflict isolation from existing public Articles (Phase 1.3). Later phases are stubbed."
 ---
 
 # Incremental provider scraping design
@@ -15,8 +15,9 @@ scraper reference in [`scrapers.md`](./scrapers.md) and the source governance in
 [`content-policy.md`](./content-policy.md).
 
 The document is filled in phase by phase as implementation lands. The data model
-(#1081) and URL normalization / public article identity (Phase 1.2, #1082) are
-**current** below; later phases are **planned** stubs.
+(#1081), URL normalization / public article identity (Phase 1.2, #1082), and the
+baseline seed / conflict isolation (Phase 1.3, #1083) are **current** below; later
+phases are **planned** stubs.
 
 ## Program overview
 
@@ -292,14 +293,96 @@ provider-rule handling, the hash, or the key shape — is a breaking change and
    let `v1` and `v2` identities coexist during the transition.
 3. Never mutate `v1` keys in place; old keys remain valid for historical rows.
 
+## Phase 1.3 — baseline seed & conflict isolation — current
+
+Phase 1.3 (#1083) initializes the discovery ledger from the Articles that
+**already exist** in the library, so the very first incremental run starts from a
+truthful "everything already known" baseline instead of an empty ledger. It is a
+pure backfill: **no network fetch, no scraper fetch dependency, and no merging of
+historical data**. Core logic lives in
+`src/lib/scraper/incremental/baseline-backfill.ts`
+(`backfillDiscoveryBaseline` + the pure `classifyBaselineArticles`); the CLI
+wrapper is `scripts/backfill-discovery-baseline.ts`
+(`npm run backfill:discovery-baseline [-- --dry-run]`).
+
+### Selection predicate
+
+An Article is eligible when it is a **public provider** article:
+`visibility = PUBLIC` **and** `ownerId = null` **and** `sourceType = SCRAPED`.
+Private/user imports (`ownerId != null` or `visibility = PRIVATE`) are excluded by
+construction, so a private copy sharing a `sourceUrl` never occupies the public
+identity nor blocks a public provider Article — `Article @@unique([sourceUrl,
+ownerId])` keeps the two rows distinct. A **null `sourceUrl`** is intentionally
+*not* filtered in SQL: it is surfaced as a reported skip (`missing-source-url`)
+rather than silently hidden.
+
+### Identity mapping (#1082 string tag → #1081 columns)
+
+The #1082 module emits a string version tag (`"v1"`) and a combined key
+(`"v1:<sha256hex>"`). Phase 1.3 maps these onto the #1081 ledger columns with a
+single consistent rule applied **everywhere** (candidate, alias, conflict):
+
+- `identityVersion` (Int) = numeric parse of the tag: `"v1"` → `1`.
+- `provisionalKey` / `aliasKey` / `canonicalKey` / `challengerKey` (String) = the
+  **full** versioned key (`"v1:<sha256hex>"`), never the bare hash and never a raw
+  URL. The full key is the module's public identity token and stays collision-safe
+  across versions.
+
+`deriveProvisionalIdentity` is used (never `deriveCanonicalIdentity`): no new page
+canonical is inferred and the network is never touched. An Article whose URL is
+unparseable, non-http(s), or owned by **no registered provider** is skipped and
+reported (`invalid-url`, `unsupported-scheme`, `no-registered-provider`) — a
+candidate's `providerKey` is NOT NULL and is never fabricated.
+
+### Conflict detection & isolation
+
+Eligible Articles are grouped by `(providerKey, identityVersion, provisionalKey)`
+**before** any identity value is enforced:
+
+- **Unique group (exactly one Article):** one `CrawlCandidate` is created with
+  `observedInBaseline = true`, `articleId` set, `status = INGESTED` plus
+  `ingestedAt`/`terminalAt` and `terminalReason = "baseline-existing-article"`,
+  and `canonicalKey` left null (no canonical inferred). `INGESTED` is the truthful
+  terminal outcome: the public article's body is already ingested and published.
+  One PROVISIONAL `UrlAlias` is created for the same key.
+  `firstObservedAt`/`lastObservedAt` are set to the Article's
+  `publishedAt ?? createdAt` to preserve temporal ordering.
+- **Conflict group (two or more Articles → one identity):** exactly one
+  `CanonicalConflict` is written (`status = OPEN`,
+  `reason = "baseline-duplicate-provisional-identity"`, `canonicalKey =
+  challengerKey =` the contested key) and **no candidates** are created for those
+  Articles — their public keys are left unset and the identity **fails closed**.
+  Unrelated identities and providers continue to seed normally.
+
+### Governing-invariant guarantee
+
+Every backfilled candidate carries `observedInBaseline = true`. This is the flag
+normal incremental ingestion checks to guarantee it **never auto-refetches,
+updates, recreates, or revives a known public Article**: a pre-existing identity
+is a baseline member, not a newly discovered one.
+
+### Idempotency, resumability & dry-run
+
+Writes are keyed on the #1081 unique constraints
+(`@@unique([providerKey, identityVersion, provisionalKey])` for candidates,
+`([providerKey, identityVersion, aliasKey])` for aliases,
+`([providerKey, identityVersion, canonicalKey])` for conflicts) via
+existence-check-then-create with a `P2002` tolerance, so a rerun converges to
+**identical final counts** with no duplicate rows and an interrupted run resumed
+mid-way never double-writes. `--dry-run` performs **zero writes** and pulls in
+only the pure identity module (no fetch dependency).
+
+The report is **metadata only**: Article IDs, the controlled conflict reason, and
+counts — never article content, titles, URLs, or user-private data.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
 
 - **Phase 1 — discovery correctness in shadow mode** (epic #1078): shadow-mode
   discovery, baseline completion, watermark advance, and observation idempotency
-  proving. *(Ledger schema #1081 and versioned URL identity #1082 have landed —
-  see "Data model" and "Phase 1.2" above.)*
+  proving. *(Ledger schema #1081, versioned URL identity #1082, and the baseline
+  seed #1083 have landed — see "Data model", "Phase 1.2", and "Phase 1.3" above.)*
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
   creation for genuinely new identities.
