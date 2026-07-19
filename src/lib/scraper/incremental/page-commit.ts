@@ -173,6 +173,7 @@ async function commitClassifiedItem(
   const httpStatus = classified.item.httpStatus;
 
   let candidateId: string | null = null;
+  let candidateStatus: CrawlCandidateStatus | null = null;
   let candidateEnsured = false;
   let aliasEnsured = false;
   let ingestJobEnsured = false;
@@ -231,9 +232,10 @@ async function commitClassifiedItem(
         // status, observedInBaseline, articleId, or terminal fields (governing
         // invariant: a known identity is never revived or re-ingested here).
         update: { lastObservedAt: now },
-        select: { id: true },
+        select: { id: true, status: true },
       });
       candidateId = candidate.id;
+      candidateStatus = candidate.status;
       candidateEnsured = true;
     } else if (outcome === "existing-identity") {
       const existing = await tx.crawlCandidate.findUnique({
@@ -294,8 +296,17 @@ async function commitClassifiedItem(
     // ingest work (governing invariant — a known/pre-baseline identity is never
     // auto-ingested). `eligible` is only emitted by the classifier in ACTIVE
     // mode; the explicit mode check is belt-and-suspenders.
+    //
+    // The `status === DISCOVERED` guard is a second belt-and-suspenders check:
+    // the classifier already routes every KNOWN identity to `existing-identity`
+    // (never `eligible`), so a resurrected candidate can only reach here if a
+    // future classify regression mis-labels a known/terminal candidate. Because
+    // the upsert `update` branch never changes status, a re-seen candidate keeps
+    // its terminal status (e.g. SKIPPED_REVIEW, INGESTED) and is skipped here —
+    // only a freshly-created DISCOVERED candidate ever enqueues ingest work (#1100).
     if (
       candidateId &&
+      candidateStatus === CrawlCandidateStatus.DISCOVERED &&
       outcome === "eligible" &&
       lifecycleMode === DiscoverySourceLifecycleMode.ACTIVE
     ) {

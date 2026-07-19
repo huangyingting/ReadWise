@@ -34,6 +34,7 @@ import { decideRunCompletion } from "./frontier";
 import { computeNextRunAt, failureBackoffSeconds } from "./schedule";
 import { nextZeroDiscoveryStreak } from "./degradation";
 import { evaluateAndApplyDegradation } from "./observability-query";
+import { evaluateAndApplyTrustDemotion } from "./source-trust-commit";
 import type { ClaimedDiscoverySource } from "./discovery-claim";
 import type { AdmissionDecision } from "./rate-governor";
 
@@ -308,6 +309,24 @@ export async function runClaimedDiscoverySource(
       logger,
     });
     if (degradation.demoted) source.lifecycleMode = DiscoverySourceLifecycleMode.SHADOW;
+
+    // Trust auto-demotion (#1100): a TRUSTED source that has drifted past a
+    // configured anomaly (old-item false positive, sustained zero-discovery,
+    // repeated failures, volume anomaly, or elevated conflict rate) has its
+    // explicit `autoPublishTrusted` flag REVOKED and, if ACTIVE, is returned to
+    // SHADOW under the still-held lease — reversibly and WITHOUT deleting any
+    // candidate history (AC3). Cheap early-out for the untrusted majority; no-throw
+    // so a demotion fault never breaks the loop.
+    const trustDemotion = await evaluateAndApplyTrustDemotion({
+      source,
+      zeroDiscoveryStreak,
+      now,
+      logger,
+    });
+    if (trustDemotion.demoted) {
+      source.autoPublishTrusted = false;
+      source.lifecycleMode = DiscoverySourceLifecycleMode.SHADOW;
+    }
 
     const finalized = await finalizeSuccess(source, pageResult.boundaryReached, now, zeroDiscoveryStreak);
     if (!finalized) return { status: "lease-lost" };

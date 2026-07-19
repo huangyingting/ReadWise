@@ -149,9 +149,10 @@ export type CandidateIngestDeps = {
 
 /**
  * Candidate statuses for which ingestion is already finished — never re-ingest.
- * Includes QUARANTINED (#1093) and the #1092 parks (CONFLICT / DUPLICATE_ALIAS /
- * NEEDS_REVIEW) so a reclaimed job on an already-resolved candidate is a safe
- * no-op that never revives it (governing invariant).
+ * Includes QUARANTINED (#1093), the #1092 parks (CONFLICT / DUPLICATE_ALIAS /
+ * NEEDS_REVIEW), and the #1100 operator review-rejection (SKIPPED_REVIEW) so a
+ * reclaimed job on an already-resolved candidate is a safe no-op that never
+ * revives it (governing invariant).
  */
 const TERMINAL_CANDIDATE_STATUSES = new Set<CrawlCandidateStatus>([
   CrawlCandidateStatus.INGESTED,
@@ -161,6 +162,7 @@ const TERMINAL_CANDIDATE_STATUSES = new Set<CrawlCandidateStatus>([
   CrawlCandidateStatus.CONFLICT,
   CrawlCandidateStatus.DUPLICATE_ALIAS,
   CrawlCandidateStatus.NEEDS_REVIEW,
+  CrawlCandidateStatus.SKIPPED_REVIEW,
 ]);
 
 async function defaultLoadCandidate(candidateId: string): Promise<CandidateIngestRow | null> {

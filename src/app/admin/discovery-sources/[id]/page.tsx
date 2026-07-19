@@ -10,6 +10,7 @@ import {
 } from "@/lib/scraper/incremental/observability-query";
 import { enabledLifecycleActions } from "@/lib/scraper/incremental/lifecycle-action-eligibility";
 import AdminDiscoverySourceActions from "@/components/AdminDiscoverySourceActions";
+import SourceTrustPanel from "@/components/admin/SourceTrustPanel";
 import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { Badge, Card, CardBody, CardTitle } from "@/components/ui";
 import {
@@ -229,6 +230,21 @@ export default async function AdminDiscoverySourceDetailPage({
                 {metrics.discoveryBudgetPerRun ?? DASH}
               </Metric>
             </MetricGrid>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="mt-0">
+          <div className="stack">
+            <CardTitle level="h2">Source trust &amp; promotion</CardTitle>
+            <p className="m-0 text-text-muted text-[length:var(--text-sm)]">
+              Promotion is EXPLICIT and version-scoped — metrics only report the
+              eligibility bar, they never auto-promote. A source that ever refetched
+              a known/old item can never be trusted. Trust is reversible and
+              auto-demotes on drift.
+            </p>
+            <SourceTrustPanel sourceId={id} />
           </div>
         </CardBody>
       </Card>

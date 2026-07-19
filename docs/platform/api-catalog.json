@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-19T16:16:19.692Z",
-  "routeCount": 121,
-  "methodCount": 142,
+  "generatedAt": "2026-07-19T19:25:23.686Z",
+  "routeCount": 126,
+  "methodCount": 148,
   "routes": [
     {
       "path": "/api/account",
@@ -313,6 +313,118 @@
       ]
     },
     {
+      "path": "/api/admin/candidates",
+      "file": "src/app/api/admin/candidates/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": [
+            "discoverySourceId",
+            "limit",
+            "offset",
+            "providerKey",
+            "status"
+          ],
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/candidates/{id}",
+      "file": "src/app/api/admin/candidates/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "candidate"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/candidates/{id}/review",
+      "file": "src/app/api/admin/candidates/[id]/review/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "action",
+            "reason"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/candidates/review",
+      "file": "src/app/api/admin/candidates/review/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "action",
+            "ok",
+            "results",
+            "summary"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "action",
+            "ids",
+            "reason"
+          ]
+        }
+      ]
+    },
+    {
       "path": "/api/admin/discovery-sources",
       "file": "src/app/api/admin/discovery-sources/route.ts",
       "runtime": "default",
@@ -392,6 +504,54 @@
           "queryParamNames": null,
           "bodyFieldNames": [
             "action"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/discovery-sources/{id}/trust",
+      "file": "src/app/api/admin/discovery-sources/[id]/trust/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "source"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "error",
+            "reason"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "action",
+            "definitionVersion",
+            "reason"
           ]
         }
       ]
