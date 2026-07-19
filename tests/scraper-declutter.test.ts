@@ -12,6 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { declutterArticleHtml } from "@/lib/scraper/declutter";
+import { getProvider } from "@/lib/scraper/providers";
 
 /** Three substantial body paragraphs that must always survive decluttering. */
 const BODY = [
@@ -263,7 +264,7 @@ test("smithsonian provider cleanup removes leading author avatar/card residue", 
   const out = declutterArticleHtml(html, {
     authorName: "Greg Daugherty",
     publishedAt: "2026-06-24T11:45:00Z",
-    providerKey: "smithsonian",
+    policy: getProvider("smithsonian")?.declutter,
   });
 
   assert.ok(!out.includes("accounts/headshot"), "author avatar removed");
@@ -284,7 +285,7 @@ test("smithsonian provider cleanup removes leading standalone publication date",
     `<p>Researchers later compared the June 24, 2026 field notes with older maps.</p>`;
   const out = declutterArticleHtml(html, {
     publishedAt: "2026-06-24T11:45:00Z",
-    providerKey: "smithsonian",
+    policy: getProvider("smithsonian")?.declutter,
   });
 
   assert.ok(!out.includes("<p>June 24, 2026</p>"), "leading standalone date removed");

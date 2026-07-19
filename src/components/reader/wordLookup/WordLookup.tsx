@@ -18,7 +18,7 @@
  *   useSaveWord        — save/unsave vocabulary with session-level cache
  *   useHighlightActions — highlight + add-note with overlap merge
  *   useDictionaryLookup, useSentenceTranslation, useGrammarExplanation,
- *   useTtsProseHighlight, highlightMarks — prior extracted subsystems
+ *   useReaderTextMap — persistent marks + Narration range coordination
  *
  * The mark renderer (useEffect) walks text nodes via TreeWalker to wrap
  * matching ranges in <mark class="rw-hl">. It NEVER re-sanitizes or
@@ -38,13 +38,12 @@ import SentenceTranslatePopover from "@/components/SentenceTranslatePopover";
 import GrammarPopover from "@/components/GrammarPopover";
 import DictionaryPopover from "./DictionaryPopover";
 import {
-  applyHighlightMarks,
   computeAnchor,
 } from "./highlightMarks";
 import { useDictionaryLookup } from "./useDictionaryLookup";
 import { useGrammarExplanation } from "./useGrammarExplanation";
 import { useSentenceTranslation } from "./useSentenceTranslation";
-import { useTtsProseHighlight } from "./useTtsProseHighlight";
+import { useReaderTextMap } from "./useReaderTextMap";
 import {
   wordAtPoint,
   extractContextSentence,
@@ -199,7 +198,7 @@ export default function WordLookup({
 
   // TTS prose highlighting
   const readerAudio = useReaderAudio();
-  useTtsProseHighlight(proseRef, readerAudio, highlights);
+  useReaderTextMap(proseRef, html, readerAudio, highlights, markOrphaned);
 
   // Highlight toolbar actions (overlap merge logic)
   const { handleHighlight, handleAddNote } = useHighlightActions(
@@ -222,12 +221,6 @@ export default function WordLookup({
     closeAll();
     requestAnimationFrame(() => proseRef.current?.focus());
   }, [closeAll]);
-
-  // Mark rendering
-  useEffect(() => {
-    if (!proseRef.current) return;
-    applyHighlightMarks(proseRef.current, highlights, markOrphaned);
-  }, [highlights, markOrphaned]);
 
   // Seed translate language from localStorage after mount
   useEffect(() => {

@@ -24,6 +24,10 @@ _Avoid_: TTS input, speech text, cached plain text
 The canonical plain-text form of an article used as the basis for narration and word highlighting.
 _Avoid_: Stripped HTML, article plain text
 
+**Reader text map**:
+The Reader-owned mapping from the current prose DOM to persistent annotation anchors and live Narration word ranges, rebuilt after semantic highlight marks mutate text nodes.
+_Avoid_: TTS node cache, highlight walker
+
 **Speech timing enrichment**:
 Normalization that gives each playable narration word a corresponding span in the reader text.
 _Avoid_: Span repair, timing repair, word alignment
@@ -49,6 +53,16 @@ _Avoid_: Worker processing, claim-and-run, job runner
 **Public-library URL intake**:
 The lifecycle for accepting a web article URL into the shared library, ending in an ownerless draft or a non-saving outcome.
 _Avoid_: Admin scrape, scrape-and-save
+
+**Source extraction policy**:
+The exceptional extraction and declutter decisions owned by one Content Ingestion source adapter and executed by the shared extraction pipeline.
+_Avoid_: Provider branch, scraper special case
+
+### Account Lifecycle
+
+**Personal-data export policy**:
+The explicit field allowlist and include/exclude decision for every Prisma `User` relation; Prisma remains authoritative for relation and cascade behavior.
+_Avoid_: Lifecycle registry, export-all schema
 
 ### Today Session
 

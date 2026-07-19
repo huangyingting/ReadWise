@@ -61,8 +61,27 @@ type Provider = {
   urlExtractor?: (ctx: UrlExtractorContext) => Promise<string[]>; // #360/#380
   paginateSeed?: (seed: string, page: number) => string | null;   // #364
   maxSeedPages?: number;     // #364 – default 1 (no pagination)
+   cleanup?: ProviderCleanup; // source-owned pre-extraction structure rules
+   extraction?: ProviderExtractionPolicy; // exceptional body decisions
+   declutter?: ProviderDeclutterPolicy; // branded post-extraction signals
 };
 ```
+
+### Source extraction policy
+
+`extractArticle` owns the provider-agnostic pipeline and unknown-source fallback.
+Source adapters own branded behavior through three narrow declarations:
+
+- `cleanup` removes known source chrome before extraction.
+- `extraction` may prefer a comparable multi-block Readability result or
+   normalize source-specific JSON-LD paragraphs.
+- `declutter` supplies branded residue signals interpreted by the shared DOM
+   cleanup pass and its conservative maximum-removal guard.
+
+Do not add provider keys or branded phrases to `extract.ts` or `declutter.ts`.
+Final `sanitizeArticleHtml` always runs after policy execution and cannot be
+bypassed by an adapter. Unknown sources omit these fields and retain the generic
+fallback path.
 
 ### Category slugs
 
@@ -192,6 +211,9 @@ any existing provider module are required.
      `articleUrlPattern`, `defaultCategory`.
    - Add `articleUrlFilter` to exclude live blogs, video pages, author pages, etc.
    - Add `categoryFor` using `categoryFromRules` or `mapSectionToCategory`.
+    - Put branded cleanup, body arbitration, JSON-LD normalization, and residue
+       signals in `cleanup`, `extraction`, and `declutter`; keep shared extraction
+       modules source-agnostic.
 3. **Register the provider** in `src/lib/scraper/providers/index.ts`:
    - Add an `import` for the new module.
    - Add the imported provider to the `PROVIDERS` array.

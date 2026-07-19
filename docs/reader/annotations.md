@@ -141,6 +141,12 @@ Main components:
 | `InlineNoteEditor` | Note text input with conflict-aware updates. |
 | `/notes` page | Cross-article notes and highlights. |
 
+`useReaderTextMap` coordinates persistent mark rendering with Narration word
+ranges. Persistent highlights remain semantic, clickable `<mark class="rw-hl">`
+elements for edit/note behavior; after those wrappers mutate text nodes, the
+module rebuilds live Narration ranges against the resulting DOM. Selection
+anchoring remains in `highlightMarks.ts` and uses the same linear Reader text.
+
 ## Privacy and export
 
 Highlights and notes are part of user-owned data and are included in

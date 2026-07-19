@@ -191,6 +191,15 @@ const wired: Provider = {
     "entertainment",
     "animals",
   ],
+  extraction: {
+    preferReadabilityForCollapsedJsonLd: true,
+  },
+  declutter: {
+    exactShortTexts: [
+      "more great wired stories",
+      "this is an edition of the inner loop newsletter. read previous newsletters here.",
+    ],
+  },
   categoryFor: (url, section) =>
     categoryFromRules(
       url,

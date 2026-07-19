@@ -1,5 +1,6 @@
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { inspectPersonalDataExportCoverage } from "@/lib/account-lifecycle/personal-data-policy";
 
 const BASE_SCHEMA_PATH = "prisma/base.prisma";
 const PROVIDER_PLACEHOLDER = "{{PROVIDER}}";
@@ -123,6 +124,14 @@ function inspectSchemas(
   if (sqliteProviderCount !== 1) {
     diagnostics.push(
       `  Expected exactly 1 occurrence of provider = "sqlite" in ${SCHEMA_ARTIFACTS[0].path} but found ${sqliteProviderCount}.`,
+    );
+  }
+
+  const personalData = inspectPersonalDataExportCoverage(baseSchema);
+  if (!personalData.ok) {
+    diagnostics.push(
+      "  Personal-data export policy does not cover every Prisma User relation:",
+      ...personalData.diagnostics,
     );
   }
 

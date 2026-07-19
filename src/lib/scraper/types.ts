@@ -123,6 +123,37 @@ export type ProviderQuality = {
   digestListicleTitlePrefixes?: string[];
 };
 
+export type ProviderExtractionPolicy = {
+  /**
+   * Prefer a comparable Readability body when JSON-LD collapsed the article
+   * into fewer content blocks. Generic image recovery and word-count guards
+   * still apply before this preference is considered.
+   */
+  preferReadabilityForCollapsedJsonLd?: boolean;
+  /**
+   * Normalize provider-specific JSON-LD paragraphs before they are wrapped in
+   * HTML. The callback is pure and only runs for a present `articleBody`.
+   */
+  normalizeJsonLdParagraphs?: (paragraphs: string[]) => string[];
+};
+
+export type ProviderDeclutterPolicy = {
+  /** Normalized short-text patterns that identify source-branded residue. */
+  shortTextPatterns?: RegExp[];
+  /** Normalized short-text values that identify source-branded residue. */
+  exactShortTexts?: string[];
+  /** Hosts used by standalone social-attribution blockquotes. */
+  socialAttributionHosts?: string[];
+  /** Source-specific leading author-card structure. */
+  leadingAuthorLayout?: {
+    scanLimit: number;
+    imageAttributePattern: RegExp;
+    rolePattern: RegExp;
+  };
+  /** Ornamental text removed only when it terminates a paragraph. */
+  terminalParagraphMarks?: string[];
+};
+
 /** A news source the scraper knows how to crawl and categorize. */
 export type Provider = {
   /** Short CLI key, e.g. "huffpost". */
@@ -190,6 +221,18 @@ export type Provider = {
    * authoritative safety pass. Omitting this field leaves behavior unchanged.
    */
   cleanup?: ProviderCleanup;
+  /**
+   * Exceptional body-extraction decisions owned by this source adapter.
+   * Generic extraction, fallback arbitration, and final sanitization remain
+   * shared and always run when this field is omitted.
+   */
+  extraction?: ProviderExtractionPolicy;
+  /**
+   * Branded residue signals consumed by the shared conservative declutter pass.
+   * Source adapters own the signals; the shared pass owns DOM mutation and its
+   * maximum-removal safety guard.
+   */
+  declutter?: ProviderDeclutterPolicy;
   /**
    * Provider-specific quality heuristics. Shared quality checks should only keep
    * generic article/digest signals; branded provider phrases live here.

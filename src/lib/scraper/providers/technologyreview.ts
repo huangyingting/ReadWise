@@ -34,6 +34,8 @@ const TECHNOLOGY_REVIEW_RSS_FEEDS = [
   ...TECHNOLOGY_REVIEW_SEEDS.map((seed) => `${seed.replace(/\/$/, "")}/feed/`),
 ];
 const technologyReviewRssFallback = rssUrlExtractor(TECHNOLOGY_REVIEW_RSS_FEEDS);
+const TECHNOLOGY_REVIEW_NEWSLETTER_ORIGIN_RE =
+  /^this\s+story\s+originally\s+appeared\s+in\s+the\s+algorithm\b(?=[\s\S]{0,300}\bweekly\s+newsletter\b)(?=[\s\S]{0,300}\bsign\s?up\b)/i;
 
 function sitemapNumber(url: string): number {
   const match = url.match(/\/sitemap-(\d+)\.xml$/i);
@@ -222,6 +224,10 @@ const technologyreview: Provider = {
   // Long-form magazine: everything it publishes is substantive reading practice
   // — even globally-"medium" tech is in-depth here.
   readingCategories: ["tech", "science", "health", "environment", "business", "culture", "politics"],
+  declutter: {
+    shortTextPatterns: [TECHNOLOGY_REVIEW_NEWSLETTER_ORIGIN_RE],
+    socialAttributionHosts: ["tiktok.com"],
+  },
   cleanup: {
     dropClassKeywords: [
       "deepDive",

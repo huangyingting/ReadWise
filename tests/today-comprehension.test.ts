@@ -597,14 +597,10 @@ test("privacy: today_comprehension_submitted analytics payload is enums/booleans
 // ===========================================================================
 
 test("exportUserData selects only controlled TodayComprehensionFeedback fields", async () => {
-  const { readFileSync } = await import("node:fs");
-  const src = readFileSync(
-    new URL("../src/lib/account-lifecycle/account-commands.ts", import.meta.url),
-    "utf8",
+  const { USER_EXPORT_SELECT } = await import(
+    "@/lib/account-lifecycle/personal-data-policy"
   );
-  const idx = src.indexOf("todayComprehensionFeedback:");
-  assert.ok(idx > 0, "exportUserData must select todayComprehensionFeedback");
-  const block = src.slice(idx, idx + 400);
+  const fields = Object.keys(USER_EXPORT_SELECT.todayComprehensionFeedback.select);
   for (const field of [
     "todaySessionId",
     "articleId",
@@ -614,10 +610,10 @@ test("exportUserData selects only controlled TodayComprehensionFeedback fields",
     "skillTag",
     "remediationViewed",
   ]) {
-    assert.ok(block.includes(field), `export must include ${field}`);
+    assert.ok(fields.includes(field), `export must include ${field}`);
   }
   // Must NOT export any question/answer/article text fields.
-  for (const banned of ["question:", "options:", "explanation", "content"]) {
-    assert.ok(!block.includes(banned), `export must not include ${banned}`);
+  for (const banned of ["question", "options", "explanation", "content"]) {
+    assert.ok(!fields.includes(banned), `export must not include ${banned}`);
   }
 });

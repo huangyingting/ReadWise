@@ -28,6 +28,8 @@ flowchart TD
 | Area | Code | Purpose |
 | --- | --- | --- |
 | Self-service commands | `src/lib/account-lifecycle/account-commands.ts` | Export the current user's data and delete their own account. |
+| Personal-data policy | `src/lib/account-lifecycle/personal-data-policy.ts` | Typed export allowlist plus schema-derived coverage for every `User` relation. |
+| Personal-data ledgers | `src/lib/account-lifecycle/personal-data-ledgers.ts` | Count or transactionally erase non-cascading analytics/AI rows. |
 | Admin member mutations | `src/lib/account-lifecycle/member-commands.ts` | Update global role and delete a member. |
 | Support actions | `src/lib/account-lifecycle/support-commands.ts` | Revoke sessions, export member data, re-enqueue repair work, and record sign-in-help intent. |
 | Read models | `src/lib/account-lifecycle/member-list.ts`, `src/lib/account-lifecycle/member-detail.ts` | Admin/member detail data with no mutation side effects. |
@@ -58,6 +60,10 @@ Non-negotiable boundaries:
   the saved word and SRS schedule.
 - When an audit context is supplied, the export and audit record run in the same
   transaction so the operator-visible action and exported snapshot correlate.
+- `USER_EXPORT_SELECT` is the executable field allowlist. Schema governance
+  derives relation names from Prisma and requires each `User` relation to be
+  selected or explicitly excluded with a reason. It never infers export fields
+  or cascade behavior from the schema.
 
 ## Deletion contract
 

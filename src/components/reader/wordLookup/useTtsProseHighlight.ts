@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import type { RefObject } from "react";
 import type { AudioContextValue } from "@/components/ReaderAudioProvider";
 import type { Highlight as RwHighlight } from "@/components/ReaderHighlightsProvider";
@@ -22,7 +22,7 @@ const ACTIVE_TTS_HIGHLIGHT_STYLE = `
 const SCROLL_VIEWPORT_TOP_RATIO = 0.2;
 const SCROLL_VIEWPORT_BOTTOM_RATIO = 0.75;
 
-type ProseWord = {
+export type ProseWord = {
   startNode: Text;
   start: number;
   endNode: Text;
@@ -183,7 +183,7 @@ function buildPlainTextPositionMap(
         lastPosition = rawChars[rawIndex]?.nextPosition ?? lastPosition;
         rawIndex++;
       }
-      positions[plainIndex] = lastPosition;
+      positions[plainIndex] = positions[plainIndex] ?? lastPosition;
       positions[plainIndex + 1] = rawChars[rawIndex]?.position ?? lastPosition;
       continue;
     }
@@ -268,25 +268,12 @@ export function buildProseWordMap(
   return result;
 }
 
-export function useTtsProseHighlight(
-  proseRef: RefObject<HTMLElement | null>,
+export function useActiveTtsProseHighlight(
+  ttsWordMapRef: RefObject<Array<ProseWord | null>>,
   readerAudio: AudioContextValue,
   highlights: RwHighlight[],
+  proseRevision: unknown,
 ) {
-  const ttsWordMapRef = useRef<Array<ProseWord | null>>([]);
-
-  useEffect(() => {
-    if (!proseRef.current || readerAudio.words.length === 0) {
-      ttsWordMapRef.current = [];
-      return;
-    }
-    ttsWordMapRef.current = buildProseWordMap(
-      proseRef.current,
-      readerAudio.words,
-      readerAudio.plainText,
-    );
-  }, [proseRef, readerAudio.words, readerAudio.plainText, highlights]);
-
   useEffect(() => {
     const cssh = getCssHighlightRegistry();
     if (!cssh) return;
@@ -319,5 +306,13 @@ export function useTtsProseHighlight(
     return () => {
       clearActiveTtsHighlight(cssh);
     };
-  }, [readerAudio.activeIndex, readerAudio.listenActive, readerAudio.words, highlights]);
+  }, [
+    readerAudio.activeIndex,
+    readerAudio.listenActive,
+    readerAudio.words,
+    readerAudio.plainText,
+    highlights,
+    proseRevision,
+    ttsWordMapRef,
+  ]);
 }
