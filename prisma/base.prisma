@@ -181,6 +181,7 @@ model Article {
   mediaAssets               MediaAsset[]
   assignments               Assignment[]
   contentReports            ContentReport[]
+  crawlCandidates           CrawlCandidate[]
 
   @@unique([sourceUrl, ownerId])
   @@index([category])
@@ -1371,4 +1372,344 @@ model SeriesEnrollment {
   @@unique([userId, seriesId])
   @@index([userId])
   @@index([userId, status])
+}
+
+// ===========================================================================
+// Incremental provider discovery ledger (Epic RW-E-incremental — #1077 / #1081).
+//
+// Durable, first-class relational state for STATEFUL incremental provider
+// ingestion. Provider EXTRACTION and ADMISSION logic stay versioned in code
+// (src/lib/scraper/*); these models hold only OPERATIONAL scheduling state and
+// a PERMANENT candidate/alias ledger.
+//
+// Governing invariant (#1077): normal incremental ingestion processes only
+// article identities first observed AFTER a completed source baseline, and must
+// never automatically refetch, update, recreate, or revive a known public
+// Article. The ledger enforces this by making candidate identity PERMANENT and
+// DELETION-SAFE: CrawlCandidate.articleId is nullable + `onDelete: SetNull`, so
+// deleting an Article never deletes or resets the candidate identity that marks
+// a provider URL as already handled.
+//
+// Orthogonal controlled fields: source ROLE, LIFECYCLE MODE, AUTOMATION POLICY,
+// and HEALTH are SEPARATE enums/columns, never one overloaded state column.
+//
+// METADATA ONLY. No article text, credentials, cookies, tokens, signed URLs,
+// prompts, translations, or user-private content is stored. Identity keys
+// (`provisionalKey`, `canonicalKey`, `aliasKey`, `observationKey`) are versioned,
+// SANITIZED digests of a URL identity — never the raw secret-bearing URL.
+// `providerKey` mirrors the ContentSource/CrawlRun convention: a plain string
+// that references the code provider registry key, NOT a foreign key, so the
+// ledger is independent of ContentSource row lifecycle.
+// ===========================================================================
+
+/// Discovery source ROLE — the kind of discovery surface a source represents.
+/// Orthogonal to lifecycle mode, automation policy, and health.
+enum DiscoverySourceRole {
+  PRIMARY_FEED
+  SECTION_INDEX
+  ARCHIVE_INDEX
+  SITEMAP
+  SUPPLEMENTAL
+}
+
+/// Discovery source LIFECYCLE MODE — position in the
+/// disabled → shadow → baseline → active progression. A source starts DISABLED,
+/// runs in SHADOW to prove discovery correctness, completes a bounded BASELINE,
+/// then becomes ACTIVE. PAUSED/RETIRED are operator states.
+enum DiscoverySourceLifecycleMode {
+  DISABLED
+  SHADOW
+  BASELINE
+  ACTIVE
+  PAUSED
+  RETIRED
+}
+
+/// Discovery AUTOMATION POLICY — how much scheduling autonomy is granted,
+/// independent of lifecycle mode.
+enum DiscoveryAutomationPolicy {
+  MANUAL
+  SCHEDULED
+  CONTINUOUS
+}
+
+/// Discovery source HEALTH — operational health, independent of lifecycle mode
+/// and automation policy.
+enum DiscoverySourceHealth {
+  UNKNOWN
+  HEALTHY
+  DEGRADED
+  FAILING
+  BLOCKED
+}
+
+/// Completeness GAP state (#1077: expose uncertainty, never hide a gap).
+enum DiscoveryGapState {
+  NONE
+  SUSPECTED
+  DETECTED
+}
+
+/// CrawlCandidate lifecycle STATUS — controlled progression of a permanent
+/// public-ingestion identity. Orthogonal to `observedInBaseline` (baseline
+/// membership is a separate flag, not a status).
+enum CrawlCandidateStatus {
+  DISCOVERED
+  BASELINE
+  QUEUED
+  INGESTING
+  INGESTED
+  SKIPPED
+  REJECTED
+  FAILED
+  CONFLICT
+}
+
+/// Provenance of the trusted publication date recorded for a candidate.
+enum CandidateDateProvenance {
+  UNKNOWN
+  FEED
+  PAGE_METADATA
+  URL
+  HTTP_HEADER
+  INFERRED
+}
+
+/// Kind of URL alias mapped onto a candidate identity.
+enum UrlAliasKind {
+  PROVISIONAL
+  REDIRECT
+  CANONICAL
+  DUPLICATE
+  MIRROR
+}
+
+/// Lifecycle of a canonical-identity conflict.
+enum CanonicalConflictStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+/// Durable per-source scheduling / lease / watermark record for incremental
+/// discovery. One row per (providerKey, sourceKey, definitionVersion): bumping
+/// the code-defined `definitionVersion` starts a fresh, independently-baselined
+/// source without disturbing prior history. Complements (does not replace) the
+/// existing ContentSource provider-health row and CrawlRun summaries.
+model DiscoverySource {
+  id                String @id @default(cuid())
+  providerKey       String
+  sourceKey         String
+  definitionVersion Int    @default(1)
+
+  role             DiscoverySourceRole          @default(PRIMARY_FEED)
+  lifecycleMode    DiscoverySourceLifecycleMode @default(DISABLED)
+  automationPolicy DiscoveryAutomationPolicy    @default(MANUAL)
+  health           DiscoverySourceHealth        @default(UNKNOWN)
+
+  /// Schedule
+  scheduleCron        String?
+  pollIntervalSeconds Int?
+  nextRunAt           DateTime?
+  lastRunAt           DateTime?
+
+  /// Lease (single-writer worker coordination; `leaseOwner` is an opaque worker
+  /// token, never a secret or credential).
+  leaseOwner      String?
+  leaseAcquiredAt DateTime?
+  leaseExpiresAt  DateTime?
+
+  /// Checkpoint for resumable pagination. `checkpointCursor` is an opaque,
+  /// SANITIZED pagination token — never a raw URL, query string, or secret.
+  checkpointCursor String?
+  checkpointPage   Int?
+
+  /// Watermark — the "first observed after baseline" frontier. `watermarkKey`
+  /// is a sanitized identity key marking the last processed frontier position.
+  watermarkAt  DateTime?
+  watermarkKey String?
+
+  /// Validator — version/fingerprint of the admission validator in code that
+  /// last processed this source.
+  validatorVersion String?
+
+  /// Baseline — bounded initial completeness pass; incremental ingestion only
+  /// acts on identities first observed AFTER `baselineCompletedAt`.
+  baselineStartedAt     DateTime?
+  baselineCompletedAt   DateTime?
+  baselineObservedCount Int       @default(0)
+
+  /// Activation
+  activatedAt DateTime?
+
+  /// Backoff on repeated failure.
+  backoffUntil        DateTime?
+  backoffLevel        Int       @default(0)
+  consecutiveFailures Int       @default(0)
+
+  /// Separate budgets/priorities for discovery, body fetching, and historical
+  /// backfill work (#1077).
+  discoveryBudgetPerRun Int?
+  bodyFetchBudgetPerRun Int?
+  backfillBudgetPerRun  Int?
+
+  /// Completeness gap surfaced to operators.
+  gapState      DiscoveryGapState @default(NONE)
+  gapDetectedAt DateTime?
+  gapNote       String?
+
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidates   CrawlCandidate[]
+  observations DiscoveryObservation[]
+
+  @@unique([providerKey, sourceKey, definitionVersion])
+  @@index([providerKey])
+  @@index([lifecycleMode])
+  @@index([health])
+  @@index([automationPolicy])
+  @@index([nextRunAt])
+  @@index([leaseExpiresAt])
+  @@index([gapState])
+}
+
+/// PERMANENT public-ingestion identity for a provider URL. This is the ledger
+/// authority for whether a public provider identity has EVER been handled, and
+/// is deliberately DELETION-SAFE: `articleId` is nullable with
+/// `onDelete: SetNull`, so deleting the produced Article never deletes or resets
+/// the candidate. `terminalReason`/`terminalAt`/`articleDeletedAt` preserve
+/// deletion history. Identity keys are versioned + sanitized (never raw URLs).
+model CrawlCandidate {
+  id                String  @id @default(cuid())
+  providerKey       String
+  discoverySourceId String?
+
+  /// Versioned, SANITIZED identity keys (never raw secret-bearing URLs).
+  identityVersion Int     @default(1)
+  provisionalKey  String
+  canonicalKey    String?
+
+  status             CrawlCandidateStatus @default(DISCOVERED)
+  /// Orthogonal to `status`: true when the identity was first seen during the
+  /// source baseline (a known, pre-existing identity that must NOT be
+  /// auto-ingested by normal incremental runs).
+  observedInBaseline Boolean              @default(false)
+
+  firstObservedAt  DateTime @default(now())
+  lastObservedAt   DateTime @default(now())
+  observationCount Int      @default(0)
+
+  /// Version of the extraction/admission code that last processed the candidate.
+  processingVersion String?
+
+  /// Trusted publication date and where it came from.
+  trustedPublishedAt DateTime?
+  dateProvenance     CandidateDateProvenance @default(UNKNOWN)
+
+  /// Terminal outcome + deletion-safe history.
+  terminalReason   String?
+  terminalAt       DateTime?
+  ingestedAt       DateTime?
+  articleDeletedAt DateTime?
+
+  /// Optional Article linkage. NULLABLE + `onDelete: SetNull` (governing
+  /// invariant): the candidate identity survives Article deletion so a known
+  /// URL is never automatically re-ingested.
+  articleId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  source       DiscoverySource?       @relation(fields: [discoverySourceId], references: [id], onDelete: SetNull)
+  article      Article?               @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  aliases      UrlAlias[]
+  observations DiscoveryObservation[]
+  conflicts    CanonicalConflict[]
+
+  @@unique([providerKey, identityVersion, provisionalKey])
+  @@unique([providerKey, canonicalKey])
+  @@index([providerKey])
+  @@index([discoverySourceId])
+  @@index([status])
+  @@index([articleId])
+  @@index([observedInBaseline])
+  @@index([providerKey, status])
+}
+
+/// Alternate SANITIZED identity keys (redirects, canonical links, duplicates,
+/// mirrors) mapped onto a permanent candidate. Uses versioned sanitized keys,
+/// never raw secret-bearing URLs. Cascades with its candidate (candidates are
+/// permanent, so aliases survive Article deletion by construction).
+model UrlAlias {
+  id              String       @id @default(cuid())
+  candidateId     String
+  providerKey     String
+  identityVersion Int          @default(1)
+  aliasKey        String
+  kind            UrlAliasKind @default(PROVISIONAL)
+  firstSeenAt     DateTime     @default(now())
+  lastSeenAt      DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+
+  candidate CrawlCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([providerKey, identityVersion, aliasKey])
+  @@index([candidateId])
+  @@index([providerKey])
+}
+
+/// Idempotent record of a source seeing a candidate identity during a run.
+/// Source-run scoped and EXPIRABLE: cascades when its DiscoverySource is deleted
+/// (`onDelete: Cascade`). `runId` is a sanitized plain-string reference to a
+/// CrawlRun (NON-FK; run summaries are independently prunable). Idempotency is
+/// enforced by `@@unique([discoverySourceId, observationKey])`.
+model DiscoveryObservation {
+  id                   String    @id @default(cuid())
+  discoverySourceId    String
+  candidateId          String?
+  runId                String?
+  identityVersion      Int       @default(1)
+  observationKey       String
+  observedCanonicalKey String?
+  positionRank         Int?
+  httpStatus           Int?
+  observedAt           DateTime  @default(now())
+  createdAt            DateTime  @default(now())
+
+  source    DiscoverySource @relation(fields: [discoverySourceId], references: [id], onDelete: Cascade)
+  candidate CrawlCandidate? @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([discoverySourceId, observationKey])
+  @@index([discoverySourceId, observedAt])
+  @@index([candidateId])
+}
+
+/// Unresolved conflict where more than one provisional identity resolves to the
+/// same final canonical identity. Uses versioned sanitized identity keys and
+/// SURVIVES Article deletion (references candidate identity, not the Article).
+/// `incumbentCandidateId` uses `onDelete: SetNull` so the conflict record
+/// persists; `challengerKey` is the sanitized provisional key of the challenger.
+model CanonicalConflict {
+  id                   String                  @id @default(cuid())
+  providerKey          String
+  identityVersion      Int                     @default(1)
+  canonicalKey         String
+  challengerKey        String
+  incumbentCandidateId String?
+  status               CanonicalConflictStatus @default(OPEN)
+  reason               String?
+  detectedAt           DateTime                @default(now())
+  resolvedAt           DateTime?
+  resolvedBy           String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  incumbent CrawlCandidate? @relation(fields: [incumbentCandidateId], references: [id], onDelete: SetNull)
+
+  @@unique([providerKey, identityVersion, canonicalKey])
+  @@index([providerKey])
+  @@index([status])
+  @@index([incumbentCandidateId])
 }

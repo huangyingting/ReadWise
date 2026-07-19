@@ -81,6 +81,7 @@ flowchart LR
 | [`content/scrapers.md`](./content/scrapers.md) | Scraper providers, discovery/extraction, SSRF/robots controls, provider drift handling, and scrape-review feedback retention. |
 | [`content/extraction-quality.md`](./content/extraction-quality.md) | Content extraction quality signals, composite score, and scraper drift triage workflow. |
 | [`content/article-quality-cleanup-design.md`](./content/article-quality-cleanup-design.md) | Proposed backlog cleanup and duplicate-analysis design for scraped public-library articles. |
+| [`content/incremental-provider-scraping-design.md`](./content/incremental-provider-scraping-design.md) | Stateful incremental provider ingestion: governing invariant, durable discovery ledger data model (DiscoverySource, CrawlCandidate, UrlAlias, DiscoveryObservation, CanonicalConflict), enums, uniqueness, and cascade/retention decisions. |
 | [`content/content-reporting.md`](./content/content-reporting.md) | User content-reporting workflow, admin moderation queue, report status lifecycle, and moderation signal rules. |
 
 ### Learning
