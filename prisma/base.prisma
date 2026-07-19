@@ -182,6 +182,7 @@ model Article {
   assignments               Assignment[]
   contentReports            ContentReport[]
   crawlCandidates           CrawlCandidate[]
+  contentVersions           ArticleContentVersion[]
 
   @@unique([sourceUrl, ownerId])
   @@index([category])
@@ -1938,4 +1939,100 @@ model BackfillRun {
   @@index([providerKey, status])
   @@index([discoverySourceId])
   @@index([createdAt])
+}
+
+/// Activation state of an Article content version (#1102, Phase 3.3).
+///   - PENDING    — a force-rescrape replacement is fetched and validating; it
+///                  holds the per-Article `pendingForArticleId` slot.
+///   - ACTIVE     — the live readable version; it holds the per-Article
+///                  `activeForArticleId` slot. Exactly one per Article.
+///   - SUPERSEDED — a formerly ACTIVE version replaced by a newer activation.
+///   - REJECTED   — a validation gate (canonical/safety/quality/identity or the
+///                  annotation-migration gate) refused the replacement.
+///   - FAILED     — a fetch/extract or internal error aborted the attempt.
+enum ArticleContentVersionStatus {
+  PENDING
+  ACTIVE
+  SUPERSEDED
+  REJECTED
+  FAILED
+}
+
+/// Durable Article content version (#1102, Phase 3.3). An AUDITED, operator-only
+/// `force-rescrape` refreshes ONE known public Article by fetching + validating a
+/// replacement into a PENDING row and, ONLY after every migration gate passes,
+/// atomically ACTIVATING it while the previous ACTIVE version becomes SUPERSEDED —
+/// preserving the Article id, ownership/visibility, reading relationships, and
+/// audit history (the Article is UPDATED in place, never deleted/recreated). A
+/// failed validation RETAINS the current ACTIVE version and records a controlled
+/// REJECTED/FAILED row. Normal incremental discovery can NEVER reach this path
+/// (governing invariant): force-rescrape is manual-only, capability-gated, audited.
+///
+/// CONCURRENCY (AC4) is DB-enforced by two nullable-unique slots that are set only
+/// while a version occupies that state, so multiple NULLs coexist on BOTH SQLite
+/// and PostgreSQL:
+///   - `pendingForArticleId @unique` — a second concurrent force-rescrape that
+///     tries to open a PENDING version hits the unique conflict and is rejected
+///     cleanly (neither version is lost).
+///   - `activeForArticleId @unique` — guarantees at most ONE ACTIVE version per
+///     Article; activation clears the old slot then claims it for the new row.
+///
+/// PRIVACY: the versioned readable payload (`content`, `title`, urls, …) is
+/// PRODUCT DATA that lives ONLY on this authoritative row — it is NEVER written to
+/// logs, audit metadata, Job payloads, or error history. `requestedById` is a
+/// sanitized plain string (NOT an FK, like AuditLog.actorId) so the provenance
+/// survives account deletion; `reason` is sanitized operator justification and
+/// `failureReason` is a machine code only.
+model ArticleContentVersion {
+  id        String                      @id @default(cuid())
+  articleId String
+  status    ArticleContentVersionStatus @default(PENDING)
+
+  /// Versioned readable payload (product data — authoritative here, never logged).
+  content        String  @default("")
+  title          String  @default("")
+  excerpt        String?
+  author         String?
+  heroImage      String?
+  source         String?
+  category       String?
+  wordCount      Int?
+  readingMinutes Int?
+  sourceUrl      String?
+  canonicalUrl   String?
+  publishedAt    DateTime?
+
+  /// Extraction provenance + versioned fingerprint of the normalized prose
+  /// (`PROSE_FINGERPRINT_VERSION`); the prose text itself is NEVER stored.
+  fingerprint        String?
+  fingerprintVersion Int?
+  extractorVersion   Int?
+
+  /// Operator provenance: who requested/approved the replacement and why.
+  requestedById String?
+  reason        String
+  /// Machine reason code for a controlled REJECTED/FAILED outcome (never content).
+  failureReason String?
+
+  /// Set at activation to MARK the Article's derived outputs (translations, speech,
+  /// quiz, vocabulary, difficulty, processing steps) + reader annotations for
+  /// regeneration/re-anchoring. #1102 only MARKS; #1103 consumes this seam to run
+  /// the actual annotation re-anchoring + derived regeneration behind the gate.
+  derivedRegenerationRequestedAt DateTime?
+
+  /// DB-enforced at-most-one concurrency slots (see model doc). Set to the
+  /// `articleId` ONLY while the row is PENDING / ACTIVE respectively, else null.
+  pendingForArticleId String? @unique
+  activeForArticleId  String? @unique
+
+  createdAt    DateTime  @default(now())
+  activatedAt  DateTime?
+  supersededAt DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@index([articleId, status])
+  @@index([status])
 }

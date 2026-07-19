@@ -28,6 +28,8 @@ export const AUDIT_ACTIONS = {
   adminSourceTrustPromotion: "admin.source.trust_promotion",
   adminBackfillCreate: "admin.backfill.create",
   adminBackfillControl: "admin.backfill.control",
+  adminForceRescrapeActivate: "admin.force_rescrape.activate",
+  adminForceRescrapeFail: "admin.force_rescrape.fail",
   adminArticleReview: "admin.article.review",
   adminArticleTakedown: "admin.article.takedown",
   adminJobRetry: "admin.job.retry",

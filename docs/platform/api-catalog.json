@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-19T22:03:37.981Z",
-  "routeCount": 128,
-  "methodCount": 152,
+  "generatedAt": "2026-07-19T23:21:23.826Z",
+  "routeCount": 129,
+  "methodCount": 154,
   "routes": [
     {
       "path": "/api/account",
@@ -175,6 +175,53 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/articles/{id}/force-rescrape",
+      "file": "src/app/api/admin/articles/[id]/force-rescrape/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "status"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "error",
+            "reason"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "dryRun",
+            "reason"
+          ]
         }
       ]
     },

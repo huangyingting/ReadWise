@@ -2308,6 +2308,140 @@ Schema above). Production body-fetch dispatch remains the same #1095/#1099
 follow-up: reactivated identities enqueue the ordinary candidate-ingest Job, so
 they inherit whatever ingestion dispatch the normal pipeline provides.
 
+## Phase 3.3 — audited force-rescrape with Article content versions (#1102) — current
+
+Phase 3.3 lets an authorized operator refresh ONE known public Article ON
+EXPLICIT REQUEST — the ONLY sanctioned path to refresh a known Article — while
+preserving its identity and its current readable version until a validated
+replacement is FULLY checked. Like backfill it is a SEPARATE high-permission
+operation (its own endpoint, its own audit trail, a mandatory reason), and it is
+UNREACHABLE from scheduled/normal discovery. Nothing auto-refreshes a known
+Article from a changed `lastmod`/ETag/body (non-goal): normal incremental
+ingestion still processes only post-baseline identities and NEVER refetches,
+updates, recreates, or revives a known public Article.
+
+### Trigger-mode decision (the normal trigger keeps rejecting)
+
+`force-rescrape` stays OUT of `IMPLEMENTED_TRIGGER_MODES = ["incremental"]`. The
+normal operator trigger (`/api/admin/scrape/trigger`) and the CLI keep rejecting
+it with a `not-implemented` result whose message now points at the dedicated
+`POST /api/admin/articles/{id}/force-rescrape` endpoint (exactly as #1101 did for
+`backfill`). This is the AC3 "no-smuggle" invariant: a known Article can never be
+refreshed through the ordinary trigger, even after rediscovering a changed
+`lastmod`/ETag/body. A regression test (`tests/db/force-rescrape.test.ts`) proves
+a normal `saveIncrementalArticle` — and a repeat rediscovery of the same identity
+— creates NO `ArticleContentVersion`.
+
+### Schema (`ArticleContentVersion` + `ArticleContentVersionStatus`)
+
+A dedicated `ArticleContentVersion` model (NOT an overload of `Article`) is the
+durable content ledger. Each row carries: the versioned readable payload
+(`content`, `title`, and the remaining extracted fields + the fetched
+`sourceUrl`/`canonicalUrl`), the versioned prose `fingerprint` (+
+`fingerprintVersion`) and `extractorVersion`, operator provenance (`requestedById`
+— a sanitized string, NOT an FK — and the mandatory `reason`), a machine
+`failureReason` code for controlled failures, a `derivedRegenerationRequestedAt`
+marker, and a `status`
+(`PENDING`/`ACTIVE`/`SUPERSEDED`/`REJECTED`/`FAILED`). CONCURRENCY (AC4) is
+DB-enforced by two nullable-unique slots set only while a row occupies that state
+(multiple NULLs coexist on BOTH SQLite and PostgreSQL): `pendingForArticleId
+@unique` serializes concurrent refreshes (a second one hits the conflict and is
+rejected cleanly, losing neither version), and `activeForArticleId @unique`
+guarantees at most ONE live version per Article. Dual-engine parity: PostgreSQL
+gets a `CREATE TYPE "ArticleContentVersionStatus"` + table; SQLite stores the
+enum as TEXT. The versioned readable payload is PRODUCT DATA that lives ONLY on
+this row — never in logs, audit metadata, Job payloads, or error history.
+
+On the FIRST force-rescrape of an Article, the commit MATERIALIZES the Article's
+current content as an `ACTIVE` baseline version, so "retain the current version"
+is durable before any replacement is proposed. A `PENDING` row starts EMPTY; its
+proposed content is filled only at activation, so a failed/rejected version never
+persists a proposed body (privacy minimization).
+
+### Pure policy (`force-rescrape-policy.ts`, no DB/network/clock)
+
+- `decideForceRescrapeEligibility(input)` — the per-target pre-flight: only a
+  KNOWN, `PUBLIC`, non-taken-down Article WITH a source URL to refetch is
+  eligible (else `not-found`/`not-public`/`missing-source-url`/`taken-down`, no
+  writes).
+- `decideAnnotationMigrationGate(input)` — the FAIL-CLOSED annotation-migration
+  gate (the #1103 seam). If the Article has reader annotations/highlights that
+  need re-anchoring and NO migrator is wired (the #1102 state), the gate BLOCKS
+  activation → controlled `annotation_migration_required` failure → the old
+  version is retained. It NEVER silently migrates; with no annotations (or once
+  #1103 wires a migrator) it passes.
+- `decideForceRescrapeActivation({signals, annotation})` — the ordered validation
+  gate over the impure fetch/sanitize/extract signals with a deterministic
+  failure precedence: empty body (`empty_body`) → blocked identity
+  (`blocked_identity`) → conflicting canonical (`canonical_conflict`) → unsafe
+  body (`unsafe_body`) → quality reject (`quality_rejected`) → the fail-closed
+  annotation gate. Only an all-clear proceeds. `FAILED_STATUS_REASONS`
+  (`fetch_failed`/`internal_error`) terminate a version as `FAILED`; every other
+  reason is a deliberate validation refusal terminating it as `REJECTED`.
+
+### Thin guarded persistence (`force-rescrape-commit.ts`) + orchestration
+
+- `createPendingRescrape` — materializes the ACTIVE baseline (once) and CLAIMS the
+  per-Article PENDING lock. Both are STANDALONE idempotent writes that MAY catch
+  P2002: the `pendingForArticleId` unique slot is the AC4 serialization point.
+- `recordRescrapeFailure` — the controlled-failure path: a guarded `updateMany`
+  flips `PENDING → FAILED/REJECTED`, stamps the machine reason code, and RELEASES
+  the pending lock — leaving the ACTIVE version and all reader access UNCHANGED
+  (AC1).
+- `activateRescrape` — the atomic swap, mirroring `article-save-commit.ts`:
+  reads-before-tx, then ONE interactive `$transaction` re-validates the pending
+  row, DEMOTES the old `ACTIVE` version to `SUPERSEDED`, PROMOTES the pending row
+  to `ACTIVE` (filling content + fingerprint + provenance and stamping
+  `derivedRegenerationRequestedAt` to MARK derived outputs for regeneration), and
+  UPDATES the Article's readable fields IN PLACE — preserving its id, ownerId,
+  visibility, status, source/canonical URLs, and every reading relationship. Each
+  write is a guarded `updateMany` (`count === 0` ⇒ throw ⇒ rollback), so a fault
+  at ANY step leaves the old active version fully intact (proven all-or-nothing by
+  a fault-injection test); a P2002 is NEVER caught inside the tx.
+- `requestForceRescrape` (`force-rescrape-runner.ts`) — the impure conductor
+  (mirrors `ingest-runner.ts`): read the Article + annotation count BEFORE any
+  write → pure eligibility → `dryRun` metadata-only preview (no writes) →
+  `createPendingRescrape` → the injected `PrepareRescrapeDraft` seam (fetch →
+  sanitize → extract → quality → safety → canonical, NO tx) → pure activation gate
+  → `activateRescrape` or `recordRescrapeFailure`. Any thrown error releases the
+  pending lock via a controlled `internal_error` failure so a stuck lock can never
+  wedge future refreshes.
+
+### "Mark derived outputs for regeneration" — the #1103 gate seam
+
+Activation stamps `derivedRegenerationRequestedAt` to MARK the Article's derived
+outputs (translations, speech, quiz, vocabulary, difficulty, processing steps)
+and reader annotations for regeneration/re-anchoring. #1102 only MARKS and DEFINES
+the seam: the `AnnotationMigrator` type's mere PRESENCE opens the
+annotation-migration gate, but #1102 NEVER wires one (so an annotated Article
+fails closed) and NEVER calls it. #1103 both supplies the migrator and performs
+the actual re-anchoring + derived regeneration behind this gate.
+
+### Capability-gated endpoint (`sources.manage`, deny-by-default + CSRF)
+
+- `POST /api/admin/articles/{id}/force-rescrape` — request a refresh, or (with
+  `dryRun: true`) return a metadata-only preview that creates no version and
+  fetches no body. A `reason` is mandatory; `SCRAPER_FORCE_RESCRAPE=false`
+  hard-disables the endpoint (`503`) before any read/write (a kill-switch
+  independent of RBAC). Only a real state-CHANGING outcome writes a sanitized
+  audit entry: `adminForceRescrapeActivate` (activated) or `adminForceRescrapeFail`
+  (controlled failure) — actor, reason, version ids, and failure code only, never
+  a URL or article content. Outcome→HTTP: activated/failed `200`, concurrent
+  conflict `409`, not-found `404`, other ineligible `409`.
+- `GET /api/admin/articles/{id}/force-rescrape` — one Article's sanitized
+  force-rescrape status: its `ACTIVE` + `PENDING` versions, a bounded newest-first
+  history, and the reader-annotation count that gates activation — all metadata
+  only (no content/title/URL).
+
+### Deferred (follow-ups)
+
+Production body-fetch dispatch for the `PrepareRescrapeDraft` seam is the same
+#1095/#1099 deferral: the default production seam fails CLOSED (`fetch_failed`), so
+a real force-rescrape currently records a controlled failure and RETAINS the
+current version until the SSRF-safe fetch + sanitizer + extractor + quality/safety
+gates are wired behind that one boundary (follow-up #1129). The annotation
+re-anchoring migrator behind the fail-closed gate is #1103.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -2358,6 +2492,13 @@ The following phases build on the Phase 1 ledger and are documented as they land
   dedicated high-permission `POST /api/admin/backfill` endpoint, the `BackfillRun`
   checkpoint model, dry-run preview, clamped bounds, low-priority pausable jobs
   with hostname reservation, and reactivation that honors the governing invariant;
-  `SKIPPED_OUTSIDE_WINDOW` classification is deferred to follow-up #1127. The
-  `force-rescrape` trigger mode is still DEFINED in the Phase 2.7 taxonomy and
-  rejected explicitly until implemented.)*
+  `SKIPPED_OUTSIDE_WINDOW` classification is deferred to follow-up #1127. Audited
+  force-rescrape with Article content versions #1102 has landed — see "Phase 3.3"
+  above: the dedicated high-permission `POST /api/admin/articles/{id}/force-rescrape`
+  endpoint, the `ArticleContentVersion` ledger with DB-enforced at-most-one
+  pending/active slots, validate-before-activate with a deterministic failure
+  taxonomy, atomic in-place activation preserving Article identity + reading
+  relationships, and the fail-closed annotation-migration gate seam that #1103
+  will implement. The `force-rescrape` trigger mode stays DEFINED in the Phase 2.7
+  taxonomy and rejected by the normal trigger — it is served EXCLUSIVELY by the
+  dedicated endpoint.)*
