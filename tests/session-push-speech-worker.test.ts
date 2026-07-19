@@ -166,6 +166,9 @@ before(() => {
       JobStatus: { DEAD_LETTER: "DEAD_LETTER", FAILED: "FAILED" },
       JobType: MockJobType,
       startJob: async () => ({ status: "RUNNING" }) as never,
+      parseCandidateIngestPayload: () => null,
+      isCandidateIngestPayload: () => false,
+      enqueueCandidateIngestInTx: async () => ({ id: "ingest-job" }) as never,
     },
   });
 });

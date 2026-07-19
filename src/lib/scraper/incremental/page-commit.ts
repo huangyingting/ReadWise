@@ -18,17 +18,20 @@
  *      (both before opening the transaction AND via a guarded conditional update
  *      when advancing the checkpoint). A lost lease aborts without writing.
  *   4. Idempotent races are cross-engine safe: candidate/alias/observation writes
- *      use `upsert` (INSERT … ON CONFLICT), never a catch-P2002-inside-tx (which
- *      would poison a PostgreSQL transaction). Replaying the same page produces
- *      NO extra candidate, alias, observation, or (Phase-2) ingest job.
+ *      AND the eligible-candidate `ARTICLE_INGEST` enqueue (#1091) use `upsert`
+ *      (INSERT … ON CONFLICT), never a catch-P2002-inside-tx (which would poison
+ *      a PostgreSQL transaction). Replaying the same page produces NO extra
+ *      candidate, alias, observation, or active ingest job.
  *   5. Baseline/shadow commits create NO Article, NO body fetch, and NO
- *      `ARTICLE_INGEST` job — Phase 1 is discovery-only (ingest is #1091/Phase 2).
- *      The single `baseline-shadow` classification outcome is split HERE by the
- *      source's live lifecycle mode (#1088): BASELINE mode records
- *      OBSERVED_BASELINE (status BASELINE + observedInBaseline=true, a known
- *      pre-existing identity), while SHADOW mode records OBSERVED_SHADOW (status
- *      DISCOVERED + observedInBaseline=false, a new post-baseline identity being
- *      proven for activation catch-up).
+ *      `ARTICLE_INGEST` job. In ACTIVE mode, an `eligible` candidate enqueues
+ *      exactly one candidate-based `ARTICLE_INGEST` job IN THIS SAME transaction
+ *      (#1091/Phase 2.1) — but still NO Article and NO body fetch here (fetch/
+ *      extract/Article creation is #1095). The single `baseline-shadow`
+ *      classification outcome is split HERE by the source's live lifecycle mode
+ *      (#1088): BASELINE mode records OBSERVED_BASELINE (status BASELINE +
+ *      observedInBaseline=true, a known pre-existing identity), while SHADOW mode
+ *      records OBSERVED_SHADOW (status DISCOVERED + observedInBaseline=false, a
+ *      new post-baseline identity being proven for activation catch-up).
  */
 import {
   CrawlCandidateStatus,
@@ -38,6 +41,7 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { enqueueCandidateIngestInTx } from "@/lib/jobs";
 
 import {
   classifyPage,
@@ -103,6 +107,8 @@ export type CommitDiscoveryPageResult =
       aliasesUpserted: number;
       /** Distinct observation rows ensured. */
       observationsUpserted: number;
+      /** ARTICLE_INGEST jobs enqueued for eligible candidates (#1091). */
+      ingestJobsEnqueued: number;
       /** The checkpoint the source now points at. */
       checkpoint: { cursor: string | null; page: number | null };
       boundaryReached: boolean;
@@ -151,7 +157,7 @@ async function loadKnownIdentityKeys(
   );
 }
 
-type ItemWriteTally = { candidate: boolean; alias: boolean; observation: boolean };
+type ItemWriteTally = { candidate: boolean; alias: boolean; observation: boolean; ingestJob: boolean };
 
 async function commitClassifiedItem(
   tx: Prisma.TransactionClient,
@@ -169,6 +175,7 @@ async function commitClassifiedItem(
   let candidateId: string | null = null;
   let candidateEnsured = false;
   let aliasEnsured = false;
+  let ingestJobEnsured = false;
 
   if (identity) {
     const composite = {
@@ -271,6 +278,30 @@ async function commitClassifiedItem(
       });
       aliasEnsured = true;
     }
+
+    // Phase 2.1 (#1091): enqueue durable ARTICLE_INGEST work for a genuinely
+    // new ELIGIBLE candidate, IN THE SAME transaction as its candidate/alias/
+    // observation writes and the guarded checkpoint advance. If any later write
+    // (or the checkpoint advance) rolls back, the Job rolls back too, so a
+    // committed checkpoint never points past a missing Job (AC1). The
+    // enqueue is idempotent + terminal-safe (upsert on a candidate/version
+    // dedupe key), so replay/concurrent commits add no extra active Job and an
+    // already-terminal Job is reused, never reset (AC2/AC3). The payload is
+    // candidate-identity only — never a URL or article data (AC4).
+    //
+    // Gated to `eligible` in ACTIVE mode ONLY: baseline/shadow/existing-identity/
+    // review-required/outside-window/policy-rejected candidates never enqueue
+    // ingest work (governing invariant — a known/pre-baseline identity is never
+    // auto-ingested). `eligible` is only emitted by the classifier in ACTIVE
+    // mode; the explicit mode check is belt-and-suspenders.
+    if (
+      candidateId &&
+      outcome === "eligible" &&
+      lifecycleMode === DiscoverySourceLifecycleMode.ACTIVE
+    ) {
+      await enqueueCandidateIngestInTx(tx, candidateId);
+      ingestJobEnsured = true;
+    }
   }
 
   // Every item gets exactly one idempotent observation — the universal, durable
@@ -295,7 +326,7 @@ async function commitClassifiedItem(
     update: candidateId ? { candidateId } : {},
   });
 
-  return { candidate: candidateEnsured, alias: aliasEnsured, observation: true };
+  return { candidate: candidateEnsured, alias: aliasEnsured, observation: true, ingestJob: ingestJobEnsured };
 }
 
 /**
@@ -387,6 +418,7 @@ export async function commitDiscoveryPage(
       let candidatesUpserted = 0;
       let aliasesUpserted = 0;
       let observationsUpserted = 0;
+      let ingestJobsEnqueued = 0;
 
       for (let index = 0; index < uniqueItems.length; index += 1) {
         const result = await commitClassifiedItem(
@@ -400,6 +432,7 @@ export async function commitDiscoveryPage(
         if (result.candidate) candidatesUpserted += 1;
         if (result.alias) aliasesUpserted += 1;
         if (result.observation) observationsUpserted += 1;
+        if (result.ingestJob) ingestJobsEnqueued += 1;
         await options.debugHooks?.afterItemWrite?.(index, tx);
       }
 
@@ -420,7 +453,7 @@ export async function commitDiscoveryPage(
       });
       if (advanced.count === 0) throw new LeaseLostError();
 
-      return { candidatesUpserted, aliasesUpserted, observationsUpserted };
+      return { candidatesUpserted, aliasesUpserted, observationsUpserted, ingestJobsEnqueued };
     });
 
     return {
@@ -430,6 +463,7 @@ export async function commitDiscoveryPage(
       candidatesUpserted: tally.candidatesUpserted,
       aliasesUpserted: tally.aliasesUpserted,
       observationsUpserted: tally.observationsUpserted,
+      ingestJobsEnqueued: tally.ingestJobsEnqueued,
       checkpoint,
       boundaryReached: page.boundaryReached,
     };

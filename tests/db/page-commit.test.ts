@@ -34,6 +34,10 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import {
+  CANDIDATE_INGEST_PROCESSING_VERSION,
+  candidateIngestDedupeKey,
+} from "@/lib/jobs/candidate-ingest";
 import { commitDiscoveryPage } from "@/lib/scraper/incremental/page-commit";
 import type { DiscoveryPageResult } from "@/lib/scraper/incremental/page-commit";
 import { deriveProvisionalIdentity } from "@/lib/scraper/url-identity";
@@ -52,6 +56,19 @@ afterEach(async () => {
   if (!enabled) return;
   const keys = [...createdIdentityKeys];
   if (keys.length > 0) {
+    // Candidate-based ingest jobs (#1091) are keyed on the candidate cuid, not
+    // the PREFIX, so the shared sweep can't reach them — resolve + delete them
+    // before cascade-deleting the candidates.
+    const cands = await prisma.crawlCandidate.findMany({
+      where: { provisionalKey: { in: keys } },
+      select: { id: true },
+    });
+    const dedupeKeys = cands.map((c) =>
+      candidateIngestDedupeKey(c.id, CANDIDATE_INGEST_PROCESSING_VERSION),
+    );
+    if (dedupeKeys.length > 0) {
+      await prisma.job.deleteMany({ where: { dedupeKey: { in: dedupeKeys } } });
+    }
     // Deleting candidates cascades their aliases + candidate-scoped observations.
     await prisma.crawlCandidate.deleteMany({ where: { provisionalKey: { in: keys } } });
     await prisma.urlAlias.deleteMany({ where: { aliasKey: { in: keys } } });
@@ -149,9 +166,21 @@ test("eligible page commit persists candidate, alias, observation, and checkpoin
   assert.equal(advanced?.checkpointCursor, "next-cursor");
   assert.equal(advanced?.checkpointPage, 2);
 
-  // Governing invariant: discovery-only. No Article, no ingest job.
+  // Phase 2.1 (#1091): an ELIGIBLE ACTIVE commit enqueues exactly one
+  // candidate-based ingest job — but still creates NO Article and does NO body
+  // fetch here (fetch/extract/Article creation is #1095).
+  assert.equal(result.ingestJobsEnqueued, 1);
   assert.equal(await prisma.article.count({ where: { sourceUrl: url } }), 0);
-  assert.equal(await prisma.job.count({ where: { type: JobType.ARTICLE_INGEST } }), ingestBefore);
+  const ingestDedupeKey = candidateIngestDedupeKey(candidate.id, CANDIDATE_INGEST_PROCESSING_VERSION);
+  const ingestJob = await prisma.job.findUnique({ where: { dedupeKey: ingestDedupeKey } });
+  assert.ok(ingestJob, "eligible candidate has an ARTICLE_INGEST job");
+  assert.equal(ingestJob.type, JobType.ARTICLE_INGEST);
+  assert.equal(await prisma.job.count({ where: { type: JobType.ARTICLE_INGEST } }), ingestBefore + 1);
+  // AC4: payload carries only the candidate identity — no URL / article data.
+  assert.deepEqual(ingestJob.payload, {
+    candidateId: candidate.id,
+    processingVersion: CANDIDATE_INGEST_PROCESSING_VERSION,
+  });
 });
 
 // ---------------------------------------------------------------------------

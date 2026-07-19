@@ -23,8 +23,7 @@ export {
   TERMINAL_STATUSES,
   DEFAULT_LOCK_TTL_MS,
 } from "./types";
-export type { Job, ArticleJobPayload, ArticleIngestPayload, PushReminderPayload, JobPayload } from "./types";
-
+export type { Job, ArticleJobPayload, ArticleIngestPayload, CandidateIngestPayload, PushReminderPayload, JobPayload } from "./types";
 export {
   DEFAULT_RETRY_POLICY,
   RETRY_POLICIES,
@@ -38,6 +37,8 @@ export type { JobErrorKind, ClassifiedError } from "./errors";
 
 export {
   enqueueJob,
+  enqueueJobInTx,
+  enqueueCandidateIngestInTx,
   enqueueArticleProcess,
   enqueueArticleIngest,
   enqueueAiRebuild,
@@ -45,6 +46,14 @@ export {
   enqueuePushReminder,
 } from "./enqueue";
 export type { EnqueueOptions } from "./enqueue";
+
+export {
+  CANDIDATE_INGEST_PROCESSING_VERSION,
+  candidateIngestDedupeKey,
+  buildCandidateIngestPayload,
+  isCandidateIngestPayload,
+  parseCandidateIngestPayload,
+} from "./candidate-ingest";
 
 export { claimNextJob } from "./claim";
 export type { ClaimOptions } from "./claim";
