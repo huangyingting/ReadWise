@@ -8,6 +8,7 @@ import type {
   Job,
   JobType,
 } from "@/lib/jobs";
+import type { DiscoveryLoopDeps } from "./discovery-loop";
 
 export type WorkerLogger = {
   info: (message: string, meta?: Record<string, unknown>) => void;
@@ -49,6 +50,12 @@ export type JobWorkerOptions = {
   handlers?: Partial<Record<JobType, JobHandler>>;
   /** Forwarded to processArticle for article jobs (e.g. tts / translateLangs). */
   process?: ProcessOptions;
+  /**
+   * Enables the sibling discovery scheduling pass (issue #1087). Runs under the
+   * SAME worker runtime (no second daemon). Omit to leave discovery scheduling
+   * off; supply `deps.fetchPage` to activate it.
+   */
+  discovery?: DiscoveryLoopDeps;
   deps?: JobWorkerDeps;
 };
 

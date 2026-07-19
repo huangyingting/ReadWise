@@ -7,6 +7,7 @@ import { sleep } from "./sleep";
 import { createDefaultRegistry } from "./registry";
 import { runWorkerLoop } from "./loop";
 import type { WorkerLoopDeps } from "./loop";
+import { runDiscoveryLoop } from "./discovery-loop";
 import type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats } from "./types";
 
 export type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats };
@@ -21,6 +22,8 @@ export type {
 } from "./claimed-execution";
 export { runWorkerLoop } from "./loop";
 export type { WorkerLoopOptions, WorkerLoopDeps } from "./loop";
+export { runDiscoveryLoop } from "./discovery-loop";
+export type { DiscoveryLoopOptions, DiscoveryLoopDeps, DiscoveryLoopStats } from "./discovery-loop";
 
 /** Generates a stable-ish worker identity for lock ownership + tracing. */
 export function generateWorkerId(): string {
@@ -87,7 +90,26 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
     pollIntervalMs: options.pollIntervalMs ?? 5000,
     once: Boolean(options.once),
     types: options.types ?? [],
+    discovery: Boolean(options.discovery),
   });
+
+  // The discovery scheduling pass (#1087) runs as a sibling under the SAME
+  // worker runtime — not a second daemon — sharing the poll cadence, lease TTL,
+  // stop signal, and `once` mode. It is only active when a `fetchPage` seam is
+  // supplied; its failures are isolated in the run handler so they never affect
+  // the Job loop.
+  const discoveryPass = options.discovery
+    ? runDiscoveryLoop(
+        workerId,
+        {
+          pollIntervalMs: options.pollIntervalMs,
+          once: options.once,
+          signal: options.signal,
+        },
+        logger,
+        options.discovery,
+      )
+    : null;
 
   const stats = await runWorkerLoop(
     workerId,
@@ -102,6 +124,11 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
     logger,
     buildWorkerLoopDeps(options),
   );
+
+  if (discoveryPass) {
+    const discoveryStats = await discoveryPass;
+    logger.info("discovery scheduling pass stopped", { ...discoveryStats });
+  }
 
   logger.info("job worker stopped", { ...stats });
   return stats;

@@ -644,6 +644,67 @@ means the lease was lost/stolen → the whole write rolls back and nothing is
 persisted (the same keystone pattern as `commitDiscoveryPage`). The watermark
 never regresses even here (a belt-and-braces same-timestamp/older-date guard).
 
+## Phase 1.7 — leased discovery-source scheduling in the worker (#1087) — current
+
+The EXISTING worker (`src/lib/worker/`) now safely claims and runs independently
+scheduled discovery sources across multiple instances, WITHOUT a second daemon or
+external broker. A sibling scheduling pass (`runDiscoveryLoop`) runs under the
+same worker runtime — sharing its poll cadence, stop signal, and `once` mode —
+and is activated only when a page-fetch seam is supplied (`options.discovery`).
+
+### Claim + lease model (`claimDueDiscoverySource`)
+
+Mirrors the Job claim (`src/lib/jobs/claim.ts`): a public dispatcher branches on
+the active database URL to a PostgreSQL adapter (`FOR UPDATE SKIP LOCKED`) and a
+generic SQLite/serialized adapter (a guarded conditional `updateMany`). A source
+is claimable when it is due (`nextRunAt <= now`), in a claimable lifecycle mode
+(`SHADOW`/`BASELINE`/`ACTIVE`), under an auto-claim automation policy
+(`SCHEDULED`/`CONTINUOUS`), its lease is free OR expired, and it is not inside an
+active backoff. Claiming stamps `leaseOwner`/`leaseAcquiredAt`/`leaseExpiresAt`
+atomically so two workers never claim the same source. An expired lease
+(`leaseExpiresAt < now`) is reclaimable, so a crashed worker never strands a
+source; `leaseOwner` is an OPAQUE worker token, never a secret.
+
+Single-writer-per-source/version is enforced AGAIN on every write: the page and
+frontier commits revalidate the lease + `definitionVersion` on their guarded
+updates, so even a mid-run lease steal cannot double-process one source/version.
+
+### Bounded, resumable run (`runClaimedDiscoverySource`)
+
+Each claim runs a SINGLE bounded page (preferred over heartbeating a long scan —
+it keeps leases short): fetch ONE page via the injected #1084 seam (network stays
+out of every transaction) → `commitDiscoveryPage` (#1085) → `commitFrontierState`
+(#1086) with the pure `decideRunCompletion` health → persist the next `nextRunAt`
+and RELEASE the lease under the same guarded update. A crashed worker resumes
+from the last durably-committed checkpoint. A non-boundary page leaves the source
+immediately due so pagination continues page-by-page across claims. Baseline/
+shadow runs create NO Article / body fetch / ingest job — the run handler never
+enqueues body work.
+
+### Scheduler clock (`computeNextRunAt`)
+
+A PURE, deterministic function (no DB/network/randomness) computes the next
+`nextRunAt` from the schedule tier (`pollIntervalSeconds` or the tier default),
+source role, observed publication cadence bounds, failure backoff, pause state,
+and provider request budget. Role tiers map onto the schema's roles: PRIMARY_FEED
+/ SECTION_INDEX / ARCHIVE_INDEX / SITEMAP run at the base cadence (primary tier),
+SUPPLEMENTAL runs at a strictly LOWER reconciliation frequency, and "fallback" is
+modelled as a source that stays dormant (returns no schedule) until its
+activation condition holds. Failure backoff is a capped, jitter-free exponential
+that dominates the cadence while a source keeps failing; budget exhaustion defers
+by at least a cooldown; the interval is clamped to the observed cadence bounds. A
+paused, non-eligible, or dormant-fallback source returns `null` — a `NULL`
+`nextRunAt` never satisfies the claim predicate, so it is simply never picked up.
+
+### Failure isolation
+
+The run handler catches ANY error, converts it to a REDACTED metadata-only
+`lastError` (query strings and URLs stripped via `redactUrlForLog`), escalates
+`backoffLevel`/`consecutiveFailures`, sets `backoffUntil`, marks the source
+`FAILING`, and still releases the lease — never throwing to the loop. One failing
+optional provider can neither stop the Job loop nor block other discovery
+sources.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -655,7 +716,8 @@ The following phases build on the Phase 1 ledger and are documented as they land
   The discovery fetch seam #1084 has landed — see "Phase 1.4" above. The atomic
   page commit & classification #1085 has landed — see "Phase 1.5" above. The
   watermark / overlap / calibration / gap frontier #1086 has landed — see
-  "Phase 1.6" above.)*
+  "Phase 1.6" above. Leased discovery-source scheduling in the worker #1087 has
+  landed — see "Phase 1.7" above.)*
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
   creation for genuinely new identities.
