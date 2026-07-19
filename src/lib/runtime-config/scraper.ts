@@ -93,6 +93,7 @@ type EnvName =
   | "SCRAPER_BACKFILL_MAX_ITEMS_CEILING"
   | "SCRAPER_BACKFILL_MAX_WINDOW_DAYS"
   | "SCRAPER_BACKFILL_BATCH_SIZE"
+  | "SCRAPER_FORCE_RESCRAPE"
   | "SCRAPER_HOST_CONCURRENCY"
   | "SCRAPER_HOST_MIN_INTERVAL_MS"
   | "SCRAPER_HOST_DAILY_CEILING"
@@ -319,6 +320,20 @@ export function scraperBackfillMaxWindowDays(): number {
  */
 export function scraperBackfillBatchSize(): number {
   return readEnvInt("SCRAPER_BACKFILL_BATCH_SIZE", DEFAULT_BACKFILL_BATCH_SIZE, 1);
+}
+
+/**
+ * Whether the audited, operator-only force-rescrape of a KNOWN public Article is
+ * enabled (`SCRAPER_FORCE_RESCRAPE`, default ON; #1102). This is a KILL-SWITCH,
+ * not the authorization gate: the dedicated endpoint is ALWAYS capability-gated
+ * (`sources.manage`) and requires a mandatory reason. When set to `false` the
+ * endpoint fails closed BEFORE any read/write — no content version is created —
+ * so an operator can hard-disable known-Article refresh without touching RBAC.
+ * force-rescrape remains unreachable from scheduled/normal discovery either way
+ * (governing invariant); this flag only governs the dedicated manual path.
+ */
+export function scraperForceRescrapeEnabled(): boolean {
+  return isEnvEnabledByDefault("SCRAPER_FORCE_RESCRAPE");
 }
 
 /**
