@@ -360,3 +360,79 @@ test("AC4: the metric summary exposes only ids/counts/statuses/durations", () =>
   assert.ok(typeof summary.status === "string");
   assert.ok(typeof summary.totalCandidates === "number");
 });
+
+// ---------------------------------------------------------------------------
+// #1094 rate-governor visibility (AC4): backoff/pause/budget without URLs
+// ---------------------------------------------------------------------------
+
+test("governor: an active hostname pause surfaces and flips a healthy source to partial", () => {
+  const pausedUntil = new Date(NOW.getTime() + 45_000);
+  const summary = computeSourceMetrics({
+    now: NOW,
+    source: snapshot(),
+    candidateCounts: { [S.INGESTED]: 5 },
+    governor: {
+      hostPausedUntil: pausedUntil,
+      hostConsecutiveErrors: 3,
+      hostLastFailureReason: "http_429",
+      discoveryBudgetExhausted: false,
+      bodyBudgetExhausted: false,
+      aiBudgetExhausted: false,
+      backlogThrottleActive: false,
+      backlogAlert: false,
+      backlogUtilization: null,
+    },
+  });
+  assert.equal(summary.status, "partial");
+  assert.equal(summary.hostPauseActive, true);
+  assert.equal(summary.hostPauseSeconds, 45);
+  assert.equal(summary.hostConsecutiveErrors, 3);
+  assert.equal(summary.hostLastFailureReason, "http_429");
+});
+
+test("governor: an expired pause is inactive and does not change status", () => {
+  const summary = computeSourceMetrics({
+    now: NOW,
+    source: snapshot(),
+    candidateCounts: { [S.INGESTED]: 5 },
+    governor: {
+      hostPausedUntil: new Date(NOW.getTime() - 1),
+      hostConsecutiveErrors: 0,
+      hostLastFailureReason: null,
+      discoveryBudgetExhausted: false,
+      bodyBudgetExhausted: false,
+      aiBudgetExhausted: false,
+      backlogThrottleActive: false,
+      backlogAlert: false,
+      backlogUtilization: null,
+    },
+  });
+  assert.equal(summary.hostPauseActive, false);
+  assert.equal(summary.hostPauseSeconds, null);
+  assert.equal(summary.status, "healthy-caught-up");
+});
+
+test("governor: budget-exhaustion + backlog signals surface as controlled booleans (no URLs)", () => {
+  const summary = computeSourceMetrics({
+    now: NOW,
+    source: snapshot(),
+    candidateCounts: { [S.QUEUED]: 4 },
+    governor: {
+      hostPausedUntil: null,
+      hostConsecutiveErrors: 0,
+      hostLastFailureReason: null,
+      discoveryBudgetExhausted: false,
+      bodyBudgetExhausted: true,
+      aiBudgetExhausted: true,
+      backlogThrottleActive: true,
+      backlogAlert: true,
+      backlogUtilization: 0.9,
+    },
+  });
+  assert.equal(summary.bodyBudgetExhausted, true);
+  assert.equal(summary.aiBudgetExhausted, true);
+  assert.equal(summary.backlogThrottleActive, true);
+  assert.equal(summary.backlogAlert, true);
+  assert.equal(summary.backlogUtilization, 0.9);
+  assert.doesNotMatch(JSON.stringify(summary), /https?:\/\//);
+});
