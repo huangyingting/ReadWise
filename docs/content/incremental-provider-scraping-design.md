@@ -1571,6 +1571,120 @@ no-op) unless `candidateIngest.runIngestAttempt` is supplied. The atomic-save
 transaction, revalidation guards, stop outcomes, convergence, and the in-tx
 `ARTICLE_PROCESS` enqueue are all delivered here.
 
+## Phase 2.6 — Gate trusted-provider auto-publication and optional enrichment (#1096) — current
+
+Phase 2.5 lands every incrementally-ingested Article as an ownerless `DRAFT`.
+Phase 2.6 decides which of those drafts may AUTO-publish (bypassing human review)
+and which must stay in the existing review flow — and decouples that decision
+from OPTIONAL enrichment so a degraded optional provider can never block a
+publishable trusted article. It changes ONLY the publication gate; it introduces
+no moderation product and provider trust is never self-granting (explicit
+non-goals).
+
+### Provider trust settings (three independent, default-OFF flags)
+
+Three additive, metadata-only booleans on `DiscoverySource` (dual SQLite +
+PostgreSQL migration `20260719200000_trusted_provider_publication`), all
+`@default(false)` and deliberately SEPARATE — a permission never implies another:
+
+- **`canFetchAuthenticated`** — permission to fetch the source WITH credentials.
+  Grants access only; it NEVER contributes to publication (it is not even an
+  input to the policy).
+- **`canRepublishPublicly`** — permission to republish the source's content in
+  the PUBLIC library (source-ownership / republication rights).
+- **`autoPublishTrusted`** — explicit trust to auto-publish a validated draft
+  without human review. It CANNOT be granted by the fetch or republish flags
+  alone; auto-publication requires this flag AND `canRepublishPublicly`.
+
+They are booleans only — never a credential, cookie, URL, or article content.
+
+### The pure publication policy
+
+`src/lib/processing/publication-policy.ts` is a PURE module (no DB,
+network, or clock) in the house `classify.ts`/`exit-gates.ts` style. It lives in
+`lib/processing` (the publish gate's owner) rather than `lib/scraper` to respect
+the one-way processing↛scraper module boundary.
+`decideIncrementalPublication(input)` returns `"auto-publish"` or
+`"leave-in-review"` plus a machine reason code, evaluating in a fixed
+short-circuiting order (most-significant blocker first):
+
+1. `autoPublishTrusted` false ⇒ `provider-not-auto-publish-trusted` — an
+   untrusted provider ALWAYS yields a reviewable draft (AC1).
+2. `canRepublishPublicly` false ⇒ `public-republication-not-permitted` —
+   authenticated access alone can NEVER make content public (AC3).
+3. Any required check false ⇒ `required-check-failed:{body-quality,
+   content-safety,source-ownership,mandatory-metadata}`.
+4. Required enrichment incomplete ⇒ `required-enrichment-incomplete`.
+5. Only all-true ⇒ `auto-publish` (`all-required-checks-passed`).
+
+`resolveProviderTrust(candidates)` aggregates trust across ALL linked candidates
+CONSERVATIVELY: a permission is granted only when there is ≥1 candidate and every
+candidate resolves to a source that grants it — a single orphaned
+(`source == null`, deleted via `onDelete: SetNull`) or untrusted candidate
+withholds the grant, so a stray alias/transfer can never upgrade an article.
+`resolveSourceOwnershipOk(candidates)` requires every candidate's resolved source
+`providerKey` to match the candidate's own (an intact ownership chain).
+
+### Wiring the gate (`processor.ts`)
+
+`publishDraftIfReady` is now provider-trust-aware. `loadArticleState` additionally
+selects `crawlCandidates` (+ their source trust), `wordCount`, `content`, and
+`sourceUrl`. At publish time:
+
+- **Already published** ⇒ no-op (`skipped`).
+- **Non-incremental** drafts (NO linked candidate — manual/imported/`text-import`)
+  PRESERVE the legacy behavior exactly: publish when every step succeeded.
+- **Incremental provider** drafts consult the pure policy. The four required
+  checks are computed in-pipeline and CONSERVATIVELY (any unverifiable signal ⇒
+  `false` ⇒ stay draft): `bodyQualityOk` = `wordCount >= MIN_WORD_COUNT`;
+  `contentSafetyOk` = `moderateText(content)` not flagged (screened IN MEMORY —
+  the content string is never logged or persisted); `sourceOwnershipOk` =
+  intact candidate→source chain; `mandatoryMetadataOk` = title + sourceUrl + body
+  present. On `auto-publish` the draft flips to `PUBLISHED` (publishedAt = now)
+  and `revalidateArticlesCache()` fires EXACTLY ONCE on that state change;
+  otherwise the draft stays put and records a `skipped` publish step whose detail
+  is the machine reason code (never sensitive content).
+
+### Optional enrichment is decoupled from publication
+
+Publication now depends on `requiredEnrichmentComplete` — computed from the
+REQUIRED registry features only (`FEATURE_REGISTRY.filter(isRequired)` =
+difficulty, tags, vocabulary, quiz; a step counts as complete when its status is
+not `failed`). Optional enrichment (translation, TTS) is excluded, so a failed or
+degraded optional provider leaves a visible, retryable `failed`/`fallback` step
+WITHOUT rolling back the Article or blocking a publishable trusted article
+(requirements 4 & 6). The run-level `ok`/job-retry semantics are unchanged, so an
+optional step remains independently retryable via the existing job.
+
+### Privacy
+
+Every publication signal is a machine code, count, or boolean. No prompt,
+response, article text/prose, translation, definition, or credential is written
+to Job errors, processing metadata, audit metadata, or logs (AC4); content is
+screened in memory only.
+
+### Acceptance evidence
+
+- **Policy matrix** — the full trusted/untrusted × republish × required-check ×
+  required-enrichment truth table (only the all-true row auto-publishes), trust
+  aggregation, and source-ownership resolution — `tests/processing-publication-policy.test.ts`.
+- **Gate wiring** — trusted auto-publish (+ revalidate exactly once), untrusted
+  stays in review, authenticated-only never publishes, failed OPTIONAL (TTS) does
+  not block a publishable article, failed REQUIRED (quiz) keeps it in review,
+  unsafe/too-thin body and orphaned source chains stay in review, already-published
+  no-op, and non-incremental legacy preservation — `tests/processing-publication-gate.test.ts`.
+- **Persistence + visibility** — the three flags default false and persist, and a
+  public DRAFT is hidden from the public listing and becomes listable exactly on
+  the publish state change — `tests/db/publication-gate.test.ts`.
+
+### Deferred
+
+Remote content-safety moderation (e.g. Azure AI Content Safety behind
+`isRemoteModerationEnabled`) remains a heuristic-only screen here — layering in a
+provider endpoint is a separate follow-up and does not change the gate contract. A
+per-provider admin UI to toggle the three trust flags is Phase 3 operator work; the
+flags land as durable schema in Phase 2.6.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -1598,7 +1712,9 @@ The following phases build on the Phase 1 ledger and are documented as they land
   provider fairness, priorities & cost budgets #1094 have landed — see
   "Phase 2.4" above. The atomic save of the Article, candidate outcome &
   downstream jobs #1095 has landed — see "Phase 2.5" above; production body-fetch
-  dispatch behind the injected `prepareDraft` seam remains a follow-up.)*
+  dispatch behind the injected `prepareDraft` seam remains a follow-up. Gating
+  trusted-provider auto-publication & optional enrichment #1096 has landed — see
+  "Phase 2.6" above.)*
 - **Phase 3 — operator review, backfill, and controlled refresh** (epic #1080):
   canonical-conflict review UI, bounded historical backfill under a separate
   budget, and explicitly operator-triggered refresh.
