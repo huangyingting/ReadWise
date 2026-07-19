@@ -9,6 +9,7 @@ import type {
   JobType,
 } from "@/lib/jobs";
 import type { DiscoveryLoopDeps } from "./discovery-loop";
+import type { BackfillLoopDeps } from "./backfill-loop";
 import type { CandidateIngestDeps } from "./registry";
 
 export type WorkerLogger = {
@@ -57,6 +58,15 @@ export type JobWorkerOptions = {
    * off; supply `deps.fetchPage` to activate it.
    */
   discovery?: DiscoveryLoopDeps;
+  /**
+   * Enables the sibling BACKFILL driver pass (issue #1101). Runs under the SAME
+   * worker runtime (no second daemon): each tick advances every RUNNING
+   * BackfillRun by one bounded batch, reactivating matching historical
+   * identities at LOW priority. Pass `true` for the default driver, or a
+   * {@link BackfillLoopDeps} to inject test doubles / a batch size. Omit to
+   * leave historical backfill scheduling off.
+   */
+  backfill?: boolean | BackfillLoopDeps;
   /**
    * Candidate-based ARTICLE_INGEST dependencies (issue #1095): supply
    * `runIngestAttempt` (see `createIngestAttemptRunner`) to run the real

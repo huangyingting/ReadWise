@@ -24,6 +24,21 @@ const DEFAULT_INGEST_PROPAGATION_GRACE_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_REACTIVATION_BUDGET = 50;
 
 /**
+ * Bounded historical-backfill defaults (#1101, Phase 3.2). These clamp an
+ * administrator-approved backfill so an approval can never turn into an
+ * unbounded archive crawl: the requested item count and window span are clamped
+ * to these ceilings, and the driver reactivates at most `BATCH_SIZE` matching
+ * identities per tick (each enqueued at the LOW backfill job priority so
+ * real-time incremental work is never starved). Nothing here reads a clock or DB.
+ */
+/** Default hard ceiling on the number of identities ONE backfill may reactivate. */
+const DEFAULT_BACKFILL_MAX_ITEMS_CEILING = 5_000;
+/** Default hard ceiling on the requested window span (days) ONE backfill may cover. */
+const DEFAULT_BACKFILL_MAX_WINDOW_DAYS = 3_660;
+/** Default matching identities reactivated per backfill driver tick (paced batch). */
+const DEFAULT_BACKFILL_BATCH_SIZE = 50;
+
+/**
  * Rate-governor defaults (#1094, Phase 2.4). Every knob is individually
  * overridable and, where the reading is natural, `0` means "disabled/unlimited"
  * (documented per accessor). These feed the PURE governor in
@@ -75,6 +90,9 @@ type EnvName =
   | "SCRAPER_FETCH_429_MAX_MS"
   | "SCRAPER_INGEST_PROPAGATION_GRACE_MS"
   | "SCRAPER_REACTIVATION_BUDGET"
+  | "SCRAPER_BACKFILL_MAX_ITEMS_CEILING"
+  | "SCRAPER_BACKFILL_MAX_WINDOW_DAYS"
+  | "SCRAPER_BACKFILL_BATCH_SIZE"
   | "SCRAPER_HOST_CONCURRENCY"
   | "SCRAPER_HOST_MIN_INTERVAL_MS"
   | "SCRAPER_HOST_DAILY_CEILING"
@@ -269,6 +287,38 @@ export function scraperIngestPropagationGraceMs(): number {
  */
 export function scraperReactivationBudget(): number {
   return readEnvNonNegativeInt("SCRAPER_REACTIVATION_BUDGET", DEFAULT_REACTIVATION_BUDGET, 0);
+}
+
+/**
+ * Hard ceiling on the number of historical identities ONE administrator-approved
+ * backfill may reactivate (`SCRAPER_BACKFILL_MAX_ITEMS_CEILING`, default 5000;
+ * #1101). A larger requested max is clamped DOWN to this (with a warning); the
+ * approved effective bound is what the run enforces, so an approval can never
+ * become an unbounded archive crawl. Minimum 1.
+ */
+export function scraperBackfillMaxItemsCeiling(): number {
+  return readEnvInt("SCRAPER_BACKFILL_MAX_ITEMS_CEILING", DEFAULT_BACKFILL_MAX_ITEMS_CEILING, 1);
+}
+
+/**
+ * Hard ceiling on the requested window SPAN in days ONE backfill may cover
+ * (`SCRAPER_BACKFILL_MAX_WINDOW_DAYS`, default 3660 ≈ 10y; #1101). A wider
+ * requested window is clamped by moving the START forward (keeping the requested
+ * END), with a warning. Minimum 1.
+ */
+export function scraperBackfillMaxWindowDays(): number {
+  return readEnvInt("SCRAPER_BACKFILL_MAX_WINDOW_DAYS", DEFAULT_BACKFILL_MAX_WINDOW_DAYS, 1);
+}
+
+/**
+ * Matching identities reactivated per backfill driver tick
+ * (`SCRAPER_BACKFILL_BATCH_SIZE`, default 50; #1101). Each tick reactivates at
+ * most this many candidates (transition + low-priority ingest enqueue) and
+ * advances the durable checkpoint, so a large run is paced and stays resumable.
+ * Minimum 1.
+ */
+export function scraperBackfillBatchSize(): number {
+  return readEnvInt("SCRAPER_BACKFILL_BATCH_SIZE", DEFAULT_BACKFILL_BATCH_SIZE, 1);
 }
 
 /**

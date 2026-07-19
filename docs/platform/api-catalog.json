@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-19T19:25:23.686Z",
-  "routeCount": 126,
-  "methodCount": 148,
+  "generatedAt": "2026-07-19T22:03:37.981Z",
+  "routeCount": 128,
+  "methodCount": 152,
   "routes": [
     {
       "path": "/api/account",
@@ -309,6 +309,108 @@
             "targetType"
           ],
           "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/backfill",
+      "file": "src/app/api/admin/backfill/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": [
+            "limit",
+            "offset",
+            "providerKey",
+            "status"
+          ],
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "dryRun",
+            "effective",
+            "ok",
+            "preview",
+            "warnings"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "discoverySourceId",
+            "dryRun",
+            "maxItems",
+            "providerKey",
+            "reason",
+            "windowEnd",
+            "windowStart"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/backfill/{id}",
+      "file": "src/app/api/admin/backfill/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "run"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "action",
+            "reason"
+          ]
         }
       ]
     },
