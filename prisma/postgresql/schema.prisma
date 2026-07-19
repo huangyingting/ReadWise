@@ -1454,6 +1454,14 @@ enum DiscoveryGapState {
 /// CrawlCandidate lifecycle STATUS — controlled progression of a permanent
 /// public-ingestion identity. Orthogonal to `observedInBaseline` (baseline
 /// membership is a separate flag, not a status).
+///   - DUPLICATE_ALIAS: a later candidate that resolved to the SAME trusted
+///     final canonical identity (or same-provider prose fingerprint) as an
+///     earlier winning candidate; it was folded into the winner (aliases +
+///     observations re-pointed) and its downstream ingest cancelled (#1092).
+///   - NEEDS_REVIEW: a candidate whose trusted final canonical is an unknown
+///     cross-domain host, or whose prose fingerprint matched a DIFFERENT
+///     provider's content; it is parked BEFORE Article creation with an
+///     auditable CanonicalConflict row (#1092).
 enum CrawlCandidateStatus {
   DISCOVERED
   BASELINE
@@ -1464,6 +1472,8 @@ enum CrawlCandidateStatus {
   REJECTED
   FAILED
   CONFLICT
+  DUPLICATE_ALIAS
+  NEEDS_REVIEW
 }
 
 /// Provenance of the trusted publication date recorded for a candidate.
@@ -1611,6 +1621,17 @@ model CrawlCandidate {
   /// Version of the extraction/admission code that last processed the candidate.
   processingVersion String?
 
+  /// Versioned NORMALIZED-PROSE fingerprint (#1092). `bodyFingerprint` is a
+  /// one-way HASH of the normalized extracted prose — NEVER the prose text —
+  /// and `bodyFingerprintVersion` tags the normalization+hash scheme
+  /// (`PROSE_FINGERPRINT_VERSION`) so a scheme change never collides old and
+  /// new hashes. Used ONLY for EXACT same-provider duplicate detection via the
+  /// provider-scoped `@@index([providerKey, bodyFingerprint])`; there is
+  /// deliberately NO global unique — a cross-provider match must be routed to
+  /// review (rights/attribution differ), never auto-merged or failed.
+  bodyFingerprint        String?
+  bodyFingerprintVersion Int?
+
   /// Trusted publication date and where it came from.
   trustedPublishedAt DateTime?
   dateProvenance     CandidateDateProvenance @default(UNKNOWN)
@@ -1643,6 +1664,7 @@ model CrawlCandidate {
   @@index([articleId])
   @@index([observedInBaseline])
   @@index([providerKey, status])
+  @@index([providerKey, bodyFingerprint])
 }
 
 /// Alternate SANITIZED identity keys (redirects, canonical links, duplicates,

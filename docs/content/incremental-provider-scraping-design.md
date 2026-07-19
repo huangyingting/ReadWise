@@ -1053,6 +1053,103 @@ OUT OF SCOPE and lands in #1095. No URL or article content is ever logged.
 - **AC4 (PII-free)**: the payload is `{ candidateId, processingVersion }` and the
   error history is empty; unit + DB tests assert no URL/scheme leaks.
 
+## Phase 2.2 — resolve final canonical identity & body fingerprints under concurrency (#1092) — current
+
+Phase 2.2 makes URL variants and identical provider content **converge on one
+candidate BEFORE Article creation**, without ever turning an identity check into
+a refresh of a known Article. It splits, per the house pattern, into PURE
+resolution logic (no DB/network/clock) that operates on PROVIDED inputs, and
+THIN guarded persistence that applies a decision to the ledger atomically. Body
+fetch / extraction / Article creation remain OUT OF SCOPE (#1095) — this phase
+operates on the fetched final URL, declared canonical, and extracted prose that
+the future pipeline will PROVIDE.
+
+### Trusted final identity (pure — `final-identity.ts`)
+
+`resolveFinalIdentity({ owningProviderKey, finalUrl, canonicalUrl? })` delegates
+to the versioned #1082 `deriveCanonicalIdentity` (sanitized, versioned keys) and
+returns exactly one decision:
+
+- `keep-own-provider` — the trusted canonical belongs to the same owning provider
+  (directly, or on an explicitly-associated domain whose host is preserved).
+- `transfer-to-provider` — the canonical belongs to ANOTHER registered provider.
+  Ownership transfers and that provider's admission policy (`articleUrlPattern` +
+  `articleUrlFilter`, via `admittedByProvider`) is **re-run**; a URL the new
+  provider would not admit is routed to review, never silently accepted under a
+  laxer policy.
+- `route-to-review` — an UNKNOWN cross-domain redirect/canonical, an
+  unparseable/unsupported URL, or a rejected transfer. A declared canonical is
+  authoritative over the fetched final URL.
+
+### Versioned prose fingerprint (pure — `prose-fingerprint.ts`)
+
+`computeProseFingerprint(prose)` returns `v<PROSE_FINGERPRINT_VERSION>:<sha256hex>`
+of normalized prose (NFKC → lowercase → collapse whitespace → trim). Matching is
+**exact-only** — a hash gives zero false merges; there is deliberately no fuzzy /
+semantic similarity (which could merge distinct articles or masquerade as a
+refresh of a known Article). The prose text is never stored or logged — only the
+hash + version columns `CrawlCandidate.bodyFingerprint` / `bodyFingerprintVersion`
+(provider-scoped `@@index([providerKey, bodyFingerprint])`; **no global unique**,
+so cross-provider matches route to review rather than fail/merge).
+
+### Merge-winner selection (pure — `selectMergeWinner`)
+
+Given the colliding participants: two or more with an Article → unmergeable →
+review (`multiple-known-articles`); otherwise a protected tier wins (an Article
+beats everything, then a baseline identity), and among equally-protected the
+earliest by `firstObservedAt`, then `createdAt`, then `id`. A KNOWN identity
+always wins so it is never touched (AC4).
+
+### Thin guarded persistence (`final-identity-commit.ts`)
+
+`applyFinalIdentity` is the orchestration the #1095 pipeline calls after fetch +
+extraction:
+
+1. **Guard (AC4)** — a candidate with `articleId != null` or `observedInBaseline`,
+   or an already-terminal status, is left untouched (checked before AND inside the
+   tx).
+2. **Review routing (AC2)** — unknown cross-domain / rejected transfer / cross-
+   provider fingerprint / multiple known articles are parked with an OPEN
+   `CanonicalConflict` row (auditable `reason`) and `NEEDS_REVIEW` status; the
+   pending `ARTICLE_INGEST` job is cancelled.
+3. **Collision merge (AC1/AC3)** — the canonical identity is assigned in a single
+   guarded interactive `$transaction`; a collision folds later candidates into the
+   earliest winner: aliases (relabelled `DUPLICATE`) + observations are re-pointed
+   (RETAINED — every discovery site is preserved), losers are marked
+   `DUPLICATE_ALIAS`, and their ingest jobs cancelled.
+4. **Convergence-after-conflict (AC1)** — the `@@unique([providerKey,
+   canonicalKey])` slot is the collision point. Idempotent writes inside the tx use
+   `upsert` (never catch-P2002-in-tx); a concurrent claim makes the tx throw P2002,
+   and the STANDALONE wrapper (`convergeCanonicalMerge`, ≤5 retries) re-queries the
+   now-existing winner and folds into it — two racing workers converge on ONE
+   candidate instead of both failing.
+5. **Prose fingerprint** — exact same-provider duplicates merge into the earliest
+   winner; a cross-provider match parks for review.
+
+New `CrawlCandidateStatus` values: `DUPLICATE_ALIAS`, `NEEDS_REVIEW`. Under SQLite
+the status column is TEXT (no migration for new values); PostgreSQL uses
+`ALTER TYPE … ADD VALUE`.
+
+### Acceptance evidence
+
+- **AC1 (convergence)**: tracking / AMP / redirect / canonical variants resolving
+  to one canonical produce a single winning candidate (sequential AND concurrent)
+  with at most one Article-creation path. `tests/db/final-identity-commit.test.ts`.
+- **AC2 (auditable stop)**: unknown cross-domain AND cross-provider fingerprint
+  cases stop before Article creation with a `CanonicalConflict` + `NEEDS_REVIEW`.
+- **AC3 (retain + cancel)**: a merged loser's aliases + observations are re-pointed
+  to the winner while its ingest job is cancelled.
+- **AC4 (invariant)**: a known Article/baseline candidate is untouched even when a
+  later fetch would differ; a fresh candidate colliding with a known Article folds
+  INTO it (never refreshed). Pure decision tests in
+  `tests/scraper-final-identity.test.ts` / `tests/scraper-prose-fingerprint.test.ts`.
+
+### Deferred
+
+Source-window / publication-policy re-evaluation on a cross-provider transfer is
+deferred to the #1095 pipeline (which owns the discovery-source context); Phase
+2.2 re-runs the target provider's URL admission gate.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -1073,8 +1170,9 @@ The following phases build on the Phase 1 ledger and are documented as they land
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
   creation for genuinely new identities. *(The atomic candidate-based
-  `ARTICLE_INGEST` enqueue #1091 has landed — see "Phase 2.1" above; fetch /
-  extract / Article creation is #1095.)*
+  `ARTICLE_INGEST` enqueue #1091 has landed — see "Phase 2.1" above. Final
+  canonical identity + body fingerprint resolution / convergence #1092 has landed
+  — see "Phase 2.2" above; fetch / extract / Article creation is #1095.)*
 - **Phase 3 — operator review, backfill, and controlled refresh** (epic #1080):
   canonical-conflict review UI, bounded historical backfill under a separate
   budget, and explicitly operator-triggered refresh.
