@@ -20,6 +20,7 @@ const FAILURE_RESPONSE: Record<LifecycleActionFailure, { status: number; message
   "invalid-transition": { status: 409, message: "Lifecycle transition not allowed from the current mode" },
   "lease-lost": { status: 409, message: "Source changed concurrently; retry" },
   "baseline-incomplete": { status: 409, message: "Baseline is not complete" },
+  "exit-gates-failed": { status: 409, message: "Phase 1 exit gates are not all passing; source remains shadowed" },
 };
 
 /**

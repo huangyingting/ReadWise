@@ -869,6 +869,117 @@ flips lifecycle mode.
     disabled-action, compact mobile, and light/dark. Playwright coverage lives in
     `e2e/admin-discovery-sources.spec.ts`.
 
+### Phase 1 canaries & exit gates — the go/no-go capstone (Phase 1.10, #1090)
+
+Phase 1.10 proves the SAME incremental-discovery model against all three common
+input styles BEFORE any body ingestion is enabled, and encodes the quantitative
+go/no-go bar for the whole program. It adds NO schema and does NO body work; it
+only reads metadata and gates the SHADOW→ACTIVE transition.
+
+- **Three canary adapters (`incremental/adapters/*.ts`).** Each implements the
+  `DiscoveryPageFetcher` seam for ONE channel, fixture-driven and body-free:
+  - **RSS** (`rss-adapter.ts`) — reuses `parseRssEntries` (`rss.ts`); trusted
+    per-item `<published>` date → FEED provenance.
+  - **Sitemap** (`sitemap-adapter.ts`) — parses `<urlset>` `<loc>`/`<lastmod>`;
+    trusted `<lastmod>` → PAGE_METADATA provenance.
+  - **Seed-HTML** (`html-seed-adapter.ts`) — reuses `hrefsFromHtml` to resolve
+    anchors on a seed index; NO trusted per-item date → UNKNOWN provenance
+    (`review-required` in ACTIVE, never silently windowed).
+  All three share `adapters/types.ts`: they fetch ONLY the one channel document
+  via the injected SSRF-safe `DiscoveryFetch`, cap the items to one bounded
+  observable window (`boundaryReached = true`), return an empty page on 304, and
+  throw `CanaryFetchError` on retryable/error/blocked so the run handler isolates
+  the source. There is NO code path from an adapter to a body, an Article, or an
+  ingest job (the governing invariant + AC4).
+- **Declarative canary config (`incremental/canaries.ts`).** Data-only records
+  (the house provider-config convention) select one representative,
+  unauthenticated, live-stable source per channel — The Conversation (RSS),
+  Works in Progress (sitemap), Undark (seed-HTML) — each with a stable
+  source-key/version, observable-window rule, date-trust policy, role, schedule
+  tier, overlap/stop rule, validator-calibration interval, admission policy
+  (the SAME versioned provider pattern — no canary-specific relaxation), and a
+  `rationale`. Every canary is seeded DISABLED; the pure `assertNoCanaryAutoActivates`
+  proves no registry sync can silently ACTIVATE a source.
+- **Pure exit-gate evaluator (`incremental/exit-gates.ts`).** Given a
+  metadata-only `ExitGateSnapshot` (the #1089 `SourceMetricSummary` + the
+  reconciliation result + controlled counts), `evaluateExitGates` returns a
+  per-gate pass/fail and an overall verdict, which is `pass` ONLY when EVERY gate
+  passes. The five gates are HARD ZEROS and are NEVER relaxed:
+  - `no-old-item-false-positives` — no known/baseline identity reclassified as
+    new (`oldItemFalsePositives === 0`);
+  - `no-duplicate-jobs` — no identity has two queued/ingest jobs
+    (`duplicateJobs === 0`);
+  - `no-unexplained-misses` — reconciliation found no unexplained miss
+    (`unexplainedMisses === 0`);
+  - `recovery-successful` — at least one fault was injected AND all recovered
+    (`faultsInjected > 0 && unrecoveredFaults === 0`; fail-closed);
+  - `within-budget` — discovery volume within the per-run budget and no volume
+    spike anomaly.
+- **Gate enforcement on activation (AC2).** `activateDiscoverySource`
+  (`lifecycle-commit.ts`) takes an optional `ExitGateGuard`, evaluated BEFORE any
+  state change; a non-passing verdict REFUSES activation (`exit-gates-failed`
+  with the failing gate names), the source stays SHADOWED, and the refusal is
+  audited. Because SHADOW→ACTIVE is the ONLY forward edge into ACTIVE (every
+  other admin action routes through `transitionDiscoveryLifecycle`, which never
+  targets ACTIVE — `resume` returns to SHADOW/BASELINE), gating activation closes
+  every shortcut. The admin dispatcher (`lifecycle-actions.ts`) installs a
+  FAIL-CLOSED `canaryExitGateGuard` for canary sources: with no operator-supplied
+  soak evidence the `recovery-successful` gate fails, so a canary can never reach
+  ACTIVE until its recovery evidence is supplied. There is deliberately NO
+  operator override in this phase — a failing canary is fixed or replaced, never
+  waved through. The lifecycle route maps `exit-gates-failed` to a 409.
+- **Reconciliation tooling.** Pure `reconcile` (`incremental/reconciliation.ts`)
+  compares ledger observations against a controlled provider sample and tallies
+  hits / explained-misses / UNEXPLAINED-misses / extras (plus a per-category
+  rollup), storing ONLY sanitized identity keys, counts, and category labels —
+  never article content or a raw URL. The thin
+  `scripts/reconcile-discovery-canary.ts` runner (npm `reconcile:discovery-canary`)
+  assembles the two sets from metadata-only reads and exits non-zero on any
+  unexplained miss.
+- **Definition-version replacement + rollback (AC3).** Each definition version
+  is a DISTINCT `DiscoverySource` row keyed by the existing
+  `@@unique([providerKey, sourceKey, definitionVersion])`, so a replacement has
+  its OWN lease/checkpoint/watermark/ledger and runs INDEPENDENTLY in shadow while
+  the prior row is RETAINED untouched — no schema change.
+  `replaceDefinitionVersion` creates the next version DISABLED (copying
+  role/schedule/budgets); `rollbackDefinitionVersion` guardedly RETIRES the newest
+  non-retired version (never stealing a live lease) and the retained prior version
+  stays restorable through the normal gated activation path. The pure
+  `nextDefinitionVersion`/`planRollback` planners are unit-tested.
+- **Fault simulations + fixture soak.** DB-backed lifecycle tests (`tests/db/`,
+  guarded by `RUN_DB_INTEGRATION`) assert safe recovery for worker crash / stale
+  lease reclaim, live-lease-not-stolen, long outage, source reordering, stale
+  validator / stale definition version, and definition-version replacement, all
+  reusing the merged guarded-claim/lease machinery. A deterministic, fixture-driven
+  soak (`tests/db/canary-soak.test.ts`) exercises the full
+  baseline→shadow→(gated)activate cycle over one simulated publication cycle and
+  proves AC4 STRUCTURALLY: the body-work guard refuses in baseline/shadow so
+  injected FAILING body-fetch/Article-write/ingest deps are never reached, and no
+  Article or ARTICLE_INGEST job is ever written across the whole cycle including
+  the gated activation.
+
+### Phase 1 go/no-go checklist
+
+A canary is GO for activation only when ALL of the following are true (each is a
+quantitative exit gate; none is ever relaxed to force a pass):
+
+| # | Gate | Threshold | Evidence |
+|---|------|-----------|----------|
+| 1 | Old-item false positives | `= 0` | `no-old-item-false-positives` — no baseline/known identity reclassified as new |
+| 2 | Duplicate jobs | `= 0` | `no-duplicate-jobs` — no identity with two queued/ingest jobs |
+| 3 | Unexplained sampled misses | `= 0` | `no-unexplained-misses` — reconciliation vs controlled sample |
+| 4 | Fault recovery | `faults injected > 0` and `unrecovered = 0` | `recovery-successful` — fault-sim suite (fail-closed by default) |
+| 5 | Volume / cost | `discovered/run ≤ budget` and no volume spike | `within-budget` — #1089 metric summary |
+| 6 | No body work / no Article write | structural, all modes | AC4 soak — injected failing body deps never reached; Article & ARTICLE_INGEST counts stay 0 |
+| 7 | No silent activation | structural | `assertNoCanaryAutoActivates`; activation is the only edge into ACTIVE and is gate-enforced |
+| 8 | Version rollback | replaced version shadows independently; prior retained + restorable | AC3 replacement/rollback tests |
+
+The Phase-1 soak in this repository is FIXTURE-DRIVEN and deterministic (no live
+network is required to reproduce the go/no-go evidence). A true multi-cycle live
+soak against the real canary endpoints is an operational follow-up; the
+fixture-driven equivalent exercises the same baseline→shadow→(gated)activate path
+and the same exit-gate evaluation.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -883,7 +994,9 @@ The following phases build on the Phase 1 ledger and are documented as they land
   "Phase 1.6" above. Leased discovery-source scheduling in the worker #1087 has
   landed — see "Phase 1.7" above. The baseline & strict shadow lifecycle #1088
   has landed — see "Phase 1.8" above. Source observability, auto-degradation &
-  minimal admin controls #1089 have landed — see "Phase 1.9" above.)*
+  minimal admin controls #1089 have landed — see "Phase 1.9" above. The Phase 1
+  canaries + exit gates capstone #1090 has landed — see "Phase 1.10" above and
+  the "Phase 1 go/no-go checklist" below.)*
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
   creation for genuinely new identities.

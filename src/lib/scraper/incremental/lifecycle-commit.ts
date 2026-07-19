@@ -79,7 +79,8 @@ export type LifecycleCommitFailure =
   | "source-not-found"
   | "lease-lost"
   | "invalid-transition"
-  | "baseline-incomplete";
+  | "baseline-incomplete"
+  | "exit-gates-failed";
 
 /** Rolls the whole transaction back on a lost/stolen lease or concurrent transition. */
 class LeaseLostError extends Error {
@@ -284,7 +285,7 @@ function watermarkAdvances(
 // ---------------------------------------------------------------------------
 
 export type ActivateResult =
-  | { committed: false; reason: LifecycleCommitFailure }
+  | { committed: false; reason: LifecycleCommitFailure; failingGates?: string[] }
   | {
       committed: true;
       mode: DiscoverySourceLifecycleMode;
@@ -293,6 +294,16 @@ export type ActivateResult =
       /** Shadow candidate ids left as observations (too old / over the count cap). */
       deferredCount: number;
     };
+
+/**
+ * A pre-activation gate guard. Returns a verdict; when `verdict !== "pass"`,
+ * {@link activateDiscoverySource} REFUSES activation (the source stays SHADOW) and
+ * returns `exit-gates-failed` with the failing gate names. This is the security
+ * seam that keeps a canary that fails a Phase-1 exit gate from ever reaching
+ * ACTIVE through any shortcut (AC2). Injected so it is deterministically testable;
+ * the admin dispatcher installs the real canary evaluator.
+ */
+export type ExitGateGuard = () => Promise<{ verdict: "pass" | "fail"; failing: string[] }>;
 
 /**
  * Activates a source (`SHADOW → ACTIVE`): explicitly, atomically, and with a
@@ -304,6 +315,11 @@ export type ActivateResult =
  * selected candidates `DISCOVERED → QUEUED`. Over-limit / too-old candidates stay
  * shadow observations (`DISCOVERED`).
  *
+ * When an {@link ExitGateGuard} is supplied it is evaluated BEFORE any state
+ * change; a non-passing verdict REFUSES activation with `exit-gates-failed`,
+ * audits the refusal, and leaves the source SHADOWED. This is the ONLY code path
+ * to ACTIVE, so gating it here closes every activation shortcut (AC2).
+ *
  * Idempotent + deterministic on retry: the candidate move is guarded on
  * `status = DISCOVERED`, so a retry re-queues nothing already QUEUED, and a retry
  * while already ACTIVE (a partial activation that flipped the mode before all
@@ -311,7 +327,7 @@ export type ActivateResult =
  * without changing `activatedAt`.
  */
 export async function activateDiscoverySource(
-  base: LifecycleCommitBase & { limits?: CatchUpLimits },
+  base: LifecycleCommitBase & { limits?: CatchUpLimits; exitGateGuard?: ExitGateGuard },
 ): Promise<ActivateResult> {
   const now = base.now ?? new Date();
   const loaded = await loadSource(base);
@@ -323,6 +339,20 @@ export async function activateDiscoverySource(
   const isRetry = from === M.ACTIVE;
   if (!isRetry && classifyLifecycleTransition(from, M.ACTIVE) !== "forward") {
     return { committed: false, reason: "invalid-transition" };
+  }
+
+  // Exit-gate enforcement (AC2): a source that fails a Phase-1 exit gate MUST
+  // remain SHADOWED and cannot be activated through any shortcut. Evaluated
+  // before any state change; a non-passing verdict refuses + audits the refusal.
+  if (base.exitGateGuard) {
+    const verdict = await base.exitGateGuard();
+    if (verdict.verdict !== "pass") {
+      log.warn("discovery source activation refused by exit gates", {
+        sourceId: base.sourceId,
+        failingGates: verdict.failing,
+      });
+      return { committed: false, reason: "exit-gates-failed", failingGates: verdict.failing };
+    }
   }
 
   const shadowCandidates = await prisma.crawlCandidate.findMany({
