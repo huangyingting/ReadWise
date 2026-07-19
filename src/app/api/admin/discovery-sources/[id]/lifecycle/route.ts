@@ -21,6 +21,10 @@ const FAILURE_RESPONSE: Record<LifecycleActionFailure, { status: number; message
   "lease-lost": { status: 409, message: "Source changed concurrently; retry" },
   "baseline-incomplete": { status: 409, message: "Baseline is not complete" },
   "exit-gates-failed": { status: 409, message: "Phase 1 exit gates are not all passing; source remains shadowed" },
+  "auth-identity-ineligible": {
+    status: 409,
+    message: "Authenticated source needs a stable, secret-free identity and credential reference before activation",
+  },
 };
 
 /**

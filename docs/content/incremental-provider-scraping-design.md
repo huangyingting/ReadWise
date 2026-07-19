@@ -1978,6 +1978,117 @@ providers running under real load and are **honest follow-ups**, not done here:
 No live-operation evidence is fabricated in this PR. It is recommended these
 operational steps be filed as a separate follow-up issue.
 
+## Phase 2.9 — credentialRef-based authenticated provider ingestion (#1099) — current
+
+Phase 2.9 closes epic #1079. It lets a source be fetched with a
+**project-authorized** provider credential **without ever persisting a secret**,
+and without confusing *access* permission with *public republication* rights.
+The governing invariant is unchanged: normal incremental ingestion only acts on
+identities first observed AFTER a completed baseline and NEVER auto-refetches a
+known public Article. Authenticated sources are **not special-cased** around any
+correctness gate — the same hostname limits (#1094), baseline/shadow gates
+(#1088/#1090), candidate uniqueness (#1092), and no-old-article-refresh invariant
+apply exactly as for public sources.
+
+### Secret-free schema (`DiscoverySource`)
+
+Two SECRET-FREE, metadata-only columns are added (dual-engine migration
+`20260720010000_source_credential_ref`, identical additive nullable DDL for
+SQLite + PostgreSQL):
+
+- `credentialRef String?` — a stable NAME/handle (an env-var key or secret-store
+  key), NEVER the secret value, a token, a signed URL, or an Authorization
+  header. Because only the handle is stored, rotating the secret behind a fixed
+  `credentialRef` requires NO candidate/job rewrite (AC2).
+- `authIdentityKind String?` — how the source's items are identified:
+  `stable-provider-id`, `canonical-url`, or `signed-url-only`. Only the two
+  STABLE, secret-free kinds may be activated for automatic incremental ingestion.
+
+These join the #1096 `canFetchAuthenticated` / `canRepublishPublicly` /
+`autoPublishTrusted` booleans; all default false and are independently granted.
+
+### In-memory secret resolution (`credential-resolver.ts`)
+
+The worker-side resolver seam is the ONLY place a `credentialRef` becomes live
+auth material, and it does so **in memory, per request**. `resolveCredential`
+(the injectable `CredentialResolver` interface) returns either an Authorization
+header value / a signed URL, or a sanitized failure status
+(`missing` | `expired` | `rotated`). The resolved header/URL is returned to the
+caller and NEVER written to a candidate, alias, observation, Job, CrawlRun,
+audit metadata, log, or error (AC1). The default `EnvCredentialResolver` reads
+from an approved env-based store (a missing/empty value ⇒ `missing`); tests inject
+a FAKE resolver returning a sentinel secret or a scripted status — never a real
+secret. Rotation is modeled by mutating the secret behind a fixed handle.
+
+### Secret-free identity requirement (AC3, `credential-policy.ts`)
+
+The PURE `decideAuthenticatedActivation` (no DB/network/clock; plain inputs →
+sanitized enum) gates activation for an authenticated source: it must carry a
+STABLE secret-free identity AND a `credentialRef`. A source whose items are
+identified ONLY by rotating signed URLs (`signed-url-only`, or an unspecified
+kind) is REFUSED — a signed URL cannot key candidate uniqueness or the
+no-refresh invariant. This is wired into `activateDiscoverySource` (the single
+code path to ACTIVE), so no shortcut can bypass it; the admin lifecycle route
+maps the refusal to a client-safe `auth-identity-ineligible` (409).
+
+### Pause only the affected source on credential failure (requirement 6)
+
+When the resolver reports a missing/expired/rotated credential, the body-fetch
+seam (`prepareAuthenticatedFetch`) returns a sanitized `CredentialPauseCategory`
+(`credential-missing` | `credential-expired` | `credential-rotated`), and
+`pauseSourceForCredentialFailure` PAUSES ONLY that source under the same guarded
+(lease + definitionVersion) update the discovery run uses — flipping it to
+PAUSED, clearing `nextRunAt`/lease, marking health FAILING, and recording the
+sanitized category in `lastError`. It touches nothing else: candidates, aliases,
+observations, Jobs, and other sources are untouched (an article is never marked
+absent or policy-rejected). Resuming reuses the existing PAUSED lifecycle
+(`resume` → SHADOW when the baseline is complete); after the secret is rotated
+behind the fixed handle the source resumes cleanly with no candidate/job rewrite.
+
+### Fetch permission ≠ publication rights (AC4)
+
+Authorization to fetch WITH credentials (`canFetchAuthenticated`) is a SEPARATE
+grant from public republication (`canRepublishPublicly`). Fetch permission alone
+NEVER makes an Article public: the #1096 pure publication gate
+(`decideIncrementalPublication`) keeps an authenticated-but-not-republishable
+draft in human review (`public-republication-not-permitted`). `credential-policy`
+deliberately does NOT re-decide publication and does NOT import
+`lib/processing` — the one-way `scraper ↛ processing` module boundary is
+preserved; publication stays owned by the processor.
+
+### Redaction
+
+`redactUrlForLog()` (which strips userinfo, the entire query string — where
+signed-URL tokens live — and the fragment) remains the foundation; every auth
+fetch log/error routes URLs through it (`redactErrorForSource`), and the resolver
+seam never logs the secret or the `Bearer …` header value. Only the
+`credentialRef` NAME and sanitized categories/counts ever persist or log.
+
+### Acceptance evidence
+
+- **AC1** (secret scan): `tests/db/credential-authenticated-ingestion.test.ts`
+  runs an authenticated flow (success + failure) and asserts a sentinel secret,
+  `Bearer …`, and the signed-URL token/host appear in NO DiscoverySource /
+  candidate / alias / observation / Job / CrawlRun row, Job payload, or captured
+  log — while the `credentialRef` NAME + sanitized category DO persist.
+- **AC2** (rotation): the same suite rotates the secret behind a fixed
+  `credentialRef` and asserts the candidate + Job are byte-unchanged and the
+  paused source resumes cleanly. `tests/scraper-credential-resolver.test.ts`
+  proves the resolver seam at the unit level.
+- **AC3** (identity): the DB suite refuses to activate a `signed-url-only` source;
+  `tests/scraper-credential-policy.test.ts` covers every eligibility branch.
+- **AC4** (publish): `tests/scraper-credential-policy.test.ts` proves an
+  authenticated-but-not-republishable draft stays in review via the #1096 gate.
+
+### Deferred (follow-up)
+
+Honest scope, unchanged from #1095: the production body-fetch runner
+(`runIngestAttempt`) is OFF by default because the ledger stores hashed identity
+keys, not fetchable URLs. Phase 2.9 therefore delivers a TESTED RESOLVER SEAM +
+its activation/pause guards + redaction, wired at `prepareAuthenticatedFetch`,
+awaiting the production body-fetch dispatch (the same follow-up called out in
+Phase 2.5). No end-to-end authenticated body ingestion is claimed here.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -2013,7 +2124,10 @@ The following phases build on the Phase 1 ledger and are documented as they land
   `backfill`/`force-rescrape`. The measured public-provider rollout gates, batch/
   tier config, acceptance matrix & rollback drill #1098 have landed — see
   "Phase 2.8" above; starting live canaries under load and recording go/no-go
-  decisions remain operational follow-ups.)*
+  decisions remain operational follow-ups. credentialRef-based authenticated
+  provider ingestion #1099 has landed — see "Phase 2.9" above; it CLOSES epic
+  #1079, delivering secret-free authenticated access as a tested resolver seam
+  with production body-fetch dispatch remaining the same follow-up as #1095.)*
 - **Phase 3 — operator review, backfill, and controlled refresh** (epic #1080):
   canonical-conflict review UI, bounded historical backfill under a separate
   budget, and explicitly operator-triggered refresh. *(The `backfill` and
