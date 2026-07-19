@@ -33,7 +33,7 @@ const ILLEGAL_MESSAGE: Record<string, string> = {
  * 409s. `stale` carries `stale: true` so the UI can show the stale-candidate
  * state and refresh.
  */
-export function reviewOutcomeResponse(outcome: CandidateReviewOutcome): NextResponse {
+function reviewOutcomeResponse(outcome: CandidateReviewOutcome): NextResponse {
   if (outcome.ok) {
     return NextResponse.json(
       outcome.kind === "applied"
