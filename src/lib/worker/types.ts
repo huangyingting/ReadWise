@@ -9,6 +9,7 @@ import type {
   JobType,
 } from "@/lib/jobs";
 import type { DiscoveryLoopDeps } from "./discovery-loop";
+import type { CandidateIngestDeps } from "./registry";
 
 export type WorkerLogger = {
   info: (message: string, meta?: Record<string, unknown>) => void;
@@ -56,6 +57,13 @@ export type JobWorkerOptions = {
    * off; supply `deps.fetchPage` to activate it.
    */
   discovery?: DiscoveryLoopDeps;
+  /**
+   * Candidate-based ARTICLE_INGEST dependencies (issue #1095): supply
+   * `runIngestAttempt` (see `createIngestAttemptRunner`) to run the real
+   * fetch/extract/atomic-save pipeline. Omitted → the candidate-ingest handler
+   * stays a safe hand-off no-op.
+   */
+  candidateIngest?: CandidateIngestDeps;
   deps?: JobWorkerDeps;
 };
 
