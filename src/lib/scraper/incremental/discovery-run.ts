@@ -35,6 +35,7 @@ import { computeNextRunAt, failureBackoffSeconds } from "./schedule";
 import { nextZeroDiscoveryStreak } from "./degradation";
 import { evaluateAndApplyDegradation } from "./observability-query";
 import type { ClaimedDiscoverySource } from "./discovery-claim";
+import type { AdmissionDecision } from "./rate-governor";
 
 const SECOND_MS = 1000;
 const MAX_LAST_ERROR_LENGTH = 500;
@@ -60,6 +61,22 @@ export type RunClaimedDiscoverySourceDeps = {
   commitPage?: typeof commitDiscoveryPage;
   commitFrontier?: typeof commitFrontierState;
   now?: () => Date;
+  /**
+   * Optional #1094 rate-governor gate. When supplied, a shared per-hostname
+   * request slot is RESERVED before the page fetch; a `defer`/`paused` decision
+   * skips the fetch and reschedules the source (no failure backoff) so discovery
+   * and body requests share one hostname budget. Absent by default → unchanged.
+   */
+  governor?: DiscoveryGovernorGate;
+};
+
+/**
+ * Rate-governor gate for the discovery run (#1094). `reserve` returns whether a
+ * shared hostname request slot was granted for THIS source's poll; the run
+ * handler honors a `defer`/`paused` by rescheduling without fetching.
+ */
+export type DiscoveryGovernorGate = {
+  reserve: (input: { source: DiscoverySource; now: Date }) => Promise<AdmissionDecision>;
 };
 
 export type DiscoveryRunOutcome =
@@ -70,6 +87,7 @@ export type DiscoveryRunOutcome =
       caughtUp: boolean;
     }
   | { status: "lease-lost" }
+  | { status: "deferred"; reason: string; nextRunAt: Date | null }
   | { status: "failed"; errorKind: string };
 
 /** Renders an error as bounded, secret-free metadata (never a raw URL/query). */
@@ -171,6 +189,33 @@ async function finalizeFailure(source: DiscoverySource, error: unknown, now: Dat
 }
 
 /**
+ * Reschedules a source WITHOUT fetching when the rate governor deferred/paused
+ * its poll. Releases the lease under the guarded (lease + version) update with a
+ * governor-supplied `nextRunAt`, preserving health + backoff (a governed defer is
+ * NOT a failure). Returns whether the guarded release still owned the lease.
+ */
+async function finalizeDeferred(
+  source: DiscoverySource,
+  decision: Exclude<AdmissionDecision, { decision: "admit" }>,
+  now: Date,
+): Promise<boolean> {
+  const nextRunAt =
+    decision.decision === "paused"
+      ? decision.until
+      : decision.retryAt ??
+        computeNextRunAt({
+          now,
+          role: source.role,
+          automationPolicy: source.automationPolicy,
+          lifecycleMode: source.lifecycleMode,
+          pollIntervalSeconds: source.pollIntervalSeconds,
+          scheduleCron: source.scheduleCron,
+          backoffLevel: source.backoffLevel,
+        });
+  return releaseSource(source, { nextRunAt }, now);
+}
+
+/**
  * Runs one bounded page for a freshly-claimed discovery source. Never throws:
  * a failing source is isolated (backoff + redacted error, lease released) so the
  * loop and other sources are unaffected.
@@ -189,6 +234,22 @@ export async function runClaimedDiscoverySource(
   const commitPage = deps.commitPage ?? commitDiscoveryPage;
   const commitFrontier = deps.commitFrontier ?? commitFrontierState;
   const definitionVersion = source.definitionVersion;
+
+  // #1094 shared-hostname gate: reserve a request slot before spending the fetch.
+  // A governed defer/pause reschedules WITHOUT fetching so discovery never
+  // exceeds the hostname budget it shares with body work.
+  if (deps.governor) {
+    const decision = await deps.governor.reserve({ source, now });
+    if (decision.decision !== "admit") {
+      const released = await finalizeDeferred(source, decision, now);
+      if (!released) return { status: "lease-lost" };
+      const reason = decision.decision === "paused" ? "paused" : decision.reason;
+      logger.info("discovery poll deferred by rate governor", { sourceId: source.id, reason });
+      const nextRunAt =
+        decision.decision === "paused" ? decision.until : decision.retryAt;
+      return { status: "deferred", reason, nextRunAt: nextRunAt ?? null };
+    }
+  }
 
   try {
     const page = await deps.fetchPage({ source, signal });

@@ -1769,3 +1769,46 @@ model CanonicalConflict {
   @@index([status])
   @@index([incumbentCandidateId])
 }
+
+/// Durable per-UTC-day request/budget counter for the rate governor (#1094,
+/// Phase 2.4). ONE row per (scope, scopeKey, utcDay) holds the daily-windowed
+/// counter that a worker restart must NOT reset within the day: hostname daily
+/// ceiling, per-provider daily quota, and the separate discovery/body/AI cost
+/// budgets. `scope` is a plain machine label ("hostname" | "provider" |
+/// "discovery_budget" | "body_budget" | "ai_budget"); `scopeKey` is an opaque
+/// sanitized hostname/provider key (or "global" for the cost budgets) — NEVER a
+/// raw URL, secret, or user content. `utcDay` is a "YYYY-MM-DD" bucket, so a new
+/// day starts a fresh counter automatically. Increments are idempotent/atomic via
+/// upsert (INSERT..ON CONFLICT) inside the governing transaction.
+model ScraperBudgetWindow {
+  id           String   @id @default(cuid())
+  scope        String
+  scopeKey     String
+  utcDay       String
+  requestCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([scope, scopeKey, utcDay])
+  @@index([scope, utcDay])
+}
+
+/// Cross-day per-hostname governor health state (#1094, Phase 2.4). ONE row per
+/// hostname holds the state that MUST survive a worker restart and span UTC-day
+/// boundaries: the min-interval anchor (`lastRequestAt`), the auto-pause window
+/// (`pausedUntil` — from a server `Retry-After` or a 429/403/5xx backoff), and
+/// the consecutive-error streak that drives the backoff. `hostKey` is an opaque
+/// sanitized hostname — NEVER a raw URL, query string, secret, or cookie;
+/// `lastFailureReason` is a machine reason code only.
+model HostnameGovernorState {
+  id                String    @id @default(cuid())
+  hostKey           String    @unique
+  lastRequestAt     DateTime?
+  pausedUntil       DateTime?
+  consecutiveErrors Int       @default(0)
+  lastFailureReason String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([pausedUntil])
+}

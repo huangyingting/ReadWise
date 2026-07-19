@@ -151,6 +151,28 @@ export type SourceMetricInput = {
   validatorFailures?: number;
   /** Override the status thresholds (provider-aware); defaults applied otherwise. */
   statusThresholds?: StatusThresholds;
+  /** Rate-governor signals for this source's hostname/provider (#1094, AC4). */
+  governor?: GovernorSignals;
+};
+
+/**
+ * Metadata-only rate-governor signals surfaced through source health (#1094,
+ * AC4): the hostname auto-pause window + error streak, the three separate cost-
+ * budget exhaustion flags, and the backlog throttle/alert state. Every field is
+ * a controlled timestamp, count, machine reason code, or boolean — NEVER a URL,
+ * body, secret, or user content, so backoff/pause/budget visibility never leaks.
+ */
+export type GovernorSignals = {
+  hostPausedUntil: Date | null;
+  hostConsecutiveErrors: number;
+  hostLastFailureReason: string | null;
+  discoveryBudgetExhausted: boolean;
+  bodyBudgetExhausted: boolean;
+  aiBudgetExhausted: boolean;
+  backlogThrottleActive: boolean;
+  backlogAlert: boolean;
+  /** backlogSize / capacityThreshold (null when backlog throttling is disabled). */
+  backlogUtilization: number | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -210,6 +232,19 @@ export type SourceMetricSummary = {
   volumeAnomaly: VolumeAnomaly;
   discoveryBudgetPerRun: number | null;
   validatorFailures: number;
+
+  /** Rate-governor visibility (#1094, AC4); null/false when no governor signals. */
+  hostPausedUntil: Date | null;
+  hostPauseActive: boolean;
+  hostPauseSeconds: number | null;
+  hostConsecutiveErrors: number;
+  hostLastFailureReason: string | null;
+  discoveryBudgetExhausted: boolean;
+  bodyBudgetExhausted: boolean;
+  aiBudgetExhausted: boolean;
+  backlogThrottleActive: boolean;
+  backlogAlert: boolean;
+  backlogUtilization: number | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -290,6 +325,8 @@ export function deriveOperationalStatus(input: {
   backoffActive: boolean;
   backlogCount: number;
   thresholds: StatusThresholds;
+  /** An active hostname auto-pause (Retry-After / 429-403-5xx backoff) → partial. */
+  hostPauseActive?: boolean;
 }): OperationalStatus {
   const {
     lifecycleMode,
@@ -301,6 +338,7 @@ export function deriveOperationalStatus(input: {
     backoffActive,
     backlogCount,
     thresholds,
+    hostPauseActive,
   } = input;
 
   if (gapState === G.DETECTED) return "gap-detected";
@@ -318,7 +356,9 @@ export function deriveOperationalStatus(input: {
 
   if (hardUnhealthy || drift || failing) return "stalled";
 
-  if (health === H.DEGRADED || gapState === G.SUSPECTED || backoffActive) return "partial";
+  if (health === H.DEGRADED || gapState === G.SUSPECTED || backoffActive || hostPauseActive) {
+    return "partial";
+  }
 
   if (backlogCount > 0) return "healthy-backlog";
 
@@ -353,6 +393,11 @@ export function computeSourceMetrics(input: SourceMetricInput): SourceMetricSumm
   const backoffActive =
     source.backoffUntil !== null && source.backoffUntil.getTime() > now.getTime();
 
+  const governor = input.governor;
+  const hostPausedUntil = governor?.hostPausedUntil ?? null;
+  const hostPauseActive =
+    hostPausedUntil !== null && hostPausedUntil.getTime() > now.getTime();
+
   const status = deriveOperationalStatus({
     lifecycleMode: source.lifecycleMode,
     health: source.health,
@@ -363,6 +408,7 @@ export function computeSourceMetrics(input: SourceMetricInput): SourceMetricSumm
     backoffActive,
     backlogCount,
     thresholds,
+    hostPauseActive,
   });
 
   return {
@@ -403,5 +449,19 @@ export function computeSourceMetrics(input: SourceMetricInput): SourceMetricSumm
     volumeAnomaly: classifyVolumeAnomaly(input.volume),
     discoveryBudgetPerRun: source.discoveryBudgetPerRun,
     validatorFailures: input.validatorFailures ?? 0,
+
+    hostPausedUntil,
+    hostPauseActive,
+    hostPauseSeconds: hostPauseActive
+      ? Math.max(0, Math.round((hostPausedUntil!.getTime() - now.getTime()) / 1000))
+      : null,
+    hostConsecutiveErrors: governor?.hostConsecutiveErrors ?? 0,
+    hostLastFailureReason: governor?.hostLastFailureReason ?? null,
+    discoveryBudgetExhausted: governor?.discoveryBudgetExhausted ?? false,
+    bodyBudgetExhausted: governor?.bodyBudgetExhausted ?? false,
+    aiBudgetExhausted: governor?.aiBudgetExhausted ?? false,
+    backlogThrottleActive: governor?.backlogThrottleActive ?? false,
+    backlogAlert: governor?.backlogAlert ?? false,
+    backlogUtilization: governor?.backlogUtilization ?? null,
   };
 }
