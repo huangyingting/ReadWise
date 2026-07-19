@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>The Conversation — Articles</title>
+    <link>https://theconversation.com</link>
+    <description>Canary RSS fixture for Phase 1.10 discovery tests.</description>
+    <item>
+      <title>How birds navigate using magnetic fields</title>
+      <link>https://theconversation.com/how-birds-navigate-using-magnetic-fields-217534</link>
+      <guid isPermaLink="true">https://theconversation.com/how-birds-navigate-using-magnetic-fields-217534</guid>
+      <pubDate>Mon, 15 Jul 2024 10:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>The chemistry of ocean carbon capture</title>
+      <link>https://theconversation.com/the-chemistry-of-ocean-carbon-capture-218901</link>
+      <guid isPermaLink="true">https://theconversation.com/the-chemistry-of-ocean-carbon-capture-218901</guid>
+      <pubDate>Wed, 17 Jul 2024 08:30:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Why ancient forests store so much carbon</title>
+      <link>https://theconversation.com/why-ancient-forests-store-so-much-carbon-219450</link>
+      <guid isPermaLink="true">https://theconversation.com/why-ancient-forests-store-so-much-carbon-219450</guid>
+      <pubDate>Thu, 18 Jul 2024 14:15:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Topics landing page (should be filtered by admission)</title>
+      <link>https://theconversation.com/topics/climate-change-27</link>
+      <guid isPermaLink="true">https://theconversation.com/topics/climate-change-27</guid>
+      <pubDate>Thu, 18 Jul 2024 14:20:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

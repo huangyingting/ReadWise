@@ -39,6 +39,7 @@
     "postinstall": "prisma generate",
     "migrate-speech-timing": "npm run node-ts -- scripts/migrate-speech-timing.ts",
   "backfill:discovery-baseline": "npm run node-ts -- scripts/backfill-discovery-baseline.ts",
+    "reconcile:discovery-canary": "npm run node-ts -- scripts/reconcile-discovery-canary.ts",
     "speech:batch": "npm run node-ts -- scripts/batch-synthesis.ts",
     "speech:keep": "npm run node-ts -- scripts/batch-synthesis.ts --all --loop",
     "schema:generate": "node --import ./scripts/register-ts.mjs --experimental-strip-types --no-warnings scripts/generate-schemas.ts",
