@@ -303,8 +303,10 @@ export function makeCandidateIngestHandler(
  * Creates the default handler registry with all built-in job type handlers.
  * - ARTICLE_INGEST dispatches on payload shape: a candidate-based payload
  *   (`{ candidateId, processingVersion }`, #1091) resolves the candidate from
- *   the ledger and hands off to the #1095 ingestion pipeline; the legacy
- *   url/articleId ArticleIngest payload delegates to the article processor.
+ *   the ledger and runs the #1095 fetch/extract/atomic-save pipeline when a
+ *   `runIngestAttempt` runner is supplied via `candidateIngestDeps` (see
+ *   `createIngestAttemptRunner`); with no runner it stays a safe hand-off no-op.
+ *   The legacy url/articleId ArticleIngest payload delegates to the processor.
  * - ARTICLE_PROCESS, AI_REBUILD, TTS_GENERATE all delegate to the article
  *   processing adapter.
  * - PUSH_REMINDER is a no-op: it has its own dedicated pipeline
@@ -314,9 +316,10 @@ export function makeCandidateIngestHandler(
 export function createDefaultRegistry(
   processFn: typeof processArticle,
   loadCandidate: LoadCandidateFn = defaultLoadCandidate,
+  candidateIngestDeps: CandidateIngestDeps = {},
 ): JobHandlerRegistry {
   const articleHandler = makeArticleHandler(processFn);
-  const candidateIngestHandler = makeCandidateIngestHandler(loadCandidate);
+  const candidateIngestHandler = makeCandidateIngestHandler(loadCandidate, candidateIngestDeps);
   return new JobHandlerRegistry({
     [JobType.ARTICLE_INGEST]: async (job, ctx) => {
       // Candidate-based incremental ingest (#1091) vs. legacy url/articleId path.

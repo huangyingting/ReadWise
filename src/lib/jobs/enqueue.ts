@@ -237,6 +237,39 @@ export function enqueueArticleProcess(
   );
 }
 
+/** Dedupe key for an article's downstream ARTICLE_PROCESS enrichment work. */
+export function articleProcessDedupeKey(articleId: string): string {
+  return `article-process:${articleId}`;
+}
+
+/**
+ * Transaction-aware idempotent ARTICLE_PROCESS enqueue that participates in an
+ * EXISTING interactive transaction (issue #1095). Used by the incremental
+ * save-commit so an Article's REQUIRED downstream enrichment work is created in
+ * the SAME transaction that creates the Article and marks its candidate
+ * terminal — all-or-nothing (never a saved Article without its required job).
+ *
+ * Delegates to {@link enqueueJobInTx}, so it uses `upsert` (never a caught
+ * P2002 that would poison the transaction) and REUSES an existing Job for the
+ * `article-process:<articleId>` dedupe key — ACTIVE or terminal — rather than
+ * resetting it. The expensive AI/narration enrichment runs asynchronously in
+ * the ARTICLE_PROCESS handler, OUTSIDE this transaction.
+ */
+export function enqueueArticleProcessInTx(
+  tx: Prisma.TransactionClient,
+  articleId: string,
+  payload: Omit<ArticleJobPayload, "articleId"> = {},
+  opts: EnqueueOptions = {},
+): Promise<Job> {
+  return enqueueJobInTx(
+    tx,
+    JobType.ARTICLE_PROCESS,
+    { articleId, ...payload },
+    articleProcessDedupeKey(articleId),
+    opts,
+  );
+}
+
 export function enqueueArticleIngest(
   payload: ArticleIngestPayload,
   opts: EnqueueOptions = {},

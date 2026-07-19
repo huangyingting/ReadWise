@@ -1440,6 +1440,137 @@ will consume; the Job payload carries only `{candidateId, processingVersion}`
 today (no hostname/provider and no Job→CrawlCandidate relation), so body in-flight
 cannot yet be derived by join and is left to #1095.
 
+## Phase 2.5 — atomically save Article, candidate outcome & downstream jobs (#1095) — current
+
+Phase 2.5 is the pivotal Phase-2 step every prior issue deferred: it turns ONE
+fully-validated genuinely-new candidate into EXACTLY one **`DRAFT` public-library
+Article** plus its required durable follow-up work (an `ARTICLE_PROCESS`
+enrichment job) — **atomically**. It composes the pure resolver + thin guarded
+persistence from #1092 rather than reinventing them.
+
+### Where the work lives
+
+- **`ingest-runner.ts` — `createIngestAttemptRunner(deps)`** builds the
+  `runIngestAttempt` runner injected into the #1093 worker seam
+  (`makeCandidateIngestHandler`). Per attempt it: re-reads the candidate + its
+  discovery source (OUTSIDE any transaction), runs the **injected**
+  fetch/extract/final-check seam (`prepareDraft`), resolves the trusted final
+  identity via `applyFinalIdentity` (#1092), and — for a genuinely-new public
+  identity ONLY (`kept`/`transferred`, no existing Article) — calls the atomic
+  save. Expensive AI/narration is **not** run here; it is the asynchronous
+  `ARTICLE_PROCESS` job the save enqueues. Optional providers keep their graceful
+  fallback (AI/Speech/etc are never hard-required).
+- **`article-save-commit.ts` — `saveIncrementalArticle(input)`** owns the single
+  all-or-nothing `$transaction` (AC1). This is where the Article + candidate
+  terminal state + downstream job are committed together or not at all.
+
+### Fetch / extract OUTSIDE the transaction
+
+Fetch, extraction, and every final CHECK (canonical, fingerprint, date-window,
+source ownership, quality, access) are IMPURE and happen behind the injected
+`prepareDraft` seam BEFORE any transaction opens. The seam returns a normalized
+`PreparedDraft`: a ready `draft`, a transient/terminal `failure` outcome (which
+#1093 classifies + schedules), or a deterministic non-saving `stop` (e.g. a
+trusted outside-window date) — a stop creates NO Article and is NOT a retry.
+
+### The save transaction (revalidate → create → link → enqueue)
+
+Inside the single interactive `$transaction`, immediately before writing:
+
+1. **Revalidate** by re-reading the candidate + source under the tx and guarding:
+   the governing invariant (`articleId == null` and `observedInBaseline == false`;
+   otherwise a `known-article-untouched` no-op — AC4), a saveable candidate status
+   (already-terminal ⇒ idempotent `noop-terminal`), **provider ownership**
+   (`expectedProviderKey`), and the **source activation generation** — lifecycle
+   mode `ACTIVE`, `definitionVersion`, and the `activatedAt` marker all unchanged
+   since extraction. A failed generation/ownership guard throws a deterministic
+   `revalidation-failed` (`stale-generation` / `provider-mismatch`) that rolls the
+   whole tx back — this IS the active→shadow stale-worker stop (AC3): the stale
+   worker writes no Article and no job, and does **not** retry.
+2. **Create** the ownerless `DRAFT` Article (`ownerId = null`,
+   `status = DRAFT`, `sourceType = SCRAPED`) with its public source/canonical URL
+   and extracted fields.
+3. **Link** the candidate with a guarded `updateMany({ where: { id, articleId: null,
+   observedInBaseline: false, status in SAVEABLE } })` → `INGESTED` + `articleId`
+   + versioned prose fingerprint (never the prose). A zero-row count means a
+   concurrent worker already saved it → throw so the Article insert rolls back too
+   (no duplicate). This guarded update, in the SAME tx as the Article insert, is
+   the effective serialization point.
+4. **Enqueue** the deduplicated required `ARTICLE_PROCESS` job in the SAME tx via
+   `enqueueArticleProcessInTx` (upsert on dedupe key `article-process:<articleId>`).
+
+### Stop outcomes (create NO Article, NO downstream job)
+
+Existing public identity / baseline (governing invariant), an alias loser or
+canonical conflict or cross-provider body match (resolved upstream by
+`applyFinalIdentity` → `known-article-untouched` / `noop-terminal` /
+`routed-to-review`), a trusted outside-window date (a `prepareDraft` `stop`), and
+a stale activation generation (`revalidation-failed`) each stop before any Article
+is created. The runner returns `{ ok: true }` for every non-saving outcome so
+#1093 does not schedule a spurious retry.
+
+### Convergence after a race (never a duplicate, never a jobless candidate)
+
+Idempotent writes use `upsert`; a `P2002` is **never** caught inside the
+interactive tx (it poisons a PostgreSQL transaction). On the guarded-link race or
+the Article `@@unique([sourceUrl, ownerId])` conflict, the tx rolls back and a
+bounded standalone loop (`MAX_CONVERGENCE_RETRIES`) re-reads the winner: if this
+candidate is now linked, it just ensures the winner's `ARTICLE_PROCESS` job and
+returns `converged`; if the identity slot was won by a different candidate, it
+attaches this one to the existing winner Article (guarded) and ensures the job.
+Net guarantee: never a duplicate Article, never a saved candidate without its
+required job.
+
+### As-built decisions
+
+- **Terminal status: reuse `INGESTED` (no new `SAVED`).** `INGESTED` already means
+  "candidate → Article created" and is already in every terminal set
+  (`worker/registry.ts`, `final-identity-commit.ts`); the governing-invariant guard
+  keys on `articleId != null`. A distinct `SAVED` state carried no semantic value
+  here and would have forced a 3-file schema-parity change plus terminal-set edits,
+  so it was deliberately avoided.
+- **No schema change.** The candidate-level #1092 body fingerprint (linked via
+  `articleId`) already supports the cross-provider body-match stop, so no Article
+  fingerprint columns were added.
+- **AC4 — never update an existing Article.** No incremental path updates an
+  existing Article's content even when the freshly-fetched body differs; the module
+  only ever CREATES a new Article or CONVERGES onto an existing winner.
+
+### Acceptance evidence
+
+- **AC1 (all-or-nothing)**: a fault injected at EVERY commit write
+  (`beforeArticleCreate` / `beforeCandidateLink` / `beforeJobEnqueue`) proves the
+  Article, the candidate `INGESTED`+`articleId` link, and the `ARTICLE_PROCESS`
+  job all roll back together — `tests/db/article-save-commit.test.ts`.
+- **AC2 (one Article under concurrency)**: two concurrent workers on one winning
+  candidate create exactly ONE Article, leave the candidate in ONE consistent
+  terminal state, and ensure exactly ONE required job (the loser converges) —
+  `tests/db/article-save-commit.test.ts`.
+- **AC3 (stale generation writes nothing)**: an active→shadow flip, a
+  definition-version bump, or a provider-ownership change between extraction and
+  commit refuses the save (no Article, no job) — `tests/db/article-save-commit.test.ts`;
+  the runner returns `{ ok: true }` (no retry) in `tests/scraper-ingest-runner.test.ts`.
+- **AC4 (no update of a known Article)**: a candidate already linked to an Article,
+  and a baseline-observed candidate, are left untouched even with a differing
+  fetched body — `tests/db/article-save-commit.test.ts`.
+- **Runner composition** (fetch failure vs stop vs known/baseline vs non-keep
+  resolution vs kept/transferred save, provider-key and fingerprint propagation) —
+  `tests/scraper-ingest-runner.test.ts`.
+
+### Deferred
+
+Production body-fetch DISPATCH (SSRF-safe fetch, the extractor, the quality/
+date-window/access gates) and routing that fetch through the #1094 rate governor
+(`reserveHostnameRequest` / `consumeCostBudget(kind:"body")`) land behind the ONE
+injected `prepareDraft` seam and are a follow-up: the Job payload + ledger persist
+only sanitized hashed identity keys (`{candidateId, processingVersion}`), **not a
+fetchable URL**, so resolving a URL to fetch requires a separate URL-availability
+change that is out of #1095's atomic-save scope. `createDefaultRegistry` therefore
+leaves `runIngestAttempt` unset by default (preserving the existing hand-off
+no-op) unless `candidateIngest.runIngestAttempt` is supplied. The atomic-save
+transaction, revalidation guards, stop outcomes, convergence, and the in-tx
+`ARTICLE_PROCESS` enqueue are all delivered here.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -1465,7 +1596,9 @@ The following phases build on the Phase 1 ledger and are documented as they land
   — see "Phase 2.2" above. Propagation retries, quarantine & extractor-version
   reactivation #1093 has landed — see "Phase 2.3" above. Hostname budgets,
   provider fairness, priorities & cost budgets #1094 have landed — see
-  "Phase 2.4" above; fetch / extract / Article creation is #1095.)*
+  "Phase 2.4" above. The atomic save of the Article, candidate outcome &
+  downstream jobs #1095 has landed — see "Phase 2.5" above; production body-fetch
+  dispatch behind the injected `prepareDraft` seam remains a follow-up.)*
 - **Phase 3 — operator review, backfill, and controlled refresh** (epic #1080):
   canonical-conflict review UI, bounded historical backfill under a separate
   budget, and explicitly operator-triggered refresh.
