@@ -26,6 +26,8 @@ export const AUDIT_ACTIONS = {
   adminCandidateReview: "admin.candidate.review",
   adminCandidateReactivate: "admin.candidate.reactivate",
   adminSourceTrustPromotion: "admin.source.trust_promotion",
+  adminBackfillCreate: "admin.backfill.create",
+  adminBackfillControl: "admin.backfill.control",
   adminArticleReview: "admin.article.review",
   adminArticleTakedown: "admin.article.takedown",
   adminJobRetry: "admin.job.retry",

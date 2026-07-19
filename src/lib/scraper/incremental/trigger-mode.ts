@@ -13,6 +13,15 @@
  * defined-but-unimplemented mode returns a typed `not-implemented` rejection.
  * Combined with the object-schema dropping unknown keys, a normal trigger input
  * CANNOT smuggle a bypass / force flag (AC1/AC3).
+ *
+ * Phase 3.2 (#1101) decision — `backfill` is a REAL, implemented operation, but
+ * DELIBERATELY NOT via this normal operator trigger. It is served exclusively by
+ * the dedicated high-permission endpoint `POST /api/admin/backfill` (bounded
+ * range + mandatory reason + dry-run + audit). Keeping `backfill` OUT of
+ * {@link IMPLEMENTED_TRIGGER_MODES} preserves the #1097 no-smuggle invariant: a
+ * normal trigger (or the operator CLI) can never launch a backfill. This module
+ * therefore still rejects it here; only the rejection MESSAGE points at the
+ * dedicated endpoint. `force-rescrape` remains genuinely deferred.
  */
 
 /** Every defined trigger mode (implemented AND deferred). */
@@ -24,11 +33,25 @@ export type TriggerMode = (typeof TRIGGER_MODES)[number];
 export const DEFAULT_TRIGGER_MODE: TriggerMode = "incremental";
 
 /**
- * Modes actually implemented in this phase. `backfill` and `force-rescrape` are
- * deliberately EXCLUDED — they are Phase-3 work (non-goal here) and must fail
- * explicitly until then.
+ * Modes actually implemented on THIS normal operator trigger. Only
+ * `incremental` runs here. `backfill` is implemented in Phase 3.2 but ONLY via
+ * the dedicated high-permission endpoint (`POST /api/admin/backfill`), so it is
+ * intentionally excluded here to preserve the no-smuggle invariant;
+ * `force-rescrape` is still deferred. Both fail explicitly below.
  */
 export const IMPLEMENTED_TRIGGER_MODES: readonly TriggerMode[] = ["incremental"];
+
+/**
+ * Human guidance appended per deferred mode. `backfill` redirects to the
+ * dedicated endpoint; `force-rescrape` is genuinely not built yet. Both strings
+ * contain "not implemented" so this normal trigger keeps failing closed.
+ */
+const NOT_IMPLEMENTED_MESSAGE: Record<Exclude<TriggerMode, "incremental">, string> = {
+  backfill:
+    'Trigger mode "backfill" is not implemented on this trigger. Historical backfill is a separate high-permission operation — use the dedicated admin backfill endpoint (POST /api/admin/backfill).',
+  "force-rescrape":
+    'Trigger mode "force-rescrape" is not implemented yet (deferred). Use "incremental".',
+};
 
 /** Why a requested trigger mode was refused (sanitized category). */
 export type TriggerModeRejection =
@@ -64,7 +87,7 @@ export function validateTriggerMode(input: unknown): TriggerModeResult {
       ok: false,
       reason: "not-implemented",
       mode: requested,
-      message: `Trigger mode "${requested}" is not implemented yet (deferred to Phase 3). Use "incremental".`,
+      message: NOT_IMPLEMENTED_MESSAGE[requested as Exclude<TriggerMode, "incremental">],
     };
   }
   return { ok: true, mode: requested };

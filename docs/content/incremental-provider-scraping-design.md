@@ -2191,6 +2191,123 @@ candidate is approved/rejected — conflict resolution stays a separate concern.
 Promotion has no force-override: an operator cannot bypass the eligibility bar
 (revisit if a legitimate override need appears).
 
+## Phase 3.2 — bounded low-priority historical backfill (#1101) — current
+
+Phase 3.2 lets an administrator run a BOUNDED, low-priority backfill that
+reactivates matching HISTORICAL identities a completed baseline deliberately
+suppressed, WITHOUT ever recreating a known public Article and without ever
+starting itself. It is a SEPARATE high-permission operation (its own endpoint,
+its own audit trail, its own low-priority band and hostname reservation) that
+REUSES the ordinary candidate-ingest pipeline — no parallel/compat ingestion
+path. A gap suggestion is only an input to a human approval; nothing auto-starts
+a backfill after an outage, pause, gap, provider onboarding, or source-version
+change (non-goal).
+
+### Trigger-mode decision (Option b — the normal trigger keeps rejecting)
+
+`backfill` is now IMPLEMENTED, but ONLY behind the dedicated
+`POST /api/admin/backfill` endpoint. The normal operator trigger
+(`/api/admin/scrape/trigger`) and the CLI keep `IMPLEMENTED_TRIGGER_MODES =
+["incremental"]` and keep rejecting `backfill` with a `not-implemented` result
+whose message now points at the dedicated endpoint. This preserves the #1097
+"no-smuggle" invariant — a bounded, audited, high-permission operation can never
+be launched through the ordinary trigger. `force-rescrape` remains deferred.
+
+### Schema (`BackfillRun` + `BackfillRunStatus`)
+
+A dedicated `BackfillRun` model persists each approved operation so a large
+backfill survives worker restarts: actor id (a sanitized string, NOT an FK),
+reason, REQUESTED vs EFFECTIVE (clamped) window + item bounds, clamp `warnings`,
+`status` (`RUNNING`/`PAUSED`/`COMPLETED`/`CANCELLED`/`FAILED`), a
+`checkpointCursor` (last-processed candidate id), and matched/reactivated/
+skipped/failed counters. Dual-engine parity: PostgreSQL gets a
+`CREATE TYPE "BackfillRunStatus"` + table; SQLite stores the enum as TEXT with a
+JSONB `warnings` column. No article content or URLs are ever stored — only
+sanitized categories, counts, bounds, actor, and reason.
+
+`SKIPPED_OUTSIDE_WINDOW` is a DEFERRED reactivation target (follow-up #1127):
+normal incremental ingestion does not currently persist a candidate for an
+out-of-window item (`page-commit` creates none), so nothing PRODUCES that state
+yet. Rather than invent a target that is never generated, backfill reactivates
+only the historical states the pipeline actually produces — `OBSERVED_BASELINE`
+(status `BASELINE`) and `OBSERVED_SHADOW` (status `DISCOVERED`, not
+observed-in-baseline). The follow-up adds the enum value, the classification
+point that persists outside-window items, and extends reactivation to them.
+
+### Pure policy (no DB/network/clock)
+
+- `resolveEffectiveBackfillBounds(requested, config, now)` — CLAMPS a requested
+  window + item count to the configured ceilings so an approval can never become
+  an unbounded archive crawl. The effective window is ALWAYS a concrete bounded
+  interval whose span never exceeds `maxWindowDays`, and the item cap never
+  exceeds `maxItemsCeiling`; open/future edges default to `now`, an inverted
+  window is rejected, and every clamp is a sanitized warning category.
+- `decideBackfillReactivation(input)` — whether ONE matching identity is eligible.
+  Governing invariant first: an identity that already has (`has-article`) OR had
+  then lost (`article-deleted`) a public Article is NEVER reactivated; only
+  `OBSERVED_BASELINE` / `OBSERVED_SHADOW` are targets.
+- `decideBackfillLifecycle(status, action)` — the pause/resume/cancel state
+  machine (legal transitions, idempotent no-ops, illegal on terminal), so
+  pause/resume/retry stays idempotent and never widens the approved range.
+
+### Thin guarded persistence + driver loop
+
+- `previewBackfill` (DRY-RUN) computes bounded COUNTS only — it creates NO run,
+  NO Job, and fetches NO body. The `eligibleBackfillCandidateWhere` predicate is
+  shared with the commit so the preview count and the real scan can never
+  diverge; candidates with an UNKNOWN publication date are excluded from a
+  windowed backfill (an identity that cannot be confirmed in-window is never
+  reactivated).
+- `advanceBackfillRun` reactivates up to `batchSize` (capped by the remaining
+  item budget) still-eligible identities beyond the checkpoint under a
+  compare-and-set guard on `(status, checkpointCursor)`. Reactivation is the one
+  subtle move: because `article-save-commit` and the ingest handler both suppress
+  `observedInBaseline = true`, the guarded per-candidate `updateMany` flips
+  `observedInBaseline → false` + `status → QUEUED` and enqueues the LOW-priority
+  candidate-ingest Job IN THE SAME transaction, so the UNCHANGED downstream
+  pipeline (handler → runner → atomic save) then treats it as ordinary queued
+  work. The enqueue is the idempotent `article-ingest:candidate:<id>:v<version>`
+  upsert, so a resumed/retried/concurrent advance NEVER double-reactivates or
+  creates a duplicate Job. The run completes on `drained` or `budget-reached`.
+- `applyBackfillControl` (+ `pause`/`resume`/`cancel`) applies the pure lifecycle
+  decision under a guarded transaction; a guarded zero-row update re-reads +
+  re-decides (idempotent no-op vs stale). Control touches only `status` +
+  timestamps, so it can never widen the bounds.
+- The driver is a SIBLING worker loop (`runBackfillLoop`, gated on
+  `options.backfill`, default off) — not a new `JobType`. Each tick it lists
+  RUNNING runs and advances each one batch, resuming from `checkpointCursor` after
+  a restart. It lives in `src/lib/worker/` (the worker → scraper import direction
+  is allowed) and owns no decision logic.
+
+### Contention — real-time work always stays ahead
+
+Backfill-enqueued Jobs run at `BACKFILL_JOB_PRIORITY = -100`; the job claimer
+orders `priority DESC`, so EVERY real-time incremental Job (priority 0) is claimed
+before ANY backfill Job. This composes with the #1094 rate governor, whose
+`backfill` priority tier is already DEFERRED with reason `reserved-for-incremental`
+whenever the per-hostname reservation floor would otherwise let backfill consume a
+slot reserved for real-time work. Under shared hostname pressure, current
+incremental candidates therefore continue ahead of historical backfill.
+
+### Capability-gated endpoints (`sources.manage`, deny-by-default + CSRF)
+
+- `POST /api/admin/backfill` — create a bounded run, or (with `dryRun: true`)
+  return a metadata-only preview that creates no run/Job/body. A `reason` is
+  mandatory; bounds are clamped by the pure policy; only a real creation writes a
+  sanitized `adminBackfillCreate` audit entry.
+- `GET /api/admin/backfill` — filtered, paginated run list (sanitized DTOs).
+- `GET /api/admin/backfill/{id}` — one run's sanitized status/progress.
+- `POST /api/admin/backfill/{id}` — one idempotent pause/resume/cancel; outcome→
+  HTTP: applied/noop `200`, not-found `404`, illegal/stale `409`. Only a
+  state-CHANGING outcome writes an `adminBackfillControl` audit entry.
+
+### Deferred (follow-ups)
+
+`SKIPPED_OUTSIDE_WINDOW` classification + reactivation is follow-up #1127 (see
+Schema above). Production body-fetch dispatch remains the same #1095/#1099
+follow-up: reactivated identities enqueue the ordinary candidate-ingest Job, so
+they inherit whatever ingestion dispatch the normal pipeline provides.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -2236,6 +2353,11 @@ The following phases build on the Phase 1 ledger and are documented as they land
   explicit source trust promotion #1100 has landed — see "Phase 3.1" above:
   capability-gated review-queue + trust endpoints, the `SKIPPED_REVIEW` rejection
   state, idempotent approve/reject/reactivate, and drift auto-demotion that
-  preserves candidate history; the admin UI is delivered separately. The
-  `backfill` and `force-rescrape` trigger modes are already DEFINED in the
-  Phase 2.7 taxonomy and rejected explicitly until implemented here.)*
+  preserves candidate history; the admin UI is delivered separately. Bounded
+  low-priority historical backfill #1101 has landed — see "Phase 3.2" above: the
+  dedicated high-permission `POST /api/admin/backfill` endpoint, the `BackfillRun`
+  checkpoint model, dry-run preview, clamped bounds, low-priority pausable jobs
+  with hostname reservation, and reactivation that honors the governing invariant;
+  `SKIPPED_OUTSIDE_WINDOW` classification is deferred to follow-up #1127. The
+  `force-rescrape` trigger mode is still DEFINED in the Phase 2.7 taxonomy and
+  rejected explicitly until implemented.)*
