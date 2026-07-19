@@ -154,6 +154,12 @@ const theconversation: Provider = {
    * current English articles and avoids non-English noise.
    */
   urlExtractor: theConversationUrlExtractor,
+  urlIdentity: {
+    canonicalHost: "theconversation.com",
+    hostnameAliases: { "www.theconversation.com": "theconversation.com" },
+    trailingSlash: "strip",
+    amp: { pathSuffixes: ["amp"] },
+  },
 };
 
 export default theconversation;

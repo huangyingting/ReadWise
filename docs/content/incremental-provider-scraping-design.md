@@ -2,7 +2,7 @@
 type: "design"
 status: "current"
 last_updated: "2026-07-19"
-description: "Design for stateful incremental provider ingestion: the governing invariant, the durable discovery ledger data model (DiscoverySource, CrawlCandidate, UrlAlias, DiscoveryObservation, CanonicalConflict), its enums, uniqueness constraints, and cascade/retention decisions. Later phases are stubbed."
+description: "Design for stateful incremental provider ingestion: the governing invariant, the durable discovery ledger data model (DiscoverySource, CrawlCandidate, UrlAlias, DiscoveryObservation, CanonicalConflict), its enums, uniqueness constraints, cascade/retention decisions, and versioned URL normalization / public article identity (Phase 1.2). Later phases are stubbed."
 ---
 
 # Incremental provider scraping design
@@ -14,8 +14,9 @@ articles without automatically refreshing known ones. It complements the current
 scraper reference in [`scrapers.md`](./scrapers.md) and the source governance in
 [`content-policy.md`](./content-policy.md).
 
-The document is filled in phase by phase as implementation lands. Phase 1 (the
-data model, #1081) is **current** below; later phases are **planned** stubs.
+The document is filled in phase by phase as implementation lands. The data model
+(#1081) and URL normalization / public article identity (Phase 1.2, #1082) are
+**current** below; later phases are **planned** stubs.
 
 ## Program overview
 
@@ -179,13 +180,126 @@ Summary: **candidate identity, aliases, conflicts, terminal outcomes, and
 deletion history survive Article deletion**; only source-run observations expire
 with their source or candidate.
 
+## Phase 1.2 — URL normalization & public article identity — current
+
+Issue #1082 lands the single deterministic module that turns a secret-free
+provider URL into (1) a readable **normalized URL** and (2) a fixed-size,
+**versioned identity key** used for the ledger's identity columns
+(`provisionalKey`, `canonicalKey`, `aliasKey`, …). It is implemented in
+[`src/lib/scraper/url-identity.ts`](../../src/lib/scraper/url-identity.ts) and is
+distinct from `normalize.ts` (which normalizes article *HTML*).
+
+### Purity contract
+
+The module is **pure and deterministic**: no network fetch (it never loads a
+page to discover a canonical link), no database access, and no
+candidate-lifecycle decisions. It maps *URL → identity* and nothing else. All
+lifecycle and admission logic stays in the discovery/ingestion layers.
+
+### Shared normalization rules
+
+Applied to every URL, regardless of provider:
+
+- Lowercase the scheme and hostname; Unicode hosts are folded to their punycode
+  form (`münchen.example` ≡ `xn--mnchen-3ya.example`) by the URL parser.
+- Remove the fragment (`#…`) and default ports (`:80` for http, `:443` for https).
+- Remove **only centrally approved tracking parameters** — an explicit
+  allowlist-to-strip: the `utm_*` / `pk_*` / `piwik_*` / `hsa_*` prefixes plus
+  named click IDs (`fbclid`, `gclid`, `gclsrc`, `dclid`, `gbraid`, `wbraid`,
+  `msclkid`, `yclid`, `twclid`, `ttclid`, `igshid`, `mc_cid`, `mc_eid`,
+  `mkt_tok`, `_hsenc`, `_hsmi`, and similar). Unknown parameters are **never**
+  stripped merely because they look inconvenient.
+- Surviving query parameters (including duplicates) are sorted by `(name, value)`
+  for a stable key, so parameter order never changes identity.
+
+### Provider-owned rules
+
+Each provider may add declarative, **data-only** rules via the optional
+`urlIdentity?: ProviderUrlIdentityPolicy` field on `Provider` (same additive
+pattern as `cleanup` / `declutter` — omitting it leaves behavior at the shared
+default):
+
+- `meaningfulParams` — query params that carry identity meaning. When set, only
+  those are kept (empty array = drop all query params); otherwise every
+  non-tracking, non-credential param is preserved. Dropping other params is a
+  provider-owned decision that must be proven by tests never to merge distinct
+  content.
+- `trailingSlash` — `"preserve"` (default), `"strip"`, or `"add"`.
+- `amp` — fold AMP/mobile host and path variants (`hosts`, `pathPrefixes`,
+  `pathSuffixes`) onto the canonical form.
+- `hostnameAliases` + `canonicalHost` — fold owned host variants (e.g.
+  `bbc.com` → `www.bbc.com`) to one canonical host.
+- `associatedDomains` — different domains this provider explicitly owns for
+  canonical-ownership acceptance (see below).
+
+Representative wiring proves real behavior: **natgeo** declares
+`meaningfulParams: []` (its discovery already discards the query string);
+**bbcfeatures** folds `bbc.com → www.bbc.com`, strips trailing slashes, and lists
+`bbc.co.uk` as an associated domain; **theconversation** folds the `www` alias
+and an `…/amp` suffix.
+
+### Security & redaction guarantees
+
+Credential material is removed **before** any URL-derived value is returned,
+persisted, logged, or included in a thrown error:
+
+- Userinfo (`user:pass@host`) and the fragment are stripped at the parse
+  boundary.
+- Credential/signature query params are always dropped — the `x-amz-*` /
+  `x-goog-*` / `x-ms-*` presign families plus names/substrings such as
+  `token`, `access_token`, `sig`, `signature`, `hmac`, `apikey`, `api_key`,
+  `password`, `secret`, `sessionid`, `jwt`, `bearer`, `expires`. Two signed URLs
+  for the same resource therefore collapse to one identity.
+- Only `http(s)` schemes are accepted; other schemes are rejected.
+- Thrown errors and the exported `redactUrlForLog(url)` helper never echo
+  userinfo, the query string, or the fragment. An unparseable input is rendered
+  as `[unparseable-url]` rather than echoed verbatim.
+
+### Provisional vs. canonical operations
+
+Two separate operations expose the discovered-vs-trusted distinction:
+
+- `deriveProvisionalIdentity(rawUrl)` — the **discovered/provisional** identity.
+  Permissive: it normalizes with the owning provider's rules when one is
+  registered for the host, otherwise applies only the shared rules, and never
+  rejects an unknown-provider URL.
+- `deriveCanonicalIdentity(canonicalUrl, { owningProviderKey })` — the **trusted
+  final canonical** identity. Canonical ownership is accepted **only** when the
+  host belongs to the same owning provider, to a **separately registered
+  provider** (which reruns its own admission downstream), or to one of the owning
+  provider's **explicitly associated domains** (host preserved, not rewritten).
+  Any other cross-domain canonical is rejected (`unknown-cross-domain-canonical`)
+  so a page cannot claim an unrelated domain's identity.
+
+### Identity-key format & version-bump procedure
+
+The identity key is `<identityVersion>:<sha256hex>` — for `v1`, the literal
+`v1:` followed by the 64-char lowercase SHA-256 hex of the normalized URL (67
+chars total). It is fixed-size and non-null, suitable for the ledger's unique
+constraints, and the version prefix guarantees keys from different normalization
+behaviors never collide.
+
+`URL_IDENTITY_VERSION` (currently `"v1"`) is the single source of truth. **Any**
+change to normalization behavior — the tracking allowlist, credential detection,
+provider-rule handling, the hash, or the key shape — is a breaking change and
+**requires bumping the version tag**. The migration strategy on a bump:
+
+1. Bump `URL_IDENTITY_VERSION` to `v2` in the same change that alters behavior.
+2. Recompute keys for existing candidates/aliases under the new version and
+   backfill the ledger's `identityVersion`-scoped columns (a dedicated migration
+   job, deferred to the ingestion phases — this pure module does not migrate
+   data). The ledger's `@@unique(providerKey, identityVersion, …)` constraints
+   let `v1` and `v2` identities coexist during the transition.
+3. Never mutate `v1` keys in place; old keys remain valid for historical rows.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
 
 - **Phase 1 — discovery correctness in shadow mode** (epic #1078): shadow-mode
   discovery, baseline completion, watermark advance, and observation idempotency
-  proving. *(Ledger schema — this document — is the first deliverable, #1081.)*
+  proving. *(Ledger schema #1081 and versioned URL identity #1082 have landed —
+  see "Data model" and "Phase 1.2" above.)*
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
   creation for genuinely new identities.
