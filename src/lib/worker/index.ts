@@ -8,6 +8,7 @@ import { createDefaultRegistry } from "./registry";
 import { runWorkerLoop } from "./loop";
 import type { WorkerLoopDeps } from "./loop";
 import { runDiscoveryLoop } from "./discovery-loop";
+import { runBackfillLoop } from "./backfill-loop";
 import type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats } from "./types";
 
 export type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats };
@@ -31,6 +32,8 @@ export { runWorkerLoop } from "./loop";
 export type { WorkerLoopOptions, WorkerLoopDeps } from "./loop";
 export { runDiscoveryLoop } from "./discovery-loop";
 export type { DiscoveryLoopOptions, DiscoveryLoopDeps, DiscoveryLoopStats } from "./discovery-loop";
+export { runBackfillLoop } from "./backfill-loop";
+export type { BackfillLoopOptions, BackfillLoopDeps, BackfillLoopStats } from "./backfill-loop";
 
 /** Generates a stable-ish worker identity for lock ownership + tracing. */
 export function generateWorkerId(): string {
@@ -118,6 +121,24 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
       )
     : null;
 
+  // The historical-backfill driver pass (#1101) runs as a sibling under the SAME
+  // worker runtime, advancing every RUNNING BackfillRun one bounded batch per
+  // tick. Enabled by `options.backfill` (a `true` uses the default driver; a
+  // deps object injects test doubles). Its low-priority ingest Jobs are always
+  // claimed after real-time work, and a failing run never affects the Job loop.
+  const backfillPass = options.backfill
+    ? runBackfillLoop(
+        workerId,
+        {
+          pollIntervalMs: options.pollIntervalMs,
+          once: options.once,
+          signal: options.signal,
+        },
+        logger,
+        options.backfill === true ? {} : options.backfill,
+      )
+    : null;
+
   const stats = await runWorkerLoop(
     workerId,
     executeClaimedJob,
@@ -135,6 +156,11 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
   if (discoveryPass) {
     const discoveryStats = await discoveryPass;
     logger.info("discovery scheduling pass stopped", { ...discoveryStats });
+  }
+
+  if (backfillPass) {
+    const backfillStats = await backfillPass;
+    logger.info("backfill driver pass stopped", { ...backfillStats });
   }
 
   logger.info("job worker stopped", { ...stats });

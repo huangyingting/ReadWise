@@ -1857,3 +1857,85 @@ model HostnameGovernorState {
 
   @@index([pausedUntil])
 }
+
+/// Lifecycle of an administrator-approved bounded historical backfill (#1101,
+/// Phase 3.2). A run is created RUNNING and driven in bounded batches by the
+/// worker; PAUSED/CANCELLED are explicit operator controls; COMPLETED when the
+/// bounded scan is exhausted; FAILED reserved for an unrecoverable driver fault.
+enum BackfillRunStatus {
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+/// Administrator-approved bounded historical backfill operation (#1101, Phase
+/// 3.2). Fills a KNOWN historical interval without turning normal recovery into
+/// an unbounded archive crawl: it reactivates ONLY matching historical
+/// identities (OBSERVED_BASELINE = status BASELINE; OBSERVED_SHADOW = status
+/// DISCOVERED + !observedInBaseline) that do NOT already have an Article and are
+/// not blocked/deleted/policy-rejected, reusing the SAME candidate-ingest
+/// pipeline as real-time work at a LOW priority that reserves capacity for
+/// incremental. A gap suggestion NEVER starts one — an administrator must
+/// approve the bounded operation.
+///
+/// Records the actor, reason, REQUESTED vs EFFECTIVE (clamped) bounds, progress
+/// counters, failures, and cancellation; `checkpointCursor` (the last processed
+/// candidate id) makes a large run resumable across pause/resume/cancel and a
+/// worker restart WITHOUT duplicate jobs, and it NEVER widens the approved range.
+///
+/// METADATA ONLY: `actorId` is a plain string (NOT an FK, like AuditLog.actorId)
+/// so the record survives account deletion; `reason` is sanitized operator text;
+/// bounds are dates + counts; `checkpointCursor` is an opaque candidate id;
+/// `warnings` holds sanitized clamp categories. NEVER a URL, article text,
+/// secret, cookie, or user-private content.
+model BackfillRun {
+  id                String  @id @default(cuid())
+  providerKey       String
+  discoverySourceId String?
+  actorId           String?
+  reason            String
+
+  /// REQUESTED bounds (as submitted) — the clamp evidence alongside the effective
+  /// bounds below. `null` window bound = unbounded on that side.
+  requestedWindowStart DateTime?
+  requestedWindowEnd   DateTime?
+  requestedMaxItems    Int
+
+  /// EFFECTIVE (clamped) bounds the run actually enforces. The scan only ever
+  /// queries within these; resume/retry re-reads them, so the approved range can
+  /// never widen.
+  windowStart DateTime?
+  windowEnd   DateTime?
+  maxItems    Int
+
+  status BackfillRunStatus @default(RUNNING)
+
+  /// Resumable checkpoint — the last processed candidate id (opaque, sanitized).
+  /// The scan resumes at `id > checkpointCursor` after a pause/restart.
+  checkpointCursor String?
+
+  /// Progress counters (metadata only): identities matched within bounds,
+  /// reactivated (transitioned + enqueued), skipped (matched but ineligible or
+  /// concurrently changed), and failed.
+  matchedCount     Int @default(0)
+  reactivatedCount Int @default(0)
+  skippedCount     Int @default(0)
+  failedCount      Int @default(0)
+
+  /// Sanitized warning categories (e.g. clamped-window / clamped-max) — never
+  /// content.
+  warnings Json?
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([providerKey, status])
+  @@index([discoverySourceId])
+  @@index([createdAt])
+}
