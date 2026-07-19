@@ -56,6 +56,8 @@ export const POST = createCapabilityHandler(
         toMode: result.toMode,
         ...(result.queuedCount !== undefined ? { queuedCount: result.queuedCount } : {}),
         ...(result.deferredCount !== undefined ? { deferredCount: result.deferredCount } : {}),
+        ...(result.cancelledJobCount !== undefined ? { cancelledJobCount: result.cancelledJobCount } : {}),
+        ...(result.activationGeneration !== undefined ? { activationGeneration: result.activationGeneration } : {}),
       },
     });
 
@@ -66,6 +68,8 @@ export const POST = createCapabilityHandler(
       toMode: result.toMode,
       ...(result.queuedCount !== undefined ? { queuedCount: result.queuedCount } : {}),
       ...(result.deferredCount !== undefined ? { deferredCount: result.deferredCount } : {}),
+      ...(result.cancelledJobCount !== undefined ? { cancelledJobCount: result.cancelledJobCount } : {}),
+      ...(result.activationGeneration !== undefined ? { activationGeneration: result.activationGeneration } : {}),
     });
   },
 );

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-19T09:38:41.202Z",
+  "generatedAt": "2026-07-19T16:16:19.692Z",
   "routeCount": 121,
   "methodCount": 142,
   "routes": [
@@ -655,15 +655,17 @@
           ],
           "successStatus": 200,
           "responseKeys": [
+            "mode",
             "note",
             "ok",
             "results",
-            "totalSaved"
+            "totalSourcesRequested"
           ],
           "queryParamNames": null,
           "bodyFieldNames": [
             "all",
             "limit",
+            "mode",
             "provider"
           ]
         }

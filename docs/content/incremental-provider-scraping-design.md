@@ -1685,6 +1685,169 @@ provider endpoint is a separate follow-up and does not change the gate contract.
 per-provider admin UI to toggle the three trust flags is Phase 3 operator work; the
 flags land as durable schema in Phase 2.6.
 
+## Phase 2.7 — Explicit incremental mode + rollback (#1097) — current
+
+Phases 1–2.6 built the ledger, the claimed-source discovery loop, the atomic
+candidate/Article commit, and the trusted-publication gate — but the NORMAL
+operator entry points still ran the LEGACY synchronous path: the admin provider
+trigger and the provider CLI looped `discoverProviderUrls` +
+`scrapeAndSave`/`scrapeProvider`, fetching and re-saving bodies for URLs a
+provider lists TODAY. That path can rescrape a KNOWN public Article and so
+violates the governing invariant. Phase 2.7 closes those legacy paths and moves
+normal operator actions onto the candidate ledger by default, and adds the
+active→shadow rollback that fails in-flight work closed while RETAINING the
+ledger. It implements ONLY `incremental`; `backfill` and `force-rescrape` are
+defined but rejected explicitly (Phase 3, non-goals here).
+
+### Explicit trigger-mode taxonomy
+
+`src/lib/scraper/incremental/trigger-mode.ts` is a PURE module (no DB, network,
+or clock) defining the operator-facing mode taxonomy:
+
+- `TRIGGER_MODES = ["incremental", "backfill", "force-rescrape"]` — every
+  DEFINED mode, so the taxonomy is stable and the API/CLI can name a deferred
+  mode when rejecting it.
+- `DEFAULT_TRIGGER_MODE = "incremental"` — the mode when a trigger omits `mode`.
+- `IMPLEMENTED_TRIGGER_MODES = ["incremental"]` — the only mode wired here.
+
+`validateTriggerMode(input)` returns `{ ok: true, mode }` for `incremental`, an
+`unknown-mode` rejection for anything not in `TRIGGER_MODES`, and a typed
+`not-implemented` rejection (naming the mode) for `backfill`/`force-rescrape`.
+Combined with the route's object schema dropping unknown keys, a normal trigger
+input CANNOT smuggle a bypass/force flag and CANNOT fall through to old
+synchronous behavior (AC1/AC3).
+
+### Requesting an incremental run (no synchronous fetch/save)
+
+`src/lib/scraper/incremental/incremental-run-request.ts` `requestIncrementalRun(
+providerKeys, now)` is the thin persistence op the NORMAL path now uses instead
+of discover-and-save. It marks the providers' CLAIMABLE-mode discovery sources
+(`SHADOW`/`BASELINE`/`ACTIVE`) DUE (`nextRunAt = now`) so the worker's discovery
+loop (`runDiscoveryLoop` → `claimDueDiscoverySource` → `runClaimedDiscoverySource`)
+picks them up and runs bounded, ledger-based discovery pages; bodies are fetched
+LATER by the candidate-ingest job pipeline. It never fetches a body, never writes
+an Article, never changes a source's lifecycle/lease/watermark, and never wakes a
+`DISABLED`/`PAUSED`/`RETIRED` source (those need an explicit lifecycle action) —
+so a trigger can neither resurrect a stopped source nor rescrape a known Article.
+It returns `{ requested }` (sources woken); only provider keys, counts, and
+timestamps cross the seam.
+
+### Admin trigger + route
+
+`src/lib/scraper/admin-trigger.ts` `runAdminScrapeTrigger` validates the trigger
+mode (rejecting unimplemented modes via `AdminScrapeTriggerModeError`), the
+provider selection and bounded limit (`ADMIN_SCRAPE_TRIGGER_DEFAULT_LIMIT = 5`,
+`ADMIN_SCRAPE_TRIGGER_MAX_LIMIT = 50`, reused from the legacy path), calls
+`requestIncrementalRun` per selected provider, and writes an AUDIT record with
+controlled machine fields only (mode, provider keys, counts, phase — never a URL
+or article content). `src/app/api/admin/scrape/trigger/route.ts` accepts an
+optional `mode` (`oneOf(TRIGGER_MODES)`, default `incremental`) alongside the
+existing `provider`/`all`/`limit`, maps trigger input/mode errors to `400`, and
+returns `{ ok, mode, results, totalSourcesRequested, note }`. The route keeps its
+existing scrape/source capability + admin auth (`createCapabilityHandler`); the
+regenerated API catalog reflects the new `mode` field.
+
+### Private single-URL intake stays separate (non-goal to remove)
+
+`src/app/api/admin/articles/ingest/route.ts` (the authorized single-URL private/
+user import via `scrapeAndSave(url, …)`) is DELIBERATELY untouched. It is not a
+public-provider workflow and is not routed through public candidate uniqueness or
+the baseline/candidate identity gate — direct private intake remains available.
+
+### Provider CLI moves to incremental
+
+`scripts/scrape-provider.ts` normal commands (`scrape`, `resume`) now call an
+incremental-run request (`runIncrementalRequest` → `requestIncrementalRun`) and
+validate the mode via the same taxonomy; the synchronous worker-pool
+(`runScrape`) and its `scrapeAndSave`/`closeBrowser`/`recordCrawlRun` imports are
+REMOVED, so old direct provider scraping is unreachable from a normal command
+(proven by a CLI contract test that scans the source for the removed symbols).
+`--mode` defaults to `incremental` and help text documents it. The dev/one-off
+scripts (`scrape.ts`, `scrape-undark.ts`, `scrape-smithsonian.ts`,
+`scrape-reading-sources.ts`, `scrape-review.ts`, `build-quality-corpus.ts`, and
+`src/lib/seed.ts`) are explicitly-authorized tools, not normal operator actions,
+and are left as-is.
+
+### Active→shadow rollback (fail closed, retain the ledger)
+
+`src/lib/scraper/incremental/rollback-commit.ts` `rollbackActiveToShadow(sourceId,
+now)` backs the admin `rollback` lifecycle action when a source is ACTIVE. In ONE
+guarded transaction it:
+
+1. Transitions ACTIVE → SHADOW and PARKS scheduling (`nextRunAt = null`) so the
+   discovery loop stops claiming the source and no new candidate ingest work is
+   enqueued (SHADOW discovery is observe-only anyway).
+2. INCREMENTS `activationGeneration` (a new `Int @default(0)` column on
+   `DiscoverySource`, dual SQLite + PostgreSQL migration
+   `20260719220000_source_activation_generation`).
+3. Cancels the source's UNCLAIMED (`PENDING`) candidate-based `ARTICLE_INGEST`
+   jobs.
+
+Candidates and observations are PRESERVED, so a later explicit `activate` can
+deterministically requeue eligible shadow candidates (requirement 6). The read
+happens before the transaction; the interactive `$transaction` re-validates
+lease/`definitionVersion`/mode via a guarded `updateMany({ where: { id,
+lifecycleMode: ACTIVE, leaseOwner: null, definitionVersion } })` — a zero-row
+update (a worker claimed the source, the definition changed, or a concurrent
+rollback won) throws and rolls the whole write back, so two rollbacks can never
+double-apply. A source under an active discovery lease is refused (`busy`) rather
+than raced. Only ids, modes, counts, and a sanitized reason code are logged.
+
+### How the two fail-closed mechanisms dovetail with #1095's guard
+
+`revalidateSourceGeneration` (in `article-save-commit.ts`) runs INSIDE the
+Article save transaction. It captures a `{ definitionVersion, activatedAt,
+activationGeneration }` snapshot at context-load time and, at commit, throws
+`stale-generation` (→ rollback, NO Article) when the source is missing, its
+`lifecycleMode !== ACTIVE`, its `definitionVersion` changed, its `activatedAt`
+changed, OR its `activationGeneration` changed. So:
+
+- A CLAIMED/RUNNING body-fetch job in flight at rollback time is NOT cancelled;
+  it fails closed at commit because the source is now SHADOW (`lifecycleMode !==
+  ACTIVE`).
+- The `activationGeneration` bump adds the piece the mode check alone can't
+  cover: a job whose snapshot predates the rollback ALSO fails closed after a
+  LATER re-activation (which restores `ACTIVE` but leaves the generation bumped),
+  so stale pre-rollback work can never commit an Article across an
+  activate→rollback→activate cycle.
+
+### Job cancellation without a new status
+
+`JobStatus` has no `CANCELLED`. `src/lib/jobs/candidate-ingest-cancel.ts`
+`cancelPendingCandidateIngestJobsInTx` reuses the existing `cancelJob()`
+convention: it moves the source's `PENDING` candidate-ingest jobs to the terminal,
+non-claimable `DEAD_LETTER` with the controlled reason `ROLLBACK_CANCELLED_REASON
+= "rollback-cancelled"`, guarded on `status = PENDING`. The Job model has no FK to
+a candidate, so jobs are matched by the deterministic dedupe-key prefix
+`article-ingest:candidate:` and filtered to the source's candidate ids via their
+candidate-identity-only payloads. A job a worker claims concurrently is skipped by
+the guard and instead fails closed at commit via the generation guard. Candidates
+and observations are untouched.
+
+### Acceptance evidence
+
+- **Admin route** — auth, provider/mode validation, incremental enqueue,
+  `backfill`/`force-rescrape`/unknown-mode explicit rejection (`400`), audit
+  metadata carries no URLs, security event, and `all: true` —
+  `tests/admin-scrape-routes.test.ts`.
+- **CLI contract** — default mode `incremental`, explicit `--mode`, and a
+  source scan proving `scrapeAndSave`/`runScrape` are gone and
+  `requestIncrementalRun`/`runIncrementalRequest` present —
+  `tests/scrape-provider-cli.test.ts` and `tests/scripts-scrapers.test.ts`.
+- **Rollback + generation** — active→shadow rollback parks scheduling, bumps the
+  generation, and cancels PENDING candidate ingest jobs while retaining the
+  ledger (`tests/db/lifecycle.test.ts`), and a save whose generation snapshot
+  predates a rollback fails closed with NO Article
+  (`tests/db/article-save-commit.test.ts`).
+
+### Deferred
+
+`backfill` (bounded historical re-discovery under a separate budget) and
+`force-rescrape` (explicit operator refresh of a KNOWN Article) are defined in
+the taxonomy but rejected explicitly here; both are Phase 3 (epic #1080) work.
+Production body-fetch dispatch remains the injected `prepareDraft` seam from
+Phase 2.5.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -1714,7 +1877,12 @@ The following phases build on the Phase 1 ledger and are documented as they land
   downstream jobs #1095 has landed — see "Phase 2.5" above; production body-fetch
   dispatch behind the injected `prepareDraft` seam remains a follow-up. Gating
   trusted-provider auto-publication & optional enrichment #1096 has landed — see
-  "Phase 2.6" above.)*
+  "Phase 2.6" above. Moving admin + CLI triggers to explicit incremental mode
+  with active→shadow rollback #1097 has landed — see "Phase 2.7" above; it closes
+  the legacy synchronous discover-and-save paths and defines (but defers)
+  `backfill`/`force-rescrape`.)*
 - **Phase 3 — operator review, backfill, and controlled refresh** (epic #1080):
   canonical-conflict review UI, bounded historical backfill under a separate
-  budget, and explicitly operator-triggered refresh.
+  budget, and explicitly operator-triggered refresh. *(The `backfill` and
+  `force-rescrape` trigger modes are already DEFINED in the Phase 2.7 taxonomy
+  and rejected explicitly until implemented here.)*

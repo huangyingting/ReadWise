@@ -69,6 +69,8 @@ let saveOutcomes: Array<{ status: "saved" | "skipped" | "failed" | "throw"; reas
 let auditCalls: unknown[];
 let securityEvents: unknown[];
 let revalidateArticlesCalls: number;
+let incrementalRunRequests: Array<{ providerKeys: string[] }>;
+let incrementalRequested: number;
 let profileUpdates: unknown[];
 let searchPage: { articles: Array<{ id: string }>; hasMore: boolean };
 let todayFeatureEnabled: boolean;
@@ -490,6 +492,14 @@ before(() => {
       },
     },
   });
+  mock.module("@/lib/scraper/incremental/incremental-run-request", {
+    namedExports: {
+      requestIncrementalRun: async (providerKeys: string[]) => {
+        incrementalRunRequests.push({ providerKeys: [...providerKeys] });
+        return { requested: incrementalRequested };
+      },
+    },
+  });
   mock.module("@/lib/security/audit", {
     namedExports: {
       AUDIT_ACTIONS: {
@@ -554,6 +564,8 @@ beforeEach(() => {
   auditCalls = [];
   securityEvents = [];
   revalidateArticlesCalls = 0;
+  incrementalRunRequests = [];
+  incrementalRequested = 2;
   profileUpdates = [];
   searchPage = { articles: [{ id: "search-a1" }], hasMore: true };
   todayFeatureEnabled = true;
@@ -712,39 +724,35 @@ test("client error route scrubs text, strips URLs, captures errors, and absorbs 
   assert.deepEqual(capturedErrors, []);
 });
 
-test("admin scrape trigger records per-provider discovery and save failures", async () => {
+test("admin scrape trigger validates input and requests incremental runs (never synchronous scrape)", async () => {
   const { POST } = await import("@/app/api/admin/scrape/trigger/route");
 
   await assertApiError(() => POST(requestCtx({ body: { provider: "missing" }, log })), 400);
   await assertApiError(() => POST(requestCtx({ body: {}, log })), 400);
 
-  discoverThrows = new Error("discovery failed");
+  // Unsupported modes fail EXPLICITLY (Phase 3) instead of falling through.
+  await assertApiError(() => POST(requestCtx({ body: { provider: "provider-a", mode: "backfill" }, log })), 400);
+  await assertApiError(() => POST(requestCtx({ body: { provider: "provider-a", mode: "force-rescrape" }, log })), 400);
+  assert.equal(incrementalRunRequests.length, 0, "no run is requested for a rejected input/mode");
+
+  // Happy path: a single provider requests an incremental discovery run.
+  incrementalRequested = 2;
   let res = await POST(requestCtx({ body: { provider: "provider-a" }, log }));
   let body = await res.json();
-  assert.equal(body.results[0].error, "discovery failed");
-  assert.equal(securityEvents.length, 1);
-  assert.equal(body.totalSaved, 0);
+  assert.equal(body.ok, true);
+  assert.equal(body.mode, "incremental");
+  assert.equal(body.results[0].provider, "provider-a");
+  assert.equal(body.results[0].sourcesRequested, 2);
+  assert.equal(body.totalSourcesRequested, 2);
+  assert.equal(incrementalRunRequests.length, 1);
+  assert.deepEqual(incrementalRunRequests[0].providerKeys, ["provider-a"]);
 
-  discoverThrows = null;
-  scrapeResults = [{ title: "One" }, { title: "Two" }, null];
-  saveOutcomes = [{ status: "saved" }, { status: "skipped" }];
-  discoveredUrls = ["one", "two", "three"];
+  // all:true requests a run for every registered provider.
+  incrementalRunRequests = [];
   res = await POST(requestCtx({ body: { all: true, limit: 3 }, log }));
   body = await res.json();
-  assert.equal(body.results[0].discovered, 3);
-  assert.equal(body.results[0].saved, 1);
-  assert.equal(body.results[0].skipped, 1);
-  assert.equal(body.results[0].failed, 1);
-  assert.equal(body.totalSaved, 1);
-  assert.equal(revalidateArticlesCalls, 1);
-
-  scrapeResults = [{ title: "Broken" }];
-  saveOutcomes = [{ status: "throw" }];
-  discoveredUrls = ["broken"];
-  res = await POST(requestCtx({ body: { provider: "provider-a" }, log }));
-  body = await res.json();
-  assert.equal(body.results[0].failed, 1);
-  assert.ok(securityEvents.length >= 2);
+  assert.equal(body.results.length, adminProviders.length);
+  assert.equal(incrementalRunRequests.length, adminProviders.length);
 });
 
 test("profile, search, Today, push subscribe, and speech token routes cover validation and fallbacks", async () => {

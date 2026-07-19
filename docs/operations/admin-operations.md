@@ -504,6 +504,7 @@ validate optional provider availability, then call into `src/lib/`. They own
 | `scripts/worker.ts` | `src/lib/worker` (`runJobWorker`) |
 | `scripts/process.ts` | `src/lib/processing/processor` (`processArticle`, `enqueueArticleProcess`) |
 | `scripts/scrape.ts` | `src/lib/scraper` (`scrapeAndSave`, `discoverProviderUrls`) |
+| `scripts/scrape-provider.ts` | `src/lib/scraper/incremental` (`requestIncrementalRun`) — normal provider CLI; requests an incremental discovery run, never synchronous discover-and-save (#1097). |
 | `scripts/push-reminders.ts` | `src/lib/push/scheduler` (`sendDueReminders`) |
 | `scripts/seed.ts` | `src/lib/seed` (`runSeed`) |
 | `scripts/analyze-speech-alignment.ts` | `src/lib/speech` (analysis helpers) |
@@ -663,6 +664,62 @@ runs per provider; `GET /api/admin/sources/<providerKey>/crawl-runs?limit=N`
 returns the same privacy-safe summaries for tooling. Summaries include source,
 mode, duration, outcome, counts, and a sanitized error only — never URLs, article
 text, prompts, selected text, definitions, translations, or private content.
+
+### Provider trigger — explicit incremental mode (#1097)
+
+The admin provider trigger (`POST /api/admin/scrape/trigger`, capability
+`scrape`/`sources`, audited as `admin.scrape.trigger`) and the provider CLI
+(`scripts/scrape-provider.ts`) NO LONGER synchronously discover + scrape URLs.
+That legacy path could re-fetch and re-save a KNOWN public Article, violating the
+governing invariant of the incremental program (only identities first observed
+AFTER a completed baseline are ingested; a known public Article is never
+auto-refetched/updated/recreated/revived). Both now REQUEST an incremental
+discovery run through the ledger: the provider's claimable-mode discovery sources
+(`SHADOW`/`BASELINE`/`ACTIVE`) are marked due (`nextRunAt = now`) and the worker's
+discovery loop runs bounded, ledger-based pages. Bodies are fetched later by the
+candidate-ingest job pipeline. No body is fetched and no Article is written by the
+trigger itself.
+
+**Trigger modes.** A trigger declares a `mode` (default `incremental`):
+
+| Mode | Status | Behavior |
+| --- | --- | --- |
+| `incremental` | Implemented | Requests a ledger-based discovery run for the provider's claimable sources. The only mode a normal operator action can execute. |
+| `backfill` | Deferred (Phase 3) | Rejected explicitly (`400`) — bounded historical re-discovery is not implemented here. |
+| `force-rescrape` | Deferred (Phase 3) | Rejected explicitly (`400`) — explicit refresh of a known Article is not implemented here. |
+
+An unknown mode is rejected the same way. A normal trigger input cannot smuggle a
+bypass/force flag (unknown keys are dropped) and cannot fall through to the old
+synchronous behavior. Request body: `{ provider?, all?, limit?, mode? }` with
+`limit` bounded (default `5`, max `50`); response:
+`{ ok, mode, results, totalSourcesRequested, note }`. Audit metadata records only
+controlled machine fields (mode, provider keys, counts, phase) — never URLs or
+content.
+
+**Private single-URL import is separate.** `POST /api/admin/articles/ingest`
+(single-URL private/user import) is NOT a public-provider workflow and is
+deliberately left on its direct path — it is not routed through public candidate
+uniqueness or baseline identity.
+
+### Active→shadow rollback
+
+The discovery-source lifecycle `rollback` action, when a source is `ACTIVE`,
+performs an atomic active→shadow rollback (`rollbackActiveToShadow`):
+
+1. Transitions `ACTIVE → SHADOW` and parks scheduling (`nextRunAt = null`) so the
+   discovery loop stops claiming the source and no new candidate ingest work is
+   enqueued.
+2. Increments `DiscoverySource.activationGeneration` so any in-flight body-fetch
+   job whose generation snapshot predates the rollback fails CLOSED at Article
+   commit — even after a later re-activation — leaving no Article.
+3. Cancels the source's UNCLAIMED (`PENDING`) candidate `ARTICLE_INGEST` jobs to
+   `DEAD_LETTER` with reason `rollback-cancelled`. Claimed/running jobs are not
+   cancelled here; they fail closed at commit via the generation guard.
+
+Candidates and observations are PRESERVED, so a later explicit `activate`
+deterministically requeues eligible shadow candidates. A source under an active
+discovery lease is refused (`busy`) rather than raced; concurrent rollbacks cannot
+double-apply (guarded `updateMany`).
 
 ## Article moderation and takedown
 

@@ -60,6 +60,8 @@ let closeBrowserImpl: () => Promise<void>;
 
 let recordCrawlCalls: Array<{ key: string; outcome: unknown }> = [];
 let discoverCalls: Array<{ provider: ProviderLike; limit: number; options?: unknown }> = [];
+let incrementalRunCalls: Array<{ providerKeys: string[] }> = [];
+let incrementalRequestedCount = 3;
 let findExistingCalls: string[][] = [];
 let closeBrowserCalls = 0;
 let smithsonianProviderConfigs: unknown[] = [];
@@ -340,6 +342,15 @@ before(async () => {
     },
   });
 
+  mock.module("@/lib/scraper/incremental/incremental-run-request", {
+    namedExports: {
+      requestIncrementalRun: async (providerKeys: string[]) => {
+        incrementalRunCalls.push({ providerKeys: [...providerKeys] });
+        return { requested: incrementalRequestedCount };
+      },
+    },
+  });
+
   scrape = await import("../scripts/scrape");
   scrapeReview = await import("../scripts/scrape-review");
   scrapeUndark = await import("../scripts/scrape-undark");
@@ -380,6 +391,8 @@ beforeEach(() => {
 
   recordCrawlCalls = [];
   discoverCalls = [];
+  incrementalRunCalls = [];
+  incrementalRequestedCount = 3;
   findExistingCalls = [];
   closeBrowserCalls = 0;
   smithsonianProviderConfigs = [];
@@ -1401,37 +1414,76 @@ test("scrape-provider covers provider state, resume, review, status, and scrape 
     ["https://example.com/from-discovery"],
   );
 
-  discoverImpl = async () => [
-    "https://example.com/save",
-    "https://example.com/duplicate",
-    "https://example.com/reject",
-    "https://example.com/fail",
-  ];
-  prismaFindManyImpl = async () => [];
-  scrapeAndSaveImpl = async (url) => {
-    if (url.includes("duplicate")) return { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: url };
-    if (url.includes("reject")) return { status: "failed", reason: "content quality too low", sourceUrl: url };
-    if (url.includes("fail")) return { status: "failed", reason: "network failed", sourceUrl: url };
-    return savedOutcome(url);
-  };
+  incrementalRequestedCount = 3;
   const scrapeArgs = scrapeProvider.parseArgs([
     "scrape",
     "--provider",
     "fixture",
     "--out-dir",
     outDir,
-    "--limit",
-    "4",
-    "--concurrency",
-    "2",
-    "--delay-ms",
-    "0",
   ]);
-  await api.runScrape(provider, scrapeArgs);
-  assert.match(await readFile(paths.progress, "utf8"), /"status": "completed"/);
-  assert.match(await readFile(paths.failed, "utf8"), /fail/);
-  assert.match(await readFile(paths.rejected, "utf8"), /reject/);
-  assert.equal(recordCrawlCalls.at(-1)?.key, "fixture");
+  await api.runIncrementalRequest(provider, scrapeArgs);
+  assert.equal(incrementalRunCalls.length, 1);
+  assert.deepEqual(incrementalRunCalls[0].providerKeys, ["fixture"]);
+  assert.match(consoleCapture.logs.join("\n"), /requested incremental discovery run/i);
+  // The scrape command must NEVER synchronously fetch and save an article.
+  assert.equal(incrementalRunCalls.every((call) => JSON.stringify(call).includes("http")), false);
+
+  await api.runIncrementalRequest(
+    provider,
+    scrapeProvider.parseArgs(["resume", "--provider", "fixture", "--out-dir", outDir]),
+  );
+  assert.equal(incrementalRunCalls.length, 2);
+
+  incrementalRequestedCount = 0;
+  await api.runIncrementalRequest(
+    provider,
+    scrapeProvider.parseArgs(["scrape", "--provider", "fixture", "--out-dir", outDir]),
+  );
+  assert.match(consoleCapture.logs.join("\n"), /no claimable discovery source/i);
+
+  await assert.rejects(
+    () =>
+      api.runIncrementalRequest(
+        provider,
+        scrapeProvider.parseArgs(["scrape", "--provider", "fixture", "--mode", "backfill"]),
+      ),
+    /not implemented/i,
+  );
+  await assert.rejects(
+    () =>
+      api.runIncrementalRequest(
+        provider,
+        scrapeProvider.parseArgs(["scrape", "--provider", "fixture", "--mode", "force-rescrape"]),
+      ),
+    /not implemented/i,
+  );
+
+  // Seed a progress fixture so the read-only `status` command has state to summarize.
+  await writeFile(
+    paths.progress,
+    JSON.stringify({
+      provider: "fixture",
+      runId: "fixture-run",
+      command: "scrape",
+      status: "completed",
+      updatedAt: "2026-07-19T22:00:00.000Z",
+      discovered: 0,
+      existingAtStart: 0,
+      finalizedAtStart: 0,
+      order: "source",
+      queued: 0,
+      attempted: 0,
+      saved: 0,
+      skipped: 0,
+      duplicate: 0,
+      rejected: 0,
+      failed: 0,
+      retry: 0,
+      config: { concurrency: 1, delayMs: 0, fetchPlan: "default" },
+    }),
+    "utf8",
+  );
 
   await api.runStatus(provider, scrapeProvider.parseArgs(["status", "--provider", "fixture", "--out-dir", outDir]));
   assert.match(consoleCapture.logs.join("\n"), /status=completed/);
@@ -1483,36 +1535,6 @@ test("scrape-provider covers provider state, resume, review, status, and scrape 
   await api.spawnNpm(["ok"], fakeSpawn(0));
   await assert.rejects(() => api.spawnNpm(["bad"], fakeSpawn(2)), /npm bad exited with code 2/);
   await assert.rejects(() => api.spawnNpm(["err"], fakeSpawn(null, new Error("spawn failed"))), /spawn failed/);
-  await api.sleep(0);
-
-  const crashOutDir = relativeStatePath("provider-crash");
-  scrapeAndSaveImpl = async () => {
-    throw new Error("boom");
-  };
-  await assert.rejects(
-    () =>
-      api.runScrape(
-        provider,
-        scrapeProvider.parseArgs([
-          "scrape",
-          "--provider",
-          "fixture",
-          "--out-dir",
-          crashOutDir,
-          "--limit",
-          "1",
-          "--concurrency",
-          "1",
-          "--delay-ms",
-          "0",
-        ]),
-      ),
-    /boom/,
-  );
-  assert.match(
-    await readFile(api.statePaths(crashOutDir, "fixture").progress, "utf8"),
-    /"status": "crashed"/,
-  );
 
   assert.equal(await api.main(["--help"]), 0);
   assert.equal(await api.main(["list", "--provider", "all"]), 0);

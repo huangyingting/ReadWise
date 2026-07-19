@@ -1559,6 +1559,13 @@ model DiscoverySource {
 
   /// Activation
   activatedAt DateTime?
+  /// Monotonic activation-generation marker (#1097, Phase 2.7). INCREMENTED on
+  /// every active→shadow rollback so a body-fetch job whose pre-rollback
+  /// generation snapshot predates the rollback fails closed at Article commit
+  /// (via `revalidateSourceGeneration`) even after a LATER re-activation — the
+  /// re-activated source's generation is strictly higher than the stale
+  /// snapshot. A controlled counter, never a URL/secret.
+  activationGeneration Int @default(0)
 
   /// Backoff on repeated failure.
   backoffUntil        DateTime?

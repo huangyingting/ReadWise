@@ -4,8 +4,10 @@
  *
  * Covers:
  *   POST /api/admin/scrape/trigger — 401, 403, 400 (unknown provider), 400 (neither
- *                                    provider nor all), happy path; asserts audit event
- *                                    and security event are recorded.
+ *                                    provider nor all), 400 (unsupported/unknown mode),
+ *                                    incremental happy path; asserts an incremental run is
+ *                                    requested (never a synchronous scrape), audit metadata
+ *                                    (mode/providers/counts, no URLs), and security event.
  *   GET  /api/admin/slo           — 401, 403, 200
  *   GET  /api/admin/stats         — 401, 403, 200
  *
@@ -36,17 +38,9 @@ let auditThrows = false;
 // Security event captures
 let securityEvents: { type: string; severity?: string }[] = [];
 
-// Scraper stubs
-let discoverUrls: string[] = ["https://test.example.com/article-1"];
-let discoverError: Error | null = null;
-let scrapeResult: Record<string, unknown> | null = {
-  title: "Test Article",
-  url: "https://test.example.com/article-1",
-  text: "Article body text",
-};
-let qualityRejected = false;
-let saveOutcome: { status: "saved" | "skipped" | "failed" } = { status: "saved" };
-let crawlRunCalls: Array<{ providerKey: string; outcome: Record<string, unknown> }> = [];
+// Incremental-run-request stub
+let requestedRunCalls: Array<{ providerKeys: string[]; now: Date }> = [];
+let sourcesRequestedPerProvider = 2;
 
 // SLO stub
 const sloReport = { slis: [], ok: true };
@@ -99,58 +93,11 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/scraper/discovery", {
+  mock.module("@/lib/scraper/incremental/incremental-run-request", {
     namedExports: {
-      discoverProviderUrls: async () => {
-        if (discoverError) throw discoverError;
-        return discoverUrls;
-      },
-    },
-  });
-
-  mock.module("@/lib/scraper/sources", {
-    namedExports: {
-      recordCrawlRun: async (providerKey: string, outcome: Record<string, unknown>) => {
-        crawlRunCalls.push({ providerKey, outcome });
-      },
-    },
-  });
-
-  mock.module("@/lib/scraper", {
-    namedExports: {
-      scrapeAndSave: async (
-        url: string,
-        auditInput: (created: { id: string }) => unknown,
-      ) => {
-        if (!scrapeResult) {
-          return {
-            status: "failed",
-            failure: "extract",
-            reason: "could not extract article content",
-            sourceUrl: url,
-          };
-        }
-        if (qualityRejected) {
-          return {
-            status: "failed",
-            failure: "quality",
-            reason: "content quality check failed (score=12)",
-            sourceUrl: url,
-          };
-        }
-        if (saveOutcome.status === "saved") {
-          const auditArg = auditInput({ id: "article-new" });
-          auditCalls.push(auditArg as { action: string });
-        }
-        if (saveOutcome.status === "failed") {
-          return {
-            ...saveOutcome,
-            failure: "save",
-            reason: "save failed",
-            sourceUrl: url,
-          };
-        }
-        return saveOutcome;
+      requestIncrementalRun: async (providerKeys: string[], now: Date) => {
+        requestedRunCalls.push({ providerKeys: [...providerKeys], now });
+        return { requested: sourcesRequestedPerProvider };
       },
     },
   });
@@ -226,12 +173,8 @@ beforeEach(() => {
   auditCalls = [];
   auditThrows = false;
   securityEvents = [];
-  discoverUrls = ["https://test.example.com/article-1"];
-  discoverError = null;
-  scrapeResult = { title: "Test Article", url: "https://test.example.com/article-1", text: "body" };
-  qualityRejected = false;
-  saveOutcome = { status: "saved" };
-  crawlRunCalls = [];
+  requestedRunCalls = [];
+  sourcesRequestedPerProvider = 2;
 });
 
 // ===========================================================================
@@ -268,87 +211,90 @@ test("POST /api/admin/scrape/trigger returns 400 when neither provider nor all i
   assert.ok(typeof body.error === "string");
 });
 
-test("POST /api/admin/scrape/trigger happy path returns 200 with results summary", async () => {
+test("POST /api/admin/scrape/trigger happy path returns 200 with incremental results summary", async () => {
   const POST = await loadScrapeTriggerPost();
   const res = await POST(scrapeTriggerRequest({ provider: "test-provider", limit: 5 }));
   assert.equal(res.status, 200);
   const body = await res.json() as {
     ok: boolean;
-    results: { provider: string; discovered: number; saved: number }[];
-    totalSaved: number;
+    mode: string;
+    results: { provider: string; sourcesRequested: number }[];
+    totalSourcesRequested: number;
+    note: string;
   };
   assert.equal(body.ok, true);
+  assert.equal(body.mode, "incremental");
   assert.equal(body.results.length, 1);
   assert.equal(body.results[0].provider, "test-provider");
-  assert.equal(body.results[0].discovered, 1);
-  assert.equal(body.results[0].saved, 1);
-  assert.equal(body.totalSaved, 1);
+  assert.equal(body.results[0].sourcesRequested, 2);
+  assert.equal(body.totalSourcesRequested, 2);
 });
 
-test("POST /api/admin/scrape/trigger records provider health for a successful run", async () => {
+test("POST /api/admin/scrape/trigger requests an incremental run for the provider (never synchronous scrape)", async () => {
   const POST = await loadScrapeTriggerPost();
   await POST(scrapeTriggerRequest({ provider: "test-provider", limit: 5 }));
 
-  assert.equal(crawlRunCalls.length, 1);
-  assert.equal(crawlRunCalls[0].providerKey, "test-provider");
-  assert.equal(crawlRunCalls[0].outcome.discovered, 1);
-  assert.equal(crawlRunCalls[0].outcome.scraped, 1);
-  assert.equal(crawlRunCalls[0].outcome.failed, 0);
-  assert.equal(crawlRunCalls[0].outcome.source, "admin-trigger");
-  assert.equal(crawlRunCalls[0].outcome.mode, "provider");
-  assert.equal(typeof crawlRunCalls[0].outcome.durationMs, "number");
-  assert.equal(JSON.stringify(crawlRunCalls[0]).includes("https://test.example.com/article-1"), false);
-  assert.equal(JSON.stringify(crawlRunCalls[0]).includes("body"), false);
+  assert.equal(requestedRunCalls.length, 1);
+  assert.deepEqual(requestedRunCalls[0].providerKeys, ["test-provider"]);
+  // The request carries only provider keys — no URL or article content crosses the seam.
+  assert.equal(JSON.stringify(requestedRunCalls[0]).includes("http"), false);
 });
 
-test("POST /api/admin/scrape/trigger rejects low-quality intake without article audit", async () => {
-  qualityRejected = true;
+test("POST /api/admin/scrape/trigger defaults to incremental mode when mode is omitted", async () => {
   const POST = await loadScrapeTriggerPost();
   const res = await POST(scrapeTriggerRequest({ provider: "test-provider" }));
-  const body = await res.json() as {
-    results: Array<{ saved: number; failed: number }>;
-    totalSaved: number;
-  };
-
-  assert.equal(res.status, 200);
-  assert.equal(body.results[0].saved, 0);
-  assert.equal(body.results[0].failed, 1);
-  assert.equal(body.totalSaved, 0);
-  assert.equal(crawlRunCalls[0].outcome.failed, 1);
-  assert.equal(
-    auditCalls.some((call) => call.action === "admin.article.ingest"),
-    false,
-  );
+  const body = await res.json() as { mode: string };
+  assert.equal(body.mode, "incremental");
 });
 
-test("POST /api/admin/scrape/trigger records zero-result provider health", async () => {
-  discoverUrls = [];
+test("POST /api/admin/scrape/trigger explicitly rejects backfill mode (Phase 3)", async () => {
   const POST = await loadScrapeTriggerPost();
-  const res = await POST(scrapeTriggerRequest({ provider: "test-provider" }));
-  assert.equal(res.status, 200);
-
-  assert.equal(crawlRunCalls.length, 1);
-  assert.equal(crawlRunCalls[0].outcome.discovered, 0);
-  assert.equal(crawlRunCalls[0].outcome.scraped, 0);
-  assert.equal(crawlRunCalls[0].outcome.failed, 0);
+  const res = await POST(scrapeTriggerRequest({ provider: "test-provider", mode: "backfill" }));
+  assert.equal(res.status, 400);
+  const body = await res.json() as { error: string };
+  assert.match(body.error, /not implemented/i);
+  // Nothing was enqueued — the request fails closed, not through to old behavior.
+  assert.equal(requestedRunCalls.length, 0);
 });
 
-test("POST /api/admin/scrape/trigger records failed discovery provider health", async () => {
-  discoverError = new Error("discovery failed");
+test("POST /api/admin/scrape/trigger explicitly rejects force-rescrape mode (Phase 3)", async () => {
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({ provider: "test-provider", mode: "force-rescrape" }));
+  assert.equal(res.status, 400);
+  assert.equal(requestedRunCalls.length, 0);
+});
+
+test("POST /api/admin/scrape/trigger rejects an unknown mode string at validation", async () => {
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({ provider: "test-provider", mode: "bogus" }));
+  assert.equal(res.status, 400);
+  assert.equal(requestedRunCalls.length, 0);
+});
+
+test("POST /api/admin/scrape/trigger reports zero when no claimable source matches", async () => {
+  sourcesRequestedPerProvider = 0;
   const POST = await loadScrapeTriggerPost();
   const res = await POST(scrapeTriggerRequest({ provider: "test-provider" }));
   assert.equal(res.status, 200);
-
-  assert.equal(crawlRunCalls.length, 1);
-  assert.equal(crawlRunCalls[0].outcome.discovered, 0);
-  assert.equal(crawlRunCalls[0].outcome.error, "discovery failed");
+  const body = await res.json() as { totalSourcesRequested: number; note: string };
+  assert.equal(body.totalSourcesRequested, 0);
+  assert.match(body.note, /no claimable/i);
 });
 
-test("POST /api/admin/scrape/trigger records an audit event", async () => {
+test("POST /api/admin/scrape/trigger records an audit event with controlled metadata only", async () => {
   const POST = await loadScrapeTriggerPost();
-  await POST(scrapeTriggerRequest({ provider: "test-provider" }));
-  const scrapeAudit = auditCalls.find((c) => c.action === "admin.scrape.trigger");
+  await POST(scrapeTriggerRequest({ provider: "test-provider", limit: 7 }));
+  const scrapeAudit = auditCalls.find(
+    (c) => (c as { action: string }).action === "admin.scrape.trigger",
+  ) as { action: string; metadata: Record<string, unknown> } | undefined;
   assert.ok(scrapeAudit, "audit event admin.scrape.trigger should be recorded");
+  assert.equal(scrapeAudit.metadata.mode, "incremental");
+  assert.equal(scrapeAudit.metadata.providerCount, 1);
+  assert.deepEqual(scrapeAudit.metadata.providers, ["test-provider"]);
+  assert.equal(scrapeAudit.metadata.sourcesRequested, 2);
+  assert.equal(scrapeAudit.metadata.limit, 7);
+  // Audit metadata must never contain URLs or article content.
+  assert.equal(JSON.stringify(scrapeAudit.metadata).includes("http"), false);
 });
 
 test("POST /api/admin/scrape/trigger rethrows unexpected trigger failures", async () => {
@@ -365,7 +311,7 @@ test("POST /api/admin/scrape/trigger records a security event on successful admi
   assert.ok(mutation, "security event admin.mutation should be recorded for successful admin POST");
 });
 
-test("POST /api/admin/scrape/trigger with all:true scrapes all providers", async () => {
+test("POST /api/admin/scrape/trigger with all:true requests a run for all providers", async () => {
   const POST = await loadScrapeTriggerPost();
   const res = await POST(scrapeTriggerRequest({ all: true }));
   assert.equal(res.status, 200);

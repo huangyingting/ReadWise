@@ -107,7 +107,7 @@ function baseInput(
   return {
     candidateId,
     expectedProviderKey: providerKey,
-    sourceGeneration: { definitionVersion: 2, activatedAt: new Date("2026-05-01T00:00:00.000Z") },
+    sourceGeneration: { definitionVersion: 2, activatedAt: new Date("2026-05-01T00:00:00.000Z"), activationGeneration: 0 },
     draft: draft(token),
     fingerprint: fp ? { version: fp.version, hash: fp.hash } : null,
     ...overrides,
@@ -296,6 +296,31 @@ test("AC3: a definition-version bump between extraction and commit refuses the s
   const result = await saveIncrementalArticle(baseInput(cand.id, src.providerKey, token));
   assert.equal(result.action, "revalidation-failed");
   assert.equal(await prisma.article.count({ where: { sourceUrl: `https://example.com/${token}` } }), 0);
+});
+
+test("AC3 (#1097): an activation-generation bump (rollback→re-activate) between extraction and commit refuses the save", async (t) => {
+  if (!enabled) {
+    t.skip("integration disabled");
+    return;
+  }
+  const token = randomUUID().replace(/-/g, "").slice(0, 12);
+  const src = await mkActiveSource();
+  const cand = await mkCandidate(src.id, src.providerKey);
+
+  // The snapshot was captured at generation 0; a rollback then a later
+  // re-activation bumped the generation. The pre-rollback worker must fail closed
+  // even though the source is ACTIVE again with the same definitionVersion.
+  await prisma.discoverySource.update({
+    where: { id: src.id },
+    data: { activationGeneration: 1 },
+  });
+
+  const result = await saveIncrementalArticle(baseInput(cand.id, src.providerKey, token));
+  assert.equal(result.action, "revalidation-failed");
+  if (result.action === "revalidation-failed") assert.equal(result.reason, "stale-generation");
+  assert.equal(await prisma.article.count({ where: { sourceUrl: `https://example.com/${token}` } }), 0, "no Article");
+  const cand2 = await prisma.crawlCandidate.findUnique({ where: { id: cand.id } });
+  assert.equal(cand2?.articleId, null, "candidate untouched by the stale worker");
 });
 
 test("AC3: a provider-ownership change between extraction and commit refuses the save", async (t) => {

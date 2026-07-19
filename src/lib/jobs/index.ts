@@ -57,6 +57,12 @@ export {
   parseCandidateIngestPayload,
 } from "./candidate-ingest";
 
+export {
+  CANDIDATE_INGEST_DEDUPE_PREFIX,
+  ROLLBACK_CANCELLED_REASON,
+  cancelPendingCandidateIngestJobsInTx,
+} from "./candidate-ingest-cancel";
+
 export { claimNextJob } from "./claim";
 export type { ClaimOptions } from "./claim";
 

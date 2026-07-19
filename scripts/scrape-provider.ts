@@ -1,19 +1,17 @@
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { prisma } from "@/lib/prisma";
-import { closeBrowser } from "@/lib/scraper/fetch-browser";
 import { discoverProviderUrlEntries } from "@/lib/scraper/discovery";
 import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
 import {
-  applyFetchStrategyEnvironment,
   fetchPlanSummary,
   providerWorkflowConfig,
   type ProviderWorkflowConfig,
 } from "@/lib/scraper/workflow";
-import { recordCrawlRun } from "@/lib/scraper/sources";
-import { scrapeAndSave, type SaveOutcome } from "@/lib/scraper";
+import { requestIncrementalRun } from "@/lib/scraper/incremental/incremental-run-request";
+import { DEFAULT_TRIGGER_MODE, validateTriggerMode } from "@/lib/scraper/incremental/trigger-mode";
 import type { DiscoveredUrl, Provider } from "@/lib/scraper/types";
 import {
   addUniqueFromCsv,
@@ -47,6 +45,7 @@ type Args = {
   host: string;
   port: number;
   feedbackFile: string | null;
+  mode: string;
   help: boolean;
 };
 
@@ -93,21 +92,6 @@ type ProgressSummary = {
   };
 };
 
-type OutcomeRecord = {
-  type: "outcome" | "retry";
-  runId: string;
-  provider: string;
-  timestamp: string;
-  workerId: number;
-  queueIndex: number;
-  url: string;
-  attempt: number;
-  status?: OutcomeStatus;
-  reason?: string;
-  id?: string;
-  elapsedMs: number;
-};
-
 type OutcomeCounts = {
   saved: number;
   skipped: number;
@@ -143,6 +127,7 @@ export function parseArgs(argv: string[]): Args {
     host: parseString(argv, "--host") ?? "127.0.0.1",
     port: parsePositiveInt(argv, "--port", 4317),
     feedbackFile: parseFeedbackFile(argv),
+    mode: parseString(argv, "--mode") ?? DEFAULT_TRIGGER_MODE,
     help: parseFlag(argv, "--help", "-h"),
   };
 
@@ -230,6 +215,7 @@ function warnUnknownFlags(argv: string[]): void {
     "--host",
     "--port",
     "--feedback-file",
+    "--mode",
   ]);
   const booleanFlags = new Set([
     "--all",
@@ -258,33 +244,39 @@ function printHelp(): void {
 
 Usage:
   npm run scrape:provider -- discover --provider atlasobscura --all
-  npm run scrape:provider -- scrape --provider atlasobscura --all
+  npm run scrape:provider -- scrape --provider atlasobscura
   npm run scrape:provider -- resume --provider atlasobscura
   npm run scrape:provider -- review --provider atlasobscura --sample 50
   npm run scrape:provider -- status --provider atlasobscura
 
 Commands:
   list       Show registered providers and workflow defaults.
-  discover   Discover URLs, filter existing URLs, and write URL lists.
-  scrape     Discover/load URLs and save articles to the active DATABASE_URL.
-  resume     Continue from existing discovered/outcome state.
+  discover   Discover URLs, filter existing URLs, and write URL lists (inspection only; no save).
+  scrape     Request an incremental discovery run through the candidate ledger (mode incremental).
+  resume     Alias of scrape: re-request an incremental discovery run for the provider.
   review     Start no-DB human review using scripts/scrape-review.ts.
   status     Summarize provider progress/outcomes from state files.
 
+Incremental model:
+  scrape/resume NO LONGER synchronously fetch and save articles. They mark the
+  provider's claimable discovery sources (SHADOW/BASELINE/ACTIVE) due so the
+  worker discovery loop runs bounded, ledger-based discovery. Bodies are fetched
+  later by the candidate-ingest pipeline. Only identities first observed AFTER a
+  completed baseline are ingested; a known public Article is never rescraped.
+
 Options:
+  --mode incremental  Trigger mode. Only "incremental" (default) is implemented;
+                      "backfill"/"force-rescrape" are rejected until Phase 3.
   --provider key       Provider key; repeat or comma-separate. Defaults to all for list/status, required otherwise.
-  --limit N           URL count for discover/scrape/review (default ${DEFAULT_LIMIT}).
-  --all               Discover/scrape all provider candidates.
-  --urls <path>       Use a newline-delimited URL file instead of discovery.
+  --limit N           URL count for discover/review (default ${DEFAULT_LIMIT}).
+  --all               Discover all provider candidates (discover command).
+  --urls <path>       Use a newline-delimited URL file instead of discovery (discover/review).
   --since <date>      Keep URLs with known dates on/after this date; undated URLs are retained.
   --order source|newest|oldest
                       Order discovered URLs by source order or metadata date.
   --stop-after-existing N
                       Stop pending selection after N consecutive already-known URLs.
-  --include-existing  Do not exclude sourceUrls already present in the DB.
-  --retry-failed      Resume failed URLs too; default resume retries failed and skips saved/rejected/duplicates.
-  --concurrency N     Override provider workflow concurrency.
-  --delay-ms N        Delay between worker attempts (default provider workflow delay).
+  --include-existing  Do not exclude sourceUrls already present in the DB (discover).
   --out-dir <path>    State directory (default ${DEFAULT_OUT_DIR}).
   --sample N          Review sample size.
   --host/--port       Review server host/port.
@@ -601,41 +593,6 @@ export function countFinalizedOutcomes(finalized: Map<string, OutcomeStatus>): O
   return counts;
 }
 
-function classifyOutcome(outcome: SaveOutcome): { status: OutcomeStatus; id?: string; reason?: string } {
-  if (outcome.status === "saved") return { status: "saved", id: outcome.id };
-  if (outcome.status === "skipped") {
-    return /duplicate/i.test(outcome.reason)
-      ? { status: "duplicate", reason: outcome.reason }
-      : { status: "skipped", reason: outcome.reason };
-  }
-  if (/(content quality|could not extract|extract failed)/i.test(outcome.reason)) {
-    return { status: "rejected", reason: outcome.reason };
-  }
-  return { status: "failed", reason: outcome.reason };
-}
-
-function applyOutcomeCount(counts: OutcomeCounts, status: OutcomeStatus): void {
-  counts[status] += 1;
-}
-
-async function appendOutcome(paths: ProviderStatePaths, record: OutcomeRecord): Promise<void> {
-  await appendFile(paths.outcomes, `${JSON.stringify(record)}\n`, "utf8");
-}
-
-async function writeProgress(paths: ProviderStatePaths, progress: ProgressSummary): Promise<void> {
-  await writeFile(paths.progress, `${JSON.stringify(progress, null, 2)}\n`, "utf8");
-}
-
-async function writeFailureLists(
-  paths: ProviderStatePaths,
-  outcomes: Map<string, OutcomeStatus>,
-): Promise<void> {
-  const failed = [...outcomes].filter(([, status]) => status === "failed").map(([url]) => url).sort();
-  const rejected = [...outcomes].filter(([, status]) => status === "rejected").map(([url]) => url).sort();
-  await writeUrlList(paths.failed, failed);
-  await writeUrlList(paths.rejected, rejected);
-}
-
 async function runDiscover(provider: Provider, args: Args): Promise<void> {
   const paths = statePaths(args.outDir, provider.key);
   await mkdir(paths.dir, { recursive: true });
@@ -652,128 +609,28 @@ async function runDiscover(provider: Provider, args: Args): Promise<void> {
   console.log(`State: ${path.relative(process.cwd(), paths.dir)}`);
 }
 
-async function runScrape(provider: Provider, args: Args): Promise<void> {
-  const paths = statePaths(args.outDir, provider.key);
-  await mkdir(paths.dir, { recursive: true });
-  const workflow = workflowFor(provider, args);
-  applyFetchStrategyEnvironment(workflow);
-
-  const entries = args.command === "resume"
-    ? await urlsForResume(provider, args, paths)
-    : await discoverUrls(provider, args, paths);
-  const urls = entries.map((entry) => entry.url);
-  const existing = args.includeExisting ? new Set<string>() : await existingSourceUrls(urls);
-  const finalized = await readFinalizedOutcomes(paths.outcomes);
-  const pending = selectPendingEntries(entries, existing, finalized, args);
-  await writeUrlList(paths.pending, pending.map((entry) => entry.url));
-  await writeDiscoveredEntries(paths.pendingJsonl, pending);
-
-  const runId = new Date().toISOString().replace(/[:.]/g, "-");
-  const counts = countFinalizedOutcomes(finalized);
-  counts.skipped += existing.size;
-  let attempted = 0;
-  let nextQueueIndex = 0;
-  let lastProgressWrite = 0;
-
-  async function progress(status: ProgressSummary["status"], error?: string): Promise<void> {
-    const now = Date.now();
-    if (status === "running" && attempted % 10 !== 0 && now - lastProgressWrite < 60_000) return;
-    lastProgressWrite = now;
-    await writeProgress(paths, {
-      provider: provider.key,
-      runId,
-      command: args.command === "resume" ? "resume" : "scrape",
-      status,
-      updatedAt: new Date().toISOString(),
-      discovered: entries.length,
-      existingAtStart: existing.size,
-      finalizedAtStart: finalized.size,
-      ...(args.since ? { since: args.since.toISOString() } : {}),
-      order: args.order,
-      ...(args.stopAfterExisting ? { stopAfterExisting: args.stopAfterExisting } : {}),
-      queued: pending.length,
-      attempted,
-      saved: counts.saved,
-      skipped: counts.skipped,
-      duplicate: counts.duplicate,
-      rejected: counts.rejected,
-      failed: counts.failed,
-      retry: counts.retry,
-      nextQueueIndex,
-      currentDbArticleCount: await prisma.article.count(),
-      error,
-      config: {
-        concurrency: workflow.concurrency,
-        delayMs: workflow.requestDelayMs,
-        fetchPlan: fetchPlanSummary(workflow),
-      },
-    });
-  }
-
-  console.log(`${provider.key}: queued ${pending.length}; concurrency ${workflow.concurrency}`);
-  console.log(`Fetch plan: ${fetchPlanSummary(workflow)}`);
-  await progress("running");
-
-  async function worker(workerId: number): Promise<void> {
-    while (true) {
-      const queueIndex = nextQueueIndex;
-      nextQueueIndex += 1;
-      const entry = pending[queueIndex];
-      if (!entry) return;
-      const url = entry.url;
-      const started = Date.now();
-      const outcome = await scrapeAndSave(url);
-      const elapsedMs = Date.now() - started;
-      const result = classifyOutcome(outcome);
-      attempted += 1;
-      applyOutcomeCount(counts, result.status);
-      finalized.set(url, result.status);
-      await appendOutcome(paths, {
-        type: "outcome",
-        runId,
-        provider: provider.key,
-        timestamp: new Date().toISOString(),
-        workerId,
-        queueIndex,
-        url,
-        attempt: 1,
-        status: result.status,
-        reason: result.reason,
-        id: result.id,
-        elapsedMs,
-      });
-      await progress("running");
-      if (workflow.requestDelayMs > 0) await sleep(workflow.requestDelayMs);
-    }
-  }
-
-  try {
-    await Promise.all(
-      Array.from({ length: Math.min(workflow.concurrency, pending.length) }, (_, index) =>
-        worker(index + 1),
-      ),
+async function runIncrementalRequest(provider: Provider, args: Args): Promise<void> {
+  const validated = validateTriggerMode(args.mode);
+  if (!validated.ok) {
+    throw new Error(
+      validated.reason === "not-implemented"
+        ? `Mode "${args.mode}" is not implemented yet (deferred to Phase 3). Only "incremental" is supported.`
+        : `Unknown mode "${args.mode}". Only "incremental" is supported.`,
     );
-    await writeFailureLists(paths, finalized);
-    await recordCrawlRun(provider.key, {
-      discovered: entries.length,
-      scraped: counts.saved,
-      failed: counts.failed,
-      duplicates: counts.duplicate,
-      rejected: counts.rejected,
-      error: counts.failed > 0 ? `${counts.failed} URLs failed` : null,
-    });
-    await progress("completed");
+  }
+
+  const { requested } = await requestIncrementalRun([provider.key], new Date());
+  console.log(
+    `${provider.key}: requested incremental discovery run (mode ${validated.mode}); sources woken ${requested}`,
+  );
+  if (requested === 0) {
     console.log(
-      `${provider.key}: saved ${counts.saved}; rejected ${counts.rejected}; failed ${counts.failed}; skipped ${counts.skipped}`,
+      `${provider.key}: no claimable discovery source (SHADOW/BASELINE/ACTIVE). Register/activate a source first.`,
     );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await writeFailureLists(paths, finalized);
-    await progress("crashed", message);
-    throw err;
-  } finally {
-    await closeBrowser();
   }
+  console.log(
+    "Discovery + ingest run asynchronously via the worker loop and the candidate-ingest pipeline; no article is fetched or saved by this command.",
+  );
 }
 
 async function runStatus(provider: Provider, args: Args): Promise<void> {
@@ -879,10 +736,6 @@ function isFileNotFound(err: unknown): boolean {
   return err instanceof Error && "code" in err && (err as { code?: unknown }).code === "ENOENT";
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function main(argv = process.argv.slice(2)): Promise<number> {
   const args = parseArgs(argv);
   if (args.help) {
@@ -898,7 +751,7 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
 
   for (const provider of providers) {
     if (args.command === "discover") await runDiscover(provider, args);
-    if (args.command === "scrape" || args.command === "resume") await runScrape(provider, args);
+    if (args.command === "scrape" || args.command === "resume") await runIncrementalRequest(provider, args);
     if (args.command === "review") await runReview(provider, args);
     if (args.command === "status") await runStatus(provider, args);
   }
@@ -926,13 +779,8 @@ export const __scrapeProviderTest = {
   inferPublishedAtFromUrl,
   readFinalizedOutcomes,
   parseOutcomeRecord,
-  classifyOutcome,
-  applyOutcomeCount,
-  appendOutcome,
-  writeProgress,
-  writeFailureLists,
   runDiscover,
-  runScrape,
+  runIncrementalRequest,
   runStatus,
   runReview,
   spawnNpm,
@@ -940,7 +788,6 @@ export const __scrapeProviderTest = {
   dedupeUrls,
   normalizeUrl,
   isFileNotFound,
-  sleep,
   main,
 };
 
