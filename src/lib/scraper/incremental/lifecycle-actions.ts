@@ -20,6 +20,8 @@ import { DiscoverySourceLifecycleMode } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
+import { canaryExitGateGuard } from "./canary-exit-gate-eval";
+import { isCanarySource } from "./canaries";
 import {
   activateDiscoverySource,
   beginBaseline,
@@ -44,11 +46,12 @@ export type LifecycleActionFailure =
   | "busy"
   | "invalid-transition"
   | "lease-lost"
-  | "baseline-incomplete";
+  | "baseline-incomplete"
+  | "exit-gates-failed";
 
 /** Outcome of an admin lifecycle action. */
 export type LifecycleActionResult =
-  | { ok: false; reason: LifecycleActionFailure; incompleteSegments?: string[] }
+  | { ok: false; reason: LifecycleActionFailure; incompleteSegments?: string[]; failingGates?: string[] }
   | {
       ok: true;
       action: LifecycleActionName;
@@ -98,6 +101,8 @@ export async function applyLifecycleAction(
   const source = await prisma.discoverySource.findUnique({
     where: { id: sourceId },
     select: {
+      providerKey: true,
+      sourceKey: true,
       lifecycleMode: true,
       leaseOwner: true,
       definitionVersion: true,
@@ -123,8 +128,22 @@ export async function applyLifecycleAction(
   }
 
   if (action === "activate") {
-    const result = await activateDiscoverySource(base);
-    if (!result.committed) return { ok: false, reason: result.reason };
+    // A configured canary must clear its Phase-1 exit gates before it can be
+    // activated (AC2). A non-canary source keeps the existing behaviour (no gate).
+    const exitGateGuard = isCanarySource(source.providerKey, source.sourceKey)
+      ? canaryExitGateGuard(sourceId, { now })
+      : undefined;
+    const result = await activateDiscoverySource({
+      ...base,
+      ...(exitGateGuard ? { exitGateGuard } : {}),
+    });
+    if (!result.committed) {
+      return {
+        ok: false,
+        reason: result.reason,
+        ...(result.failingGates ? { failingGates: result.failingGates } : {}),
+      };
+    }
     return {
       ok: true,
       action,
