@@ -14,6 +14,15 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 /** Don't allow a timeout so short that no real request could complete. */
 const MIN_TIMEOUT_MS = 10;
 
+/**
+ * Default propagation grace window (6h). A newly-discovered candidate that a
+ * feed announced before its CDN/origin propagated is retried within this window;
+ * a 404 after it elapses is treated as a persistent not-found (quarantine).
+ */
+const DEFAULT_INGEST_PROPAGATION_GRACE_MS = 6 * 60 * 60 * 1000;
+/** Default bounded budget of candidates reactivated per extractor-version upgrade. */
+const DEFAULT_REACTIVATION_BUDGET = 50;
+
 /** Default same-strategy retries for scraper HTTP 429 rate limits. */
 const DEFAULT_FETCH_429_RETRIES = 3;
 /** Default base delay in ms for scraper HTTP 429 retry backoff. */
@@ -33,6 +42,8 @@ type EnvName =
   | "SCRAPER_FETCH_429_RETRIES"
   | "SCRAPER_FETCH_429_BASE_MS"
   | "SCRAPER_FETCH_429_MAX_MS"
+  | "SCRAPER_INGEST_PROPAGATION_GRACE_MS"
+  | "SCRAPER_REACTIVATION_BUDGET"
   | "SCRAPER_QUALITY_CLASSIFIER";
 
 /**
@@ -184,4 +195,35 @@ export function scraperFetch429MaxMs(): number {
  */
 export function scraperQualityClassifier(): boolean {
   return isEnvEnabledByDefault("SCRAPER_QUALITY_CLASSIFIER");
+}
+
+/**
+ * Propagation grace window in ms for candidate-based ingestion
+ * (`SCRAPER_INGEST_PROPAGATION_GRACE_MS`, default 6h; #1093).
+ *
+ * A newly-discovered candidate is retried within this window from its first
+ * ingest attempt so a feed item announced before its origin/CDN propagated can
+ * still be ingested WITHOUT rediscovery. A `404` inside the window is treated as
+ * pre-propagation (retry); a `404` after it elapses is a persistent not-found
+ * that quarantines. Set to `0` to disable the grace window (a `404` quarantines
+ * on exhaustion of the ordinary retry budget).
+ */
+export function scraperIngestPropagationGraceMs(): number {
+  return readEnvNonNegativeInt(
+    "SCRAPER_INGEST_PROPAGATION_GRACE_MS",
+    DEFAULT_INGEST_PROPAGATION_GRACE_MS,
+    0,
+  );
+}
+
+/**
+ * Bounded per-upgrade reactivation budget (`SCRAPER_REACTIVATION_BUDGET`,
+ * default 50; #1093).
+ *
+ * Caps how many quarantined no-Article extraction/quality failures an extractor-
+ * version upgrade may reactivate in one pass, so a version bump can never stampede
+ * the whole quarantine backlog. Set to `0` to disable reactivation entirely.
+ */
+export function scraperReactivationBudget(): number {
+  return readEnvNonNegativeInt("SCRAPER_REACTIVATION_BUDGET", DEFAULT_REACTIVATION_BUDGET, 0);
 }

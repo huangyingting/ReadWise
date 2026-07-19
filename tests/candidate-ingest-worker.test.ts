@@ -29,6 +29,8 @@ function candidate(overrides: Partial<CandidateIngestRow> = {}): CandidateIngest
     status: CrawlCandidateStatus.DISCOVERED,
     observedInBaseline: false,
     articleId: null,
+    ingestAttemptCount: 0,
+    firstIngestAttemptAt: null,
     ...overrides,
   };
 }

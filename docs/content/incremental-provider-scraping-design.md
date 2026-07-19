@@ -1150,6 +1150,139 @@ Source-window / publication-policy re-evaluation on a cross-provider transfer is
 deferred to the #1095 pipeline (which owns the discovery-source context); Phase
 2.2 re-runs the target provider's URL admission gate.
 
+## Phase 2.3 — propagation retries, quarantine & extractor-version reactivation (#1093) — current
+
+Phase 2.3 lets a genuinely-new candidate **recover from TEMPORARY unavailability**
+(CDN propagation lag, transient `5xx` / `429`, short extraction) while ensuring
+**DETERMINISTIC failures** (`410`, permanent access/policy, unfixable bad pages)
+reach ONE stable terminal state and stop consuming resources forever. It follows
+the house pattern: PURE classification + scheduling logic (no DB / network /
+clock — takes `now: Date` + provided inputs) plus THIN guarded persistence that
+applies a decision to a candidate + its `ARTICLE_INGEST` Job atomically. The body
+fetch / extraction / Article creation that PRODUCES the attempt outcome remains
+OUT OF SCOPE (#1095) — this phase classifies an outcome the future pipeline will
+PROVIDE and exposes the seam it calls.
+
+The governing invariant is enforced everywhere: retries, quarantine, and
+reactivation apply ONLY to candidates with `articleId == null` AND
+`!observedInBaseline`. A KNOWN public Article is never retried, refreshed,
+quarantined, or reactivated; an extractor upgrade is never a content refresh.
+
+### Failure classification (pure — `ingest-outcome.ts`)
+
+`classifyIngestAttempt({ outcome, now, attemptNumber, firstAttemptAt, config })`
+maps a #1095-supplied outcome to `{ disposition, reason, retryAfterMs?,
+nextAttemptAt? }`. Reason codes are machine-only — **never** a body, URL, or
+secret:
+
+- **Permanent → `terminal`** (immediate, no retries): `http_410_gone`,
+  `access_restricted`, and any other non-404/403/429 client error
+  (`http_client_error`).
+- **Transient → `retry`** while attempts remain, else `quarantine-on-exhaustion`:
+  `fetch_timeout`, `network_error`, `http_404_pre_propagation` (a 404 still
+  inside the grace window), `http_403_temporary`, `http_429`, `http_5xx`,
+  `extraction_incomplete`.
+- **Deterministic reprocessable → `quarantine-on-exhaustion`** immediately (no
+  point retrying the same extractor, but reactivatable by a future upgrade):
+  `quality_rejected`, and `http_404_after_grace` (a 404 once the propagation
+  window has elapsed = a persistent not-found).
+
+### Propagation grace + backoff + Retry-After (pure)
+
+- `withinPropagationGrace(firstAttemptAt, now, graceMs)` — a newly-discovered
+  candidate gets a CONFIGURABLE propagation grace window
+  (`SCRAPER_INGEST_PROPAGATION_GRACE_MS`, default 6h) measured from
+  `firstIngestAttemptAt`. A 404 inside grace is pre-propagation (retry); after
+  grace it is quarantine. The first attempt (`firstAttemptAt == null`) anchors on
+  `now`, so it is always within grace.
+- `computeNextAttemptAt()` — a server-supplied `Retry-After` (`retryAfterMs`)
+  **overrides** the computed backoff entirely; otherwise the next attempt is
+  `now + jitteredExponentialBackoff({ attempt, baseMs, maxMs })`, reusing
+  `src/lib/backoff.ts` and the per-JobType `RETRY_POLICIES`. An injectable RNG +
+  fake clock make it deterministic under test.
+
+### Thin guarded persistence (`ingest-recovery.ts`)
+
+`applyIngestClassification({ candidateId, classification, now, extractorVersion,
+job? })` applies a decision restart-safely. Every write is a guarded
+`updateMany({ where: { id, articleId: null, observedInBaseline: false,
+status: { in: RECOVERABLE_CANDIDATE_STATUSES } } })` whose `count === 0 ⇒ throw
+RecoveryConflictError ⇒ rollback` (AC4). `RECOVERABLE_CANDIDATE_STATUSES` =
+`{ DISCOVERED, QUEUED, INGESTING, FAILED }`:
+
+- `retry` → bump `ingestAttemptCount`, set `nextAttemptAt` + `lastFailureReason`,
+  stamp `firstIngestAttemptAt` on the first attempt; the Job (when a `job`
+  context is supplied) goes back to `FAILED` with `runAfter = nextAttemptAt`.
+- `quarantine-on-exhaustion` → move the candidate to the NEW
+  `CrawlCandidateStatus.QUARANTINED` (ONE visible state) with `terminalReason` +
+  `terminalAt`; the Job is `DEAD_LETTER`.
+- `terminal` → move the candidate to `REJECTED` (permanent 410 / access) with
+  `terminalReason` + `terminalAt`; the Job is `DEAD_LETTER`.
+
+When a `job: { jobId, workerId }` context is supplied, the candidate and Job
+transition in ONE interactive `$transaction` guarded on
+`{ status: RUNNING, lockedBy: workerId }`, so a stale non-owner worker rolls BOTH
+back (AC4). At the worker seam the handler applies the candidate-only transition
+and then THROWS a mapped `JobError`, letting the canonical `failJob` machinery
+own the Job transition, error-history, and queue metrics.
+
+**Why QUARANTINED is not re-enqueued on every scan:** page-commit only enqueues
+`ARTICLE_INGEST` for a NEW `eligible` classification; re-observing an existing
+candidate only touches `lastObservedAt` and never enqueues, and the ingest Job's
+dedupe key already exists (the terminal Job is reused, never reset). A
+QUARANTINED candidate is therefore stable across rescans (AC2).
+
+### Extractor-version reactivation (pure select + thin apply)
+
+`selectReactivationEligible(candidates, { newExtractorVersion, budget })` returns
+the eligible set, deterministically ordered and capped by `budget`. A candidate
+is eligible IFF `articleId == null` AND `!observedInBaseline` AND
+`status == QUARANTINED` AND `lastFailureReason ∈ REACTIVATABLE_FAILURE_REASONS`
+(`extraction_incomplete`, `quality_rejected`) AND
+(`extractorVersion == null || extractorVersion < newExtractorVersion`).
+**Prohibited (never reactivated):** any candidate with an Article
+(saved/deleted), `NEEDS_REVIEW`, `CONFLICT`, `DUPLICATE_ALIAS`, `SKIPPED`
+(policy), `REJECTED` (permanent), and any baseline identity.
+
+`reactivateCandidate` / `reactivateEligibleCandidates` bump the candidate
+`processingVersion` + `extractorVersion` to `newExtractorVersion`, reset the
+attempt metadata, set status back to `DISCOVERED`, and enqueue a NEW
+`ARTICLE_INGEST` Job via `candidateIngestDedupeKey(id, newExtractorVersion)` — a
+NEW dedupe key, so the PRIOR terminal Job (dedupe `v1`) stays intact for audit
+history. Reactivation is bounded by `SCRAPER_REACTIVATION_BUDGET` (default 50).
+
+### Acceptance evidence
+
+- **AC1 (recover pre-propagation 404)**: a candidate returning `404` inside the
+  grace window is retried on the SAME candidate/Job and LATER succeeds without
+  rediscovery — fake-clock tests in `tests/ingest-outcome.test.ts` (grace +
+  backoff + Retry-After override) and the retry persistence test in
+  `tests/db/ingest-recovery.test.ts`.
+- **AC2 (permanent-failure containment)**: an exhausted / deterministic failure
+  reaches ONE `QUARANTINED` state and is not re-enqueued on rescan —
+  `tests/db/ingest-recovery.test.ts` (quarantine transition + rescan stability).
+- **AC3 (bounded, eligible-only reactivation)**: `selectReactivationEligible`
+  selects only the eligible no-Article failure set and obeys the budget —
+  eligibility + prohibited-status + budget tests in
+  `tests/ingest-outcome.test.ts`, plus the enqueue-with-bumped-version test in
+  `tests/db/ingest-recovery.test.ts`.
+- **AC4 (determinism under restart / stale-Job reclaim)**: guarded `updateMany`
+  count-zero rollback keeps retry + quarantine deterministic when a stale worker
+  loses its lease — `tests/db/ingest-recovery.test.ts` (stale-Job reclaim).
+
+New `CrawlCandidateStatus` value: `QUARANTINED`. New metadata-only
+`CrawlCandidate` columns: `ingestAttemptCount`, `nextAttemptAt`,
+`lastFailureReason`, `firstIngestAttemptAt`, `extractorVersion` (+
+`@@index([status, nextAttemptAt])`). Under SQLite the status column is TEXT (no
+migration for new values); PostgreSQL uses `ALTER TYPE … ADD VALUE`.
+
+### Deferred
+
+The real fetch / extraction / Article-creation that produces an
+`IngestAttemptOutcome`, and the scheduled scanner that drives due retries +
+reactivation passes, are #1095. Phase 2.3 delivers the pure classifier, the
+guarded persistence, and the worker seam #1095 will call.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -1172,7 +1305,9 @@ The following phases build on the Phase 1 ledger and are documented as they land
   creation for genuinely new identities. *(The atomic candidate-based
   `ARTICLE_INGEST` enqueue #1091 has landed — see "Phase 2.1" above. Final
   canonical identity + body fingerprint resolution / convergence #1092 has landed
-  — see "Phase 2.2" above; fetch / extract / Article creation is #1095.)*
+  — see "Phase 2.2" above. Propagation retries, quarantine & extractor-version
+  reactivation #1093 has landed — see "Phase 2.3" above; fetch / extract /
+  Article creation is #1095.)*
 - **Phase 3 — operator review, backfill, and controlled refresh** (epic #1080):
   canonical-conflict review UI, bounded historical backfill under a separate
   budget, and explicitly operator-triggered refresh.
