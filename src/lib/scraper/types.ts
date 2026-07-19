@@ -4,6 +4,7 @@
  * de-duplication key.
  */
 import type { DiscoveryFetch } from "@/lib/scraper/fetch";
+import type { OverlapPolicy, WatermarkPolicy } from "@/lib/scraper/incremental/frontier";
 
 export type ScrapedArticle = {
   title: string;
@@ -217,6 +218,25 @@ export type ProviderUrlIdentityPolicy = {
   associatedDomains?: string[];
 };
 
+/**
+ * Provider-owned incremental-discovery frontier policy (#1086), consumed by
+ * `src/lib/scraper/incremental/frontier.ts`. Data-only and additive: omitting it
+ * (or any field) leaves the shared safe defaults unchanged. Provider-specific
+ * behavior stays declarative — never arbitrary functions.
+ */
+export type ProviderDiscoveryPolicy = {
+  /**
+   * True when the provider exposes a native pagination CURSOR with documented
+   * ordering semantics; the frontier prefers it and paginates until the cursor
+   * is exhausted rather than using consecutive-empty-page termination.
+   */
+  nativeCursor?: boolean;
+  /** Watermark advancement rules (eligible provenances, clock tolerance). */
+  watermark?: WatermarkPolicy;
+  /** Overlap re-scan size and consecutive-empty-page pagination threshold. */
+  overlap?: OverlapPolicy;
+};
+
 /** A news source the scraper knows how to crawl and categorize. */
 export type Provider = {
   /** Short CLI key, e.g. "huffpost". */
@@ -307,4 +327,10 @@ export type Provider = {
    * any field) leaves identity behavior at the shared generic default.
    */
   urlIdentity?: ProviderUrlIdentityPolicy;
+  /**
+   * Provider-owned incremental-discovery frontier policy (#1086) consumed by
+   * `src/lib/scraper/incremental/frontier.ts`. Data-only and additive: omitting
+   * it leaves the shared safe watermark/overlap/pagination defaults unchanged.
+   */
+  discovery?: ProviderDiscoveryPolicy;
 };

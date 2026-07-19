@@ -147,6 +147,16 @@ export type PageClassificationContext = {
    */
   windowStart: Date | null;
   /**
+   * Optional COMPOUND tiebreak for {@link windowStart} — the sanitized identity
+   * key of the frontier position (`DiscoverySource.watermarkKey`, #1086). When
+   * provided, an item dated EXACTLY at {@link windowStart} is `outside-window`
+   * only if its identity key is at or before this key; a same-timestamp item
+   * with a greater key is still in-window (so same-timestamp / delayed entries
+   * are never silently skipped). When omitted, the window is a pure
+   * timestamp bound (`<= windowStart`), preserving the #1085 behavior.
+   */
+  windowKey?: string | null;
+  /**
    * Composite identity keys already present in the ledger, as produced by
    * {@link identityCompositeKey}. Read by the caller BEFORE the transaction.
    */
@@ -321,15 +331,29 @@ function classifyItem(
     };
   }
 
-  if (context.windowStart != null && trustedPublishedAt.getTime() <= context.windowStart.getTime()) {
-    return {
-      item,
-      outcome: "outside-window",
-      identity,
-      observationKey,
-      trustedPublishedAt,
-      dateProvenance,
-    };
+  if (context.windowStart != null) {
+    const ts = trustedPublishedAt.getTime();
+    const windowTs = context.windowStart.getTime();
+    // Compound frontier comparison (#1086): an item strictly before the window
+    // start is always outside; an item strictly after is always inside. An item
+    // dated EXACTLY at the window start is outside only when a compound key is
+    // configured AND the item's identity key is at or before it — so a
+    // same-timestamp item with a greater key is NOT silently skipped. Without a
+    // compound key the boundary stays a pure `<=` timestamp bound (#1085).
+    const outsideWindow =
+      ts < windowTs ||
+      (ts === windowTs &&
+        (context.windowKey == null || identity.provisionalKey <= context.windowKey));
+    if (outsideWindow) {
+      return {
+        item,
+        outcome: "outside-window",
+        identity,
+        observationKey,
+        trustedPublishedAt,
+        dateProvenance,
+      };
+    }
   }
 
   return {

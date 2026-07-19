@@ -552,6 +552,98 @@ BEFORE `commitDiscoveryPage` is invoked; only DB writes and lease revalidation r
 inside the transaction. Baseline/shadow commits create NO Article, NO body fetch,
 and NO `ARTICLE_INGEST` job — enqueuing ingest work is Phase 2 (#1091).
 
+## Phase 1.6 — watermarks, overlap, validator calibration, and gap detection (#1086)
+
+Phase 1.6 BOUNDS repeated discovery WITHOUT ever treating a timestamp or an HTTP
+validator as proof that no provider article was missed. All frontier DECISIONS
+live in a PURE module (`src/lib/scraper/incremental/frontier.ts`, no DB / no
+network); a thin guarded persistence layer
+(`src/lib/scraper/incremental/frontier-commit.ts`) applies them to
+`DiscoverySource`. Provider-specific tuning is DATA-ONLY on
+`Provider.discovery` (`nativeCursor`, `watermark`, `overlap`); omitting it leaves
+the shared safe defaults unchanged.
+
+### Compound watermark advance (`computeNextWatermark`)
+
+The frontier is the compound boundary `(watermarkAt, watermarkKey)` — a
+publication instant plus a sanitized identity/stable-item key that breaks
+same-timestamp ties. `classifyPage` now accepts an optional `windowKey`: an item
+dated exactly at `watermarkAt` is `outside-window` only when its identity key is
+at or before `watermarkKey`, so a same-timestamp item with a greater key stays
+in-window and is never silently skipped. Without `windowKey` the window remains
+the pure `<= windowStart` timestamp bound (unchanged #1085 behavior).
+
+The next watermark is the maximum surviving compound `(at, key)`, subject to:
+
+- **Provenance gating** — only `FEED` (provider RSS/API publication fields) and
+  `PAGE_METADATA` (approved structured page fields) advance it by default.
+  Sitemap `lastmod`, URL-inferred (`URL`), `HTTP_HEADER`, `INFERRED`, and undated
+  (`UNKNOWN`) observations are `ineligible` and never advance the watermark.
+- **Future-date rejection** — a date more than `clockToleranceMs` (default 5 min)
+  ahead of now is an anomaly (`futureRejected`); it never advances the watermark.
+- **Conflict by precedence** — two differing trusted dates for one identity are
+  resolved by configured source precedence (`sourceRank`, higher wins); an
+  UNRESOLVED conflict (equal/absent ranks) stays an anomaly (`conflicts`) and
+  contributes no date.
+- **Never regress** — a lower/equal computed watermark keeps the proven one, so a
+  delayed OLD entry can never rewind the frontier.
+- **Never leapfrog a gap** — observations at or after an optional `blockedAbove`
+  bound are held back so a detected gap is not silently jumped.
+
+Because the window is measured from the watermark (not wall-clock), a ten-day
+outage still accepts every observable identity published after the last proven
+watermark on recovery.
+
+### Overlap and pagination termination (`decidePagination`, `overlapWindowStart`)
+
+A provider-native cursor is authoritative: pagination continues until the cursor
+is exhausted or the boundary is explicitly reached. For non-cursor pagination the
+run stops as CAUGHT-UP only after the configured number of CONSECUTIVE all-known
+pages (`overlap.consecutiveEmptyPages`, default 2); a single known URL or one old
+date (one empty page, or any new identity on the page) is INSUFFICIENT to stop.
+`overlapWindowStart` shifts the classify window DOWN from the watermark by the
+configured overlap depth (`overlap.overlapSize`, default 25) so the most-recent
+identities are always re-scanned — known ones dedup, genuinely new delayed /
+out-of-order entries within the overlap are admitted — never moving the window
+forward past the proven watermark.
+
+### Gap detection (`detectGap`)
+
+Comparing the oldest still-observable item against the proven boundary
+(`watermarkAt ?? baselineCompletedAt`): when the feed has ROLLED past the
+boundary (oldest visible item is newer than it), the intervening span is no
+longer discoverable → `gapState = DETECTED` with a redacted, metadata-only
+manual-backfill suggestion note. Entering a gap stamps `gapDetectedAt` once;
+clearing to `NONE` resets it. A gap NEVER blocks recording current confirmable
+candidates and NEVER triggers a historical body fetch or automatic backfill. An
+unknown oldest item on a run that did not reach the boundary is at most
+`SUSPECTED` — a failed/partial read is never treated as proof of completeness.
+
+### Validator calibration (`calibrateValidator`)
+
+ETag/Last-Modified `304` responses are request OPTIMIZATIONS only. A periodic
+UNCONDITIONAL calibration scan over the same overlap validates them: when the
+conditional path reported `304` "not modified" but the unconditional scan
+surfaces new identities, the validator is proven stale/misleading →
+`disableValidator` + `alert`, and `frontier-commit` clears `validatorVersion` so
+a bad long-lived `304` can never permanently suppress discovery. An incomplete
+calibration proves nothing and never disables a validator.
+
+### Run-completion accounting (`decideRunCompletion`)
+
+A source is CAUGHT UP (health advanced to `HEALTHY`) only when the run BOTH
+reached the observable boundary AND processed every planned page without a
+failure. A failed or partial page can never mark the source caught up.
+
+### Guarded persistence (`commitFrontierState`)
+
+Reads happen before the transaction; the single `$transaction` re-reads and
+revalidates the lease/`definitionVersion` and advances state via a guarded
+`updateMany({ where: { id, leaseOwner, definitionVersion } })`. A zero-row update
+means the lease was lost/stolen → the whole write rolls back and nothing is
+persisted (the same keystone pattern as `commitDiscoveryPage`). The watermark
+never regresses even here (a belt-and-braces same-timestamp/older-date guard).
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -561,7 +653,9 @@ The following phases build on the Phase 1 ledger and are documented as they land
   proving. *(Ledger schema #1081, versioned URL identity #1082, and the baseline
   seed #1083 have landed — see "Data model", "Phase 1.2", and "Phase 1.3" above.
   The discovery fetch seam #1084 has landed — see "Phase 1.4" above. The atomic
-  page commit & classification #1085 has landed — see "Phase 1.5" above.)*
+  page commit & classification #1085 has landed — see "Phase 1.5" above. The
+  watermark / overlap / calibration / gap frontier #1086 has landed — see
+  "Phase 1.6" above.)*
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
   creation for genuinely new identities.
