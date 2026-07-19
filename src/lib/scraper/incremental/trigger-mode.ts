@@ -3,11 +3,11 @@
  * requests (issue #1097, Phase 2.7).
  *
  * PURE logic only — no database, network, or clock. A normal operator trigger
- * declares a MODE; only `incremental` (the default) is implemented in this
- * phase. `backfill` and `force-rescrape` are DEFINED so the taxonomy is stable
- * and the API/CLI can reject them EXPLICITLY ("not implemented until Phase 3")
- * rather than silently falling through to the old synchronous discover-and-save
- * behavior (AC3).
+ * declares a MODE; only `incremental` (the default) is implemented on THIS
+ * trigger. `backfill` and `force-rescrape` are DEFINED so the taxonomy is stable
+ * and the API/CLI can reject them EXPLICITLY (each redirected to its dedicated
+ * high-permission endpoint) rather than silently falling through to the old
+ * synchronous discover-and-save behavior (AC3).
  *
  * The validator is strict: an unknown string is rejected, and a
  * defined-but-unimplemented mode returns a typed `not-implemented` rejection.
@@ -21,7 +21,18 @@
  * {@link IMPLEMENTED_TRIGGER_MODES} preserves the #1097 no-smuggle invariant: a
  * normal trigger (or the operator CLI) can never launch a backfill. This module
  * therefore still rejects it here; only the rejection MESSAGE points at the
- * dedicated endpoint. `force-rescrape` remains genuinely deferred.
+ * dedicated endpoint.
+ *
+ * Phase 3.3 (#1102) decision — `force-rescrape` is likewise a REAL, implemented
+ * operation, but is the ONLY sanctioned path to refresh a KNOWN public Article
+ * and MUST be unreachable from scheduled/normal discovery (governing invariant).
+ * It is served exclusively by the dedicated high-permission endpoint
+ * `POST /api/admin/articles/{id}/force-rescrape` (single Article + mandatory
+ * reason + dry-run + audit + content versions). Exactly like `backfill`, it is
+ * intentionally kept OUT of {@link IMPLEMENTED_TRIGGER_MODES}; this trigger still
+ * REJECTS it, and only the rejection MESSAGE points at the dedicated endpoint —
+ * so normal incremental discovery can never invoke or emulate a force-rescrape
+ * (AC3's no-smuggle invariant).
  */
 
 /** Every defined trigger mode (implemented AND deferred). */
@@ -34,23 +45,24 @@ export const DEFAULT_TRIGGER_MODE: TriggerMode = "incremental";
 
 /**
  * Modes actually implemented on THIS normal operator trigger. Only
- * `incremental` runs here. `backfill` is implemented in Phase 3.2 but ONLY via
- * the dedicated high-permission endpoint (`POST /api/admin/backfill`), so it is
- * intentionally excluded here to preserve the no-smuggle invariant;
- * `force-rescrape` is still deferred. Both fail explicitly below.
+ * `incremental` runs here. `backfill` (Phase 3.2) and `force-rescrape`
+ * (Phase 3.3) are BOTH implemented, but ONLY via their dedicated high-permission
+ * endpoints (`POST /api/admin/backfill` and
+ * `POST /api/admin/articles/{id}/force-rescrape`), so they are intentionally
+ * excluded here to preserve the no-smuggle invariant. Both fail explicitly below.
  */
 export const IMPLEMENTED_TRIGGER_MODES: readonly TriggerMode[] = ["incremental"];
 
 /**
- * Human guidance appended per deferred mode. `backfill` redirects to the
- * dedicated endpoint; `force-rescrape` is genuinely not built yet. Both strings
- * contain "not implemented" so this normal trigger keeps failing closed.
+ * Human guidance appended per deferred mode. Each redirects to its dedicated
+ * high-permission endpoint; both strings contain "not implemented" so this
+ * normal trigger keeps failing closed.
  */
 const NOT_IMPLEMENTED_MESSAGE: Record<Exclude<TriggerMode, "incremental">, string> = {
   backfill:
     'Trigger mode "backfill" is not implemented on this trigger. Historical backfill is a separate high-permission operation — use the dedicated admin backfill endpoint (POST /api/admin/backfill).',
   "force-rescrape":
-    'Trigger mode "force-rescrape" is not implemented yet (deferred). Use "incremental".',
+    'Trigger mode "force-rescrape" is not implemented on this trigger. Refreshing a known Article is a separate high-permission operation — use the dedicated admin force-rescrape endpoint (POST /api/admin/articles/{id}/force-rescrape).',
 };
 
 /** Why a requested trigger mode was refused (sanitized category). */
