@@ -1468,6 +1468,12 @@ enum DiscoveryGapState {
 ///     validation. ONE visible resting state that ordinary source rescans never
 ///     re-enqueue; only a bounded extractor-version upgrade may reactivate it
 ///     (#1093). Distinct from REJECTED (permanent 410 / access-restricted).
+///   - SKIPPED_REVIEW: a NEEDS_REVIEW candidate an authorized operator EXPLICITLY
+///     rejected in candidate review (#1100). A terminal, no-Article resting state
+///     that ordinary rediscovery/ingest NEVER re-enqueues (governing invariant);
+///     it may return to NEEDS_REVIEW only through the separate audited reactivate
+///     action. Distinct from REJECTED (provider-driven permanent 410) and SKIPPED
+///     (policy/frontier skip): SKIPPED_REVIEW is a human review decision.
 enum CrawlCandidateStatus {
   DISCOVERED
   BASELINE
@@ -1481,6 +1487,7 @@ enum CrawlCandidateStatus {
   DUPLICATE_ALIAS
   NEEDS_REVIEW
   QUARANTINED
+  SKIPPED_REVIEW
 }
 
 /// Provenance of the trusted publication date recorded for a candidate.

@@ -88,6 +88,7 @@ const SAVED_TERMINAL_STATUSES: readonly CrawlCandidateStatus[] = [
   CrawlCandidateStatus.SKIPPED,
   CrawlCandidateStatus.QUARANTINED,
   CrawlCandidateStatus.CONFLICT,
+  CrawlCandidateStatus.SKIPPED_REVIEW,
 ];
 
 /** Candidate columns the save reads (all secret-free). */

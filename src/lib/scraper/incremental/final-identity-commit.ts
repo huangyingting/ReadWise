@@ -55,6 +55,7 @@ const RESOLVED_TERMINAL_STATUSES: CrawlCandidateStatus[] = [
   CrawlCandidateStatus.NEEDS_REVIEW,
   CrawlCandidateStatus.REJECTED,
   CrawlCandidateStatus.SKIPPED,
+  CrawlCandidateStatus.SKIPPED_REVIEW,
 ];
 
 /** Selection of candidate columns this module reads (all secret-free). */
