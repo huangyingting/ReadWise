@@ -21,6 +21,9 @@
 import { createHash } from "node:crypto";
 import type { Provider, ProviderUrlIdentityPolicy } from "@/lib/scraper/types";
 import { providerForUrl, getProvider } from "@/lib/scraper/providers";
+import { redactUrlForLog } from "@/lib/scraper/url-redaction";
+
+export { redactUrlForLog };
 
 /**
  * Identity version tag. It prefixes every identity key (`v1:<hash>`). Changing
@@ -211,24 +214,11 @@ function parseSecretFree(rawUrl: string): URL {
 }
 
 /**
- * Renders any URL as a secret-free string safe for logs and error messages:
- * userinfo, the entire query string, and the fragment are removed. Returns a
- * fixed placeholder when the input cannot be parsed (so a malformed,
- * credential-bearing string is never echoed verbatim).
+ * Renders any URL as a secret-free string safe for logs and error messages —
+ * see {@link redactUrlForLog}, re-exported above from
+ * `@/lib/scraper/url-redaction` (kept dependency-free so the fetch layer can use
+ * it without importing the provider registry).
  */
-export function redactUrlForLog(rawUrl: string): string {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    return "[unparseable-url]";
-  }
-  url.username = "";
-  url.password = "";
-  url.hash = "";
-  const query = url.search.length > 0 ? "?[redacted]" : "";
-  return `${url.protocol}//${url.host}${url.pathname}${query}`;
-}
 
 // ---------------------------------------------------------------------------
 // Normalization

@@ -8,6 +8,15 @@ before(() => {
     namedExports: {
       fetchHtml: async () => "html-payload",
       fetchText: async () => "text-payload",
+      fetchDiscoveryResponse: async () => ({
+        outcome: "ok",
+        status: 200,
+        finalUrl: "https://demo.example/",
+        body: "",
+        notModified: false,
+        validators: {},
+        headers: {},
+      }),
     },
   });
   mock.module("@/lib/scraper/sources", {

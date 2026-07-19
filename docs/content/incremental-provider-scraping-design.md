@@ -2,7 +2,7 @@
 type: "design"
 status: "current"
 last_updated: "2026-07-19"
-description: "Design for stateful incremental provider ingestion: the governing invariant, the durable discovery ledger data model (DiscoverySource, CrawlCandidate, UrlAlias, DiscoveryObservation, CanonicalConflict), its enums, uniqueness constraints, cascade/retention decisions, versioned URL normalization / public article identity (Phase 1.2), and the idempotent baseline seed / conflict isolation from existing public Articles (Phase 1.3). Later phases are stubbed."
+description: "Design for stateful incremental provider ingestion: the governing invariant, the durable discovery ledger data model (DiscoverySource, CrawlCandidate, UrlAlias, DiscoveryObservation, CanonicalConflict), its enums, uniqueness constraints, cascade/retention decisions, versioned URL normalization / public article identity (Phase 1.2), and the idempotent baseline seed / conflict isolation from existing public Articles (Phase 1.3), and the SSRF-safe discovery fetch seam exposing response metadata / conditional requests / typed outcomes (Phase 1.4). Later phases are stubbed."
 ---
 
 # Incremental provider scraping design
@@ -15,9 +15,9 @@ scraper reference in [`scrapers.md`](./scrapers.md) and the source governance in
 [`content-policy.md`](./content-policy.md).
 
 The document is filled in phase by phase as implementation lands. The data model
-(#1081), URL normalization / public article identity (Phase 1.2, #1082), and the
-baseline seed / conflict isolation (Phase 1.3, #1083) are **current** below; later
-phases are **planned** stubs.
+(#1081), URL normalization / public article identity (Phase 1.2, #1082), the
+baseline seed / conflict isolation (Phase 1.3, #1083), and the discovery fetch
+seam (Phase 1.4, #1084) are **current** below; later phases are **planned** stubs.
 
 ## Program overview
 
@@ -375,6 +375,88 @@ only the pure identity module (no fetch dependency).
 The report is **metadata only**: Article IDs, the controlled conflict reason, and
 counts — never article content, titles, URLs, or user-private data.
 
+## Phase 1.4 — discovery fetch seam — current
+
+Phase 1.4 (#1084) lets discovery adapters read HTTP **response metadata** —
+status, final URL, validators, and retry hints — without weakening or forking the
+existing SSRF-safe fetch. It adds a response-returning function alongside the
+body-only extractor path; both are built on ONE shared safe hop loop.
+
+### Shared safe hop loop (no SSRF fork)
+
+`src/lib/scraper/fetch.ts` now factors the SSRF/redirect machinery into a single
+internal `performSafeFetch(url, init, timeoutMs, consume)`. It owns, exactly once,
+every safety guarantee and both public paths reuse it verbatim:
+
+- `resolveAndPin` validates + IP-pins **every hop** (initial URL and each redirect
+  target) before a byte is sent — closing the DNS-rebinding / TOCTOU gap.
+- Redirects are followed **manually** and bounded by `MAX_REDIRECTS` (5).
+- A single `AbortController` enforces the hard timeout across all hops.
+- The pinned undici dispatcher is always closed; redirect bodies are cancelled.
+- Body size is capped by `readBodyWithLimit` (Content-Length pre-check + streaming
+  byte count + gzip-bomb guard) against `scraperMaxBytes`.
+
+`performSafeFetch` stops the loop WITHOUT consuming a response for a SSRF-rejected
+hop or an exceeded redirect budget, returning a typed stop marker. The two public
+functions then translate that marker into their own contract:
+
+- `fetchCore` / `fetchHtml` / `fetchText` — **unchanged public behavior**: still
+  return the bounded body and still **throw** `FetchHttpError` on non-2xx and an
+  `Error` on blocked/too-many-redirects. `ExtractorFetch` is untouched.
+- `fetchDiscoveryResponse` — the new response-metadata path (see below).
+
+### `fetchDiscoveryResponse` interface (as built)
+
+```ts
+fetchDiscoveryResponse(url, init?: DiscoveryFetchInit, timeoutMs?): Promise<DiscoveryFetchResult>
+```
+
+`DiscoveryFetchInit` extends the core init with typed conditional-request
+conveniences `ifNoneMatch` / `ifModifiedSince` (mapped to `If-None-Match` /
+`If-Modified-Since` request headers). It issues a **single validated origin
+request per hop** and deliberately does **NOT** run the bot-challenge strategy
+rotation (`fetch-strategies.ts`) — that browser/reader/Wayback fallback is
+reserved for article-body GETs via `fetchHtml`, whose behavior is unchanged.
+
+### Typed outcomes (never thrown for HTTP-level results)
+
+`DiscoveryFetchResult` is a discriminated union on `outcome` so callers branch on
+data, not on caught errors:
+
+| `outcome`        | When                     | Fields |
+| ---------------- | ------------------------ | ------ |
+| `ok`             | `200–299`                | `status`, `finalUrl`, bounded `body`, `validators` (`etag`, `lastModified`), `headers` (allowlist) |
+| `not-modified`   | `304`                    | `status: 304`, `finalUrl`, `notModified: true`, `validators` — **no body** |
+| `retryable`      | `429` / `5xx`            | `status`, `finalUrl`, parsed `retryAfterMs?` |
+| `error`          | other non-2xx (e.g. 404) | `status`, `finalUrl` |
+| `blocked`        | SSRF-rejected hop / redirect budget | `reason: "unsafe-address" \| "too-many-redirects"` — **no URL** |
+
+The response-header surface is a MINIMAL allowlist: only `Content-Type`
+(`headers.contentType`) plus the `ETag` / `Last-Modified` validators and the
+`Retry-After` hint. Arbitrary headers (cookies, auth echoes, vendor headers) are
+never exposed to feature code.
+
+### Redaction & privacy guarantees
+
+- URL redaction is centralized in the dependency-free
+  `src/lib/scraper/url-redaction.ts` (`redactUrlForLog`, re-exported by
+  `url-identity.ts` to preserve #1082's surface). The fetch layer imports it from
+  there so the SSRF path never transitively pulls in the provider registry.
+- Any URL that reaches a log passes through `redactUrlForLog` (userinfo, full
+  query string, and fragment stripped).
+- `blocked` outcomes intentionally omit the target URL, and the SSRF rejection
+  error's raw message (which may embed a private address) is never surfaced —
+  only the redacted **request** URL and the hop index are logged.
+- No authorization headers, cookies, signed URLs, request bodies, or response
+  bodies for non-200 outcomes are ever logged or returned.
+
+### Dependency injection
+
+The discovery DI seam mirrors `DiscoverDeps.fetchHtml`: `DiscoverDeps.fetchResponse`
+defaults to `fetchDiscoveryResponse` and is passed to `urlExtractor` via the new
+optional `UrlExtractorContext.fetchResponse`, so RSS/API/sitemap/HTML discovery
+tests stay network-free by injecting a canned `DiscoveryFetchResult`.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -382,7 +464,8 @@ The following phases build on the Phase 1 ledger and are documented as they land
 - **Phase 1 — discovery correctness in shadow mode** (epic #1078): shadow-mode
   discovery, baseline completion, watermark advance, and observation idempotency
   proving. *(Ledger schema #1081, versioned URL identity #1082, and the baseline
-  seed #1083 have landed — see "Data model", "Phase 1.2", and "Phase 1.3" above.)*
+  seed #1083 have landed — see "Data model", "Phase 1.2", and "Phase 1.3" above.
+  The discovery fetch seam #1084 has landed — see "Phase 1.4" above.)*
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
   creation for genuinely new identities.

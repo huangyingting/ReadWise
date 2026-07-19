@@ -15,7 +15,11 @@ import { scraperMaxBytes, scraperTimeoutMs } from "@/lib/scraper/limits";
 import { withSpan } from "@/lib/observability/tracing";
 import { Agent, fetch as undiciFetch } from "undici";
 import { fetchHtmlWithStrategies } from "@/lib/scraper/fetch-strategies";
+import { redactUrlForLog } from "@/lib/scraper/url-redaction";
+import { createLogger } from "@/lib/observability/logger";
 import { gunzipSync } from "node:zlib";
+
+const log = createLogger("scraper.fetch");
 
 const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -181,25 +185,66 @@ async function readBodyWithLimit(res: FetchResponse, maxBytes: number): Promise<
 }
 
 /**
- * Core SSRF-safe fetch shared by {@link fetchHtml}, {@link fetchText}, and the
- * multi-strategy fallback chain ({@link file://./fetch-strategies.ts}).
- * Validates every redirect hop through `resolveAndPin`, enforces a hard
- * timeout, and caps the response body at `scraperMaxBytes`. Throws
- * {@link FetchHttpError} (carrying the status) on a non-2xx final response.
+ * Typed non-response outcome of the shared safe hop loop that stops BEFORE a
+ * final response is consumed. Both {@link fetchCore} (which re-throws) and
+ * {@link fetchDiscoveryResponse} (which maps to a typed result) build on top of
+ * these so the SSRF/redirect machinery is defined exactly once.
  */
-export async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: number): Promise<string> {
+type SafeFetchStop =
+  /** A hop's target resolved to a private/metadata address (or was otherwise SSRF-rejected). */
+  | { kind: "blocked"; hop: number; error: Error }
+  /** The redirect chain exceeded {@link MAX_REDIRECTS} hops. */
+  | { kind: "too-many-redirects"; startUrl: string };
+
+type SafeFetchResult<T> = { kind: "consumed"; value: T } | SafeFetchStop;
+
+/**
+ * The single SSRF-safe hop loop shared by every fetch entry point.
+ *
+ * Guarantees, enforced identically for the body-only path and the
+ * discovery-metadata path (so neither can drift or weaken):
+ *  - `resolveAndPin` validates + IP-pins EVERY hop (initial URL and every
+ *    redirect target) before a byte is sent — closing the DNS-rebinding gap.
+ *  - Redirects are followed manually and bounded by {@link MAX_REDIRECTS}.
+ *  - A single {@link AbortController} enforces the hard timeout across all hops.
+ *  - The pinned dispatcher is always closed; redirect bodies are cancelled.
+ *
+ * When a hop is SSRF-rejected or the redirect budget is exceeded the loop stops
+ * WITHOUT invoking `consume` and returns a typed {@link SafeFetchStop}. On a
+ * final (non-redirect) response `consume` runs while the dispatcher is still
+ * open (so it can stream the body) and its result is returned as `consumed`.
+ * Transport errors thrown by undici propagate unchanged.
+ */
+async function performSafeFetch<T>(
+  url: string,
+  init: FetchCoreInit,
+  timeoutMs: number,
+  consume: (res: FetchResponse, finalUrl: string) => Promise<T>,
+): Promise<SafeFetchResult<T>> {
   const host = spanHostFor(url);
   return withSpan("scraper.fetch", { "readwise.provider": "scraper", "readwise.host": host }, async () => {
-    const maxBytes = scraperMaxBytes();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       let currentUrl = url;
       for (let hop = 0; ; hop++) {
-        const pin = await resolveAndPin(currentUrl);
+        let pin: PinnedAddress;
+        try {
+          pin = await resolveAndPin(currentUrl);
+        } catch (err) {
+          // SSRF rejection on any hop (initial or redirect target). Never echo
+          // the raw target in a log — redact it. Callers map this to their own
+          // outcome (thrown error for the body path, typed `blocked` result for
+          // discovery) so the safe target is never fetched.
+          return {
+            kind: "blocked",
+            hop,
+            error: err instanceof Error ? err : new Error(String(err)),
+          };
+        }
         const dispatcher = pinnedDispatcher(pin);
 
-        let res: Awaited<ReturnType<typeof undiciFetch>>;
+        let res: FetchResponse;
         try {
           res = await undiciFetch(currentUrl, {
             method: init.method ?? "GET",
@@ -219,17 +264,15 @@ export async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: num
           await res.body?.cancel().catch(() => {});
           void dispatcher.close();
           if (hop >= MAX_REDIRECTS) {
-            throw new Error(`Too many redirects (> ${MAX_REDIRECTS}) starting from ${url}`);
+            return { kind: "too-many-redirects", startUrl: url };
           }
           currentUrl = new URL(location, currentUrl).href;
           continue;
         }
 
         try {
-          if (!res.ok) {
-            throw httpErrorFor(res, currentUrl);
-          }
-          return await readBodyWithLimit(res, maxBytes);
+          const value = await consume(res, currentUrl);
+          return { kind: "consumed", value };
         } finally {
           void dispatcher.close();
         }
@@ -238,6 +281,35 @@ export async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: num
       clearTimeout(timer);
     }
   });
+}
+
+/**
+ * Core SSRF-safe fetch shared by {@link fetchHtml}, {@link fetchText}, and the
+ * multi-strategy fallback chain ({@link file://./fetch-strategies.ts}).
+ * Validates every redirect hop through `resolveAndPin`, enforces a hard
+ * timeout, and caps the response body at `scraperMaxBytes`. Throws
+ * {@link FetchHttpError} (carrying the status) on a non-2xx final response.
+ *
+ * Built on the shared {@link performSafeFetch} hop loop so its SSRF/redirect
+ * behavior is byte-for-byte identical to {@link fetchDiscoveryResponse}: the
+ * typed stop outcomes are re-thrown here to preserve the historical (throwing)
+ * contract that existing callers and tests depend on.
+ */
+export async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: number): Promise<string> {
+  const maxBytes = scraperMaxBytes();
+  const result = await performSafeFetch(url, init, timeoutMs, async (res, finalUrl) => {
+    if (!res.ok) {
+      throw httpErrorFor(res, finalUrl);
+    }
+    return readBodyWithLimit(res, maxBytes);
+  });
+
+  if (result.kind === "consumed") return result.value;
+  if (result.kind === "too-many-redirects") {
+    throw new Error(`Too many redirects (> ${MAX_REDIRECTS}) starting from ${result.startUrl}`);
+  }
+  // Preserve the original SSRF rejection (and its message) for the body path.
+  throw result.error;
 }
 
 /**
@@ -268,4 +340,208 @@ export async function fetchText(
   timeoutMs = scraperTimeoutMs(),
 ): Promise<string> {
   return fetchCore(url, init, timeoutMs);
+}
+
+// ---------------------------------------------------------------------------
+// Discovery response-metadata fetch (issue #1084)
+// ---------------------------------------------------------------------------
+
+/**
+ * MINIMAL allowlist of content response headers surfaced to discovery adapters.
+ * Deliberately NOT arbitrary headers — extractors never need `Set-Cookie`,
+ * `Authorization` echoes, or vendor headers, so they are dropped at this seam.
+ */
+export type DiscoveryContentHeaders = {
+  /** `Content-Type` header value (media type + params), when present. */
+  contentType?: string;
+};
+
+/** HTTP validators + retry hint captured for conditional / retryable outcomes. */
+export type DiscoveryValidators = {
+  /** `ETag` validator, for a subsequent `If-None-Match` request. */
+  etag?: string;
+  /** `Last-Modified` validator, for a subsequent `If-Modified-Since` request. */
+  lastModified?: string;
+};
+
+/**
+ * Request options for {@link fetchDiscoveryResponse}. A superset of
+ * {@link FetchCoreInit} with typed conditional-request convenience fields. When
+ * both a convenience field and an explicit header are supplied the convenience
+ * field wins (it is applied last).
+ */
+export type DiscoveryFetchInit = FetchCoreInit & {
+  /** Sent as the `If-None-Match` request header (conditional GET on ETag). */
+  ifNoneMatch?: string;
+  /** Sent as the `If-Modified-Since` request header (conditional GET on date). */
+  ifModifiedSince?: string;
+};
+
+/**
+ * Reason a discovery fetch was refused by the safe hop loop (never fetched, or
+ * stopped) — surfaced as a typed outcome so callers do not catch generic errors.
+ */
+export type DiscoveryBlockedReason = "unsafe-address" | "too-many-redirects";
+
+/**
+ * Typed result of {@link fetchDiscoveryResponse}. Discovery adapters branch on
+ * `outcome` (never on thrown errors) to distinguish success, `304 Not Modified`,
+ * a retryable status (429/5xx, with a parsed `Retry-After`), a blocked hop, and
+ * a non-retryable HTTP error. Only the allowlisted metadata is exposed; response
+ * bodies for non-200 outcomes are discarded, and blocked outcomes carry no URL.
+ */
+export type DiscoveryFetchResult =
+  | {
+      outcome: "ok";
+      status: number;
+      /** Final URL after all validated redirects (usable identity key for the caller). */
+      finalUrl: string;
+      /** Bounded, decoded response body (capped at `scraperMaxBytes`). */
+      body: string;
+      notModified: false;
+      validators: DiscoveryValidators;
+      headers: DiscoveryContentHeaders;
+    }
+  | {
+      outcome: "not-modified";
+      status: 304;
+      finalUrl: string;
+      notModified: true;
+      validators: DiscoveryValidators;
+    }
+  | {
+      outcome: "retryable";
+      status: number;
+      finalUrl: string;
+      /** Parsed `Retry-After` (ms), when the server supplied a usable value. */
+      retryAfterMs?: number;
+    }
+  | {
+      outcome: "error";
+      status: number;
+      finalUrl: string;
+    }
+  | {
+      outcome: "blocked";
+      reason: DiscoveryBlockedReason;
+    };
+
+/**
+ * Dependency-injectable shape of {@link fetchDiscoveryResponse} for the discovery
+ * DI seam (mirrors `DiscoverDeps.fetchHtml`). Tests inject a stub returning a
+ * canned {@link DiscoveryFetchResult} so RSS/API/sitemap/HTML discovery stays
+ * network-free.
+ */
+export type DiscoveryFetch = (
+  url: string,
+  init?: DiscoveryFetchInit,
+  timeoutMs?: number,
+) => Promise<DiscoveryFetchResult>;
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || (status >= 500 && status < 600);
+}
+
+function validatorsFrom(res: FetchResponse): DiscoveryValidators {
+  const etag = res.headers.get("etag");
+  const lastModified = res.headers.get("last-modified");
+  return {
+    ...(etag ? { etag } : {}),
+    ...(lastModified ? { lastModified } : {}),
+  };
+}
+
+function discoveryInitToCoreInit(init: DiscoveryFetchInit): FetchCoreInit {
+  const headers: Record<string, string> = { ...(init.headers ?? {}) };
+  if (init.ifNoneMatch !== undefined) headers["if-none-match"] = init.ifNoneMatch;
+  if (init.ifModifiedSince !== undefined) headers["if-modified-since"] = init.ifModifiedSince;
+  return {
+    ...(init.method !== undefined ? { method: init.method } : {}),
+    ...(init.body !== undefined ? { body: init.body } : {}),
+    headers,
+  };
+}
+
+/**
+ * SSRF-safe fetch that returns HTTP **response metadata** (status, final URL,
+ * validators, retry hint, and a minimal content-header allowlist) instead of a
+ * bare body, for incremental discovery adapters.
+ *
+ * It shares the exact same {@link performSafeFetch} hop loop as {@link fetchCore}
+ * — identical DNS pinning, per-hop private/metadata rejection, manual bounded
+ * redirects, timeout, and body-size cap — so it CANNOT weaken any SSRF guarantee.
+ * Unlike {@link fetchHtml} it does NOT run the bot-challenge strategy rotation
+ * (that behavior is reserved for article-body GETs); a conditional discovery
+ * probe issues a single validated origin request per hop.
+ *
+ * Outcomes are typed (never thrown for HTTP-level results):
+ *  - `200-299`  → `ok` (bounded body + validators + allowlisted headers).
+ *  - `304`      → `not-modified` (no body; validators only).
+ *  - `429/5xx`  → `retryable` (parsed `Retry-After`).
+ *  - other 4xx  → `error` (status only).
+ *  - SSRF-rejected hop / redirect-budget exceeded → `blocked` (no URL leaked).
+ *
+ * Privacy: nothing here logs or returns authorization headers, cookies, request
+ * bodies, or full query strings; any URL that reaches a log is passed through
+ * {@link redactUrlForLog}, and `blocked` outcomes intentionally omit the target.
+ */
+export async function fetchDiscoveryResponse(
+  url: string,
+  init: DiscoveryFetchInit = {},
+  timeoutMs = scraperTimeoutMs(),
+): Promise<DiscoveryFetchResult> {
+  const maxBytes = scraperMaxBytes();
+  const coreInit = discoveryInitToCoreInit(init);
+
+  const result = await performSafeFetch(url, coreInit, timeoutMs, async (res, finalUrl): Promise<DiscoveryFetchResult> => {
+    if (res.status === 304) {
+      await res.body?.cancel().catch(() => {});
+      return {
+        outcome: "not-modified",
+        status: 304,
+        finalUrl,
+        notModified: true,
+        validators: validatorsFrom(res),
+      };
+    }
+
+    if (res.ok) {
+      const body = await readBodyWithLimit(res, maxBytes);
+      const contentType = res.headers.get("content-type");
+      return {
+        outcome: "ok",
+        status: res.status,
+        finalUrl,
+        body,
+        notModified: false,
+        validators: validatorsFrom(res),
+        headers: contentType ? { contentType } : {},
+      };
+    }
+
+    // Non-2xx, non-304, non-redirect: discard body, classify as retryable/error.
+    await res.body?.cancel().catch(() => {});
+    if (isRetryableStatus(res.status)) {
+      const retryAfterMs = parseRetryAfterMs(res.headers.get("retry-after")) ?? undefined;
+      return {
+        outcome: "retryable",
+        status: res.status,
+        finalUrl,
+        ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+      };
+    }
+    return { outcome: "error", status: res.status, finalUrl };
+  });
+
+  if (result.kind === "consumed") return result.value;
+
+  if (result.kind === "too-many-redirects") {
+    log.warn("discovery.fetch.too_many_redirects", { url: redactUrlForLog(result.startUrl) });
+    return { outcome: "blocked", reason: "too-many-redirects" };
+  }
+
+  // SSRF-rejected hop — never surface the rejected target or the error's raw
+  // message (it may embed the private address); log only the redacted request URL.
+  log.warn("discovery.fetch.blocked", { url: redactUrlForLog(url), hop: result.hop });
+  return { outcome: "blocked", reason: "unsafe-address" };
 }
