@@ -1577,6 +1577,21 @@ model DiscoverySource {
   bodyFetchBudgetPerRun Int?
   backfillBudgetPerRun  Int?
 
+  /// Trusted-provider publication settings (#1096, Phase 2.6). All DEFAULT
+  /// FALSE and independently granted — METADATA ONLY booleans, never a
+  /// credential. They are deliberately SEPARATE permissions:
+  ///   - canFetchAuthenticated: permission to fetch this source WITH credentials.
+  ///     Grants access only; NEVER implies any right to republish publicly.
+  ///   - canRepublishPublicly: permission to republish the source's content in
+  ///     the PUBLIC library (source-ownership / republication rights).
+  ///   - autoPublishTrusted: explicit trust to AUTO-publish a fully validated
+  ///     draft without human review. It CANNOT be granted by the fetch or
+  ///     republish flags alone — auto-publication requires this flag set
+  ///     explicitly AND `canRepublishPublicly`.
+  canFetchAuthenticated Boolean @default(false)
+  canRepublishPublicly  Boolean @default(false)
+  autoPublishTrusted    Boolean @default(false)
+
   /// Completeness gap surfaced to operators.
   gapState      DiscoveryGapState @default(NONE)
   gapDetectedAt DateTime?

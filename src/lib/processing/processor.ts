@@ -30,6 +30,14 @@ import {
   getAiProcessableArticleById,
 } from "@/lib/article-library/policy";
 import { recordContentProcessingRun, recordContentProcessingStep } from "@/lib/metrics";
+import { moderateText } from "@/lib/ai/output/moderation";
+import {
+  decideIncrementalPublication,
+  resolveProviderTrust,
+  resolveSourceOwnershipOk,
+  type CandidateTrustView,
+  type PublicationReason,
+} from "./publication-policy";
 import { FEATURE_REGISTRY, type FeatureKey, type FeatureDefinition } from "./registry";
 
 /**
@@ -83,6 +91,16 @@ type ArticleState = {
   quizCount: number;
   translationLangs: Set<string>;
   hasSpeech: boolean;
+  /**
+   * Publication-gate inputs (#1096). `crawlCandidates` is empty for
+   * non-incremental (manual/imported) articles, which preserve the legacy
+   * publish-when-ok behavior. The content string is used ONLY for in-memory
+   * quality/safety screening and is NEVER logged or persisted.
+   */
+  crawlCandidates: CandidateTrustView[];
+  wordCount: number | null;
+  content: string;
+  sourceUrl: string | null;
 };
 
 type StepRunnerResult = { fallback: boolean; detail?: string; fallbackReason?: string };
@@ -106,6 +124,21 @@ async function loadArticleState(articleId: string): Promise<ArticleState | null>
       },
       translations: { select: { targetLang: true } },
       speech: { select: { articleId: true } },
+      wordCount: true,
+      content: true,
+      sourceUrl: true,
+      crawlCandidates: {
+        select: {
+          providerKey: true,
+          source: {
+            select: {
+              providerKey: true,
+              autoPublishTrusted: true,
+              canRepublishPublicly: true,
+            },
+          },
+        },
+      },
     },
   });
   if (!article) {
@@ -124,6 +157,10 @@ async function loadArticleState(articleId: string): Promise<ArticleState | null>
     quizCount: article._count.quizQuestions,
     translationLangs: new Set(article.translations.map((t) => t.targetLang)),
     hasSpeech: Boolean(article.speech),
+    crawlCandidates: (article.crawlCandidates ?? []) as CandidateTrustView[],
+    wordCount: article.wordCount ?? null,
+    content: article.content ?? "",
+    sourceUrl: article.sourceUrl ?? null,
   };
 }
 
@@ -277,29 +314,118 @@ function persistKeyFor(feature: FeatureDefinition): string {
   return feature.isTts ? "speech" : feature.key;
 }
 
+/**
+ * Minimum body word count for the publication body-quality check. Mirrors the
+ * scraper ingest floor (`@/lib/scraper/quality` `MIN_WORD_COUNT`) but is declared
+ * locally to respect the one-way processing↛scraper module boundary.
+ */
+const MIN_PUBLISH_WORD_COUNT = 50;
+
+/**
+ * Step result names of the REQUIRED enrichment features. Optional features
+ * (translation, TTS) are intentionally excluded so their failure never blocks
+ * publication of an otherwise-ready trusted article (#1096, requirement 4).
+ */
+const REQUIRED_STEP_NAMES: ReadonlySet<StepName> = new Set(
+  FEATURE_REGISTRY.filter((f) => f.isRequired).map(
+    (f) => stepResultNameFor(f) as StepName,
+  ),
+);
+
+/**
+ * Whether every REQUIRED enrichment step completed (present and not `failed`).
+ * A `skipped`/`generated`/`fallback` required step counts as complete; only a
+ * missing or `failed` required step blocks publication.
+ */
+function isRequiredEnrichmentComplete(steps: StepResult[]): boolean {
+  const byName = new Map(steps.map((s) => [s.step, s.status] as const));
+  for (const name of REQUIRED_STEP_NAMES) {
+    const status = byName.get(name);
+    if (status === undefined || status === "failed") return false;
+  }
+  return true;
+}
+
+/**
+ * Computes the four REQUIRED publication checks from the article's durable
+ * metadata + content. Content is screened IN MEMORY only (never logged or
+ * persisted). Any unverifiable signal resolves to `false` (conservative gating).
+ */
+function computeRequiredChecks(state: ArticleState) {
+  const hasBody = state.content.trim().length > 0;
+  return {
+    bodyQualityOk: state.wordCount != null && state.wordCount >= MIN_PUBLISH_WORD_COUNT,
+    contentSafetyOk: hasBody && !moderateText(state.content).flagged,
+    sourceOwnershipOk: resolveSourceOwnershipOk(state.crawlCandidates),
+    mandatoryMetadataOk:
+      state.title.trim().length > 0 &&
+      state.sourceUrl != null &&
+      state.sourceUrl.trim().length > 0 &&
+      hasBody,
+  };
+}
+
+async function markPublished(articleId: string): Promise<StepResult> {
+  await prisma.article.update({
+    where: { id: articleId },
+    data: { status: ArticleStatus.PUBLISHED, publishedAt: new Date() },
+  });
+  // Revalidate EXACTLY on the DRAFT → PUBLISHED state change (never on discovery).
+  revalidateArticlesCache();
+  return { step: "publish", status: "generated", detail: "draft → published" };
+}
+
+/**
+ * Publishes a still-draft article when it is ready, gating incremental provider
+ * drafts through the trusted-provider publication policy (#1096).
+ *
+ * - Already-published articles are a no-op.
+ * - Non-incremental (manual/imported) drafts — those with NO linked crawl
+ *   candidate — preserve the legacy behavior: publish when all steps succeeded.
+ * - Incremental provider drafts publish ONLY when the pure policy returns
+ *   `auto-publish` (explicit trust + republication permission + all required
+ *   checks + required enrichment complete). Otherwise they stay DRAFT and flow
+ *   through the existing human review. The recorded publish-step detail is a
+ *   machine reason code — never sensitive content.
+ */
 async function publishDraftIfReady(
-  articleId: string,
-  status: string,
+  before: ArticleState,
+  requiredEnrichmentComplete: boolean,
   ok: boolean,
 ): Promise<{ published: boolean; publishStep?: StepResult }> {
-  if (ok && status === ArticleStatus.DRAFT) {
-    await prisma.article.update({
-      where: { id: articleId },
-      data: { status: ArticleStatus.PUBLISHED, publishedAt: new Date() },
-    });
-    revalidateArticlesCache();
-    return {
-      published: true,
-      publishStep: { step: "publish", status: "generated", detail: "draft → published" },
-    };
-  }
+  const { id: articleId, status } = before;
+
   if (status === ArticleStatus.PUBLISHED) {
     return {
       published: true,
       publishStep: { step: "publish", status: "skipped", detail: "already published" },
     };
   }
-  return { published: false };
+  if (status !== ArticleStatus.DRAFT) {
+    return { published: false };
+  }
+
+  // Non-incremental articles (no linked candidate) keep the legacy publish gate.
+  if (before.crawlCandidates.length === 0) {
+    if (ok) {
+      return { published: true, publishStep: await markPublished(articleId) };
+    }
+    return { published: false };
+  }
+
+  // Incremental provider draft: consult the pure trusted-provider policy.
+  const trust = resolveProviderTrust(before.crawlCandidates);
+  const checks = computeRequiredChecks(before);
+  const decision = decideIncrementalPublication({ trust, checks, requiredEnrichmentComplete });
+
+  if (decision.action === "auto-publish") {
+    return { published: true, publishStep: await markPublished(articleId) };
+  }
+  const reason: PublicationReason = decision.reason;
+  return {
+    published: false,
+    publishStep: { step: "publish", status: "skipped", detail: reason },
+  };
 }
 
 /**
@@ -357,7 +483,8 @@ async function processArticleInner(
   }
 
   const ok = !steps.some((s) => s.status === "failed");
-  const publish = await publishDraftIfReady(articleId, before.status, ok);
+  const requiredEnrichmentComplete = isRequiredEnrichmentComplete(steps);
+  const publish = await publishDraftIfReady(before, requiredEnrichmentComplete, ok);
   if (publish.publishStep) {
     steps.push(publish.publishStep);
   }
