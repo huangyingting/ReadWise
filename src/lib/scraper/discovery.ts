@@ -12,7 +12,7 @@ import type {
   UrlExtractorContext,
   UrlExtractorResult,
 } from "@/lib/scraper/types";
-import { fetchHtml, fetchText } from "@/lib/scraper/fetch";
+import { fetchHtml, fetchText, fetchDiscoveryResponse } from "@/lib/scraper/fetch";
 import { isProviderEnabled } from "@/lib/scraper/sources";
 import { isUrlAllowed } from "@/lib/scraper/robots";
 import { createLogger } from "@/lib/observability/logger";
@@ -35,6 +35,13 @@ export type DiscoverDeps = {
    * any real network access.
    */
   extractorFetch?: UrlExtractorContext["fetch"];
+  /**
+   * Injectable response-metadata fetch (status/final URL/validators/Retry-After)
+   * exposed to `urlExtractor` for incremental/conditional discovery. Defaults to
+   * the SSRF-safe `fetchDiscoveryResponse`; shares the same safe hop loop as the
+   * body-only fetch. Inject in tests to stay network-free.
+   */
+  fetchResponse?: UrlExtractorContext["fetchResponse"];
 };
 
 /**
@@ -144,9 +151,12 @@ async function discoverViaExtractor(
         ? fetchText(url, init)
         : (deps.fetchHtml ?? fetchHtml)(url));
 
+  const fetchResponse: UrlExtractorContext["fetchResponse"] =
+    deps.fetchResponse ?? fetchDiscoveryResponse;
+
   let candidates: UrlExtractorResult[];
   try {
-    candidates = await provider.urlExtractor!({ limit, fetch: extractorFetch });
+    candidates = await provider.urlExtractor!({ limit, fetch: extractorFetch, fetchResponse });
   } catch (err) {
     log.warn("extractor.failed", {
       provider: provider.key,
