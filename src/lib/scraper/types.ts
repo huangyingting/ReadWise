@@ -3,6 +3,8 @@
  * as a draft Article. `content` is sanitized HTML; `sourceUrl` is the natural
  * de-duplication key.
  */
+import type { DiscoveryFetch } from "@/lib/scraper/fetch";
+
 export type ScrapedArticle = {
   title: string;
   author: string | null;
@@ -36,6 +38,13 @@ export type UrlExtractorContext = {
   limit: number;
   /** SSRF-safe HTTP client. Injected in tests for zero-network execution. */
   fetch: ExtractorFetch;
+  /**
+   * SSRF-safe response-metadata client for incremental/conditional discovery
+   * (status, final URL, ETag/Last-Modified validators, Retry-After). Shares the
+   * same safe hop loop as {@link fetch}; injected in tests to stay network-free.
+   * Optional so existing body-only extractors are unaffected.
+   */
+  fetchResponse?: DiscoveryFetch;
 };
 
 export type DiscoveredUrlSource =
