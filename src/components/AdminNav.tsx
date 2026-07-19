@@ -15,6 +15,7 @@ const SECTIONS = [
   { href: "/admin/series", label: "Series" },
   { href: "/admin/sources", label: "Sources" },
   { href: "/admin/discovery-sources", label: "Discovery" },
+  { href: "/admin/candidates", label: "Review" },
   { href: "/admin/tags", label: "Tags" },
   { href: "/admin/members", label: "Members" },
   { href: "/admin/jobs", label: "Jobs" },
