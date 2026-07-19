@@ -1462,6 +1462,12 @@ enum DiscoveryGapState {
 ///     cross-domain host, or whose prose fingerprint matched a DIFFERENT
 ///     provider's content; it is parked BEFORE Article creation with an
 ///     auditable CanonicalConflict row (#1092).
+///   - QUARANTINED: a no-Article candidate whose ingest attempts were EXHAUSTED
+///     on a transient failure (timeout / network / 404-after-grace / 429 / 5xx /
+///     short extraction) OR that failed deterministic extraction/quality
+///     validation. ONE visible resting state that ordinary source rescans never
+///     re-enqueue; only a bounded extractor-version upgrade may reactivate it
+///     (#1093). Distinct from REJECTED (permanent 410 / access-restricted).
 enum CrawlCandidateStatus {
   DISCOVERED
   BASELINE
@@ -1474,6 +1480,7 @@ enum CrawlCandidateStatus {
   CONFLICT
   DUPLICATE_ALIAS
   NEEDS_REVIEW
+  QUARANTINED
 }
 
 /// Provenance of the trusted publication date recorded for a candidate.
@@ -1621,6 +1628,25 @@ model CrawlCandidate {
   /// Version of the extraction/admission code that last processed the candidate.
   processingVersion String?
 
+  /// Ingest retry / quarantine / reactivation METADATA (#1093, Phase 2.3).
+  /// METADATA ONLY — reason codes, counts, and timestamps; NEVER a response
+  /// body, article text, secret, cookie, or authorization detail.
+  ///   - ingestAttemptCount: transient-failure attempts made for the CURRENT
+  ///     ingest processing version.
+  ///   - nextAttemptAt: when the next retry becomes runnable (backoff or a
+  ///     server Retry-After), null once terminal/quarantined.
+  ///   - lastFailureReason: machine failure reason code (see
+  ///     `ingest-outcome.ts`), used to gate extractor-version reactivation.
+  ///   - firstIngestAttemptAt: start of the propagation grace window; a 404
+  ///     within grace is pre-propagation (retry), after grace is quarantine.
+  ///   - extractorVersion: extractor/processing version that last handled the
+  ///     candidate; also the ingest dedupe-key version, bumped on reactivation.
+  ingestAttemptCount   Int       @default(0)
+  nextAttemptAt        DateTime?
+  lastFailureReason    String?
+  firstIngestAttemptAt DateTime?
+  extractorVersion     Int?
+
   /// Versioned NORMALIZED-PROSE fingerprint (#1092). `bodyFingerprint` is a
   /// one-way HASH of the normalized extracted prose — NEVER the prose text —
   /// and `bodyFingerprintVersion` tags the normalization+hash scheme
@@ -1665,6 +1691,7 @@ model CrawlCandidate {
   @@index([observedInBaseline])
   @@index([providerKey, status])
   @@index([providerKey, bodyFingerprint])
+  @@index([status, nextAttemptAt])
 }
 
 /// Alternate SANITIZED identity keys (redirects, canonical links, duplicates,
