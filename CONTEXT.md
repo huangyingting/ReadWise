@@ -1,6 +1,7 @@
 # ReadWise Context
 
-Canonical language for article reading, generated narration, and stored media.
+Canonical language for content ingestion, article reading, generated narration,
+and stored media.
 
 ## Language
 
@@ -53,6 +54,26 @@ _Avoid_: Worker processing, claim-and-run, job runner
 **Public-library URL intake**:
 The lifecycle for accepting a web article URL into the shared library, ending in an ownerless draft or a non-saving outcome.
 _Avoid_: Admin scrape, scrape-and-save
+
+**Incremental provider ingestion**:
+The lifecycle that admits provider article identities first observed after a completed Discovery Baseline, without automatically refreshing any known public article.
+_Avoid_: Provider refresh, recurring scrape
+
+**Discovery Baseline**:
+A bounded observation of a Discovery Source's normal incremental window that establishes already-known article identities without fetching article bodies.
+_Avoid_: Initial backfill, archive crawl
+
+**Crawl Candidate**:
+The durable public-ingestion record for one potential article identity from first observation through review, processing, or a terminal non-saving outcome.
+_Avoid_: Scrape item, pending URL
+
+**Discovery Watermark**:
+The last fully recorded boundary of a Discovery Source, representing observation completeness rather than successful Article creation.
+_Avoid_: Last scraped date, latest article date
+
+**Public Article Identity**:
+The stable upstream identity under which URL variants for one provider article are treated as the same shared-library item.
+_Avoid_: Source URL, scrape URL
 
 **Source extraction policy**:
 The exceptional extraction and declutter decisions owned by one Content Ingestion source adapter and executed by the shared extraction pipeline.
