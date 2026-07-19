@@ -1,0 +1,15 @@
+-- SQLite migration for Phase 3.1 candidate review & explicit source trust
+-- promotion (#1100).
+--
+-- CrawlCandidateStatus is a plain TEXT column under SQLite, so the new enum
+-- value (SKIPPED_REVIEW) requires NO schema change here — it is enforced only by
+-- the Prisma client + the PostgreSQL enum type.
+--
+-- SKIPPED_REVIEW is the terminal, no-Article resting state recorded when an
+-- authorized operator EXPLICITLY rejects a NEEDS_REVIEW candidate; ordinary
+-- rediscovery/ingest never re-enqueues it (governing invariant), and only the
+-- separate audited reactivate action returns it to NEEDS_REVIEW.
+--
+-- Source trust promotion reuses the existing (already version-scoped)
+-- DiscoverySource `autoPublishTrusted` flag and records actor/version/policy/
+-- evidence in the audit log, so no column or index is added by this migration.

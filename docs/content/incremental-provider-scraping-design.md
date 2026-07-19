@@ -2089,6 +2089,108 @@ its activation/pause guards + redaction, wired at `prepareAuthenticatedFetch`,
 awaiting the production body-fetch dispatch (the same follow-up called out in
 Phase 2.5). No end-to-end authenticated body ingestion is claimed here.
 
+## Phase 3.1 — candidate review & explicit source trust promotion (#1100) — current
+
+Phase 3.1 lets an authorized operator decide uncertain new identities and
+EXPLICITLY promote a proven sitemap/HTML source, WITHOUT any automatic trust
+escalation. It upholds the governing invariant on both edges: approval routes a
+candidate through the NORMAL version/dedupe candidate pipeline (it never
+refetches, updates, or revives a known public Article), and promotion is an
+operator action the metrics only ever REPORT — never trigger.
+
+### Rejection state (`SKIPPED_REVIEW`)
+
+A new `CrawlCandidateStatus` value, `SKIPPED_REVIEW`, is the terminal, no-Article
+resting state recorded when an operator EXPLICITLY rejects a `NEEDS_REVIEW`
+candidate. It is deliberately distinct from `REJECTED` (a provider-driven
+permanent 410 / access restriction) and `SKIPPED` (a policy/frontier skip):
+`SKIPPED_REVIEW` is a recorded HUMAN decision that ordinary rediscovery/ingest
+NEVER re-enqueues, and that only the separate audited reactivate action can
+return to `NEEDS_REVIEW`. Dual-engine parity: SQLite stores the enum as TEXT (a
+comment-only migration), PostgreSQL adds it with a standalone
+`ALTER TYPE "CrawlCandidateStatus" ADD VALUE 'SKIPPED_REVIEW'` (enum values
+cannot be added inside a transaction), matching the #1093 precedent.
+
+### Pure policies (no DB/network/clock)
+
+- `candidate-review-policy.ts` — `decideCandidateReview({ action, status,
+  hasArticle })` returns `apply` (legal transition + whether to enqueue ingest),
+  `noop` (idempotent — the action's effect already holds), or `illegal`. The
+  state machine: `NEEDS_REVIEW --approve--> QUEUED` (+ normal candidate ingest
+  job), `NEEDS_REVIEW --reject--> SKIPPED_REVIEW` (terminal, never rediscovered),
+  `SKIPPED_REVIEW --reactivate--> NEEDS_REVIEW`. A linked Article (`hasArticle`)
+  HARD-BLOCKS every action (`illegal: has-article`) — the governing invariant.
+  `reject`/`reactivate` are policy-sensitive and REQUIRE an audit reason.
+- `source-trust-policy.ts` — `computeSourceTrustEvidence` rolls up sample size,
+  accepted/review-rejected counts, approval rate, old-item false-positive
+  rate, and drift; `decideSourceTrustEligibility` REPORTS hard blockers
+  (`insufficient-sample`, `insufficient-decisions`, `low-approval-rate`,
+  `old-item-false-positive`, `active-drift`) and soft warnings, but NEVER
+  promotes; `decideSourceTrustDemotion` decides drift/anomaly auto-demotion. An
+  old-item false positive (a pre-baseline identity that became work) is a hard,
+  zero-tolerance blocker AND a demotion trigger.
+
+### Thin guarded persistence
+
+- `applyCandidateReview` re-reads state, applies the pure decision inside a
+  single interactive `$transaction` with a guarded `updateMany({ where: { id,
+  status, articleId: null } })` (a zero-row match throws → rollback → re-read →
+  idempotent re-decide). Approval enqueues the SAME idempotent
+  `article-ingest:candidate:<id>:v<version>` Job the discovery loop uses, in the
+  same transaction, so approving twice creates EXACTLY ONE active Job (AC1): the
+  second call re-reads `QUEUED` and the policy returns a no-op that enqueues
+  nothing. Rejection stamps `SKIPPED_REVIEW` + a sanitized `terminalReason`
+  category; reactivation is the separate `SKIPPED_REVIEW → NEEDS_REVIEW` edge.
+- `promoteSourceTrust` / `demoteSourceTrust` reuse the existing DiscoverySource
+  `autoPublishTrusted` flag, which is ALREADY version-scoped because the row is
+  unique per `(providerKey, sourceKey, definitionVersion)`. A guarded
+  `updateMany` matches only a row whose lease is free and whose
+  `definitionVersion` + current flag equal the expected values (a re-versioned or
+  busy source is refused). Promotion is idle-guarded AND eligibility-gated — it
+  refuses unless the pure eligibility report is clear (metrics never auto-promote;
+  an old-item false positive can never be trusted). A manual demote clears only
+  the flag (the operator has a separate lifecycle rollback action).
+- `evaluateAndApplyTrustDemotion` runs in the discovery-run finalizer under the
+  worker's own lease: on a TRUSTED source, a configured drift/anomaly clears the
+  trust flag AND (for an `ACTIVE` source) rolls it back to `SHADOW` via the
+  guarded `transitionDiscoveryLifecycle`, which PRESERVES all candidate /
+  checkpoint / watermark history (AC3). It early-outs cheaply on an untrusted
+  source and NEVER throws (a fault is caught + logged so the discovery loop
+  cannot break). A rediscovery guard in `commitClassifiedItem` (enqueue gated on
+  a freshly-created `DISCOVERED` candidate) is a belt-and-suspenders backstop so
+  a re-observed `SKIPPED_REVIEW`/terminal candidate is never requeued.
+
+### Capability-gated endpoints (all `sources.manage`, deny-by-default + CSRF)
+
+- `GET /api/admin/candidates` — filtered, paginated review queue (default
+  `NEEDS_REVIEW`, also `SKIPPED_REVIEW`); sanitized provenance DTOs only.
+- `GET /api/admin/candidates/{id}` — one sanitized candidate + conflict history.
+- `POST /api/admin/candidates/{id}/review` — one idempotent approve/reject/
+  reactivate; outcome→HTTP: applied/noop `200`, not-found `404`, illegal/stale
+  `409` (`stale: true` for the stale-candidate UI state).
+- `POST /api/admin/candidates/review` — bounded batch (≤100, de-duplicated); a
+  PARTIAL-BATCH per-item result array + summary (always `200`), each item
+  processed independently.
+- `GET` / `POST /api/admin/discovery-sources/{id}/trust` — trust snapshot
+  (policy + evidence + REPORTED eligibility) and the explicit, version-scoped,
+  reversible promote/demote.
+
+Every state-CHANGING mutation writes a sanitized audit entry via one of the new
+`AUDIT_ACTIONS` (`adminCandidateReview`, `adminCandidateReactivate`,
+`adminSourceTrustPromotion`): ids, from/to state, counts, before/after policy,
+reason CATEGORY, and a flattened evidence summary — NEVER a URL, body, secret, or
+article content. Idempotent no-ops write NO audit. The candidate ledger stores
+only versioned identity HASHES (`<version>:<sha256hex>`), so the review DTOs are
+sanitized by construction. (The admin UI is Trinity's half — this phase delivers
+the data, states, and API contract it renders against.)
+
+### Deferred (follow-ups)
+
+An open `CanonicalConflict` is NOT auto-resolved when its `NEEDS_REVIEW`
+candidate is approved/rejected — conflict resolution stays a separate concern.
+Promotion has no force-override: an operator cannot bypass the eligibility bar
+(revisit if a legitimate override need appears).
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -2130,6 +2232,10 @@ The following phases build on the Phase 1 ledger and are documented as they land
   with production body-fetch dispatch remaining the same follow-up as #1095.)*
 - **Phase 3 — operator review, backfill, and controlled refresh** (epic #1080):
   canonical-conflict review UI, bounded historical backfill under a separate
-  budget, and explicitly operator-triggered refresh. *(The `backfill` and
-  `force-rescrape` trigger modes are already DEFINED in the Phase 2.7 taxonomy
-  and rejected explicitly until implemented here.)*
+  budget, and explicitly operator-triggered refresh. *(Candidate review &
+  explicit source trust promotion #1100 has landed — see "Phase 3.1" above:
+  capability-gated review-queue + trust endpoints, the `SKIPPED_REVIEW` rejection
+  state, idempotent approve/reject/reactivate, and drift auto-demotion that
+  preserves candidate history; the admin UI is delivered separately. The
+  `backfill` and `force-rescrape` trigger modes are already DEFINED in the
+  Phase 2.7 taxonomy and rejected explicitly until implemented here.)*
