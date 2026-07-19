@@ -32,6 +32,7 @@ import {
   CandidateDateProvenance,
   CrawlCandidateStatus,
   DiscoverySourceLifecycleMode,
+  JobStatus,
   JobType,
 } from "@prisma/client";
 
@@ -44,6 +45,8 @@ import {
   completeBaseline,
   transitionDiscoveryLifecycle,
 } from "@/lib/scraper/incremental/lifecycle-commit";
+import { applyLifecycleAction } from "@/lib/scraper/incremental/lifecycle-actions";
+import { enqueueCandidateIngestInTx, ROLLBACK_CANCELLED_REASON } from "@/lib/jobs";
 import {
   BodyWorkProhibitedError,
   guardIngestPort,
@@ -466,4 +469,85 @@ test("baseline + shadow perform ZERO body work; injected failing deps are never 
   assert.equal(ingestEnqueues, 0);
   assert.equal(await prisma.article.count({ where: { sourceUrl: { in: [bUrl, sUrl] } } }), 0);
   assert.equal(await prisma.job.count({ where: { type: JobType.ARTICLE_INGEST } }), ingestBefore);
+});
+
+// ---------------------------------------------------------------------------
+// #1097: the full active→shadow rollback (park + generation bump + cancel
+// unclaimed candidate ingest jobs) RETAINS the ledger.
+// ---------------------------------------------------------------------------
+
+test("active→shadow rollback parks scheduling, bumps generation, cancels PENDING ingest, retains ledger", { skip: !enabled }, async () => {
+  const source = await createDiscoverySource({
+    lifecycleMode: ACTIVE,
+    leaseOwner: null,
+    nextRunAt: new Date(),
+    activatedAt: new Date("2026-07-01T00:00:00.000Z"),
+    activationGeneration: 0,
+  });
+
+  // A candidate with an UNCLAIMED (PENDING) ingest job, and another whose ingest
+  // job is already CLAIMED by a worker (must NOT be cancelled by rollback).
+  const pendingCandidate = await createCrawlCandidate({
+    providerKey: source.providerKey,
+    discoverySourceId: source.id,
+    status: CrawlCandidateStatus.QUEUED,
+  });
+  const claimedCandidate = await createCrawlCandidate({
+    providerKey: source.providerKey,
+    discoverySourceId: source.id,
+    status: CrawlCandidateStatus.QUEUED,
+  });
+
+  const pendingJob = await prisma.$transaction((tx) =>
+    enqueueCandidateIngestInTx(tx, pendingCandidate.id),
+  );
+  const claimedJob = await prisma.$transaction((tx) =>
+    enqueueCandidateIngestInTx(tx, claimedCandidate.id),
+  );
+  await prisma.job.update({
+    where: { id: claimedJob.id },
+    data: { status: JobStatus.CLAIMED, lockedBy: LEASE, lockedAt: new Date() },
+  });
+
+  const rolled = await applyLifecycleAction(source.id, "rollback");
+  assert.equal(rolled.ok, true);
+  if (rolled.ok) {
+    assert.equal(rolled.toMode, SHADOW);
+    assert.equal(rolled.cancelledJobCount, 1);
+    assert.equal(rolled.activationGeneration, 1);
+  }
+
+  const row = await prisma.discoverySource.findUnique({ where: { id: source.id } });
+  assert.equal(row?.lifecycleMode, SHADOW);
+  assert.equal(row?.nextRunAt, null, "scheduling is parked until an explicit re-activation");
+  assert.equal(row?.activationGeneration, 1, "generation bumped so pre-rollback jobs fail closed");
+
+  // Unclaimed ingest job → DEAD_LETTER with the controlled reason; claimed job untouched.
+  const pendingAfter = await prisma.job.findUnique({ where: { id: pendingJob.id } });
+  assert.equal(pendingAfter?.status, JobStatus.DEAD_LETTER);
+  assert.equal(pendingAfter?.lastError, ROLLBACK_CANCELLED_REASON);
+  const claimedAfter = await prisma.job.findUnique({ where: { id: claimedJob.id } });
+  assert.equal(claimedAfter?.status, JobStatus.CLAIMED, "claimed/running work is not cancelled here");
+
+  // The ledger is RETAINED so a later explicit activation can requeue eligible work.
+  assert.equal(await prisma.crawlCandidate.count({ where: { discoverySourceId: source.id } }), 2);
+
+  await prisma.job.deleteMany({ where: { id: { in: [pendingJob.id, claimedJob.id] } } });
+});
+
+test("active→shadow rollback refuses a leased source and preserves ACTIVE state", { skip: !enabled }, async () => {
+  const source = await createDiscoverySource({
+    lifecycleMode: ACTIVE,
+    leaseOwner: LEASE,
+    nextRunAt: new Date(),
+    activationGeneration: 2,
+  });
+
+  const result = await applyLifecycleAction(source.id, "rollback");
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reason, "busy");
+
+  const row = await prisma.discoverySource.findUnique({ where: { id: source.id } });
+  assert.equal(row?.lifecycleMode, ACTIVE);
+  assert.equal(row?.activationGeneration, 2, "a refused rollback never bumps the generation");
 });

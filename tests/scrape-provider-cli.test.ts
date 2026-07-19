@@ -2,6 +2,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   applyDiscoveryFilters,
@@ -64,6 +65,29 @@ test("provider workflow CLI parses all-provider resume overrides", () => {
   assert.equal(args.delayMs, 500);
   assert.equal(args.includeExisting, true);
   assert.equal(args.retryFailed, true);
+});
+
+test("provider workflow CLI defaults trigger mode to incremental", () => {
+  const args = parseArgs(["scrape", "--provider", "atlasobscura"]);
+  assert.equal(args.mode, "incremental");
+});
+
+test("provider workflow CLI records an explicit --mode without smuggling a bypass", () => {
+  const backfill = parseArgs(["scrape", "--provider", "atlasobscura", "--mode", "backfill"]);
+  assert.equal(backfill.mode, "backfill");
+  const force = parseArgs(["resume", "--provider", "atlasobscura", "--mode", "force-rescrape"]);
+  assert.equal(force.mode, "force-rescrape");
+});
+
+test("provider workflow CLI cannot reach legacy synchronous discover-and-save", () => {
+  const source = readFileSync(new URL("../scripts/scrape-provider.ts", import.meta.url), "utf8");
+  // The synchronous save path (scrapeAndSave) and its worker loop are removed:
+  // no normal command can rescrape a known Article from the CLI.
+  assert.equal(source.includes("scrapeAndSave"), false);
+  assert.equal(source.includes("runScrape"), false);
+  // The normal scrape/resume commands route through the incremental ledger instead.
+  assert.match(source, /requestIncrementalRun/);
+  assert.match(source, /runIncrementalRequest/);
 });
 
 test("provider workflow CLI parses time-aware discovery controls", () => {

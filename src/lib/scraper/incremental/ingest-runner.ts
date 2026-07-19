@@ -61,6 +61,7 @@ export type RunnerSource = {
   lifecycleMode: string;
   definitionVersion: number;
   activatedAt: Date | null;
+  activationGeneration: number;
 };
 
 /** The extracted draft body/fields, minus the URLs (derived from the fetch). */
@@ -125,7 +126,7 @@ async function defaultLoadContext(
   const source = candidate.discoverySourceId
     ? await prisma.discoverySource.findUnique({
         where: { id: candidate.discoverySourceId },
-        select: { lifecycleMode: true, definitionVersion: true, activatedAt: true },
+        select: { lifecycleMode: true, definitionVersion: true, activatedAt: true, activationGeneration: true },
       })
     : null;
   return { candidate, source };
@@ -157,7 +158,11 @@ export function createIngestAttemptRunner(deps: IngestRunnerDeps): IngestAttempt
     if (row.articleId != null || row.observedInBaseline) return { ok: true };
 
     const sourceGeneration = source
-      ? { definitionVersion: source.definitionVersion, activatedAt: source.activatedAt }
+      ? {
+          definitionVersion: source.definitionVersion,
+          activatedAt: source.activatedAt,
+          activationGeneration: source.activationGeneration,
+        }
       : null;
 
     const prepared = await deps.prepareDraft({ candidate: row, source, logger: ctx.logger, job: ctx.job, now });

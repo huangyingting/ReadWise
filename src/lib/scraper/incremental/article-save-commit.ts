@@ -113,6 +113,13 @@ export type SourceGenerationSnapshot = {
   definitionVersion: number;
   /** Expected `DiscoverySource.activatedAt` at extraction time (the generation marker). */
   activatedAt: Date | null;
+  /**
+   * Expected `DiscoverySource.activationGeneration` at extraction time (#1097).
+   * A rollback increments this, so a pre-rollback snapshot is strictly lower
+   * than the source's current generation even after a later re-activation
+   * (which leaves `activatedAt` unchanged) → the save fails closed.
+   */
+  activationGeneration: number;
 };
 
 /** Extracted, secret-free article fields the save writes onto the new Article. */
@@ -332,9 +339,11 @@ async function runSaveTx(input: SaveIncrementalArticleInput, now: Date): Promise
 /**
  * Guards the source ACTIVATION GENERATION inside the transaction. A missing
  * source, a non-ACTIVE lifecycle mode (the active→shadow stale-generation stop),
- * a bumped definition version, or a changed `activatedAt` marker all mean this
- * worker's extraction belongs to a superseded generation → throw so the whole
- * transaction rolls back and NO Article is written.
+ * a bumped definition version, a changed `activatedAt` marker, OR a bumped
+ * `activationGeneration` (an active→shadow rollback happened after the snapshot,
+ * even if the source was later re-activated) all mean this worker's extraction
+ * belongs to a superseded generation → throw so the whole transaction rolls back
+ * and NO Article is written.
  */
 async function revalidateSourceGeneration(
   tx: Prisma.TransactionClient,
@@ -344,13 +353,14 @@ async function revalidateSourceGeneration(
   if (!snapshot || candidate.discoverySourceId == null) return;
   const src = await tx.discoverySource.findUnique({
     where: { id: candidate.discoverySourceId },
-    select: { lifecycleMode: true, definitionVersion: true, activatedAt: true },
+    select: { lifecycleMode: true, definitionVersion: true, activatedAt: true, activationGeneration: true },
   });
   if (
     !src ||
     src.lifecycleMode !== DiscoverySourceLifecycleMode.ACTIVE ||
     src.definitionVersion !== snapshot.definitionVersion ||
-    !sameInstant(src.activatedAt, snapshot.activatedAt)
+    !sameInstant(src.activatedAt, snapshot.activatedAt) ||
+    src.activationGeneration !== snapshot.activationGeneration
   ) {
     throw new SaveRevalidationError("stale-generation");
   }

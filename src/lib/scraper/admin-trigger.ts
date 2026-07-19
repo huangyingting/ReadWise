@@ -1,14 +1,33 @@
-import { revalidateArticlesCache } from "@/lib/cache";
-import { AUDIT_ACTIONS, recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
-import { clientIp } from "@/lib/security/client-ip";
-import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security/events";
-import { discoverProviderUrls } from "@/lib/scraper/discovery";
+/**
+ * Admin provider trigger (issue #1097, Phase 2.7).
+ *
+ * The NORMAL admin trigger no longer synchronously discovers + scrapes URLs
+ * (the legacy `discoverProviderUrls` + `scrapeAndSave` loop, which could
+ * rescrape a KNOWN public Article and violate the governing invariant).
+ * Instead it REQUESTS an incremental discovery run through the incremental
+ * module: it validates the trigger mode + provider(s) + bounded limit, marks the
+ * provider's claimable-mode discovery sources due (`nextRunAt = now`), and
+ * writes an AUDIT record. Bodies are fetched later by the candidate-ingest job
+ * pipeline; only identities first observed AFTER a completed baseline are ever
+ * ingested.
+ *
+ * Only `incremental` (the default) is implemented. `backfill` / `force-rescrape`
+ * are rejected EXPLICITLY (Phase 3, non-goal here); a normal trigger input can
+ * neither smuggle a bypass flag (unknown keys are dropped by the object schema)
+ * nor fall through to old behavior.
+ *
+ * PRIVACY: audit metadata records controlled machine fields only (mode, provider
+ * keys, counts, phase) — never a URL or article content.
+ */
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
-import { recordCrawlRun, type CrawlRunOutcome } from "@/lib/scraper/sources";
-import { scrapeAndSave, type UrlIntakeOutcome } from "@/lib/scraper";
+import { requestIncrementalRun } from "@/lib/scraper/incremental/incremental-run-request";
+import {
+  DEFAULT_TRIGGER_MODE,
+  validateTriggerMode,
+  type TriggerMode,
+} from "@/lib/scraper/incremental/trigger-mode";
 import type { Provider } from "@/lib/scraper/types";
-
-const ADMIN_SCRAPE_TRIGGER_ROUTE = "/api/admin/scrape/trigger";
 
 export const ADMIN_SCRAPE_TRIGGER_DEFAULT_LIMIT = 5;
 export const ADMIN_SCRAPE_TRIGGER_MAX_LIMIT = 50;
@@ -17,20 +36,22 @@ export type AdminScrapeTriggerInput = {
   provider?: string;
   all?: boolean;
   limit?: number;
+  /** Explicit trigger mode. Defaults to `incremental`; only that is implemented. */
+  mode?: string;
 };
 
+/** Per-provider result: how many discovery sources this run request woke. */
 export type AdminScrapeProviderResult = {
   provider: string;
-  discovered: number;
-  saved: number;
-  skipped: number;
-  failed: number;
-  error?: string;
+  sourcesRequested: number;
 };
 
 export type AdminScrapeTriggerResult = {
+  /** The validated, implemented trigger mode (currently always `incremental`). */
+  mode: TriggerMode;
   results: AdminScrapeProviderResult[];
-  totalSaved: number;
+  /** Total discovery sources made due across the selected providers. */
+  totalSourcesRequested: number;
 };
 
 type AdminScrapeTriggerLog = {
@@ -45,10 +66,6 @@ type AdminScrapeTriggerSession = {
   };
 };
 
-type AdminScrapeCounters = Pick<AdminScrapeProviderResult, "saved" | "skipped" | "failed">;
-type ScrapeOutcomeStatus = keyof AdminScrapeCounters;
-type FailedUrlIntake = Extract<UrlIntakeOutcome, { status: "failed" }>;
-
 export type AdminScrapeTriggerContext = {
   req: Request;
   session: AdminScrapeTriggerSession;
@@ -56,6 +73,7 @@ export type AdminScrapeTriggerContext = {
   log: AdminScrapeTriggerLog;
 };
 
+/** A bad provider selection (unknown key / neither provider nor all). */
 export class AdminScrapeTriggerInputError extends Error {
   constructor(message: string) {
     super(message);
@@ -63,14 +81,43 @@ export class AdminScrapeTriggerInputError extends Error {
   }
 }
 
+/** A defined-but-unimplemented / unknown trigger mode (fail explicitly, AC3). */
+export class AdminScrapeTriggerModeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AdminScrapeTriggerModeError";
+  }
+}
+
+function clampLimit(limit: number | undefined): number {
+  const value = limit ?? ADMIN_SCRAPE_TRIGGER_DEFAULT_LIMIT;
+  return Math.max(1, Math.min(ADMIN_SCRAPE_TRIGGER_MAX_LIMIT, value));
+}
+
+/**
+ * Validates the request and REQUESTS an incremental discovery run for the
+ * selected provider(s). Never fetches a body or writes an Article.
+ */
 export async function runAdminScrapeTrigger(
   input: AdminScrapeTriggerInput,
   context: AdminScrapeTriggerContext,
 ): Promise<AdminScrapeTriggerResult> {
-  const limit = input.limit ?? ADMIN_SCRAPE_TRIGGER_DEFAULT_LIMIT;
-  const scrapeAll = input.all === true;
+  const modeResult = validateTriggerMode(input.mode ?? DEFAULT_TRIGGER_MODE);
+  if (!modeResult.ok) {
+    throw new AdminScrapeTriggerModeError(modeResult.message);
+  }
+  const mode = modeResult.mode;
+  const limit = clampLimit(input.limit);
   const providers = selectProviders(input);
-  const mode = scrapeAll ? "all" : "provider";
+  const scrapeAll = input.all === true;
+
+  const results: AdminScrapeProviderResult[] = [];
+  let totalSourcesRequested = 0;
+  for (const provider of providers) {
+    const { requested } = await requestIncrementalRun([provider.key], new Date());
+    results.push({ provider: provider.key, sourcesRequested: requested });
+    totalSourcesRequested += requested;
+  }
 
   await recordAuditFromRequest({
     req: context.req,
@@ -80,145 +127,22 @@ export async function runAdminScrapeTrigger(
     targetType: "scrape",
     targetId: scrapeAll ? "all" : providers[0]?.key ?? "unknown",
     metadata: {
+      mode,
       providerCount: providers.length,
       providers: providers.map((provider) => provider.key),
       limit,
+      sourcesRequested: totalSourcesRequested,
       phase: "requested",
     },
   });
 
-  const results: AdminScrapeProviderResult[] = [];
-  for (const provider of providers) {
-    results.push(await scrapeProvider(provider, limit, mode, context));
-  }
-
-  const totalSaved = results.reduce((sum, result) => sum + result.saved, 0);
-  if (totalSaved > 0) {
-    revalidateArticlesCache();
-  }
-
-  return { results, totalSaved };
-}
-
-async function scrapeProvider(
-  provider: Provider,
-  limit: number,
-  mode: "all" | "provider",
-  context: AdminScrapeTriggerContext,
-): Promise<AdminScrapeProviderResult> {
-  const startedAt = Date.now();
-  let urls: string[];
-  try {
-    urls = await discoverProviderUrls(provider, limit);
-  } catch (err) {
-    const message = errorMessage(err);
-    context.log.warn("scrape.trigger.discover_failed", { provider: provider.key, error: message });
-    recordImportFailure(context, provider.key, "discover", message);
-    await recordAdminCrawlRun(provider.key, mode, startedAt, context, {
-      discovered: 0,
-      scraped: 0,
-      failed: 0,
-      duplicates: 0,
-      rejected: 0,
-      error: message,
-    });
-    return { provider: provider.key, discovered: 0, saved: 0, skipped: 0, failed: 0, error: message };
-  }
-
-  const counters = await scrapeDiscoveredUrls(provider, urls, context);
-  await recordAdminCrawlRun(provider.key, mode, startedAt, context, {
-    discovered: urls.length,
-    scraped: counters.saved,
-    failed: counters.failed,
-    duplicates: counters.skipped,
-    rejected: 0,
-  });
-  context.log.info("scrape.trigger.provider_done", {
-    provider: provider.key,
-    discovered: urls.length,
-    ...counters,
+  context.log.info("scrape.trigger.requested", {
+    mode,
+    providerCount: providers.length,
+    sourcesRequested: totalSourcesRequested,
   });
 
-  return { provider: provider.key, discovered: urls.length, ...counters };
-}
-
-async function recordAdminCrawlRun(
-  providerKey: string,
-  mode: "all" | "provider",
-  startedAt: number,
-  context: AdminScrapeTriggerContext,
-  outcome: Omit<CrawlRunOutcome, "source" | "mode" | "durationMs">,
-): Promise<void> {
-  try {
-    await recordCrawlRun(providerKey, {
-      ...outcome,
-      source: "admin-trigger",
-      mode,
-      durationMs: Date.now() - startedAt,
-    });
-  } catch (err) {
-    context.log.warn("scrape.trigger.health_record_failed", {
-      provider: providerKey,
-      error: errorMessage(err),
-    });
-  }
-}
-
-async function scrapeDiscoveredUrls(
-  provider: Provider,
-  urls: string[],
-  context: AdminScrapeTriggerContext,
-): Promise<AdminScrapeCounters> {
-  const counters: AdminScrapeCounters = { saved: 0, skipped: 0, failed: 0 };
-
-  for (const url of urls) {
-    try {
-      incrementCounter(counters, await scrapeAndSaveUrl(provider, url, context));
-    } catch (err) {
-      const message = errorMessage(err);
-      context.log.warn("scrape.trigger.save_failed", { provider: provider.key, error: message });
-      recordImportFailure(context, provider.key, "save", message);
-      counters.failed++;
-    }
-  }
-
-  return counters;
-}
-
-async function scrapeAndSaveUrl(
-  provider: Provider,
-  url: string,
-  context: AdminScrapeTriggerContext,
-): Promise<ScrapeOutcomeStatus> {
-  const outcome = await scrapeAndSave(
-    url,
-    (created) => articleIngestAudit(context, provider.key, created),
-  );
-  if (outcome.status === "failed") {
-    recordIntakeFailure(context, provider.key, outcome);
-  }
-  return outcome.status;
-}
-
-function recordIntakeFailure(
-  context: AdminScrapeTriggerContext,
-  provider: string,
-  outcome: FailedUrlIntake,
-): void {
-  context.log.warn("scrape.trigger.intake_failed", {
-    provider,
-    failure: outcome.failure,
-    error: outcome.reason,
-  });
-  if (outcome.failure === "scrape" || outcome.failure === "save") {
-    recordImportFailure(context, provider, "save", outcome.reason);
-  }
-}
-
-function incrementCounter(counters: AdminScrapeCounters, status: ScrapeOutcomeStatus): void {
-  if (status === "saved") counters.saved++;
-  else if (status === "skipped") counters.skipped++;
-  else counters.failed++;
+  return { mode, results, totalSourcesRequested };
 }
 
 function selectProviders(input: AdminScrapeTriggerInput): Provider[] {
@@ -237,40 +161,4 @@ function selectProviders(input: AdminScrapeTriggerInput): Provider[] {
   }
 
   throw new AdminScrapeTriggerInputError("Specify a `provider` key or set `all: true`.");
-}
-
-function articleIngestAudit(
-  context: AdminScrapeTriggerContext,
-  provider: string,
-  created: { id: string },
-): AuditRequestInput {
-  return {
-    req: context.req,
-    session: context.session,
-    requestId: context.requestId,
-    action: AUDIT_ACTIONS.adminArticleIngest,
-    targetType: "article",
-    targetId: created.id,
-    metadata: { source: "scrape.trigger", provider },
-  };
-}
-
-function recordImportFailure(
-  context: AdminScrapeTriggerContext,
-  provider: string,
-  phase: "discover" | "save",
-  error: string,
-): void {
-  recordSecurityEvent({
-    type: SECURITY_EVENT_TYPES.importFailed,
-    severity: "medium",
-    route: ADMIN_SCRAPE_TRIGGER_ROUTE,
-    actorId: context.session.user.id,
-    ip: clientIp(context.req),
-    meta: { provider, phase, error },
-  });
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
