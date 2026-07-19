@@ -17,6 +17,7 @@ import {
   formatDateTime,
   formatWeekdayUTC,
   formatLockAge,
+  formatAgeSeconds,
   formatRelativeTime,
   formatUSD,
 } from "@/lib/display-format";
@@ -214,6 +215,45 @@ describe("formatLockAge", () => {
 
   test("handles 0 ms", () => {
     assert.equal(formatLockAge(0), "0s");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatAgeSeconds
+// ---------------------------------------------------------------------------
+
+describe("formatAgeSeconds", () => {
+  test("returns '—' for null / undefined", () => {
+    assert.equal(formatAgeSeconds(null), EMPTY_DATE_LABEL);
+    assert.equal(formatAgeSeconds(undefined), EMPTY_DATE_LABEL);
+  });
+
+  test("clamps negatives to 0s", () => {
+    assert.equal(formatAgeSeconds(-5), "0s");
+  });
+
+  test("formats sub-minute as seconds", () => {
+    assert.equal(formatAgeSeconds(45), "45s");
+  });
+
+  test("formats minutes", () => {
+    assert.equal(formatAgeSeconds(600), "10m");
+  });
+
+  test("formats hours with remainder minutes", () => {
+    assert.equal(formatAgeSeconds(3 * 3600 + 15 * 60), "3h 15m");
+  });
+
+  test("formats whole hours without remainder", () => {
+    assert.equal(formatAgeSeconds(2 * 3600), "2h");
+  });
+
+  test("formats multi-day spans with remainder hours", () => {
+    assert.equal(formatAgeSeconds(5 * 86_400 + 4 * 3600), "5d 4h");
+  });
+
+  test("formats whole days without remainder", () => {
+    assert.equal(formatAgeSeconds(14 * 86_400), "14d");
   });
 });
 

@@ -25,21 +25,18 @@ import {
   beginBaseline,
   transitionDiscoveryLifecycle,
 } from "./lifecycle-commit";
+import {
+  LIFECYCLE_ACTIONS,
+  type LifecycleActionName,
+} from "./lifecycle-action-meta";
 
 const M = DiscoverySourceLifecycleMode;
 
-/** The lifecycle actions an admin may invoke (capability-gated + audited). */
-export const LIFECYCLE_ACTIONS = [
-  "begin-baseline",
-  "activate",
-  "pause",
-  "resume",
-  "rollback",
-  "disable",
-  "retire",
-] as const;
-
-export type LifecycleActionName = (typeof LIFECYCLE_ACTIONS)[number];
+// The action NAMES live in the client-safe `lifecycle-action-meta` module so the
+// admin UI's button set and this validated dispatcher never drift; re-exported
+// here to preserve the existing import path for the API route.
+export { LIFECYCLE_ACTIONS };
+export type { LifecycleActionName };
 
 /** Why an action did not apply (sanitized category — never a URL/body). */
 export type LifecycleActionFailure =

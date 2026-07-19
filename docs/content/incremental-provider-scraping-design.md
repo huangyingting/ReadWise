@@ -839,8 +839,35 @@ flips lifecycle mode.
   (`admin.discovery_source.lifecycle`: sourceId, from/to mode, counts — never a
   URL/content/secret) — AC2. Review, backfill, conflict resolution,
   authenticated-source secrets, and force-rescrape are deliberately NOT exposed
-  in this phase. The admin UI + Playwright coverage are delivered by the frontend
-  follow-up in the same PR.
+  in this phase.
+- **Minimal admin UI (`/admin/discovery-sources`).** Two capability-gated App
+  Router pages (both `requireCapability(sources.manage)`), built entirely from
+  the shared design-system primitives (`@/components/admin`, `@/components/ui`)
+  and design tokens — no raw colours/font-sizes:
+  - the **list** (`page.tsx`) reads `listDiscoverySourceMetrics` server-side and
+    renders one row per source with a coloured **operational-status badge**
+    (caught-up / backlog / partial / stalled / gap-detected — AC1), lifecycle
+    mode, automation policy, role, health, last run, watermark stall age, backlog
+    count, and gap state, plus a provider-key + lifecycle-mode filter and an
+    empty state;
+  - the **detail** (`[id]/page.tsx`) reads `getDiscoverySourceMetrics` and shows
+    the full metric summary (lifecycle/role, runs + watermark + baseline, gap,
+    drift signals — zero-discovery streak, backoff, publication→discovery delay
+    percentiles, volume anomaly, conflict rate, validator failures — and
+    candidate counts by status), plus the lifecycle **action controls**.
+  - The action controls (`AdminDiscoverySourceActions.tsx`, a client component)
+    render the seven actions; each is DISABLED when it is not valid from the
+    source's current mode (derived by the pure `lifecycle-action-eligibility.ts`
+    mirror — e.g. `activate` only from SHADOW, `begin-baseline` only from
+    DISABLED), and the unwind/stop actions (rollback / disable / retire) require
+    an inline confirm. Each action POSTs to `POST /{id}/lifecycle`; the backend
+    stays the source of truth, so a 409 (busy / invalid-transition /
+    baseline-incomplete) is surfaced as an inline error and the page refreshes on
+    success. The UI renders ONLY the PII-free DTO fields (ids/counts/statuses/
+    durations) — never a URL, article content, or credential (AC4). States
+    covered: loading (button spinner), empty (no sources), error (409 alert),
+    disabled-action, compact mobile, and light/dark. Playwright coverage lives in
+    `e2e/admin-discovery-sources.spec.ts`.
 
 ## Planned (see issues #1082–#1104)
 
