@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-12T04:35:40.033Z",
+  "generatedAt": "2026-07-19T05:29:24.074Z",
   "routeCount": 118,
   "methodCount": 139,
   "routes": [
@@ -2020,11 +2020,7 @@
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
-          "responseKeys": [
-            "ok",
-            "recommendedLevel",
-            "skipped"
-          ],
+          "responseKeys": null,
           "queryParamNames": null,
           "bodyFieldNames": [
             "articleId",
