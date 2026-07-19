@@ -306,6 +306,7 @@ before(() => {
       isArticleOperator: (access: { role?: string | null } | null) =>
         access?.role === "Admin" || access?.role === "System",
       readableArticleWhere: (access: unknown, where: unknown) => ({ access, where }),
+      readableArticleSqlPredicate: (_access?: unknown) => ({ sql: "TRUE", values: [] }),
       findPublicLibraryArticleBySourceUrl: async () =>
         resolvedArticleId ? { id: resolvedArticleId } : null,
       getBookmarkedArticleIds: async (_userId: string, ids: string[]) => new Set(ids.slice(0, 1)),
