@@ -1413,9 +1413,10 @@ enum DiscoverySourceRole {
 }
 
 /// Discovery source LIFECYCLE MODE — position in the
-/// disabled → shadow → baseline → active progression. A source starts DISABLED,
-/// runs in SHADOW to prove discovery correctness, completes a bounded BASELINE,
-/// then becomes ACTIVE. PAUSED/RETIRED are operator states.
+/// disabled → baseline → shadow → active progression. A source starts DISABLED,
+/// completes a bounded BASELINE (its known observable set), runs in SHADOW to
+/// prove new-item discovery WITHOUT body work, then becomes ACTIVE.
+/// PAUSED/RETIRED are operator states.
 enum DiscoverySourceLifecycleMode {
   DISABLED
   SHADOW
