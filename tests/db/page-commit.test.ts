@@ -385,10 +385,26 @@ test("lease stolen mid-commit → guarded checkpoint advance aborts and rolls ba
 
 // ---------------------------------------------------------------------------
 // Baseline / shadow: candidate is observed, but NO Article and NO ingest job.
+// BASELINE mode records OBSERVED_BASELINE (status BASELINE, observedInBaseline);
+// SHADOW mode records OBSERVED_SHADOW (status DISCOVERED, a new post-baseline
+// candidate) — the #1088 persistence split.
 // ---------------------------------------------------------------------------
 
-for (const mode of [DiscoverySourceLifecycleMode.BASELINE, DiscoverySourceLifecycleMode.SHADOW]) {
-  test(`${mode} page commit records a baseline candidate but no Article or ingest job`, { skip: !enabled }, async () => {
+const BASELINE_SHADOW_CASES = [
+  {
+    mode: DiscoverySourceLifecycleMode.BASELINE,
+    expectedStatus: CrawlCandidateStatus.BASELINE,
+    expectedObservedInBaseline: true,
+  },
+  {
+    mode: DiscoverySourceLifecycleMode.SHADOW,
+    expectedStatus: CrawlCandidateStatus.DISCOVERED,
+    expectedObservedInBaseline: false,
+  },
+];
+
+for (const { mode, expectedStatus, expectedObservedInBaseline } of BASELINE_SHADOW_CASES) {
+  test(`${mode} page commit records an observed candidate but no Article or ingest job`, { skip: !enabled }, async () => {
     const source = await createDiscoverySource({ lifecycleMode: mode, leaseOwner: LEASE });
     const url = track(undarkUrl(id(`base-${mode.toLowerCase()}`)));
     const identity = deriveProvisionalIdentity(url);
@@ -408,8 +424,8 @@ for (const mode of [DiscoverySourceLifecycleMode.BASELINE, DiscoverySourceLifecy
 
     const candidate = await prisma.crawlCandidate.findFirst({ where: { provisionalKey: identity.key } });
     assert.ok(candidate);
-    assert.equal(candidate.status, CrawlCandidateStatus.BASELINE);
-    assert.equal(candidate.observedInBaseline, true);
+    assert.equal(candidate.status, expectedStatus);
+    assert.equal(candidate.observedInBaseline, expectedObservedInBaseline);
     assert.equal(candidate.articleId, null);
 
     assert.equal(await prisma.article.count({ where: { sourceUrl: url } }), 0);

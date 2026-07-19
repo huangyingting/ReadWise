@@ -17,8 +17,11 @@ scraper reference in [`scrapers.md`](./scrapers.md) and the source governance in
 The document is filled in phase by phase as implementation lands. The data model
 (#1081), URL normalization / public article identity (Phase 1.2, #1082), the
 baseline seed / conflict isolation (Phase 1.3, #1083), the discovery fetch
-seam (Phase 1.4, #1084), and the atomic paged commit + classification
-(Phase 1.5, #1085) are **current** below; later phases are **planned** stubs.
+seam (Phase 1.4, #1084), the atomic paged commit + classification
+(Phase 1.5, #1085), the watermark / overlap / calibration / gap frontier
+(Phase 1.6, #1086), leased discovery-source scheduling (Phase 1.7, #1087), and
+the baseline & strict shadow lifecycle (Phase 1.8, #1088) are **current** below;
+later phases are **planned** stubs.
 
 ## Program overview
 
@@ -705,6 +708,87 @@ The run handler catches ANY error, converts it to a REDACTED metadata-only
 optional provider can neither stop the Job loop nor block other discovery
 sources.
 
+## Phase 1.8 — baseline & strict shadow lifecycle (#1088) — current
+
+Phase 1.8 establishes each source's already-known observable set BEFORE
+activation, then proves subsequent new-item decisions WITHOUT any body fetch. The
+decisions are PURE (`src/lib/scraper/incremental/lifecycle.ts`); a thin guarded
+persistence layer (`lifecycle-commit.ts`) applies them with the #1085/#1086
+lease + `definitionVersion` guard, and a run guard (`lifecycle-run-guard.ts`)
+makes the "no body work" invariant explicit and testable.
+
+### Lifecycle state machine + transition order
+
+The authoritative progression is `DISABLED → BASELINE → SHADOW → ACTIVE`, plus
+`PAUSED` (from any active-ish state) with resume, safe one-step `rollback` toward
+`DISABLED`, and terminal `RETIRE`. `classifyLifecycleTransition` is the single
+source of truth for which `from → to` edges are legal (every other edge is
+refused, so activation stays explicit and auditable). The persistence layer
+applies a transition only under a guarded `updateMany` keyed on
+`{ id, leaseOwner, definitionVersion, lifecycleMode }`, so a lost lease or a
+concurrent transition rolls the whole change back. Activation is AUDITED via a
+redacted, metadata-only log entry (source id + queued/deferred counts + cutoff).
+
+### OBSERVED_BASELINE vs OBSERVED_SHADOW mapping
+
+The schema has no `OBSERVED_BASELINE`/`OBSERVED_SHADOW` status; the issue's
+conceptual labels map onto the real `CrawlCandidateStatus` + the orthogonal
+sticky `observedInBaseline` flag:
+
+- **OBSERVED_BASELINE** = `status = BASELINE` + `observedInBaseline = true` — a
+  known, pre-existing identity of the source's baseline window that normal
+  incremental runs must NEVER auto-ingest.
+- **OBSERVED_SHADOW** = `status = DISCOVERED` + `observedInBaseline = false` — a
+  NEW post-baseline identity observed while the source is in SHADOW, being proven;
+  eligible for activation catch-up but not yet queued.
+
+The single `baseline-shadow` classification outcome (`classify.ts`) is split by
+the source's live lifecycle mode in `page-commit.ts`: BASELINE mode writes
+OBSERVED_BASELINE, SHADOW mode writes OBSERVED_SHADOW. A baseline is each
+source's normal incremental observable window (NOT its full archive); its
+identities are persisted as OBSERVED_BASELINE and never enqueued even when a date
+looks recent.
+
+### Immediate second-scan cutover
+
+Baseline completion is GATED: `decideBaselineCompletion` (reusing the #1086
+`decideRunCompletion` accounting) requires EVERY configured page/shard/cursor
+segment to reach its boundary AND commit its checkpoint — a partial or failed
+segment refuses completion, so a baseline can never complete on incomplete data
+(an empty segment set fails closed too). On success the source stamps
+`baselineCompletedAt` + the initial watermark, records `baselineObservedCount`,
+and enters SHADOW immediately due for the second scan. The cutover invariant is
+enforced for free by the sticky flag: the page-commit upsert `update` path never
+changes `status`/`observedInBaseline`, so an identity first observed during the
+baseline stays OBSERVED_BASELINE even when re-seen — the second scan re-sees
+baseline identities as `existing-identity` (not reclassified) while genuinely new
+identities become OBSERVED_SHADOW candidates.
+
+### Shadow no-body-work guarantee
+
+In BASELINE and SHADOW the run performs normalization, classification, ledger
+commits, metrics, and gap detection but PROHIBITS article-body fetches, Article
+writes, and article-processing jobs. `isBodyWorkProhibited` names the invariant,
+and `guardIngestPort` wraps any body-work port so a call in BASELINE/SHADOW is
+refused with `BodyWorkProhibitedError` BEFORE the real dependency runs. Tests
+inject FAILING body-fetch / Article-write / Job-enqueue deps and prove they are
+never reached (zero body fetches, Article writes, and `ARTICLE_INGEST` jobs).
+
+### Activation catch-up (age + count limits)
+
+On activation, `selectActivationCatchUp` deterministically picks which
+OBSERVED_SHADOW candidates to queue within BOTH per-source limits — default
+SEVEN DAYS and 100 CANDIDATES, with EITHER limit stopping catch-up. Candidates
+are ordered newest-first (age reference = trusted publication date, else
+first-observed) with the sanitized identity key as a stable tiebreak; only the
+newest, in-window candidates within the count cap move `DISCOVERED → QUEUED`.
+Older / over-limit candidates stay OBSERVED_SHADOW (only an explicit future
+backfill may reactivate them). The queue move is guarded on `status = DISCOVERED`
+so activation is idempotent and deterministic on retry, and resumable after a
+partial activation (a retry queues only the still-eligible remainder without
+re-stamping `activatedAt`). Queuing to `QUEUED` is the Phase-1 terminal state;
+real ingestion is Phase 2 (#1091).
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -717,7 +801,8 @@ The following phases build on the Phase 1 ledger and are documented as they land
   page commit & classification #1085 has landed — see "Phase 1.5" above. The
   watermark / overlap / calibration / gap frontier #1086 has landed — see
   "Phase 1.6" above. Leased discovery-source scheduling in the worker #1087 has
-  landed — see "Phase 1.7" above.)*
+  landed — see "Phase 1.7" above. The baseline & strict shadow lifecycle #1088
+  has landed — see "Phase 1.8" above.)*
 - **Phase 2 — safe ingestion of new provider articles** (epic #1079): atomic
   candidate + Job + checkpoint commit, admission validation, and Article
   creation for genuinely new identities.

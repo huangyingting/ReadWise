@@ -23,8 +23,19 @@
  *      NO extra candidate, alias, observation, or (Phase-2) ingest job.
  *   5. Baseline/shadow commits create NO Article, NO body fetch, and NO
  *      `ARTICLE_INGEST` job — Phase 1 is discovery-only (ingest is #1091/Phase 2).
+ *      The single `baseline-shadow` classification outcome is split HERE by the
+ *      source's live lifecycle mode (#1088): BASELINE mode records
+ *      OBSERVED_BASELINE (status BASELINE + observedInBaseline=true, a known
+ *      pre-existing identity), while SHADOW mode records OBSERVED_SHADOW (status
+ *      DISCOVERED + observedInBaseline=false, a new post-baseline identity being
+ *      proven for activation catch-up).
  */
-import { CrawlCandidateStatus, Prisma, UrlAliasKind } from "@prisma/client";
+import {
+  CrawlCandidateStatus,
+  DiscoverySourceLifecycleMode,
+  Prisma,
+  UrlAliasKind,
+} from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
@@ -148,6 +159,7 @@ async function commitClassifiedItem(
   runId: string | undefined,
   now: Date,
   classified: ClassifiedPageItem,
+  lifecycleMode: DiscoverySourceLifecycleMode,
 ): Promise<ItemWriteTally> {
   const { identity, outcome, observationKey } = classified;
   const identityVersion = identity?.identityVersion ?? 1;
@@ -168,11 +180,29 @@ async function commitClassifiedItem(
     };
 
     if (outcomeCreatesCandidate(outcome)) {
-      const observedInBaseline = outcome === "baseline-shadow";
-      const status =
-        outcome === "baseline-shadow"
-          ? CrawlCandidateStatus.BASELINE
-          : CrawlCandidateStatus.DISCOVERED;
+      // The pure classifier lumps every non-ACTIVE observation into the single
+      // `baseline-shadow` outcome (it never creates an Article in any of those
+      // modes). The PERSISTENCE split lives here, keyed on the source's live
+      // lifecycle mode (#1088):
+      //   - BASELINE mode  → OBSERVED_BASELINE: status BASELINE +
+      //     observedInBaseline=true. A known, pre-existing identity of the
+      //     source's baseline window that normal incremental runs must NEVER
+      //     auto-ingest.
+      //   - SHADOW mode (and any other non-ACTIVE mode) → OBSERVED_SHADOW: a NEW
+      //     post-baseline identity being proven — status DISCOVERED +
+      //     observedInBaseline=false, eligible for activation catch-up but not
+      //     yet queued.
+      //   - ACTIVE (`eligible`) → status DISCOVERED + observedInBaseline=false.
+      // The sticky flag enforces the cutover invariant for free: the upsert
+      // `update` path below NEVER changes status/observedInBaseline, so an
+      // identity first observed in BASELINE keeps observedInBaseline=true even
+      // when re-seen in SHADOW/ACTIVE ("baseline identities stay baseline").
+      const isBaselineObservation =
+        outcome === "baseline-shadow" && lifecycleMode === DiscoverySourceLifecycleMode.BASELINE;
+      const observedInBaseline = isBaselineObservation;
+      const status = isBaselineObservation
+        ? CrawlCandidateStatus.BASELINE
+        : CrawlCandidateStatus.DISCOVERED;
       // upsert is cross-engine race-safe (INSERT … ON CONFLICT): a concurrent
       // commit of the same page converges on ONE candidate, never a lost item.
       const candidate = await tx.crawlCandidate.upsert({
@@ -359,7 +389,14 @@ export async function commitDiscoveryPage(
       let observationsUpserted = 0;
 
       for (let index = 0; index < uniqueItems.length; index += 1) {
-        const result = await commitClassifiedItem(tx, sourceId, options.runId, now, uniqueItems[index]);
+        const result = await commitClassifiedItem(
+          tx,
+          sourceId,
+          options.runId,
+          now,
+          uniqueItems[index],
+          source.lifecycleMode,
+        );
         if (result.candidate) candidatesUpserted += 1;
         if (result.alias) aliasesUpserted += 1;
         if (result.observation) observationsUpserted += 1;
