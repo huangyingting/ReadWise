@@ -128,54 +128,58 @@ describe("TTS prose highlight behavior", () => {
   });
 
   test("clears map without prose or words and exits when CSS highlights are unavailable", async () => {
-    const { useTtsProseHighlight } = await import(
-      "@/components/reader/wordLookup/useTtsProseHighlight"
+    const { useReaderTextMap } = await import(
+      "@/components/reader/wordLookup/useReaderTextMap"
     );
 
     beginRender();
-    useTtsProseHighlight({ current: null }, audio({ words: [] }), []);
+    useReaderTextMap({ current: null }, "prose", audio({ words: [] }), [], () => {});
 
     assert.deepEqual(getHookRef<unknown[]>(0)?.current, []);
   });
 
   test("deletes stale CSS highlights for inactive or unmapped active words", async () => {
-    const { useTtsProseHighlight } = await import(
-      "@/components/reader/wordLookup/useTtsProseHighlight"
+    const { useReaderTextMap } = await import(
+      "@/components/reader/wordLookup/useReaderTextMap"
     );
     const document = installDom("<div id='prose'>Hello</div>");
     const prose = document.getElementById("prose") as HTMLElement;
     const { registry } = installCssHighlightEnvironment();
 
     beginRender();
-    useTtsProseHighlight(
+    useReaderTextMap(
       { current: prose },
+      "prose",
       audio({
         activeIndex: -1,
         plainText: "Hello",
         words: [{ word: "Hello", textStart: 0, textEnd: 5 }],
       }),
       [],
+      () => {},
     );
     assert.deepEqual(registry.deleted, ["tts-active"]);
 
     resetHookStorage();
     const second = installCssHighlightEnvironment();
     beginRender();
-    useTtsProseHighlight(
+    useReaderTextMap(
       { current: prose },
+      "prose",
       audio({
         activeIndex: 0,
         plainText: "Hello",
         words: [{ word: "Missing" }],
       }),
       [],
+      () => {},
     );
     assert.deepEqual(second.registry.deleted, ["tts-active"]);
   });
 
   test("deletes CSS highlight when Range construction fails", async () => {
-    const { useTtsProseHighlight } = await import(
-      "@/components/reader/wordLookup/useTtsProseHighlight"
+    const { useReaderTextMap } = await import(
+      "@/components/reader/wordLookup/useReaderTextMap"
     );
     const document = installDom("<div id='prose'>Hello</div>");
     const prose = document.getElementById("prose") as HTMLElement;
@@ -183,22 +187,24 @@ describe("TTS prose highlight behavior", () => {
     FakeRange.throwOnSet = true;
 
     beginRender();
-    useTtsProseHighlight(
+    useReaderTextMap(
       { current: prose },
+      "prose",
       audio({
         activeIndex: 0,
         plainText: "Hello",
         words: [{ word: "Hello", textStart: 0, textEnd: 5 }],
       }),
       [],
+      () => {},
     );
 
     assert.deepEqual(registry.deleted, ["tts-active"]);
   });
 
   test("sets the active CSS highlight, scrolls while listening, and cleans up", async () => {
-    const { useTtsProseHighlight } = await import(
-      "@/components/reader/wordLookup/useTtsProseHighlight"
+    const { useReaderTextMap } = await import(
+      "@/components/reader/wordLookup/useReaderTextMap"
     );
     const document = installDom("<div id='prose'>Hello</div>");
     const prose = document.getElementById("prose") as HTMLElement & {
@@ -213,8 +219,9 @@ describe("TTS prose highlight behavior", () => {
     ]);
 
     beginRender();
-    useTtsProseHighlight(
+    useReaderTextMap(
       { current: prose },
+      "prose",
       audio({
         activeIndex: 0,
         listenActive: true,
@@ -222,6 +229,7 @@ describe("TTS prose highlight behavior", () => {
         words: [{ word: "Hello", textStart: 0, textEnd: 5 }],
       }),
       [],
+      () => {},
     );
     runCleanups();
 

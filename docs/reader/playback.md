@@ -126,6 +126,11 @@ the currently highlighted word:
   gate (`listenActive`) that suppresses auto-scroll when the Listen tab is not
   the active visible panel, so background playback never hijacks the reading
   scroll position.
+- `useReaderTextMap` owns the DOM ordering shared with persistent annotations:
+  it first renders semantic `<mark class="rw-hl">` elements, then rebuilds
+  Narration ranges against the resulting live text nodes. This prevents cached
+  ranges from referring to nodes detached by highlight rendering while keeping
+  CSS Highlights responsible only for the active Narration word.
 
 ## Sentence-loop controls
 

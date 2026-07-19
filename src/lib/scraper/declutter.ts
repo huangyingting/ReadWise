@@ -19,6 +19,7 @@
  */
 import { parseHTML } from "linkedom";
 import { normalizeForTextMatch as normalizeText } from "@/lib/text/normalize-match";
+import type { ProviderDeclutterPolicy } from "@/lib/scraper/types";
 
 export interface DeclutterOptions {
   /** Author string from Readability — used to locate & strip the matching byline. */
@@ -27,8 +28,8 @@ export interface DeclutterOptions {
   authorName?: string | null;
   /** Publication date from metadata — used to strip matching standalone date residue. */
   publishedAt?: Date | string | null;
-  /** Provider key for narrow provider-specific DOM chrome residue cleanup. */
-  providerKey?: string | null;
+  /** Source-owned residue signals interpreted by the generic declutter pass. */
+  policy?: ProviderDeclutterPolicy;
 }
 
 /**
@@ -72,21 +73,11 @@ const SIGNUP_RESIDUE_RE =
 const TRAILING_PUBLICATION_CTA_RE =
   /^enjoying\s+.{1,80}\?\s+subscribe\s+to\s+our\s+free\s+newsletter\.?$/i;
 
-const TECHNOLOGY_REVIEW_NEWSLETTER_ORIGIN_RE =
-  /^this\s+story\s+originally\s+appeared\s+in\s+the\s+algorithm\b(?=[\s\S]{0,300}\bweekly\s+newsletter\b)(?=[\s\S]{0,300}\bsign\s?up\b)/i;
-
-const WIRED_EXACT_RESIDUE = new Set([
-  "more great wired stories",
-  "this is an edition of the inner loop newsletter. read previous newsletters here.",
-]);
-
 const ARCHIVE_LINK_RESIDUE_RE = /\barchive\s+page\b/i;
 
 const RECIRC_RANKED_ITEM_RE = /^\d+\s+.*\b(most\s+popular|trending|recommended\s+for\s+you|you\s+may\s+also\s+like)\b/i;
 
 const ORPHAN_VIDEO_LABEL_RE = /^(featured\s+video|watch:?|video)$/i;
-
-const TIKTOK_HOST_RE = /(?:^|\.)tiktok\.com$/i;
 
 const BYLINE_PREFIX_RE =
   /^(by|words by|written by|story by|reported by|photographs? by|illustrations? by|edited by|reporting by)\s+[\p{Lu}@]/u;
@@ -138,11 +129,6 @@ const IMAGE_CREDIT_HEADING_RE = /^\(?\s*image\s+credits?\s*\)?$/i;
 
 const IMAGE_BOILERPLATE_RE =
   /\b(favicon|sprite|pixel|newsletter|promo|promotion|sign-?up|subscribe)\b/i;
-
-const SMITHSONIAN_AUTHOR_IMAGE_RE =
-  /(?:^|[/_.-])(?:author|avatar|headshot|profile)(?:[/_.-]|$)|\/accounts\/headshot\//i;
-const SMITHSONIAN_BYLINE_ROLE_RE =
-  /\|\s*(?:(?:history|science|arts?\s*&?\s*culture|travel|innovation)\s+)?(?:correspondent|writer|contributor|editor|author|reporter)\b/i;
 
 /**
  * Max length of a block we are willing to flag purely on a text-boilerplate
@@ -426,19 +412,47 @@ function collectOrphanVideoLabels(root: Element, out: Candidate[]): void {
   }
 }
 
-function collectTechnologyReviewResidue(root: Element, out: Candidate[]): void {
+function hostMatchesPolicy(host: string, configuredHosts: string[]): boolean {
+  return configuredHosts.some(
+    (configured) => host === configured || host.endsWith(`.${configured}`),
+  );
+}
+
+function matchesPolicyPattern(pattern: RegExp, value: string): boolean {
+  pattern.lastIndex = 0;
+  const matches = pattern.test(value);
+  pattern.lastIndex = 0;
+  return matches;
+}
+
+function collectProviderResidue(
+  root: Element,
+  policy: ProviderDeclutterPolicy | undefined,
+  out: Candidate[],
+): void {
+  if (!policy) return;
+  const exactShortTexts = new Set(policy.exactShortTexts ?? []);
   for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
     if (el === root) continue;
     if (!isLeafBlock(el)) continue;
     const text = trimmedText(el);
     if (text.length > 0 && text.length <= TEXT_BOILERPLATE_MAXLEN) {
-      if (TECHNOLOGY_REVIEW_NEWSLETTER_ORIGIN_RE.test(normalizeText(text))) {
+      const normalized = normalizeText(text);
+      if (
+        exactShortTexts.has(normalized) ||
+        policy.shortTextPatterns?.some((pattern) => matchesPolicyPattern(pattern, normalized))
+      ) {
         out.push({ el, confidence: HIGH });
         continue;
       }
     }
 
-    if (el.tagName.toLowerCase() !== "blockquote") continue;
+    if (
+      el.tagName.toLowerCase() !== "blockquote" ||
+      !policy.socialAttributionHosts?.length
+    ) {
+      continue;
+    }
     const anchors = Array.from(el.querySelectorAll("a[href]"));
     if (anchors.length !== 1) continue;
     const href = anchors[0]?.getAttribute("href") ?? "";
@@ -448,22 +462,10 @@ function collectTechnologyReviewResidue(root: Element, out: Candidate[]): void {
     } catch {
       continue;
     }
-    if (!TIKTOK_HOST_RE.test(host)) continue;
+    if (!hostMatchesPolicy(host, policy.socialAttributionHosts)) continue;
     const normalizedText = normalizeText(text);
     const anchorText = normalizeText(anchors[0]?.textContent ?? "");
     if (normalizedText === anchorText || /^@[a-z0-9_.-]+$/i.test(normalizedText)) {
-      out.push({ el, confidence: HIGH });
-    }
-  }
-}
-
-function collectWiredResidue(root: Element, out: Candidate[]): void {
-  for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
-    if (el === root) continue;
-    if (!isLeafBlock(el)) continue;
-    const text = trimmedText(el);
-    if (text.length === 0 || text.length > TEXT_BOILERPLATE_MAXLEN) continue;
-    if (WIRED_EXACT_RESIDUE.has(normalizeText(text))) {
       out.push({ el, confidence: HIGH });
     }
   }
@@ -474,26 +476,27 @@ function collectWiredResidue(root: Element, out: Candidate[]): void {
  * The mark can be nested in an inline element and may precede a correction note,
  * so inspect every paragraph while preserving diamonds used within prose.
  */
-function stripNewYorkerTerminalEndMarks(root: Element): void {
+function stripTerminalParagraphMarks(root: Element, marks: string[]): void {
   for (const paragraph of Array.from(root.querySelectorAll("p"))) {
-    stripTerminalDiamond(paragraph);
+    stripTerminalMark(paragraph, marks);
   }
 }
 
-function stripTerminalDiamond(parent: Element): boolean {
+function stripTerminalMark(parent: Element, marks: string[]): boolean {
   for (let node = parent.lastChild; node; node = node.previousSibling) {
     if (node.nodeType === 3) {
       const text = node.textContent ?? "";
       if (text.trim().length === 0) continue;
-      if (!/♦\s*$/u.test(text)) return false;
-      node.textContent = text.replace(/\s*♦\s*$/u, "");
+      const mark = marks.find((candidate) => text.trimEnd().endsWith(candidate));
+      if (!mark) return false;
+      node.textContent = text.trimEnd().slice(0, -mark.length).trimEnd();
       return true;
     }
 
     if (node.nodeType !== 1) continue;
     const element = node as Element;
     if (trimmedText(element).length === 0 && !hasMedia(element)) continue;
-    const removed = stripTerminalDiamond(element);
+    const removed = stripTerminalMark(element, marks);
     if (removed && trimmedText(element).length === 0 && !hasMedia(element)) {
       element.remove();
     }
@@ -642,7 +645,11 @@ function hasMedia(el: Element): boolean {
   return el.querySelector("img,figure,video,audio,iframe,svg") !== null;
 }
 
-function isSmithsonianAuthorAvatarBlock(el: Element, normName: string | null): boolean {
+function isProviderAuthorAvatarBlock(
+  el: Element,
+  normName: string | null,
+  policy: NonNullable<ProviderDeclutterPolicy["leadingAuthorLayout"]>,
+): boolean {
   if (!/^(p|div|figure|section)$/i.test(el.tagName)) return false;
   const text = trimmedText(el);
   if (text.length > 80) return false;
@@ -662,12 +669,16 @@ function isSmithsonianAuthorAvatarBlock(el: Element, normName: string | null): b
   const title = img.getAttribute("title") ?? "";
   const attrText = [src, alt, title].join(" ");
 
-  if (SMITHSONIAN_AUTHOR_IMAGE_RE.test(attrText)) return true;
+  if (matchesPolicyPattern(policy.imageAttributePattern, attrText)) return true;
   if (normName && normalizeName(`${alt} ${title}`) === normName) return true;
   return false;
 }
 
-function isSmithsonianAuthorLine(text: string, normName: string | null): boolean {
+function isProviderAuthorLine(
+  text: string,
+  normName: string | null,
+  policy: NonNullable<ProviderDeclutterPolicy["leadingAuthorLayout"]>,
+): boolean {
   const trimmed = text.trim();
   if (trimmed.length === 0 || trimmed.length > 180) return false;
   if (isStandaloneAuthorLine(trimmed, normName)) return true;
@@ -677,22 +688,23 @@ function isSmithsonianAuthorLine(text: string, normName: string | null): boolean
   const norm = normalizeName(trimmed);
   if (!norm.startsWith(normName)) return false;
   return (
-    SMITHSONIAN_BYLINE_ROLE_RE.test(trimmed) ||
+    matchesPolicyPattern(policy.rolePattern, trimmed) ||
     AUTHOR_ROLE_RE.test(trimmed) ||
     /\b(correspondent|writer|contributor|editor|author|reporter)\b/i.test(trimmed)
   );
 }
 
-function collectSmithsonianLeadingByline(
+function collectProviderLeadingAuthor(
   root: Element,
   normName: string | null,
   publishedParts: DateParts | null,
+  policy: NonNullable<ProviderDeclutterPolicy["leadingAuthorLayout"]>,
   out: Candidate[],
 ): void {
   const leaves = leafBlocks(root);
   const leading = leaves
     .filter((el) => trimmedText(el).length > 0 || hasMedia(el))
-    .slice(0, 8);
+    .slice(0, policy.scanLimit);
 
   for (let i = 0; i < leading.length; i++) {
     const el = leading[i]!;
@@ -706,14 +718,14 @@ function collectSmithsonianLeadingByline(
       continue;
     }
 
-    const isAvatar = isSmithsonianAuthorAvatarBlock(el, normName);
-    const isAuthor = isSmithsonianAuthorLine(text, normName);
+    const isAvatar = isProviderAuthorAvatarBlock(el, normName, policy);
+    const isAuthor = isProviderAuthorLine(text, normName, policy);
     if (!isAvatar && !isAuthor) continue;
 
     if (isAvatar) {
       out.push({ el, confidence: HIGH });
       const next = leading[i + 1];
-      if (next && isSmithsonianAuthorLine(trimmedText(next), normName)) {
+      if (next && isProviderAuthorLine(trimmedText(next), normName, policy)) {
         out.push({ el: next, confidence: HIGH });
         const date = leading[i + 2];
         if (date && isStandaloneDateLine(trimmedText(date), publishedParts)) {
@@ -725,7 +737,7 @@ function collectSmithsonianLeadingByline(
 
     out.push({ el, confidence: HIGH });
     const prev = leading[i - 1];
-    if (prev && isSmithsonianAuthorAvatarBlock(prev, normName)) {
+    if (prev && isProviderAuthorAvatarBlock(prev, normName, policy)) {
       out.push({ el: prev, confidence: HIGH });
     }
     const next = leading[i + 1];
@@ -835,7 +847,7 @@ function collectRemovalCandidates(
   root: Element,
   normName: string | null,
   publishedParts: DateParts | null,
-  providerKey: string | null | undefined,
+  policy: ProviderDeclutterPolicy | undefined,
 ): Candidate[] {
   const candidates: Candidate[] = [];
   collectAttrBoilerplate(root, candidates);
@@ -846,15 +858,16 @@ function collectRemovalCandidates(
   collectOrphanVideoLabels(root, candidates);
   collectImageCreditBlocks(root, candidates);
   collectLeadingByline(root, normName, publishedParts, candidates);
-  if (providerKey === "smithsonian") {
-    collectSmithsonianLeadingByline(root, normName, publishedParts, candidates);
+  if (policy?.leadingAuthorLayout) {
+    collectProviderLeadingAuthor(
+      root,
+      normName,
+      publishedParts,
+      policy.leadingAuthorLayout,
+      candidates,
+    );
   }
-  if (providerKey === "technologyreview") {
-    collectTechnologyReviewResidue(root, candidates);
-  }
-  if (providerKey === "wired") {
-    collectWiredResidue(root, candidates);
-  }
+  collectProviderResidue(root, policy, candidates);
   collectTrailingByline(root, normName, candidates);
   return candidates;
 }
@@ -886,15 +899,15 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   const publishedParts = dateHintParts(opts?.publishedAt);
 
   const removals = selectRemovals(
-    collectRemovalCandidates(root, normName, publishedParts, opts?.providerKey),
+    collectRemovalCandidates(root, normName, publishedParts, opts?.policy),
     originalLen,
   );
   for (const c of removals) {
     c.el.remove();
   }
 
-  if (opts?.providerKey === "newyorker") {
-    stripNewYorkerTerminalEndMarks(root);
+  if (opts?.policy?.terminalParagraphMarks?.length) {
+    stripTerminalParagraphMarks(root, opts.policy.terminalParagraphMarks);
   }
 
   removeEmptyBlocks(root);

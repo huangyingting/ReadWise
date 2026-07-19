@@ -52,6 +52,68 @@ const HBR_SEEDS = [
   ...HBR_TOPIC_SEEDS,
 ] as const;
 const HBR_ARCHIVE_BATCH_SIZE = 4;
+const JSON_LD_REFLOW_MIN_WORDS = 50;
+const JSON_LD_REFLOW_MAX_WORDS = 140;
+const HASH_TABLE_MIN_SEPARATORS = 8;
+const GENERATION_TABLE_START_RE = /\bGeneration#Birth\s*years#|\bGeneration#Birthyears#/i;
+const HASH_TABLE_FOOTNOTE_RE = /#\*\s+(.+)$/s;
+
+function countWords(text: string): number {
+  return text.match(/\S+/g)?.length ?? 0;
+}
+
+function splitCollapsedPlainText(text: string): string[] {
+  const sentences = text
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/(?<=[.!?])\s+(?=(?:["'([{]|&quot;|&ldquo;|&lsquo;)?[A-Z0-9])/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  if (sentences.length < 2) return [text.trim()];
+
+  const paragraphs: string[] = [];
+  let current: string[] = [];
+  let currentWords = 0;
+  for (const sentence of sentences) {
+    const sentenceWords = countWords(sentence);
+    if (
+      current.length > 0 &&
+      currentWords >= JSON_LD_REFLOW_MIN_WORDS &&
+      currentWords + sentenceWords > JSON_LD_REFLOW_MAX_WORDS
+    ) {
+      paragraphs.push(current.join(" "));
+      current = [];
+      currentWords = 0;
+    }
+    current.push(sentence);
+    currentWords += sentenceWords;
+  }
+  if (current.length > 0) paragraphs.push(current.join(" "));
+  return paragraphs;
+}
+
+function cleanHashTableArtifact(paragraph: string): string[] {
+  if ((paragraph.match(/#/g)?.length ?? 0) < HASH_TABLE_MIN_SEPARATORS) {
+    return [paragraph];
+  }
+
+  const footnote = paragraph.match(HASH_TABLE_FOOTNOTE_RE)?.[1]?.trim() ?? "";
+  const tableStart = paragraph.search(GENERATION_TABLE_START_RE);
+  if (tableStart >= 0) {
+    const prefix = paragraph.slice(0, tableStart).trim();
+    return [prefix, footnote].filter((part) => part.length > 0);
+  }
+  return footnote ? [footnote] : [];
+}
+
+function normalizeJsonLdParagraphs(paragraphs: string[]): string[] {
+  const normalized =
+    paragraphs.length === 1 &&
+    countWords(paragraphs[0] ?? "") > JSON_LD_REFLOW_MAX_WORDS
+      ? splitCollapsedPlainText(paragraphs[0] ?? "")
+      : paragraphs;
+  return normalized.flatMap(cleanHashTableArtifact);
+}
 
 function normalizeCandidateUrl(raw: string, baseUrl = HBR_BASE_URL): string | null {
   try {
@@ -313,6 +375,10 @@ const harvardbusinessreview: Provider = {
   defaultCategory: "business",
   categories: ["business", "ideas", "tech", "health", "environment", "culture", "politics", "world"],
   readingCategories: ["business", "ideas", "tech", "health", "environment", "culture", "politics", "world"],
+  extraction: {
+    preferReadabilityForCollapsedJsonLd: true,
+    normalizeJsonLdParagraphs,
+  },
   cleanup: {
     dropSelectors: ["video", "iframe", "aside"],
     dropClassKeywords: [

@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { declutterArticleHtml } from "@/lib/scraper/declutter";
+import { getProvider } from "@/lib/scraper/providers";
 
 const body = Array.from({ length: 90 }, (_, i) => `article word ${i}`).join(" ");
 
@@ -15,7 +16,9 @@ test("declutterArticleHtml removes Technology Review newsletter and TikTok resid
     `<p>${body}</p>`,
   ].join("");
 
-  const out = declutterArticleHtml(html, { providerKey: "technologyreview" });
+  const out = declutterArticleHtml(html, {
+    policy: getProvider("technologyreview")?.declutter,
+  });
 
   assert.ok(!out.includes("Algorithm"));
   assert.ok(!out.includes("tiktok.com"));
@@ -60,7 +63,7 @@ test("declutterArticleHtml applies Smithsonian author-line cleanup", () => {
   ].join("");
 
   const out = declutterArticleHtml(html, {
-    providerKey: "smithsonian",
+    policy: getProvider("smithsonian")?.declutter,
     authorName: "Jane Doe",
   });
 
@@ -75,7 +78,9 @@ test("declutterArticleHtml removes New Yorker paragraph end marks", () => {
     `<p><em>Correction: An earlier version misstated the sample size.</em></p>`,
   ].join("");
 
-  const out = declutterArticleHtml(html, { providerKey: "newyorker" });
+  const out = declutterArticleHtml(html, {
+    policy: getProvider("newyorker")?.declutter,
+  });
 
   assert.match(out, /uses ♦ to identify/, "an inline diamond in prose is preserved");
   assert.doesNotMatch(out, /article word 89\s*♦/, "the paragraph end mark is removed");
@@ -83,10 +88,10 @@ test("declutterArticleHtml removes New Yorker paragraph end marks", () => {
   assert.doesNotMatch(out, /<span>\s*<\/span>/, "the emptied inline wrapper is removed");
 });
 
-test("declutterArticleHtml keeps paragraph-terminal diamonds for other providers", () => {
+test("declutterArticleHtml keeps paragraph-terminal diamonds without a source policy", () => {
   const html = `<p>${body} ♦</p>`;
 
-  const out = declutterArticleHtml(html, { providerKey: "example" });
+  const out = declutterArticleHtml(html);
 
   assert.match(out, /article word 89 ♦/);
 });

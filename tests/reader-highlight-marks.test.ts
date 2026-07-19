@@ -231,7 +231,20 @@ describe("highlight mark helpers", () => {
         ["note", "green"],
       ],
     );
-    assert.equal(prose.querySelectorAll(".sr-only").length, 1);
+    assert.equal(marks[0]?.getAttribute("aria-description"), "Has note");
+    assert.equal(marks[1]?.hasAttribute("aria-description"), false);
+    assert.equal(prose.textContent, "Hello wonderful world again");
+  });
+
+  test("applyHighlightMarks removes legacy note indicators before rebuilding offsets", () => {
+    const prose = installProse(
+      "<div id='prose'>Alpha <mark class='rw-hl'><span class='sr-only'>(has note)</span>beta</mark> gamma</div>",
+    );
+
+    applyHighlightMarks(prose, [], () => assert.fail("no orphan checks"));
+
+    assert.equal(prose.querySelector(".sr-only"), null);
+    assert.equal(prose.textContent, "Alpha beta gamma");
   });
 
   test("applyHighlightMarks unwraps old marks and handles no-highlight input", () => {

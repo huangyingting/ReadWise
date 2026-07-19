@@ -3,6 +3,7 @@ import type { Highlight as RwHighlight } from "@/components/ReaderHighlightsProv
 export type TextNodeEntry = { node: Text; start: number; end: number };
 
 const ANCHOR_CONTEXT_CHARS = 32;
+const LEGACY_NOTE_INDICATOR_TEXT = "(has note)";
 
 type AnchorResult = {
   quote: string;
@@ -93,10 +94,7 @@ function createMarkElement(hl: RwHighlight, isFirstSegment: boolean): HTMLElemen
   if (hl.note) {
     mark.dataset.hlHasNote = "true";
     if (isFirstSegment) {
-      const sr = document.createElement("span");
-      sr.className = "sr-only";
-      sr.textContent = "(has note)";
-      mark.appendChild(sr);
+      mark.setAttribute("aria-description", "Has note");
     }
   }
   return mark;
@@ -104,6 +102,14 @@ function createMarkElement(hl: RwHighlight, isFirstSegment: boolean): HTMLElemen
 
 function unwrapExistingMarks(container: HTMLElement): void {
   for (const mark of Array.from(container.querySelectorAll<HTMLElement>("mark.rw-hl"))) {
+    for (const child of Array.from(mark.children)) {
+      if (
+        child.classList.contains("sr-only") &&
+        child.textContent === LEGACY_NOTE_INDICATOR_TEXT
+      ) {
+        child.remove();
+      }
+    }
     mark.replaceWith(...Array.from(mark.childNodes));
   }
   container.normalize();

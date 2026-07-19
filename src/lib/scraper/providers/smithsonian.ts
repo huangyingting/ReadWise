@@ -341,6 +341,15 @@ export function createSmithsonianProvider(
     categories: ["history", "science", "culture", "travel", "tech"],
     // Long-form magazine: everything it publishes is substantive reading practice.
     readingCategories: ["history", "science", "culture", "travel", "tech"],
+    declutter: {
+      leadingAuthorLayout: {
+        scanLimit: 8,
+        imageAttributePattern:
+          /(?:^|[/_.-])(?:author|avatar|headshot|profile)(?:[/_.-]|$)|\/accounts\/headshot\//i,
+        rolePattern:
+          /\|\s*(?:(?:history|science|arts?\s*&?\s*culture|travel|innovation)\s+)?(?:correspondent|writer|contributor|editor|author|reporter)\b/i,
+      },
+    },
     cleanup: {
       dropLinkHrefKeywords: [
         "subscribe.smithsonianmag.com",

@@ -247,6 +247,12 @@ const newYorker: Provider = {
     "entertainment",
     "sports",
   ],
+  extraction: {
+    preferReadabilityForCollapsedJsonLd: true,
+  },
+  declutter: {
+    terminalParagraphMarks: ["♦"],
+  },
   categoryFor: (url, section) =>
     categoryFromRules(
       url,
