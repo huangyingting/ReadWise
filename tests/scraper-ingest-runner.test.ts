@@ -41,7 +41,7 @@ function runnerCandidate(overrides: Partial<RunnerCandidate> = {}): RunnerCandid
 }
 
 function source(overrides: Partial<RunnerSource> = {}): RunnerSource {
-  return { lifecycleMode: "ACTIVE", definitionVersion: 3, activatedAt: NOW, ...overrides };
+  return { lifecycleMode: "ACTIVE", definitionVersion: 3, activatedAt: NOW, activationGeneration: 0, ...overrides };
 }
 
 const readyDraft: PreparedDraft = {

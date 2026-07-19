@@ -27,6 +27,7 @@ import {
   beginBaseline,
   transitionDiscoveryLifecycle,
 } from "./lifecycle-commit";
+import { rollbackActiveToShadow } from "./rollback-commit";
 import {
   LIFECYCLE_ACTIONS,
   type LifecycleActionName,
@@ -61,6 +62,10 @@ export type LifecycleActionResult =
       queuedCount?: number;
       /** Present for `activate`: shadow candidates left as observations. */
       deferredCount?: number;
+      /** Present for an active→shadow `rollback`: PENDING ingest jobs cancelled. */
+      cancelledJobCount?: number;
+      /** Present for an active→shadow `rollback`: generation AFTER the bump. */
+      activationGeneration?: number;
     };
 
 /** One safe rollback step toward DISABLED (mirrors the pure `ROLLBACK_PREV`). */
@@ -156,6 +161,23 @@ export async function applyLifecycleAction(
 
   const targetMode = targetModeFor(action, from, source.baselineCompletedAt);
   if (targetMode === null) return { ok: false, reason: "invalid-transition" };
+
+  // An active→shadow rollback is the full #1097 rollback: transition + park
+  // scheduling + bump activation generation + cancel unclaimed candidate ingest
+  // jobs (retaining candidates + observations). Lower rollback steps
+  // (SHADOW→BASELINE, BASELINE/PAUSED→DISABLED) are plain guarded transitions.
+  if (action === "rollback" && from === M.ACTIVE) {
+    const rolled = await rollbackActiveToShadow(sourceId, now);
+    if (!rolled.committed) return { ok: false, reason: rolled.reason };
+    return {
+      ok: true,
+      action,
+      fromMode: rolled.fromMode,
+      toMode: rolled.toMode,
+      cancelledJobCount: rolled.cancelledJobCount,
+      activationGeneration: rolled.activationGeneration,
+    };
+  }
 
   const result = await transitionDiscoveryLifecycle({ ...base, targetMode });
   if (!result.committed) return { ok: false, reason: result.reason };
