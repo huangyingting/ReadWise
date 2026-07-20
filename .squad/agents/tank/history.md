@@ -62,3 +62,16 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 **Verification:** Clock latency 98% reduced (265.6ms→16.7ms p50), highlight onset 95% improved (140ms→8ms p50), spans 100% complete (151→217), zero regressions
 
 **Status:** Complete
+
+
+## 2026-07-20T15:35:35Z: Admin IA gap audit shipped
+
+- Shipped PR #1161 for issue #1158: canonical-conflict KIND is exposed via shared `classifyConflictKind(incumbentCandidateId)`, with Type B incumbent-vs-challenger resolution and Type A `migrateReaderData`. Resolver and query now call the same helper (agreement by construction); sanitized DTO and kind-aware sheet verified.
+- Shipped PR #1162 for issue #1159 item 2: moderation visibility can edit only `PUBLIC`/`UNLISTED`; `PRIVATE`/`ORG` are tenant-scoped, read-only in UI, and server-blocked with 409.
+- Deferred from #1159: item 1 tenant Organization/Classroom admin surface (needs product/RBAC scoping) and item 3 per-tag chip UI (UX nicety over existing replace-all tag editing).
+
+## 2026-07-20T23:08:18+0000 — Tank post-merge summary
+
+- Completed three merged mainline tasks as tank-20: #1163/PR #1165 platform-admin Organizations oversight surface; PR #1166 supply-chain lockfile-only brace-expansion HIGH advisory fix; #1164/PR #1167 assignment sub-system end-to-end.
+- Key carry-forward: reuse existing tenant org/member commands and classroom authorization seams; assignment quiz completion is best-effort and server-derived; no schema change was needed for the assignment work.
+- Repo trunk is main (not dev). Safe-merge pattern used because only the systemic native coverage 98%-line gate was red while functional gates passed. Required commit trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.
