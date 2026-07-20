@@ -5,11 +5,25 @@ import { CAPABILITIES } from "@/lib/rbac";
 import { boolean, idParams, object, optional, string } from "@/lib/validation";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { scraperForceRescrapeEnabled } from "@/lib/runtime-config/scraper";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import {
   requestForceRescrape,
   type ForceRescrapeOutcome,
 } from "@/lib/scraper/incremental/force-rescrape-runner";
+import { createAnnotationMigrator } from "@/lib/scraper/incremental/annotation-migrator";
 import { getForceRescrapeStatus } from "@/lib/scraper/incremental/force-rescrape-query";
+
+/**
+ * The PRODUCTION annotation re-anchoring migrator (#1103). The Reader derives a
+ * highlight's plain-text offsets with `articleHtmlToReaderText`, so the migrator
+ * must derive the PROPOSED version's plain text the SAME way for offsets to line
+ * up. The app layer (this route) may import `@/lib/content-pipeline`; the scraper
+ * migrator takes it as an injected seam to keep the one-way module boundary. Not
+ * exported — a `route.ts` may export only HTTP handlers + Next config.
+ */
+const productionAnnotationMigrator = createAnnotationMigrator({
+  deriveReaderText: articleHtmlToReaderText,
+});
 
 /**
  * Body for requesting (or previewing) a force-rescrape of ONE known public
@@ -102,12 +116,15 @@ export const POST = createCapabilityHandler(
       );
     }
 
-    const outcome = await requestForceRescrape({
-      articleId: params.id,
-      reason: body.reason,
-      requestedById: session?.user?.id ?? null,
-      dryRun: body.dryRun ?? false,
-    });
+    const outcome = await requestForceRescrape(
+      {
+        articleId: params.id,
+        reason: body.reason,
+        requestedById: session?.user?.id ?? null,
+        dryRun: body.dryRun ?? false,
+      },
+      { annotationMigrator: productionAnnotationMigrator },
+    );
 
     if (outcome.ok && outcome.kind === "activated") {
       await recordAuditFromRequest({

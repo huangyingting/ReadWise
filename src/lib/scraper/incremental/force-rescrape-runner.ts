@@ -41,6 +41,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { createLogger } from "@/lib/observability/logger";
 
 import {
   decideForceRescrapeActivation,
@@ -57,6 +58,11 @@ import {
   type RescrapeContentPayload,
 } from "./force-rescrape-commit";
 import { countArticleAnnotations, getActiveVersion, type ForceRescrapeVersionDto } from "./force-rescrape-query";
+import { requestDerivedRegeneration } from "./derived-regeneration";
+import type { AnnotationMigrator } from "./annotation-migrator";
+import type { ReanchorPlan } from "./annotation-reanchor";
+
+const log = createLogger("force-rescrape-runner");
 
 // ---------------------------------------------------------------------------
 // Injected seams (fake-testable; production fetch is deferred)
@@ -88,15 +94,14 @@ export type PreparedRescrape =
 export type PrepareRescrapeDraft = (ctx: PrepareRescrapeContext) => Promise<PreparedRescrape>;
 
 /**
- * The #1103 annotation re-anchoring seam. Its mere PRESENCE opens the
- * annotation-migration gate (so an annotated Article can be activated); #1102
- * NEVER wires one, so the gate fails closed for any annotated Article. #1102 also
- * never CALLS it (activation only MARKS derived outputs for regeneration) — #1103
- * both supplies the migrator and performs the re-anchoring behind this seam.
+ * The #1103 annotation re-anchoring seam (implemented in `annotation-migrator.ts`).
+ * Its mere PRESENCE opens the annotation-migration gate (so an annotated Article
+ * CAN be activated); its `assess()` result then gates activation on whether every
+ * anchor migrated RELIABLY. #1102 NEVER wires one, so the gate fails closed for
+ * any annotated Article; #1103 both supplies the migrator and performs the
+ * re-anchoring (offset migration in the activation tx + derived regeneration).
  */
-export type AnnotationMigrator = {
-  reanchor(input: { articleId: string; fromVersionId: string | null; toVersionId: string }): Promise<void>;
-};
+export type { AnnotationMigrator } from "./annotation-migrator";
 
 /** Dependencies for {@link requestForceRescrape}. */
 export type ForceRescrapeRunnerDeps = {
@@ -268,27 +273,59 @@ export async function requestForceRescrape(
       return { ok: true, kind: "failed", articleId, versionId, reason: prepared.reason };
     }
 
-    // 6. Pure activation gate (signals + fail-closed annotation-migration gate).
+    // 6a. #1103 — re-anchor assessment BEFORE the gate (reads-before-tx). Only
+    //     when a migrator is wired AND there are annotations to migrate; the
+    //     migrator reuses the Reader anchor engine over the PROPOSED plain text.
+    let plan: ReanchorPlan | null = null;
+    if (deps.annotationMigrator && annotationCount > 0) {
+      plan = await deps.annotationMigrator.assess({
+        articleId,
+        proposedContent: prepared.content.content,
+      });
+    }
+
+    // 6b. Pure activation gate (signals + annotation-migration gate). A wired
+    //     migrator only opens the gate when EVERY anchor migrated reliably.
     const decision = decideForceRescrapeActivation({
       signals: prepared.signals,
-      annotation: { annotationCount, migratorWired },
+      annotation: { annotationCount, migratorWired, unreliableAnchorCount: plan?.unreliableCount ?? 0 },
     });
     if (!decision.proceed) {
-      await recordRescrapeFailure({ articleId, versionId, reason: decision.reason, now });
+      // On an annotation block, PRESERVE the uncertain anchors on the old version
+      // and expose their ids/count (metadata only) for confirmation — never drop.
+      const unresolved =
+        plan && !plan.allReliable
+          ? { unresolvedAnchorCount: plan.unreliableCount, unresolvedAnchorIds: plan.unresolvedAnchorIds }
+          : {};
+      await recordRescrapeFailure({ articleId, versionId, reason: decision.reason, ...unresolved, now });
       return { ok: true, kind: "failed", articleId, versionId, reason: decision.reason };
     }
 
-    // 7. Atomic swap. A lost activation guard is treated as a controlled failure.
+    // 7. Atomic swap — migrates the reliable anchor offsets IN the same tx as the
+    //    content (data integrity). A lost activation guard is a controlled failure.
     const activated = await activateRescrape({
       articleId,
       pendingVersionId: versionId,
       content: prepared.content,
+      anchorMoves: plan?.moves ?? [],
       now,
     });
     if (!activated.ok) {
       await recordRescrapeFailure({ articleId, versionId, reason: "internal_error", now });
       return { ok: true, kind: "failed", articleId, versionId, reason: "internal_error" };
     }
+
+    // 8. #1103 — enqueue DEDUPLICATED regeneration of the content-derived outputs
+    //    whose basis changed, OFF the activation (best-effort/retryable). A failure
+    //    here NEVER changes the "activated" outcome: the version stamps
+    //    `derivedRegenerationRequestedAt` so a later retry/reconcile can pick it up,
+    //    and optional AI/narration providers degrade gracefully in the worker.
+    try {
+      await requestDerivedRegeneration({ articleId, versionId, now });
+    } catch {
+      log.warn("derived regeneration enqueue failed after activation", { articleId, versionId });
+    }
+
     return {
       ok: true,
       kind: "activated",

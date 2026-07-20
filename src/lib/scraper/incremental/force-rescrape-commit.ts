@@ -39,6 +39,7 @@ import { prisma } from "@/lib/prisma";
 import { CURRENT_EXTRACTOR_VERSION } from "./ingest-outcome";
 import { computeProseFingerprint } from "./prose-fingerprint";
 import { FAILED_STATUS_REASONS, type ForceRescrapeFailureReason } from "./force-rescrape-policy";
+import type { AnchorMove } from "./annotation-reanchor";
 
 const S = ArticleContentVersionStatus;
 
@@ -237,15 +238,36 @@ export type RecordRescrapeFailureResult = {
  * reader access UNCHANGED (AC1). A guarded `updateMany` keyed on the still-pending
  * lock makes it idempotent: a row already resolved by a concurrent path is a safe
  * no-op (`applied: false`).
+ *
+ * #1103 — when the annotation-migration gate blocks activation, the count + IDs
+ * of the anchors that could NOT be reliably re-anchored are stamped on the
+ * version row (metadata only — highlight IDs, never quote/note text) so the
+ * force-rescrape status endpoint can surface them for operator/user confirmation
+ * instead of dropping them.
  */
 export async function recordRescrapeFailure(input: {
   versionId: string;
   articleId: string;
   reason: ForceRescrapeFailureReason;
+  /** #1103 — number of anchors that could not be reliably re-anchored (metadata). */
+  unresolvedAnchorCount?: number;
+  /** #1103 — IDs of those anchors (metadata only — never their quote/note text). */
+  unresolvedAnchorIds?: string[];
   now?: Date;
 }): Promise<RecordRescrapeFailureResult> {
   const now = input.now ?? new Date();
   const status = FAILED_STATUS_REASONS.has(input.reason) ? S.FAILED : S.REJECTED;
+
+  const unresolvedAnchorData =
+    input.unresolvedAnchorCount != null || input.unresolvedAnchorIds != null
+      ? {
+          unresolvedAnchorCount: input.unresolvedAnchorCount ?? null,
+          unresolvedAnchorIds:
+            input.unresolvedAnchorIds && input.unresolvedAnchorIds.length > 0
+              ? input.unresolvedAnchorIds
+              : Prisma.DbNull,
+        }
+      : {};
 
   const updated = await prisma.articleContentVersion.updateMany({
     where: {
@@ -257,6 +279,7 @@ export async function recordRescrapeFailure(input: {
       status,
       pendingForArticleId: null,
       failureReason: input.reason,
+      ...unresolvedAnchorData,
       updatedAt: now,
     },
   });
@@ -297,9 +320,20 @@ const ACTIVATION_PENDING_SELECT = {
  * version to SUPERSEDED (clearing its `activeForArticleId` slot), PROMOTES the
  * pending version to ACTIVE (filling content + fingerprint + provenance, claiming
  * the `activeForArticleId` slot, clearing `pendingForArticleId`, and stamping
- * `derivedRegenerationRequestedAt` to MARK derived outputs for #1103), and
+ * `derivedRegenerationRequestedAt` to MARK derived outputs for #1103), MIGRATES
+ * the reliable highlight/note anchor offsets onto the new content (#1103), and
  * UPDATES the Article's readable fields IN PLACE — preserving its id, ownerId,
  * visibility, status, canonical/source URLs, and every reading relationship.
+ *
+ * ANCHOR MIGRATION (#1103): the caller passes the reliable `anchorMoves` (only
+ * "moved" anchors — "valid" ones keep their offsets) computed by the migrator
+ * BEFORE the gate. Applying them INSIDE this transaction guarantees highlight
+ * offsets swap all-or-nothing WITH the content (data integrity). To avoid a
+ * transient `@@unique([userId, articleId, startOffset, endOffset])` collision
+ * when offsets shift, the moves are applied in TWO PHASES: every moved anchor is
+ * first parked at a unique out-of-range temporary offset, then set to its final
+ * offset. A move whose highlight was concurrently deleted (`count === 0`) is
+ * skipped — a missing highlight is benign and never rolls the swap back.
  *
  * Concurrency (mirrors `article-save-commit.ts`): reads-before-tx, guarded
  * `updateMany` re-validation inside the tx (`count === 0` ⇒ throw ⇒ rollback), so
@@ -313,11 +347,14 @@ export async function activateRescrape(input: {
   articleId: string;
   pendingVersionId: string;
   content: RescrapeContentPayload;
+  /** #1103 — reliable anchor offset updates to apply atomically with the content. */
+  anchorMoves?: AnchorMove[];
   now?: Date;
   debugHooks?: {
     beforeSupersede?: (tx: Prisma.TransactionClient) => void | Promise<void>;
     beforePromote?: (tx: Prisma.TransactionClient) => void | Promise<void>;
     beforeArticleUpdate?: (tx: Prisma.TransactionClient) => void | Promise<void>;
+    beforeAnchorMigrate?: (tx: Prisma.TransactionClient) => void | Promise<void>;
   };
 }): Promise<ActivateRescrapeResult> {
   const now = input.now ?? new Date();
@@ -392,10 +429,57 @@ export async function activateRescrape(input: {
         },
       });
 
+      // Migrate reliable anchor offsets onto the new content, atomically with the
+      // swap. Two-phase to avoid transient @@unique collisions as offsets shift.
+      await input.debugHooks?.beforeAnchorMigrate?.(tx);
+      await migrateAnchorOffsets(tx, articleId, input.anchorMoves ?? [], now);
+
       return { ok: true, activeVersionId: pendingVersionId, supersededVersionId };
     });
   } catch (error) {
     if (error instanceof RescrapeActivationRaceError) return { ok: false, reason: "race" };
     throw error;
+  }
+}
+
+/**
+ * Out-of-range base for the two-phase anchor migration's temporary offsets. Far
+ * beyond any real content length (reader offsets are bounded well under this and
+ * the API caps anchors at 10,000,000), so parking a highlight here can never
+ * collide with a non-migrated anchor's real offsets, and stays within a 32-bit
+ * signed integer for both engines.
+ */
+const TEMP_ANCHOR_OFFSET_BASE = 1_000_000_000;
+
+/**
+ * Applies reliable anchor offset moves in TWO PHASES inside the activation tx:
+ *   1. Park every moved highlight at a unique temporary offset (base + 2·i) so no
+ *      two moves — and no move-vs-existing anchor — ever share offsets mid-swap.
+ *   2. Set each highlight to its final validated offset (guaranteed unique per
+ *      user by the migrator's collision resolution).
+ * A move whose highlight was concurrently deleted updates zero rows and is
+ * skipped (benign) — it never rolls the activation back.
+ */
+async function migrateAnchorOffsets(
+  tx: Prisma.TransactionClient,
+  articleId: string,
+  moves: AnchorMove[],
+  now: Date,
+): Promise<void> {
+  if (moves.length === 0) return;
+
+  for (let i = 0; i < moves.length; i += 1) {
+    const parked = TEMP_ANCHOR_OFFSET_BASE + i * 2;
+    await tx.highlight.updateMany({
+      where: { id: moves[i].id, articleId },
+      data: { startOffset: parked, endOffset: parked + 1, updatedAt: now },
+    });
+  }
+
+  for (const move of moves) {
+    await tx.highlight.updateMany({
+      where: { id: move.id, articleId },
+      data: { startOffset: move.startOffset, endOffset: move.endOffset, updatedAt: now },
+    });
   }
 }

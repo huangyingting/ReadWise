@@ -2014,6 +2014,14 @@ model ArticleContentVersion {
   /// Machine reason code for a controlled REJECTED/FAILED outcome (never content).
   failureReason String?
 
+  /// #1103 — count + IDs of reader anchors that could NOT be reliably re-anchored
+  /// onto this PROPOSED content (missing / ambiguous). Stamped when the
+  /// annotation-migration gate BLOCKS activation, so the force-rescrape status
+  /// endpoint can surface the uncertain anchors for operator/user confirmation
+  /// instead of dropping them. Highlight IDs only — NEVER quote/note text.
+  unresolvedAnchorCount Int?
+  unresolvedAnchorIds   Json?
+
   /// Set at activation to MARK the Article's derived outputs (translations, speech,
   /// quiz, vocabulary, difficulty, processing steps) + reader annotations for
   /// regeneration/re-anchoring. #1102 only MARKS; #1103 consumes this seam to run
