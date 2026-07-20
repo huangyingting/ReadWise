@@ -49,6 +49,7 @@
     "dict:prune": "npm run node-ts -- scripts/prune-local-dictionary.ts",
     "wordfreq:generate": "npm run node-ts -- scripts/generate-wordfreq-ranks.ts",
     "maintenance:retention": "npm run node-ts -- scripts/retention-maintenance.ts",
+    "maintenance:rescrape-regen": "npm run node-ts -- scripts/reconcile-rescrape-regen.ts",
     "privacy:erase-ledgers": "npm run node-ts -- scripts/erase-user-ledgers.ts"
   },
   "dependencies": {

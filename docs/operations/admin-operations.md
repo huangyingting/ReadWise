@@ -302,6 +302,43 @@ dead-letter jobs (90 days when unset). `--jobs-days` overrides that value for
 one maintenance run. Retention remains opt-in: the application does not invoke
 `pruneTerminalJobs` automatically.
 
+### Reconcile stamped-but-unclaimed force-rescrape regeneration
+
+A force-rescrape activation stamps `ArticleContentVersion.derivedRegenerationRequestedAt`
+inside the swap transaction, then enqueues derived regeneration OUTSIDE it
+(best-effort, so activation never blocks on optional AI/narration providers).
+Regeneration is at-most-once because `requestDerivedRegeneration` CLAIMS a
+per-version `rescrape-regen:<versionId>` processing step. If a worker dies after
+the activation commits but before that claim is created, the version is left
+stamped with no claim step — a rare stamped-but-unclaimed state nothing else
+re-drives.
+
+Run this reconciler from cron/scheduler to re-drive those versions:
+
+```bash
+# Safe count-only preview of the stamped-but-unclaimed backlog (default)
+npm run maintenance:rescrape-regen
+
+# Re-drive up to --limit (default 100) unclaimed versions this run
+npm run maintenance:rescrape-regen -- --execute
+
+# Bound a single run to a smaller batch
+npm run maintenance:rescrape-regen -- --execute --limit 25
+```
+
+The sweep finds ACTIVE content versions that are stamped for regeneration but
+have no `rescrape-regen:<versionId>` claim step (in any status), and re-invokes
+the existing `requestDerivedRegeneration` for each. That path is idempotent and
+concurrency-safe: the per-version claim's `@@unique([articleId, step])`
+constraint makes a concurrent runner + this sweep converge on exactly one claim
+and one rebuild job, so re-running is always safe. A version already claimed —
+step present in `running` OR `generated` status — is skipped, and a version
+whose `derivedRegenerationRequestedAt` is unset (ordinary discovery) is never
+touched. A short grace window (2 minutes) skips just-activated versions so the
+sweep never races the original runner. Output is metadata-only JSON: matched,
+re-driven, and already-claimed counts plus the limit — never ids beyond counts,
+URLs, article text, prompts, translations, tokens, or credentials.
+
 ### Per-user analytics/AI ledger erasure
 
 Account deletion cascades user-owned FK rows, but `AnalyticsEvent` and
