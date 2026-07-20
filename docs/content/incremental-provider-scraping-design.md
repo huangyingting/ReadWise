@@ -2225,14 +2225,18 @@ skipped/failed counters. Dual-engine parity: PostgreSQL gets a
 JSONB `warnings` column. No article content or URLs are ever stored — only
 sanitized categories, counts, bounds, actor, and reason.
 
-`SKIPPED_OUTSIDE_WINDOW` is a DEFERRED reactivation target (follow-up #1127):
-normal incremental ingestion does not currently persist a candidate for an
-out-of-window item (`page-commit` creates none), so nothing PRODUCES that state
-yet. Rather than invent a target that is never generated, backfill reactivates
-only the historical states the pipeline actually produces — `OBSERVED_BASELINE`
-(status `BASELINE`) and `OBSERVED_SHADOW` (status `DISCOVERED`, not
-observed-in-baseline). The follow-up adds the enum value, the classification
-point that persists outside-window items, and extends reactivation to them.
+`SKIPPED_OUTSIDE_WINDOW` is a LANDED reactivation target (#1127): a normal
+incremental run over an ACTIVE source persists an INERT candidate for an admitted
++ DATED item whose trusted publication date falls at/before the active discovery
+window (`page-commit` upserts it with `status = SKIPPED_OUTSIDE_WINDOW`,
+`observedInBaseline = false`, `trustedPublishedAt` set — never enqueuing ingest
+work, so it is never auto-ingested). It joins the historical states an approved
+backfill may reactivate — `OBSERVED_BASELINE` (status `BASELINE`),
+`OBSERVED_SHADOW` (status `DISCOVERED`, not observed-in-baseline), and
+`SKIPPED_OUTSIDE_WINDOW` — each only when the identity has NO Article and was
+never created-then-deleted (governing invariant). The dry-run preview breaks
+`eligibleCount` into `observedBaselineCount + observedShadowCount +
+skippedOutsideWindowCount`.
 
 ### Pure policy (no DB/network/clock)
 
@@ -2303,10 +2307,12 @@ incremental candidates therefore continue ahead of historical backfill.
 
 ### Deferred (follow-ups)
 
-`SKIPPED_OUTSIDE_WINDOW` classification + reactivation is follow-up #1127 (see
-Schema above). Production body-fetch dispatch remains the same #1095/#1099
-follow-up: reactivated identities enqueue the ordinary candidate-ingest Job, so
-they inherit whatever ingestion dispatch the normal pipeline provides.
+`SKIPPED_OUTSIDE_WINDOW` classification + reactivation has LANDED (#1127 — see
+Schema above): outside-window items persist as inert candidates and an approved
+backfill can reactivate them. Production body-fetch dispatch remains the same
+#1095/#1099 follow-up: reactivated identities enqueue the ordinary
+candidate-ingest Job, so they inherit whatever ingestion dispatch the normal
+pipeline provides.
 
 ## Phase 3.3 — audited force-rescrape with Article content versions (#1102) — current
 
@@ -2731,7 +2737,8 @@ The following phases build on the Phase 1 ledger and are documented as they land
   dedicated high-permission `POST /api/admin/backfill` endpoint, the `BackfillRun`
   checkpoint model, dry-run preview, clamped bounds, low-priority pausable jobs
   with hostname reservation, and reactivation that honors the governing invariant;
-  `SKIPPED_OUTSIDE_WINDOW` classification is deferred to follow-up #1127. Audited
+  `SKIPPED_OUTSIDE_WINDOW` persistence + backfill reactivation has since landed in
+  follow-up #1127. Audited
   force-rescrape with Article content versions #1102 has landed — see "Phase 3.3"
   above: the dedicated high-permission `POST /api/admin/articles/{id}/force-rescrape`
   endpoint, the `ArticleContentVersion` ledger with DB-enforced at-most-one
