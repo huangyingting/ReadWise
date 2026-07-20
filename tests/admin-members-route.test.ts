@@ -214,6 +214,22 @@ test("PATCH /api/admin/members/[id] returns ok with new role on success", async 
   assert.deepEqual(updateCallArgs, { id: "member-1", role: "Reader" });
 });
 
+test("PATCH /api/admin/members/[id] accepts scoped admin roles", async () => {
+  updateResult = {
+    ok: true,
+    role: "ContentEditor",
+    previousRole: "Reader",
+    changed: true,
+  };
+  const { PATCH } = await loadHandlers();
+  const res = await PATCH(patchRole({ role: "ContentEditor" }), withParams({ id: "member-1" }));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.role, "ContentEditor");
+  assert.deepEqual(updateCallArgs, { id: "member-1", role: "ContentEditor" });
+});
+
 // ---------------------------------------------------------------------------
 // PATCH: Audit callback
 // ---------------------------------------------------------------------------

@@ -1,0 +1,4 @@
+-- SQLite migration: activate granular admin roles (#1155).
+-- Role is a plain TEXT column under SQLite, so the new enum values
+-- (Moderator, ContentEditor, SupportAgent) require NO schema change here — they
+-- are enforced only by the Prisma client + the PostgreSQL enum type.

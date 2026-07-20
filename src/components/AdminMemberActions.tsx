@@ -4,16 +4,15 @@ import { deleteJson, patchJson } from "@/lib/client-fetch";
 import { Select } from "@/components/ui/Select";
 import ConfirmAction from "@/components/ConfirmAction";
 import { useAdminAction } from "@/hooks/useAdminAction";
-
-type Role = "Admin" | "Reader";
+import { ACTIVE_ROLES, type ActiveRole } from "@/lib/rbac";
 
 interface AdminMemberActionsProps {
   memberId: string;
-  role: Role;
+  role: ActiveRole;
   isSelf: boolean;
 }
 
-const ROLE_OPTIONS: Role[] = ["Reader", "Admin"];
+const ROLE_OPTIONS = ACTIVE_ROLES;
 const selfRemovalTitle = "You cannot remove your own account";
 
 export default function AdminMemberActions({

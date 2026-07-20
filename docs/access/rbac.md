@@ -71,6 +71,12 @@ Capabilities are string literals exported by `CAPABILITIES`.
 
 - `Admin` — all admin capabilities plus all base reader capabilities.
 - `Reader` — base reader capabilities only.
+- `Moderator` — scoped admin role for content review/moderation without member,
+  job, or security administration.
+- `ContentEditor` — scoped admin role for editorial staff who create/edit
+  articles and tags without member or job administration.
+- `SupportAgent` — scoped admin role for customer-success tooling and analytics
+  without member, content-editing, or job administration.
 
 A compile-time guard in `src/lib/rbac.ts` ensures the in-code active roles and
 Prisma enum cannot drift silently.
@@ -84,22 +90,20 @@ in `src/lib/auth/config.ts`.
 article processor. It is never stored in the database and grants all
 capabilities.
 
-### Planned system roles
+### Scoped admin roles
 
-These roles are **not yet assignable** (not in the Prisma `Role` enum) but their
-capability grants already exist in `ROLE_CAPABILITIES` in `src/lib/rbac.ts`. The
-role constants (`PLANNED_SYSTEM_ROLES`, `PLANNED_ROLES`) are **module-private**
-in `rbac.ts` — they are intentional implementation details, not part of the
-public API surface. Code should gate on capabilities, not on planned role names.
+These roles are assignable global `User.role` values backed by the Prisma
+`Role` enum. Their capability grants live in `ROLE_CAPABILITIES` in
+`src/lib/rbac.ts`. Code should gate on capabilities, not on role names.
 
 | Role | Rationale | Key capabilities |
 | --- | --- | --- |
-| `Moderator` | Future content-review role for high-volume moderation without full admin access. | `content.moderate`, `admin.access` (view only) |
-| `ContentEditor` | Future role for editorial staff who create/edit articles but do not manage members or jobs. | `articles.manage`, `tags.manage`, `admin.access` |
-| `SupportAgent` | Future support-tooling role for customer-success staff. | `support.assist`, `analytics.view`, `admin.access` |
+| `Moderator` | Content-review role for high-volume moderation without full admin access. | `content.moderate`, `articles.manage`, `admin.access` |
+| `ContentEditor` | Editorial role for staff who create/edit articles and tags but do not manage members or jobs. | `articles.manage`, `tags.manage`, `admin.access` |
+| `SupportAgent` | Support-tooling role for customer-success staff. | `support.assist`, `analytics.view`, `admin.access` |
 
-Their capability grants already exist in `ROLE_CAPABILITIES` so migration can be
-additive when product requirements need them.
+Only `Admin` grants `members.manage`, so scoped admin roles cannot assign roles
+or escalate their own access.
 
 ## Tenant and classroom roles
 
@@ -196,11 +200,12 @@ Admin UI sections use capabilities rather than raw role checks:
 Destructive/admin mutations are also audited and surfaced as security events by
 the shared API handler.
 
-## Migration path for planned global roles
+## Migration path for future global roles
 
-When a planned system role becomes assignable:
+The planned `Moderator`, `ContentEditor`, and `SupportAgent` roles were activated
+in #1155 by following this process. When a future system role becomes assignable:
 
-1. Add it to `enum Role` in both Prisma schemas.
+1. Add it to `enum Role` in all Prisma schemas.
 2. Add it to `ACTIVE_ROLES` in `src/lib/rbac.ts`.
 3. Confirm `ROLE_CAPABILITIES` already grants the intended permissions.
 4. Extend member-management UI/actions to assign the role.
@@ -215,9 +220,9 @@ route tests, and API handler tests verify:
 
 - Admin vs Reader behavior remains preserved.
 - Unknown roles are denied by default.
-- Planned roles are defined but not globally assignable.
+- Scoped admin roles are globally assignable and grant only their intended
+  capabilities.
 - Tenant roles are separate from system admin access.
 - Capability/page/API guards return the expected redirect, 401, or 403.
 - `loadSession` returns null for missing/malformed sessions.
 - `sessionHasCapability` correctly delegates to the capability model.
-
