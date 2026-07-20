@@ -11,6 +11,7 @@ import {
   type ForceRescrapeOutcome,
 } from "@/lib/scraper/incremental/force-rescrape-runner";
 import { createAnnotationMigrator } from "@/lib/scraper/incremental/annotation-migrator";
+import { createProductionRescrapePreparer } from "@/lib/scraper/incremental/rescrape-preparer";
 import { getForceRescrapeStatus } from "@/lib/scraper/incremental/force-rescrape-query";
 
 /**
@@ -22,6 +23,18 @@ import { getForceRescrapeStatus } from "@/lib/scraper/incremental/force-rescrape
  * exported — a `route.ts` may export only HTTP handlers + Next config.
  */
 const productionAnnotationMigrator = createAnnotationMigrator({
+  deriveReaderText: articleHtmlToReaderText,
+});
+
+/**
+ * The PRODUCTION force-rescrape body-fetch preparer (#1129) — the impure
+ * fetch → extract → quality → safety → canonical seam. Like the migrator it takes
+ * `articleHtmlToReaderText` as an injected `deriveReaderText` so moderation runs
+ * over the SAME reader text the product shows (the scraper module may not import
+ * `@/lib/content-pipeline`). Not exported — a `route.ts` may export only HTTP
+ * handlers + Next config. The runner keeps its fail-closed default when unwired.
+ */
+const productionRescrapePreparer = createProductionRescrapePreparer({
   deriveReaderText: articleHtmlToReaderText,
 });
 
@@ -123,7 +136,7 @@ export const POST = createCapabilityHandler(
         requestedById: session?.user?.id ?? null,
         dryRun: body.dryRun ?? false,
       },
-      { annotationMigrator: productionAnnotationMigrator },
+      { annotationMigrator: productionAnnotationMigrator, prepareDraft: productionRescrapePreparer },
     );
 
     if (outcome.ok && outcome.kind === "activated") {
