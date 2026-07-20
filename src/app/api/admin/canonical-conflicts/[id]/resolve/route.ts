@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { createCapabilityHandler } from "@/lib/api-handler";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { CAPABILITIES } from "@/lib/rbac";
-import { boolean, idParams, object, string } from "@/lib/validation";
+import { boolean, idParams, object, optional, string } from "@/lib/validation";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import {
   resolveCanonicalConflict,
@@ -16,6 +17,11 @@ const resolveBody = object({
   reason: string({ min: 1, max: 500 }),
   /** Explicit confirmation of the destructive resolution. */
   confirm: boolean(),
+  /**
+   * OPT-IN (#1134): also migrate the losers' reader/learning data onto the
+   * survivor. Absent/false preserves #1104's retain-on-loser behavior exactly.
+   */
+  migrateReaderData: optional(boolean()),
 });
 
 /** Client-safe message for each illegal-resolution reason. */
@@ -42,6 +48,7 @@ function resolveOutcomeResponse(outcome: ConflictResolveOutcome): NextResponse {
             survivingArticleId: outcome.survivingArticleId,
             loserArticleIds: outcome.loserArticleIds,
             survivorCandidateId: outcome.survivorCandidateId,
+            ...(outcome.migration ? { migration: outcome.migration } : {}),
           }
         : {
             ok: true,
@@ -101,11 +108,15 @@ export const POST = createCapabilityHandler(
       );
     }
 
-    const outcome = await resolveCanonicalConflict({
-      conflictId: params.id,
-      survivingArticleId: body.survivingArticleId,
-      resolvedBy: session.user.id,
-    });
+    const outcome = await resolveCanonicalConflict(
+      {
+        conflictId: params.id,
+        survivingArticleId: body.survivingArticleId,
+        resolvedBy: session.user.id,
+        migrateReaderData: body.migrateReaderData ?? false,
+      },
+      { deriveReaderText: articleHtmlToReaderText },
+    );
 
     if (outcome.ok && outcome.kind === "applied") {
       await recordAuditFromRequest({
@@ -120,6 +131,8 @@ export const POST = createCapabilityHandler(
           survivorCandidateId: outcome.survivorCandidateId,
           loserArticleCount: outcome.loserArticleIds.length,
           reason: body.reason,
+          migrateReaderData: body.migrateReaderData ?? false,
+          ...(outcome.migration ? { migration: outcome.migration } : {}),
         },
       });
     }

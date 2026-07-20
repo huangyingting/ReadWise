@@ -2599,16 +2599,42 @@ A unique-key race is handled by a bounded standalone convergence loop AFTER the 
 conflict returns an idempotent `noop` (`already-resolved`) or `stale` (409). Exactly
 one public identity owner always remains (AC4).
 
-### Dependent-data rule — retain, don't migrate (AC1)
+### Dependent-data rule — retain by default, OPT-IN migrate (AC1, #1134)
 
 The losing Articles are **archived, not deleted**: `takedownState = archived`,
 `PUBLISHED → DRAFT` (leaving public feeds via the existing content-governance rule),
-and a `ContentReview` row records the transition. Because the losers are retained,
-**all of their reader/learning data is preserved intact** — this is the "deliberately
-retain" branch that satisfies AC1's "preserves required dependent data" without any
-data loss. **Actively migrating** the losers' reader data onto the survivor (with
-per-constraint unique-collision resolution) is deliberately out of scope — follow-up
-#1134.
+and a `ContentReview` row records the transition. **By default** (the resolve body's
+`migrateReaderData` flag absent/false) the losers are retained, so **all of their
+reader/learning data is preserved intact** — the "deliberately retain" branch that
+satisfies AC1's "preserves required dependent data" without any data loss. This
+default path is byte-for-byte identical to the original #1104 behavior.
+
+**Opt-in migration (#1134).** When the operator sets `migrateReaderData: true`, the
+losers' *article-level* reader/learning data is additionally **re-pointed onto the
+survivor** inside the same guarded `$transaction` (atomic with the archive +
+identity claim), in `migrateReaderDataInTx` (`canonical-conflict-migrate.ts`). Every
+`@@unique` collision is resolved by reading the survivor's occupied slots FIRST and
+then deterministically repointing / merging / skipping — the transaction **never
+catches P2002** (a blind write into an occupied slot is impossible by construction).
+Per-model rules (documented in code + returned as COUNTS only — never content):
+
+| Model | Uniqueness | Collision rule |
+| --- | --- | --- |
+| `ReadingProgress` | `@@unique([userId, articleId])` | keep the MORE-ADVANCED record (`completed` > in-progress, then higher `percent`, then newer `updatedAt`); else repoint |
+| `ReadingListItem` | `@@unique([listId, articleId])` | if the list already holds the survivor, DELETE the loser's duplicate; else repoint |
+| `Highlight` | `@@unique([userId, articleId, startOffset, endOffset])` | RE-ANCHOR each loser highlight onto the survivor's current content (the #1103 engine, injected `deriveReaderText`); dedupe exact-offset collisions with existing survivor highlights; **SKIP** (leave on the loser, count) any that cannot be reliably re-anchored — never silently dropped |
+| `ArticleMastery` | `@@unique([userId, articleId])` | keep the most-recent (`lastActivityAt`, then higher `comprehensionScore`); else repoint |
+| `ArticleDifficultyFeedback` | `@@unique([userId, articleId])` | keep the most-recent (`updatedAt`); else repoint |
+| `TutorMessage` / `QuizAttempt` / `PronunciationAttempt` | no article-scoped unique | append-only repoint (`updateMany`) |
+
+A concurrent second resolve loses the OPEN-conflict claim guard (→ idempotent
+`noop`), so the migration runs AT MOST ONCE and article-level uniqueness is always
+preserved (AC4). Because `src/lib/scraper/*` may not import `@/lib/content-pipeline`,
+the highlight re-anchor text deriver is **injected** — the route supplies
+`articleHtmlToReaderText`; the module default is the in-boundary `stripTags`.
+Privacy: highlight quote/prefix/suffix text is read only in-memory to compute
+offsets; the audit/response carry per-model COUNTS + the `migrateReaderData` boolean
+only.
 
 ### Deletion → permanent DELETED outcome (AC2)
 
@@ -2664,7 +2690,7 @@ All new routes use `createCapabilityHandler(CAPABILITIES.sourcesManage, …)`
 | --- | --- | --- | --- |
 | `GET /api/admin/canonical-conflicts` | query: `status?`, `providerKey?`, `offset?`, `limit?` | `200` `CanonicalConflictPage` | Defaults to OPEN; RESOLVED/DISMISSED inspectable. |
 | `GET /api/admin/canonical-conflicts/{id}` | params: `id` | `200` `CanonicalConflictDetailDto` / `404` | Per-Article dependent-data counts. |
-| `POST /api/admin/canonical-conflicts/{id}/resolve` | body: `survivingArticleId`, `reason`, `confirm: true` | `200` applied/noop | `confirm:false` → 400; non-participant → 400; stale → 409. Audited `admin.canonical_conflict.resolve` on `applied` only. |
+| `POST /api/admin/canonical-conflicts/{id}/resolve` | body: `survivingArticleId`, `reason`, `confirm: true`, `migrateReaderData?` | `200` applied/noop | `confirm:false` → 400; non-participant → 400; stale → 409. `migrateReaderData:true` (opt-in, default false) also migrates reader data onto the survivor; `applied` returns per-model `migration` counts. Audited `admin.canonical_conflict.resolve` on `applied` only. |
 | `GET /api/admin/deleted-articles` | query: `providerKey?`, `offset?`, `limit?` | `200` `DeletedCandidatePage` | Most-recently-deleted first. |
 | `POST /api/admin/deleted-articles/{id}/recover` | body: `reason`, `confirm: true` (`{id}` = candidate id) | `200` recovered | `confirm:false` → 400; ineligible → 409; concurrent → 409 `stale`. Audited `admin.article.recover` on success only. |
 

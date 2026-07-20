@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-20T02:04:05.353Z",
+  "generatedAt": "2026-07-20T07:03:41.547Z",
   "routeCount": 134,
   "methodCount": 159,
   "routes": [
@@ -650,6 +650,7 @@
           "queryParamNames": null,
           "bodyFieldNames": [
             "confirm",
+            "migrateReaderData",
             "reason",
             "survivingArticleId"
           ]
