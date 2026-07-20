@@ -26,11 +26,13 @@ export {
 } from "./guards";
 export {
   type AssignmentClassroomRow,
+  type ClassroomAssignmentMetaRow,
   type ClassroomMemberRow,
   type ClassroomStudentCandidateRow,
   type AssignableArticleOptionRow,
   getClassroom,
   getAssignmentClassroom,
+  listClassroomAssignmentMeta,
   listClassroomsForOrg,
   listClassroomsForTeacher,
   listClassroomsForStudent,
@@ -40,10 +42,13 @@ export {
 } from "./queries";
 export {
   type CreateClassroomInput,
+  type UpdateAssignmentInput,
+  type UpdateAssignmentResult,
   createClassroom,
   addClassroomMember,
   removeClassroomMember,
   deleteAssignment,
+  updateAssignment,
 } from "./commands";
 export {
   type CreateArticleAssignmentInput,
@@ -54,6 +59,7 @@ export {
   type RecordCompletionInput,
   getStudentAssignmentContext,
   recordAssignmentCompletion,
+  markAssignmentQuizComplete,
 } from "./completions";
 export {
   type StudentAssignment,

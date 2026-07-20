@@ -28,7 +28,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { type RouteHandler, readerSession, withParams, getReq, jsonPost, deleteReq } from "./support/route";
+import { type RouteHandler, readerSession, withParams, getReq, jsonPost, jsonPatch, deleteReq } from "./support/route";
 
 // ---------------------------------------------------------------------------
 // Mutable stub state
@@ -84,6 +84,16 @@ let articleAssignmentFailure: {
 } | null = null;
 const removeClassroomMemberCalls: Array<{ classroomId: string; userId: string }> = [];
 const deleteAssignmentCalls: string[] = [];
+const updateAssignmentCalls: Array<{
+  assignmentId: string;
+  input: { dueDate?: string; instructions?: string | null };
+}> = [];
+let updateAssignmentResult:
+  | { ok: true; assignment: Record<string, unknown> }
+  | { ok: false; status: 400; reason: "invalid_due_date" } = {
+  ok: true,
+  assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
+};
 
 // org stubs — controls requireOrgCapabilityApi (for POST /classrooms) and
 // the inline RBAC check in GET /classrooms/[id]/analytics.
@@ -146,6 +156,13 @@ before(() => {
       getAssignmentClassroom: async () => assignmentClassroomResult,
       deleteAssignment: async (assignmentId: string) => {
         deleteAssignmentCalls.push(assignmentId);
+      },
+      updateAssignment: async (
+        assignmentId: string,
+        input: { dueDate?: string; instructions?: string | null },
+      ) => {
+        updateAssignmentCalls.push({ assignmentId, input });
+        return updateAssignmentResult;
       },
       getStudentAssignmentContext: async () => assignmentContext,
       recordAssignmentCompletion: async () => completionResult,
@@ -246,6 +263,11 @@ beforeEach(() => {
   articleStub = { id: "a1" };
   removeClassroomMemberCalls.length = 0;
   deleteAssignmentCalls.length = 0;
+  updateAssignmentCalls.length = 0;
+  updateAssignmentResult = {
+    ok: true,
+    assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
+  };
 });
 
 async function postClassrooms(body: Record<string, unknown>) {
@@ -316,6 +338,13 @@ async function deleteAssignmentRoute(id: string) {
     DELETE: RouteHandler;
   };
   return DELETE(deleteReq(`http://test/api/assignments/${id}`), withParams({ id }));
+}
+
+async function patchAssignmentRoute(id: string, body: Record<string, unknown>) {
+  const { PATCH } = (await import("@/app/api/assignments/[id]/route")) as {
+    PATCH: RouteHandler;
+  };
+  return PATCH(jsonPatch(`http://test/api/assignments/${id}`, body), withParams({ id }));
 }
 
 // ===========================================================================
@@ -718,6 +747,68 @@ test("DELETE /api/assignments/[id] returns 200 and deletes assignment on success
   const body = await res.json() as { ok: boolean };
   assert.equal(body.ok, true);
   assert.deepEqual(deleteAssignmentCalls, ["asgn1"]);
+});
+
+// ===========================================================================
+// PATCH /api/assignments/[id]
+// ===========================================================================
+
+test("PATCH /api/assignments/[id] returns 401 when unauthenticated", async () => {
+  authState = "unauth";
+  const res = await patchAssignmentRoute("asgn1", { instructions: "Read closely" });
+  assert.equal(res.status, 401);
+});
+
+test("PATCH /api/assignments/[id] returns 404 when assignment is missing", async () => {
+  assignmentClassroomResult = null;
+  const res = await patchAssignmentRoute("missing", { instructions: "x" });
+  assert.equal(res.status, 404);
+});
+
+test("PATCH /api/assignments/[id] enforces tenant isolation with classroom-manage guard", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
+  const res = await patchAssignmentRoute("asgn1", { instructions: "x" });
+  assert.equal(res.status, 403);
+  assert.equal(updateAssignmentCalls.length, 0);
+});
+
+test("PATCH /api/assignments/[id] updates dueDate + instructions for the classroom teacher", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  updateAssignmentResult = {
+    ok: true,
+    assignment: {
+      id: "asgn1",
+      classroomId: "c1",
+      dueDate: "2026-08-01T00:00:00.000Z",
+      instructions: "Focus on the intro",
+    },
+  };
+  const res = await patchAssignmentRoute("asgn1", {
+    dueDate: "2026-08-01T00:00:00.000Z",
+    instructions: "Focus on the intro",
+  });
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as { assignment: { instructions: string } };
+  assert.equal(body.assignment.instructions, "Focus on the intro");
+  assert.deepEqual(updateAssignmentCalls, [
+    {
+      assignmentId: "asgn1",
+      input: {
+        dueDate: "2026-08-01T00:00:00.000Z",
+        instructions: "Focus on the intro",
+      },
+    },
+  ]);
+});
+
+test("PATCH /api/assignments/[id] returns 400 when the due date is invalid", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  updateAssignmentResult = { ok: false, status: 400, reason: "invalid_due_date" };
+  const res = await patchAssignmentRoute("asgn1", { dueDate: "not-a-date" });
+  assert.equal(res.status, 400);
 });
 
 // ===========================================================================

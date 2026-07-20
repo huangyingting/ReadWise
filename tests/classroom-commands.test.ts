@@ -24,6 +24,13 @@ let membershipCreateArgs: unknown = null;
 let membershipUpsertArgs: unknown = null;
 let membershipDeleteManyArgs: unknown = null;
 let assignmentDeleteManyArgs: unknown = null;
+let assignmentUpdateArgs: unknown = null;
+let assignmentUpdateResult: Record<string, unknown> = {
+  id: "asgn-1",
+  classroomId: "c1",
+  dueDate: null,
+  instructions: null,
+};
 let transactionCalled = false;
 
 // Module-level ref so $transaction callback can receive it as `tx`
@@ -58,6 +65,10 @@ before(() => {
         assignmentDeleteManyArgs = args;
         return { count: 1 };
       },
+      update: async (args: unknown) => {
+        assignmentUpdateArgs = args;
+        return assignmentUpdateResult;
+      },
     },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
       transactionCalled = true;
@@ -80,6 +91,8 @@ beforeEach(() => {
   membershipUpsertArgs = null;
   membershipDeleteManyArgs = null;
   assignmentDeleteManyArgs = null;
+  assignmentUpdateArgs = null;
+  assignmentUpdateResult = { id: "asgn-1", classroomId: "c1", dueDate: null, instructions: null };
   transactionCalled = false;
 });
 
@@ -205,4 +218,47 @@ test("deleteAssignment returns void (no useful return value)", async () => {
   const { deleteAssignment } = await loadCommands();
   const result = await deleteAssignment("asgn-1");
   assert.equal(result, undefined);
+});
+
+// ---- updateAssignment ------------------------------------------------------
+
+test("updateAssignment updates only instructions when dueDate is omitted", async () => {
+  const { updateAssignment } = await loadCommands();
+  const result = await updateAssignment("asgn-1", { instructions: "  Read carefully  " });
+  assert.deepEqual(result, { ok: true, assignment: assignmentUpdateResult });
+  const args = assignmentUpdateArgs as {
+    where: { id: string };
+    data: Record<string, unknown>;
+  };
+  assert.equal(args.where.id, "asgn-1");
+  assert.deepEqual(args.data, { instructions: "Read carefully" });
+});
+
+test("updateAssignment trims blank instructions to null", async () => {
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", { instructions: "   " });
+  const args = assignmentUpdateArgs as { data: { instructions: string | null } };
+  assert.equal(args.data.instructions, null);
+});
+
+test("updateAssignment parses a valid dueDate into a Date", async () => {
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", { dueDate: "2026-08-01T00:00:00.000Z" });
+  const args = assignmentUpdateArgs as { data: { dueDate: Date } };
+  assert.ok(args.data.dueDate instanceof Date);
+  assert.equal(args.data.dueDate.toISOString(), "2026-08-01T00:00:00.000Z");
+});
+
+test("updateAssignment rejects an invalid dueDate without touching the row", async () => {
+  const { updateAssignment } = await loadCommands();
+  const result = await updateAssignment("asgn-1", { dueDate: "not-a-date" });
+  assert.deepEqual(result, { ok: false, status: 400, reason: "invalid_due_date" });
+  assert.equal(assignmentUpdateArgs, null);
+});
+
+test("updateAssignment sends no data keys when the input is empty", async () => {
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", {});
+  const args = assignmentUpdateArgs as { data: Record<string, unknown> };
+  assert.deepEqual(args.data, {});
 });

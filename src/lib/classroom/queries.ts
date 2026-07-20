@@ -39,6 +39,12 @@ export type AssignmentClassroomRow = {
   classroomId: string;
 };
 
+export type ClassroomAssignmentMetaRow = {
+  assignmentId: string;
+  dueDate: Date | null;
+  instructions: string | null;
+};
+
 const NEWEST_FIRST = { createdAt: "desc" } as const;
 const USER_PROFILE_SELECT = {
   id: true,
@@ -64,6 +70,26 @@ export function getAssignmentClassroom(
     where: { id: assignmentId },
     select: { id: true, classroomId: true },
   });
+}
+
+/**
+ * Due date + instructions for every assignment in a classroom, keyed by
+ * assignment id. The analytics `perAssignment` aggregate omits these editable
+ * fields, so the teacher view merges this in for the overdue badge and the edit
+ * form prefill.
+ */
+export async function listClassroomAssignmentMeta(
+  classroomId: string,
+): Promise<ClassroomAssignmentMetaRow[]> {
+  const rows = await prisma.assignment.findMany({
+    where: { classroomId },
+    select: { id: true, dueDate: true, instructions: true },
+  });
+  return rows.map((r) => ({
+    assignmentId: r.id,
+    dueDate: r.dueDate,
+    instructions: r.instructions,
+  }));
 }
 
 /** Classrooms in an org, newest first. */

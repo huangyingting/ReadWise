@@ -3,10 +3,12 @@ import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import {
   getClassroom,
+  listClassroomAssignmentMeta,
   listClassroomMembers,
   searchAssignableArticleOptions,
   searchClassroomStudentCandidates,
 } from "@/lib/classroom";
+import { isAssignmentOverdue } from "@/lib/classroom/overdue";
 import { getMembership, hasOrgCapability, isSystemAdmin } from "@/lib/org";
 import { CAPABILITIES } from "@/lib/rbac";
 import {
@@ -30,12 +32,15 @@ import { StatCard } from "@/components/analytics/StatCard";
 import AddStudentForm from "@/components/teacher/AddStudentForm";
 import AssignArticleForm from "@/components/teacher/AssignArticleForm";
 import DeleteAssignmentButton from "@/components/teacher/DeleteAssignmentButton";
+import EditAssignmentForm from "@/components/teacher/EditAssignmentForm";
 import RemoveStudentButton from "@/components/teacher/RemoveStudentButton";
 
 type ClassroomAnalytics = NonNullable<
   Awaited<ReturnType<typeof getClassroomAnalytics>>
 >;
 type ClassroomMember = Awaited<ReturnType<typeof listClassroomMembers>>[number];
+type AssignmentMeta = Awaited<ReturnType<typeof listClassroomAssignmentMeta>>[number];
+type AssignmentMetaMap = Map<string, AssignmentMeta>;
 type StudentCandidate = Awaited<ReturnType<typeof searchClassroomStudentCandidates>>[number];
 type AssignableArticle = Awaited<ReturnType<typeof searchAssignableArticleOptions>>[number];
 type SearchParams = {
@@ -91,13 +96,24 @@ function AnalyticsSummary({ analytics }: { analytics: ClassroomAnalytics }) {
   );
 }
 
+function assignmentSynthesizedStatus(
+  assignment: ClassroomAnalytics["perAssignment"][number],
+): string {
+  return assignment.assigned > 0 && assignment.completed >= assignment.assigned
+    ? "COMPLETED"
+    : "IN_PROGRESS";
+}
+
 function AssignmentsCard({
   analytics,
+  assignmentMeta,
   canManage,
 }: {
   analytics: ClassroomAnalytics | null;
+  assignmentMeta: AssignmentMetaMap;
   canManage: boolean;
 }) {
+  const now = new Date();
   return (
     <Card>
       <CardHeader>
@@ -110,27 +126,44 @@ function AssignmentsCard({
           </p>
         ) : (
           <ul className="flex flex-col gap-[var(--space-3)]">
-            {analytics.perAssignment.map((assignment) => (
-              <li
-                key={assignment.assignmentId}
-                className="flex flex-col gap-[var(--space-2)] border-b border-border pb-[var(--space-2)] last:border-0 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <span className="font-medium text-text">
-                  {assignment.articleTitle}
-                </span>
-                <div className="flex flex-col items-start gap-[var(--space-1)] sm:items-end">
-                  <span className="text-[length:var(--text-sm)] text-text-muted">
-                    {assignmentSummary(assignment)}
+            {analytics.perAssignment.map((assignment) => {
+              const meta = assignmentMeta.get(assignment.assignmentId);
+              const overdue = isAssignmentOverdue(
+                meta?.dueDate ?? null,
+                assignmentSynthesizedStatus(assignment),
+                now,
+              );
+              return (
+                <li
+                  key={assignment.assignmentId}
+                  className="flex flex-col gap-[var(--space-2)] border-b border-border pb-[var(--space-2)] last:border-0 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="flex items-center gap-[var(--space-2)] font-medium text-text">
+                    {assignment.articleTitle}
+                    {overdue ? <Badge variant="danger">Overdue</Badge> : null}
                   </span>
-                  {canManage ? (
-                    <DeleteAssignmentButton
-                      assignmentId={assignment.assignmentId}
-                      assignmentTitle={assignment.articleTitle}
-                    />
-                  ) : null}
-                </div>
-              </li>
-            ))}
+                  <div className="flex flex-col items-start gap-[var(--space-1)] sm:items-end">
+                    <span className="text-[length:var(--text-sm)] text-text-muted">
+                      {assignmentSummary(assignment)}
+                    </span>
+                    {canManage ? (
+                      <div className="flex items-center gap-[var(--space-2)]">
+                        <EditAssignmentForm
+                          assignmentId={assignment.assignmentId}
+                          assignmentTitle={assignment.articleTitle}
+                          initialDueDate={meta?.dueDate?.toISOString() ?? null}
+                          initialInstructions={meta?.instructions ?? null}
+                        />
+                        <DeleteAssignmentButton
+                          assignmentId={assignment.assignmentId}
+                          assignmentTitle={assignment.articleTitle}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </CardBody>
@@ -398,14 +431,18 @@ export default async function ClassroomDetailPage({
     isOrgAdmin,
   });
 
-  const [members, filterAnalytics, analytics] = await Promise.all([
+  const [members, filterAnalytics, analytics, assignmentMetaRows] = await Promise.all([
     listClassroomMembers(id),
     getClassroomAnalytics(id, role),
     getClassroomAnalytics(id, role, {
       assignmentId: filters.assignmentId || undefined,
       studentId: filters.studentId || undefined,
     }),
+    listClassroomAssignmentMeta(id),
   ]);
+  const assignmentMeta: AssignmentMetaMap = new Map(
+    assignmentMetaRows.map((row) => [row.assignmentId, row]),
+  );
 
   const canManage = isTeacher || isOrgAdmin || isSystemAdmin(session.user.role);
   const students = members.filter((m) => m.role === "Student");
@@ -438,7 +475,11 @@ export default async function ClassroomDetailPage({
 
       <div className="grid gap-[var(--space-6)] md:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-[var(--space-6)]">
-          <AssignmentsCard analytics={analytics} canManage={canManage} />
+          <AssignmentsCard
+            analytics={analytics}
+            assignmentMeta={assignmentMeta}
+            canManage={canManage}
+          />
           <DrilldownCard analytics={analytics} />
           <StudentProgressCard analytics={analytics} />
         </div>

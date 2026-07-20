@@ -5,8 +5,9 @@
  * assignments live here. Teachers are seated as classroom members inside
  * {@link createClassroom}'s transaction.
  */
-import type { Classroom, ClassroomMembership, ClassroomRole } from "@prisma/client";
+import type { Assignment, Classroom, ClassroomMembership, ClassroomRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { parseOptionalDueDate, trimOrNull } from "./article-assignments";
 
 export type CreateClassroomInput = { orgId: string; name: string; teacherId: string };
 
@@ -56,4 +57,43 @@ export async function removeClassroomMember(
 /** Deletes an assignment (cascades its completions). */
 export async function deleteAssignment(assignmentId: string): Promise<void> {
   await prisma.assignment.deleteMany({ where: { id: assignmentId } });
+}
+
+export type UpdateAssignmentInput = {
+  dueDate?: string;
+  instructions?: string | null;
+};
+
+export type UpdateAssignmentResult =
+  | { ok: true; assignment: Assignment }
+  | { ok: false; status: 400; reason: "invalid_due_date" };
+
+/**
+ * Updates an assignment's due date and/or instructions. Only the fields present
+ * in `input` are changed. A provided due date must parse to a real date (mirrors
+ * {@link createArticleAssignment}); instructions are trimmed (empty → null).
+ */
+export async function updateAssignment(
+  assignmentId: string,
+  input: UpdateAssignmentInput,
+): Promise<UpdateAssignmentResult> {
+  const data: { dueDate?: Date | null; instructions?: string | null } = {};
+
+  if (input.dueDate !== undefined) {
+    const dueDate = parseOptionalDueDate(input.dueDate);
+    if (input.dueDate && !dueDate) {
+      return { ok: false, status: 400, reason: "invalid_due_date" };
+    }
+    data.dueDate = dueDate;
+  }
+
+  if (input.instructions !== undefined) {
+    data.instructions = trimOrNull(input.instructions);
+  }
+
+  const assignment = await prisma.assignment.update({
+    where: { id: assignmentId },
+    data,
+  });
+  return { ok: true, assignment };
 }
