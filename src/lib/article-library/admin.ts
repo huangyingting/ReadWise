@@ -14,6 +14,7 @@ import {
 } from "@/lib/media";
 import { readingMinutesFor } from "./mapper";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
+import { markArticleCandidatesDeletedInTx } from "@/lib/scraper/incremental/candidate-deletion-stamp";
 import {
   SYSTEM_ARTICLE_CONTEXT,
   adminVisibleArticleWhere,
@@ -311,6 +312,11 @@ export async function deleteArticle(
     const mediaRetirement = await prepareArticleMediaAssetRetirement(tx, {
       articleId: id,
     });
+    // Stamp the permanent DELETED outcome on the producing candidate(s) BEFORE the
+    // delete (while `articleId` still links; the FK is SetNull) so the discovery
+    // ledger atomically records the deletion and never auto-recreates the identity
+    // (#1104, AC2). Recovery is an explicit, audited operator action.
+    await markArticleCandidatesDeletedInTx(tx, id, new Date());
     await tx.article.delete({ where: { id } });
     if (audit) {
       await recordAuditFromRequest(audit, tx);
