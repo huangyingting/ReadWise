@@ -22,6 +22,8 @@ import {
 import AdminArticleActions from "@/components/AdminArticleActions";
 import AdminArticleReview from "@/components/AdminArticleReview";
 import AdminArticleTakedown from "@/components/AdminArticleTakedown";
+import AdminForceRescrapePanel from "@/components/AdminForceRescrapePanel";
+import { scraperForceRescrapeEnabled } from "@/lib/runtime-config/scraper";
 import { Card, CardMeta, CardTitle } from "@/components/ui/Card";
 import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
 import { StatCard } from "@/components/analytics/StatCard";
@@ -173,6 +175,30 @@ function DerivedContentCard({
           ))}
         </div>
         <AdminArticleActions articleId={articleId} redirectOnDelete="/admin/articles" />
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Operator-only force-rescrape section (#1142). Rendered on the detail page ONLY
+ * when the operator holds `sources.manage` AND the `SCRAPER_FORCE_RESCRAPE`
+ * kill-switch is on — so there is no dead/unreachable control otherwise. The
+ * trigger itself (mandatory reason, dry-run preview, confirmed real run) lives
+ * in the `AdminForceRescrapePanel` client island.
+ */
+function ForceRescrapeCard({ articleId }: { articleId: string }) {
+  return (
+    <Card>
+      <div className="stack">
+        <CardTitle level="h3">Force re-scrape (operator)</CardTitle>
+        <p className="muted m-0">
+          Re-fetch this article from its source and atomically replace the live
+          version. Preview first (dry run) to see whether it would activate;
+          reader progress and highlights are preserved, and the current version
+          is retained on any failure.
+        </p>
+        <AdminForceRescrapePanel articleId={articleId} />
       </div>
     </Card>
   );
@@ -407,6 +433,8 @@ export default async function AdminArticleDetailPage({
   const minutes = readingMinutesFor(article);
 
   const canModerate = hasCapability(session.user, CAPABILITIES.contentModerate);
+  const canForceRescrape = hasCapability(session.user, CAPABILITIES.sourcesManage);
+  const forceRescrapeEnabled = scraperForceRescrapeEnabled();
   const [reviews, articleTags] = canModerate
     ? await Promise.all([listContentReviews(article.id), getArticleTags(article.id)])
     : [[], []];
@@ -425,6 +453,10 @@ export default async function AdminArticleDetailPage({
       <ArticleMeta article={article} minutes={minutes} />
       <SourceLink article={article} />
       <DerivedContentCard articleId={article.id} counts={counts} />
+
+      {canForceRescrape && forceRescrapeEnabled && (
+        <ForceRescrapeCard articleId={article.id} />
+      )}
 
       {canModerate && (
         <ModerationReviewCard
