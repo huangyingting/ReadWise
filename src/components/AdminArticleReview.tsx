@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { useMutation } from "@/hooks/useMutation";
 import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
+import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
@@ -59,6 +62,14 @@ function parseTagList(tags: string): string[] {
     .filter(Boolean);
 }
 
+/** Appends `value` (trimmed) to `tags` unless a case-insensitive match exists. PURE. */
+function addTagTo(tags: string[], value: string): string[] {
+  const next = value.trim();
+  if (next.length === 0) return tags;
+  const exists = tags.some((tag) => tag.toLowerCase() === next.toLowerCase());
+  return exists ? tags : [...tags, next];
+}
+
 /**
  * Inline moderation form (RW-048) on the admin article detail page. Lets a
  * moderator correct metadata (title, excerpt, category, difficulty, tags),
@@ -86,7 +97,8 @@ export default function AdminArticleReview({
   );
   const [reviewState, setReviewState] = useState(initial.reviewState);
   const [flags, setFlags] = useState<string[]>(initial.qualityFlags);
-  const [tags, setTags] = useState(initial.tags);
+  const [tags, setTags] = useState<string[]>(() => parseTagList(initial.tags));
+  const [tagInput, setTagInput] = useState("");
   const [note, setNote] = useState("");
 
   const { busy, error, run } = useMutation("Review failed");
@@ -94,6 +106,23 @@ export default function AdminArticleReview({
 
   function toggleFlag(flag: string) {
     setFlags((prev) => toggleSelection(prev, flag));
+  }
+
+  function addTag(value: string) {
+    setTags((prev) => addTagTo(prev, value));
+    setTagInput("");
+  }
+
+  function removeTag(tag: string) {
+    setTags((prev) => prev.filter((value) => value !== tag));
+  }
+
+  function onTagInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      // Enter adds a chip — it must NOT submit the surrounding form.
+      event.preventDefault();
+      addTag(tagInput);
+    }
   }
 
   async function save() {
@@ -107,7 +136,7 @@ export default function AdminArticleReview({
         ...(visibilityEditable ? { visibility } : {}),
         reviewState,
         qualityFlags: flags,
-        tags: parseTagList(tags),
+        tags,
         note: note.trim() || undefined,
       });
       setNote("");
@@ -216,8 +245,51 @@ export default function AdminArticleReview({
         </Field>
       </div>
 
-      <Field label="Tags" hint="Comma-separated. Replaces the article's tags.">
-        <Input value={tags} onChange={(e) => setTags(e.target.value)} inputSize="md" />
+      <Field
+        label="Tags"
+        hint="Add or remove tags. Replaces the article's tags on save."
+      >
+        <div className="flex flex-col gap-[var(--space-2)]">
+          {tags.length > 0 && (
+            <ul className="flex flex-wrap gap-[var(--space-2)] list-none p-0 m-0">
+              {tags.map((tag) => (
+                <li key={tag}>
+                  <Badge variant="neutral" className="pr-[var(--space-1)]">
+                    <span>{tag}</span>
+                    <IconButton
+                      type="button"
+                      size="sm"
+                      aria-label={`Remove tag ${tag}`}
+                      onClick={() => removeTag(tag)}
+                    >
+                      <X className="size-3" aria-hidden="true" />
+                    </IconButton>
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex items-center gap-[var(--space-2)]">
+            <Input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={onTagInputKeyDown}
+              inputSize="md"
+              placeholder="Add a tag…"
+              aria-label="Add a tag"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              className="w-auto"
+              disabled={!tagInput.trim()}
+              onClick={() => addTag(tagInput)}
+            >
+              Add
+            </Button>
+          </div>
+        </div>
       </Field>
 
       {qualityFlagOptions.length > 0 && (
