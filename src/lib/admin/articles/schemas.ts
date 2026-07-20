@@ -88,6 +88,13 @@ export const reviewBody = object({
   category: optional(string({ max: 100 })),
   difficulty: optional(string({ max: 10 })),
   status: optional(oneOf(["DRAFT", "PUBLISHED"] as const)),
+  /**
+   * Operator-settable visibility, restricted to the ownerless public-library
+   * subset PUBLIC ↔ UNLISTED (mirrors `status`'s SAFE SUBSET). PRIVATE/ORG are
+   * NOT accepted: they require an owner / organization the moderation queue does
+   * not manage.
+   */
+  visibility: optional(oneOf(["PUBLIC", "UNLISTED"] as const)),
   reviewState: optional(oneOf<ReviewState>(REVIEW_STATES)),
   qualityFlags: optional(array(nonEmptyString(50), { max: 20 })),
   tags: optional(array(nonEmptyString(60), { max: 25 })),

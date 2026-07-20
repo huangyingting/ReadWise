@@ -231,6 +231,7 @@ function ModerationReviewCard({
             category: article.category ?? "",
             difficulty: article.difficulty ?? "",
             status: article.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
+            visibility: article.visibility,
             reviewState: article.reviewState ?? "unreviewed",
             qualityFlags: currentFlags,
             tags: articleTagNames,
