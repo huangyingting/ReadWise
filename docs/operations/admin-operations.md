@@ -339,6 +339,40 @@ sweep never races the original runner. Output is metadata-only JSON: matched,
 re-driven, and already-claimed counts plus the limit — never ids beyond counts,
 URLs, article text, prompts, translations, tokens, or credentials.
 
+### Reap orphaned narration media blobs
+
+When force-rescrape regeneration runs, `clearContentDerivedOutputs` deletes the
+`ArticleSpeech` row so narration regenerates from the new content, but the
+underlying audio `MediaAsset` blob is intentionally NOT deleted inline — the
+activation swap stays fast and all-or-nothing (#1103). Because
+`ArticleSpeech.mediaAssetId` is `onDelete: SetNull` and `MediaAsset.articleId`
+is `onDelete: Cascade`, the MediaAsset survives with its Article relation intact
+but its `speech` back-relation now NULL — an orphaned blob that accumulates over
+time.
+
+Run this reaper from cron/scheduler to reclaim those blobs:
+
+```bash
+# Safe count-only preview of the orphan backlog (default)
+npm run maintenance:orphan-narration
+
+# Reap up to --limit (default 200) orphaned narration blobs this run
+npm run maintenance:orphan-narration -- --execute
+
+# Widen the grace window and bound a single run to a smaller batch
+npm run maintenance:orphan-narration -- --execute --grace-minutes 120 --limit 50
+```
+
+The sweep selects speech `MediaAsset` rows whose `ArticleSpeech` back-relation is
+null and that were created before a grace window (default 60 minutes; override
+with `--grace-minutes`). It follows a blob-before-row order: it deletes each blob
+first and deletes the DB row ONLY for blobs that deleted successfully, so a
+failed blob delete keeps its row for the next sweep, and re-running is always
+safe (idempotent). If no object storage is configured, nothing is deleted — the
+rows survive so a later run can reclaim the blobs instead of leaking them. Output
+is metadata-only JSON: matched, reaped, and failed counts plus the grace window
+and limit — never storageKeys, URLs, ids, article text, or credentials.
+
 ### Per-user analytics/AI ledger erasure
 
 Account deletion cascades user-owned FK rows, but `AnalyticsEvent` and
