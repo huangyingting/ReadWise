@@ -72,3 +72,55 @@ export async function recordAssignmentCompletion(
     },
   });
 }
+
+/**
+ * Marks EVERY active assignment of `articleId` complete for the student, for
+ * each classroom the student is enrolled in. Called as a best-effort side
+ * effect after a quiz attempt is graded — the student id and score are always
+ * server-derived (session + server-graded score), never trusted from a body.
+ *
+ * The same article may be assigned in more than one enrolled classroom, so all
+ * matching assignments are upserted to COMPLETED with the (clamped) quiz score.
+ * Returns the number of assignments that were marked complete.
+ */
+export async function markAssignmentQuizComplete(input: {
+  userId: string;
+  articleId: string;
+  scorePct: number;
+}): Promise<{ completedCount: number }> {
+  const { userId, articleId, scorePct } = input;
+  const assignments = await prisma.assignment.findMany({
+    where: {
+      articleId,
+      classroom: { members: { some: { userId } } },
+    },
+    select: { id: true },
+  });
+  if (assignments.length === 0) {
+    return { completedCount: 0 };
+  }
+  const quizScore = normalizeQuizScore(scorePct) ?? null;
+  const completedAt = new Date();
+  await Promise.all(
+    assignments.map((assignment) =>
+      prisma.assignmentCompletion.upsert({
+        where: {
+          assignmentId_studentId: { assignmentId: assignment.id, studentId: userId },
+        },
+        update: {
+          status: AssignmentStatus.COMPLETED,
+          quizScore,
+          completedAt,
+        },
+        create: {
+          assignmentId: assignment.id,
+          studentId: userId,
+          status: AssignmentStatus.COMPLETED,
+          quizScore,
+          completedAt,
+        },
+      }),
+    ),
+  );
+  return { completedCount: assignments.length };
+}

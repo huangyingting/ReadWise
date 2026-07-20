@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-20T21:23:56.796Z",
+  "generatedAt": "2026-07-20T22:22:21.455Z",
   "routeCount": 136,
-  "methodCount": 162,
+  "methodCount": 163,
   "routes": [
     {
       "path": "/api/account",
@@ -1704,6 +1704,25 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": null
+        },
+        {
+          "method": "PATCH",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "assignment"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "dueDate",
+            "instructions"
+          ]
         }
       ]
     },
