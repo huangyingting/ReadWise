@@ -2442,14 +2442,27 @@ gate.
   history, and the reader-annotation count that gates activation — all metadata
   only (no content/title/URL).
 
-### Deferred (follow-ups)
+### Production body-fetch dispatch (`PrepareRescrapeDraft`) — wired in #1129
 
-Production body-fetch dispatch for the `PrepareRescrapeDraft` seam is the same
-#1095/#1099 deferral: the default production seam fails CLOSED (`fetch_failed`), so
-a real force-rescrape currently records a controlled failure and RETAINS the
-current version until the SSRF-safe fetch + sanitizer + extractor + quality/safety
-gates are wired behind that one boundary (follow-up #1129). The annotation
-re-anchoring migrator behind the fail-closed gate landed in #1103 — see Phase 3.4.
+The production preparer `createProductionRescrapePreparer` (`rescrape-preparer.ts`)
+COMPOSES existing production building blocks behind the ONE `PrepareRescrapeDraft`
+boundary: the SSRF-safe `fetchHtml` (only ever the Article's `sourceUrl`) →
+`extractArticle` → the deterministic quality gate → heuristic moderation over the
+Reader text → #1092 canonical-identity resolution (`resolveFinalIdentity`). Every
+building block is an INJECTABLE seam defaulting to the real function, so the
+preparer is unit-testable with fakes and needs NO network/DB. It fails CLOSED at
+every step: a blocked/non-OK/timed-out fetch or an unusable extraction returns
+`fetch_failed` (retain the current version), and a refreshed page that resolves to
+a DIFFERENT or blocked/quarantined canonical identity yields `conflict`/`blocked`
+(the activation gate refuses, retaining the version). Because `src/lib/scraper/*`
+may not import `@/lib/content-pipeline`, the endpoint injects
+`articleHtmlToReaderText` as the moderation `deriveReaderText` seam (mirroring the
+annotation migrator). PRIVACY: the fetched body/title/URL are returned STRAIGHT to
+the runner (written only to the `ArticleContentVersion` row) — never logged or put
+in audit/Job metadata; every emitted signal is a boolean/enum. The runner's DEFAULT
+seam stays fail-closed (`defaultPrepareRescrapeDraft`) so an unwired caller can
+never overwrite an Article. The annotation re-anchoring migrator behind the
+fail-closed gate landed in #1103 — see Phase 3.4.
 
 ## Phase 3.4 — re-anchor annotations & regenerate derived outputs (#1103) — current
 
