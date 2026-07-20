@@ -1489,6 +1489,7 @@ enum CrawlCandidateStatus {
   NEEDS_REVIEW
   QUARANTINED
   SKIPPED_REVIEW
+  SKIPPED_OUTSIDE_WINDOW
 }
 
 /// Provenance of the trusted publication date recorded for a candidate.

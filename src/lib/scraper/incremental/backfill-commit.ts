@@ -214,6 +214,9 @@ export async function advanceBackfillRun(input: {
         // Guarded reactivation: match ONLY a still-eligible target row and flip
         // it into ordinary queued work. A concurrently-changed row (now QUEUED,
         // linked, deleted, or terminal) matches zero → skipped, never touched.
+        // The OR MUST stay in lockstep with `eligibleBackfillCandidateWhere`
+        // (backfill-query.ts): a status selected into the batch but missing here
+        // would be scanned yet never flipped/enqueued (silently skipped).
         const updated = await tx.crawlCandidate.updateMany({
           where: {
             id: candidate.id,
@@ -222,6 +225,7 @@ export async function advanceBackfillRun(input: {
             OR: [
               { status: CrawlCandidateStatus.BASELINE },
               { status: CrawlCandidateStatus.DISCOVERED, observedInBaseline: false },
+              { status: CrawlCandidateStatus.SKIPPED_OUTSIDE_WINDOW },
             ],
           },
           data: {

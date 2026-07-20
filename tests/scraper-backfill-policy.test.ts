@@ -178,6 +178,22 @@ test("a DISCOVERED candidate already observed in baseline is NOT a shadow target
   assert.equal(d.eligible === false && d.reason, "not-reactivatable");
 });
 
+test("SKIPPED_OUTSIDE_WINDOW is eligible with target skipped-outside-window (#1127)", () => {
+  const d = decideBackfillReactivation({ status: S.SKIPPED_OUTSIDE_WINDOW, observedInBaseline: false, hasArticle: false, hadArticleDeleted: false });
+  assert.equal(d.eligible, true);
+  assert.equal(d.eligible === true && d.target, "skipped-outside-window");
+});
+
+test("SKIPPED_OUTSIDE_WINDOW still yields to the has-article / article-deleted invariant (precedence)", () => {
+  const withArticle = decideBackfillReactivation({ status: S.SKIPPED_OUTSIDE_WINDOW, observedInBaseline: false, hasArticle: true, hadArticleDeleted: false });
+  assert.equal(withArticle.eligible, false);
+  assert.equal(withArticle.eligible === false && withArticle.reason, "has-article");
+
+  const deleted = decideBackfillReactivation({ status: S.SKIPPED_OUTSIDE_WINDOW, observedInBaseline: false, hasArticle: false, hadArticleDeleted: true });
+  assert.equal(deleted.eligible, false);
+  assert.equal(deleted.eligible === false && deleted.reason, "article-deleted");
+});
+
 test("terminal / parked / already-queued statuses are never reactivatable", () => {
   for (const status of [S.QUEUED, S.INGESTING, S.INGESTED, S.SKIPPED, S.REJECTED, S.FAILED, S.CONFLICT, S.DUPLICATE_ALIAS, S.NEEDS_REVIEW, S.QUARANTINED, S.SKIPPED_REVIEW]) {
     const d = decideBackfillReactivation({ status, observedInBaseline: false, hasArticle: false, hadArticleDeleted: false });

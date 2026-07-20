@@ -220,23 +220,97 @@ test("mixed page: every item is observed with an explicit outcome; replay adds n
     "review-required": 1,
   });
 
-  // One observation per distinct item; only the eligible one has a candidate.
+  // One observation per distinct item. The eligible item and the (now inert)
+  // outside-window item each ensure a candidate (#1127); policy-rejected and
+  // review-required still create none.
   const observationsAfterFirst = await prisma.discoveryObservation.count({ where: { discoverySourceId: source.id } });
   assert.equal(observationsAfterFirst, 4);
   const withCandidate = await prisma.discoveryObservation.count({
     where: { discoverySourceId: source.id, candidateId: { not: null } },
   });
-  assert.equal(withCandidate, 1);
+  assert.equal(withCandidate, 2);
   assert.equal(await countCandidate(eligible), 1);
-  assert.equal(await countCandidate(outside), 0);
+  assert.equal(await countCandidate(outside), 1);
   assert.equal(await countCandidate(review), 0);
 
   // Replay the identical page → no new rows anywhere.
   const second = await commitDiscoveryPage(args);
   assert.equal(second.committed, true);
   assert.equal(await prisma.discoveryObservation.count({ where: { discoverySourceId: source.id } }), 4);
-  assert.equal(await prisma.crawlCandidate.count({ where: { discoverySourceId: source.id } }), 1);
-  assert.equal(await prisma.urlAlias.count({ where: { candidateId: { in: (await prisma.crawlCandidate.findMany({ where: { discoverySourceId: source.id }, select: { id: true } })).map((c) => c.id) } } }), 1);
+  assert.equal(await prisma.crawlCandidate.count({ where: { discoverySourceId: source.id } }), 2);
+  assert.equal(await prisma.urlAlias.count({ where: { candidateId: { in: (await prisma.crawlCandidate.findMany({ where: { discoverySourceId: source.id }, select: { id: true } })).map((c) => c.id) } } }), 2);
+});
+
+// ---------------------------------------------------------------------------
+// Outside-window (#1127): an ACTIVE-source dated item at/before the window is
+// persisted as an INERT SKIPPED_OUTSIDE_WINDOW candidate — no Article, no ingest
+// job — and a re-observation never revives it.
+// ---------------------------------------------------------------------------
+
+test("outside-window item persists an INERT SKIPPED_OUTSIDE_WINDOW candidate that never auto-enqueues", { skip: !enabled }, async () => {
+  const source = await activeSource();
+  const url = track(undarkUrl(id("ow")));
+  const identity = deriveProvisionalIdentity(url);
+  const publishedAt = new Date("2024-01-01T00:00:00.000Z"); // before the window
+
+  const ingestBefore = await prisma.job.count({ where: { type: JobType.ARTICLE_INGEST } });
+
+  const args = {
+    sourceId: source.id,
+    leaseOwner: source.leaseOwner ?? "",
+    definitionVersion: source.definitionVersion,
+    windowStart: new Date("2024-06-01T00:00:00.000Z"),
+    page: page([{ url, publishedAt, dateProvenance: provenance, positionRank: 0 }]),
+    runId: "run-ow",
+  };
+
+  const result = await commitDiscoveryPage(args);
+  assert.equal(result.committed, true);
+  if (!result.committed) return;
+  assert.equal(result.outcomes["outside-window"], 1);
+  assert.equal(result.outcomes.eligible, 0);
+  // Inert: the outside-window branch NEVER enqueues ingest work.
+  assert.equal(result.ingestJobsEnqueued, 0);
+
+  const candidate = await prisma.crawlCandidate.findFirst({ where: { provisionalKey: identity.key } });
+  assert.ok(candidate, "outside-window item persists exactly one candidate");
+  assert.equal(candidate.status, CrawlCandidateStatus.SKIPPED_OUTSIDE_WINDOW);
+  assert.equal(candidate.observedInBaseline, false);
+  assert.equal(candidate.articleId, null);
+  assert.equal(candidate.articleDeletedAt, null);
+  assert.equal(candidate.discoverySourceId, source.id);
+  // trustedPublishedAt is REQUIRED for the later windowed backfill match.
+  assert.equal(candidate.trustedPublishedAt?.getTime(), publishedAt.getTime());
+  assert.equal(candidate.dateProvenance, provenance);
+  assert.equal(candidate.observationCount, 1);
+
+  // A provisional alias is recorded for identity resolution (consistent with
+  // other persisted candidates); still NO Article and NO ingest Job.
+  const alias = await prisma.urlAlias.findFirst({ where: { aliasKey: identity.key } });
+  assert.ok(alias);
+  assert.equal(alias.kind, UrlAliasKind.PROVISIONAL);
+  assert.equal(alias.candidateId, candidate.id);
+
+  assert.equal(await prisma.article.count({ where: { sourceUrl: url } }), 0);
+  const ingestDedupeKey = candidateIngestDedupeKey(candidate.id, CANDIDATE_INGEST_PROCESSING_VERSION);
+  assert.equal(await prisma.job.findUnique({ where: { dedupeKey: ingestDedupeKey } }), null);
+  assert.equal(await prisma.job.count({ where: { type: JobType.ARTICLE_INGEST } }), ingestBefore);
+
+  // Re-observation only bumps lastObservedAt — status/observedInBaseline/articleId
+  // are NEVER changed (governing invariant: the inert candidate is never revived).
+  const second = await commitDiscoveryPage(args);
+  assert.equal(second.committed, true);
+  assert.equal(second.ingestJobsEnqueued, 0);
+  const after = await prisma.crawlCandidate.findFirst({ where: { provisionalKey: identity.key } });
+  assert.ok(after);
+  assert.equal(after.id, candidate.id, "no new candidate on re-observation");
+  assert.equal(after.status, CrawlCandidateStatus.SKIPPED_OUTSIDE_WINDOW);
+  assert.equal(after.observedInBaseline, false);
+  assert.equal(after.articleId, null);
+  assert.equal(after.observationCount, 1); // update path never bumps the count
+  assert.ok(after.lastObservedAt.getTime() >= candidate.lastObservedAt.getTime());
+  assert.equal(await prisma.crawlCandidate.count({ where: { provisionalKey: identity.key } }), 1);
+  assert.equal(await prisma.job.count({ where: { type: JobType.ARTICLE_INGEST } }), ingestBefore);
 });
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,15 @@
+-- SQLite migration for Phase 3.2 SKIPPED_OUTSIDE_WINDOW persistence + backfill
+-- reactivation (#1127).
+--
+-- CrawlCandidateStatus is a plain TEXT column under SQLite, so the new enum
+-- value (SKIPPED_OUTSIDE_WINDOW) requires NO schema change here — it is enforced
+-- only by the Prisma client + the PostgreSQL enum type.
+--
+-- SKIPPED_OUTSIDE_WINDOW is an INERT, no-Article resting state persisted by
+-- normal incremental page-commit when an ACTIVE-source item is admitted + dated
+-- but its trusted publication date falls at/before the active discovery window.
+-- Ordinary rediscovery/ingest NEVER auto-enqueues it (governing invariant, same
+-- as SKIPPED_REVIEW); only an operator-approved, windowed backfill may reactivate
+-- it (articleId null AND articleDeletedAt null). No column or index is added —
+-- the candidate reuses the existing providerKey/identityVersion/provisionalKey/
+-- trustedPublishedAt/dateProvenance fields already on CrawlCandidate.
