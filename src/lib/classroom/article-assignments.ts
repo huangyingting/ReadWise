@@ -28,13 +28,13 @@ export type CreateArticleAssignmentResult =
       reason: "article_not_found" | ArticleOrganizationIntegrityReason;
     };
 
-function parseOptionalDueDate(dueDate: string | undefined): Date | null {
+export function parseOptionalDueDate(dueDate: string | undefined): Date | null {
   if (!dueDate) return null;
   const parsed = new Date(dueDate);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function trimOrNull(value: string | null | undefined): string | null {
+export function trimOrNull(value: string | null | undefined): string | null {
   return value?.trim() || null;
 }
 

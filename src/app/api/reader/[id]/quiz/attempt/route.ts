@@ -11,6 +11,7 @@ import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { quizAttemptBody, type QuizAttemptBody } from "@/lib/reader/schemas";
 import { markTodayComprehensionComplete } from "@/lib/engagement/today-session/integrations";
+import { markAssignmentQuizComplete } from "@/lib/classroom";
 
 type QuizAttemptResult = Awaited<ReturnType<typeof recordQuizAttempt>>;
 type QuizAttemptRecord = QuizAttemptResult["attempt"];
@@ -119,6 +120,17 @@ export const POST = createHandler(
       markTodayComprehensionComplete({
         userId: session.user.id,
         articleId: article.id,
+      }),
+    );
+
+    // Best-effort: a graded quiz attempt completes any active assignment of this
+    // article in a classroom the student is enrolled in (RW-061). The student id
+    // and score are server-derived; never breaks the attempt write.
+    await bestEffortMastery("quiz.assignment_completion", () =>
+      markAssignmentQuizComplete({
+        userId: session.user.id,
+        articleId: article.id,
+        scorePct: result.attempt.scorePct,
       }),
     );
 

@@ -6,6 +6,7 @@ import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import CompleteAssignmentButton from "@/components/teacher/CompleteAssignmentButton";
+import { isAssignmentOverdue } from "@/lib/classroom/overdue";
 import { formatMediumDate } from "@/lib/display-format";
 
 type StudentAssignment = Awaited<ReturnType<typeof listAssignmentsForStudent>>[number];
@@ -52,6 +53,7 @@ function AssignmentList({ assignments }: { assignments: StudentAssignment[] }) {
 function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
   const due = formatMediumDate(assignment.dueDate);
   const completed = assignment.status === "COMPLETED";
+  const overdue = isAssignmentOverdue(assignment.dueDate, assignment.status, new Date());
 
   return (
     <li>
@@ -73,11 +75,17 @@ function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
                 {assignment.instructions}
               </p>
             ) : null}
+            {overdue ? (
+              <Badge variant="danger" className="mt-1 w-fit">
+                Overdue
+              </Badge>
+            ) : null}
             {completed ? <CompletionBadge quizScore={assignment.quizScore} /> : null}
           </div>
           <CompleteAssignmentButton
             assignmentId={assignment.assignmentId}
             completed={completed}
+            quizScore={assignment.quizScore}
           />
         </CardBody>
       </Card>
