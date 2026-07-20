@@ -39,6 +39,14 @@ export const CAPABILITIES = {
   tagsManage: "tags.manage",
   /** Manage members: change roles, remove accounts. */
   membersManage: "members.manage",
+  /**
+   * Platform-wide organization oversight from `/admin`: list every tenant,
+   * create organizations, and manage their memberships/classrooms as a
+   * super-user. This is the GLOBAL back-office counterpart to the tenant-scoped
+   * `org.manage` capability (which is resolved per-membership); it is granted to
+   * the global `Admin` role only, never to a tenant OrgAdmin.
+   */
+  organizationsManage: "organizations.manage",
   /** Operate the background processing queue (retry/cancel/backfill jobs). */
   jobsManage: "jobs.manage",
   /** View product/usage analytics dashboards. */
@@ -62,7 +70,12 @@ export const CAPABILITIES = {
   /** Track one's own reading progress. */
   progressTrack: "progress.track",
 
-  // --- Future tenant-level capabilities (placeholders, not wired yet) --------
+  // --- Tenant-level capabilities (wired via membership roles) ---------------
+  // These are resolved from a user's Membership/ClassroomMembership role by the
+  // org/classroom guards (`@/lib/org/guards`, `@/lib/classroom/guards`) and their
+  // route-handler twins in `@/lib/tenant-api`, and gate the real `/api/orgs/*`,
+  // `/api/classrooms/*`, and `/api/assignments/*` routes. They are SEPARATE from
+  // the global back-office capabilities above (an OrgAdmin is not a staff admin).
   /** Administer an organization/tenant. */
   orgManage: "org.manage",
   /** Manage members within an organization/tenant. */
@@ -119,8 +132,14 @@ const PLANNED_SYSTEM_ROLES = [] as const;
 
 /**
  * Tenant-level (organization/classroom) roles. These are SEPARATE from global
- * system roles by design (an org admin is not a ReadWise system admin). They
- * are placeholders for the tenant model in ADR-0008 and are not wired yet.
+ * system roles by design (an org admin is not a ReadWise system admin). They are
+ * wired via membership capability resolution: an org/classroom membership role
+ * is resolved through the SAME capability table as global roles (see
+ * {@link membershipCapabilities}), so the org/classroom guards can gate tenant
+ * features. `OrgAdmin`/`Teacher` are assignable on a {@link Membership} via
+ * `updateMemberRole`; `ClassroomInstructor` is documentation-only (not a Prisma
+ * `MembershipRole`/`ClassroomRole` value — see {@link MEMBERSHIP_ROLES}/
+ * {@link CLASSROOM_ROLES} for the assignable sets).
  */
 export const TENANT_ROLES = [
   "OrgAdmin",
@@ -179,6 +198,7 @@ const ADMIN_BACK_OFFICE_CAPABILITIES: readonly Capability[] = [
   CAPABILITIES.articlesManage,
   CAPABILITIES.tagsManage,
   CAPABILITIES.membersManage,
+  CAPABILITIES.organizationsManage,
   CAPABILITIES.jobsManage,
   CAPABILITIES.analyticsView,
   CAPABILITIES.securityView,
@@ -238,7 +258,10 @@ export const ROLE_CAPABILITIES: Record<RoleName, readonly Capability[]> = {
   ],
   // Trusted server/CLI principal -------------------------------------------
   System: ALL_CAPABILITIES,
-  // Planned tenant roles (not assignable yet) ------------------------------
+  // Tenant roles — resolved via membership capability lookups. OrgAdmin and
+  // Teacher are assignable on a Membership row via `updateMemberRole`
+  // (MembershipRole); ClassroomInstructor is documentation-only (not a Prisma
+  // MembershipRole/ClassroomRole value) and is kept here for the capability map.
   OrgAdmin: [
     ...BASE_READER_CAPABILITIES,
     ...ORG_ADMIN_CAPABILITIES,
