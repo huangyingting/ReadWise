@@ -112,6 +112,27 @@ export interface AdminSeriesDetail extends AdminSeriesRow {
   articleIds: string[];
 }
 
+/**
+ * A resolved series article for admin display: PUBLIC library metadata only
+ * (`id`, `title`, `slug`) — never body text, notes, or learner content. `slug`
+ * is nullable because `Article.slug` is optional.
+ */
+export interface SeriesArticleRef {
+  id: string;
+  title: string;
+  slug: string | null;
+}
+
+/**
+ * Admin series detail enriched with the RESOLVED, order-preserving article
+ * metadata for its `articleIds`. `articles` may be SHORTER than `articleIds`
+ * when ids are orphaned (ids are NOT foreign keys — orphans are expected and
+ * silently omitted from `articles` while remaining in `articleIds`).
+ */
+export interface AdminSeriesDetailWithArticles extends AdminSeriesDetail {
+  articles: SeriesArticleRef[];
+}
+
 type OptionalText = string | null | undefined;
 
 export interface CreateReadingSeriesInput {
@@ -158,6 +179,41 @@ function toArticleIds(value: unknown): string[] {
     out.push(id);
   }
   return out;
+}
+
+/**
+ * Re-orders resolved article rows to match the requested `ids`, silently
+ * dropping ids with no matching row (orphans). PURE — no DB access.
+ */
+export function orderSeriesArticles(
+  ids: string[],
+  rows: SeriesArticleRef[],
+): SeriesArticleRef[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const out: SeriesArticleRef[] = [];
+  for (const id of ids) {
+    const row = byId.get(id);
+    if (row) out.push(row);
+  }
+  return out;
+}
+
+/**
+ * Resolves a series' `articleIds` to order-preserving PUBLIC metadata
+ * (`id`, `title`, `slug`), silently skipping orphaned ids. Article ids are NOT
+ * foreign keys, so a missing row is expected — never an error. Reads title/slug
+ * only; never article body text or other private content.
+ */
+export async function resolveSeriesArticles(
+  articleIds: string[],
+): Promise<SeriesArticleRef[]> {
+  const ids = toArticleIds(articleIds);
+  if (ids.length === 0) return [];
+  const rows = await prisma.article.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, title: true, slug: true },
+  });
+  return orderSeriesArticles(ids, rows);
 }
 
 function toSeriesStatus(status: string): SeriesStatus {
@@ -376,9 +432,14 @@ export async function listSeriesForAdmin(): Promise<AdminSeriesRow[]> {
 }
 
 /** Fetches one curated series for admin detail/editing, or null when missing. */
-export async function getSeriesForAdmin(seriesId: string): Promise<AdminSeriesDetail | null> {
+export async function getSeriesForAdmin(
+  seriesId: string,
+): Promise<AdminSeriesDetailWithArticles | null> {
   const row = await prisma.readingSeries.findUnique({ where: { id: seriesId } });
-  return row ? toAdminSeriesDetail(row) : null;
+  if (!row) return null;
+  const detail = toAdminSeriesDetail(row);
+  const articles = await resolveSeriesArticles(detail.articleIds);
+  return { ...detail, articles };
 }
 
 /** Creates a new curated series. Lifecycle starts at `draft` only. */
