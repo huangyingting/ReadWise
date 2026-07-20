@@ -88,10 +88,33 @@ test("annotation gate: BLOCKS an annotated article when no migrator is wired (#1
   );
 });
 
-test("annotation gate: opens once a migrator is wired (#1103 supplies it)", () => {
+test("annotation gate: opens once a migrator is wired and every anchor is reliable (#1103)", () => {
   assert.deepEqual(
     decideAnnotationMigrationGate({ annotationCount: 3, migratorWired: true }),
     { pass: true, reason: "migrator-available" },
+  );
+  assert.deepEqual(
+    decideAnnotationMigrationGate({ annotationCount: 3, migratorWired: true, unreliableAnchorCount: 0 }),
+    { pass: true, reason: "migrator-available" },
+  );
+});
+
+test("annotation gate: a wired migrator still BLOCKS when any anchor is unreliable (#1103)", () => {
+  // Even with a migrator wired, an ambiguous/missing anchor must retain the old
+  // version and be surfaced for confirmation — never silently dropped or moved.
+  for (const unreliableAnchorCount of [1, 2, 7]) {
+    assert.deepEqual(
+      decideAnnotationMigrationGate({ annotationCount: 3, migratorWired: true, unreliableAnchorCount }),
+      { pass: false, reason: "annotation-migration-required" },
+      `unreliableAnchorCount=${unreliableAnchorCount}`,
+    );
+  }
+});
+
+test("annotation gate: no-annotations passes regardless of migrator/reliability inputs", () => {
+  assert.deepEqual(
+    decideAnnotationMigrationGate({ annotationCount: 0, migratorWired: true, unreliableAnchorCount: 5 }),
+    { pass: true, reason: "no-annotations" },
   );
 });
 
@@ -163,6 +186,14 @@ test("activation: clean signals + annotations + wired migrator proceeds", () => 
     }),
     { proceed: true },
   );
+});
+
+test("activation: wired migrator but an unreliable anchor is refused LAST (#1103)", () => {
+  const d = decideForceRescrapeActivation({
+    signals: CLEAN_SIGNALS,
+    annotation: { annotationCount: 2, migratorWired: true, unreliableAnchorCount: 1 },
+  });
+  assert.deepEqual(d, { proceed: false, reason: "annotation_migration_required" });
 });
 
 // ---- failure taxonomy -----------------------------------------------------
