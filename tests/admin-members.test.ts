@@ -169,6 +169,15 @@ test("updateMemberRole promotes a Reader to Admin", async () => {
   assert.ok(userUpdateArgs, "user.update must be called");
 });
 
+test("updateMemberRole assigns a scoped admin role", async () => {
+  setStubUser("Reader");
+  const { updateMemberRole } = await loadMemberCommands();
+  const result = await updateMemberRole("reader-1", "Moderator");
+  assert.equal(result.ok, true);
+  assert.equal(transactionCalled, true);
+  assert.ok(userUpdateArgs, "user.update must be called");
+});
+
 test("updateMemberRole demotes an Admin when other admins exist", async () => {
   setStubUser("Admin", "admin-2");
   stubAdminCount = 2;
@@ -182,7 +191,7 @@ test("updateMemberRole refuses to demote the last remaining admin", async () => 
   setStubUser("Admin");
   stubAdminCount = 1;
   const { updateMemberRole } = await loadMemberCommands();
-  const result = await updateMemberRole("admin-1", "Reader");
+  const result = await updateMemberRole("admin-1", "Moderator");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 409);
   assert.equal(userUpdateArgs, null);

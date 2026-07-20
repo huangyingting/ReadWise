@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
-import { CAPABILITIES } from "@/lib/rbac";
+import { ACTIVE_ROLES, CAPABILITIES } from "@/lib/rbac";
 import { idParams, object, oneOf } from "@/lib/validation";
 import { updateMemberRole, deleteMember } from "@/lib/account-lifecycle";
 import type { Role } from "@prisma/client";
 import { AUDIT_ACTIONS, type AuditRequestInput } from "@/lib/security/audit";
 import { throwIfFailed } from "@/lib/result";
 
-const roleBody = object({ role: oneOf<Role>(["Admin", "Reader"]) });
+const roleBody = object({ role: oneOf<Role>(ACTIVE_ROLES) });
 
 type AdminMemberAuditContext = Pick<AuditRequestInput, "req" | "session" | "requestId"> & {
   targetId: string;

@@ -53,8 +53,14 @@ const BASE_CAPS = [
 // Section A — pure capability model
 // ---------------------------------------------------------------------------
 
-test("ACTIVE_ROLES is exactly the DB-backed Admin/Reader set", () => {
-  assert.deepEqual([...ACTIVE_ROLES], ["Admin", "Reader"]);
+test("ACTIVE_ROLES is exactly the DB-backed assignable global role set", () => {
+  assert.deepEqual([...ACTIVE_ROLES], [
+    "Admin",
+    "Reader",
+    "Moderator",
+    "ContentEditor",
+    "SupportAgent",
+  ]);
 });
 
 test("Admin resolves to every current admin capability plus base", () => {
@@ -100,16 +106,14 @@ test("System pseudo-principal is granted every capability", () => {
   }
 });
 
-test("full near-term + future role set is defined in the model", () => {
-  // Planned system roles are module-private; verify via ROLE_CAPABILITIES keys.
-  const plannedSystemRoles = ["Moderator", "ContentEditor", "SupportAgent"] as const;
+test("full active + tenant role set is defined in the model", () => {
   assert.deepEqual([...TENANT_ROLES], [
     "OrgAdmin",
     "Teacher",
     "ClassroomInstructor",
   ]);
   // Every modeled role has an explicit capability grant.
-  for (const role of [...ACTIVE_ROLES, SYSTEM_ROLE, ...plannedSystemRoles, ...TENANT_ROLES, "Member", "Student"]) {
+  for (const role of [...ACTIVE_ROLES, SYSTEM_ROLE, ...TENANT_ROLES, "Member", "Student"]) {
     assert.ok(
       Array.isArray(ROLE_CAPABILITIES[role as keyof typeof ROLE_CAPABILITIES]),
       `${role} must have a capability mapping`,
@@ -117,16 +121,20 @@ test("full near-term + future role set is defined in the model", () => {
   }
 });
 
-test("planned system roles grant their intended capabilities", () => {
+test("scoped admin roles are active and grant their intended capabilities", () => {
+  assert.ok(ACTIVE_ROLES.includes("Moderator"));
   assert.ok(roleHasCapability("Moderator", CAPABILITIES.contentModerate));
   assert.ok(roleHasCapability("Moderator", CAPABILITIES.adminAccess));
   assert.ok(!roleHasCapability("Moderator", CAPABILITIES.membersManage));
 
+  assert.ok(ACTIVE_ROLES.includes("ContentEditor"));
   assert.ok(roleHasCapability("ContentEditor", CAPABILITIES.articlesManage));
   assert.ok(roleHasCapability("ContentEditor", CAPABILITIES.tagsManage));
   assert.ok(!roleHasCapability("ContentEditor", CAPABILITIES.membersManage));
 
+  assert.ok(ACTIVE_ROLES.includes("SupportAgent"));
   assert.ok(roleHasCapability("SupportAgent", CAPABILITIES.supportAssist));
+  assert.ok(!roleHasCapability("SupportAgent", CAPABILITIES.membersManage));
 });
 
 test("tenant roles are separate from system admin access", () => {
