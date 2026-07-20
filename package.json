@@ -50,6 +50,7 @@
     "wordfreq:generate": "npm run node-ts -- scripts/generate-wordfreq-ranks.ts",
     "maintenance:retention": "npm run node-ts -- scripts/retention-maintenance.ts",
     "maintenance:rescrape-regen": "npm run node-ts -- scripts/reconcile-rescrape-regen.ts",
+    "maintenance:orphan-narration": "npm run node-ts -- scripts/reap-orphan-narration.ts",
     "privacy:erase-ledgers": "npm run node-ts -- scripts/erase-user-ledgers.ts"
   },
   "dependencies": {
