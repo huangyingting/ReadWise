@@ -141,56 +141,26 @@ test("postJson sends { articleIds } with the exact reordered array to the reorde
 });
 
 // ---------------------------------------------------------------------------
-// AdminSeriesReorder island — primitives, states, wiring, token-driven
+// Reorder island retired (#1157)
 // ---------------------------------------------------------------------------
+//
+// The ID-only `AdminSeriesReorder` island (#1144) was superseded by the
+// `AdminSeriesArticleManager` sheet, which shows titles and folds add/remove
+// AND up/down reorder into one surface (see tests/admin-series-article-manager-ui.test.ts).
+// The `POST /api/admin/series/[id]/reorder` endpoint + these pure reorder-ui
+// helpers (moveArticleId/sameOrder/endpoint builders) remain intact and are
+// still exercised above; the manager reuses moveArticleId/sameOrder.
 
-test("AdminSeriesReorder is a client island wired to the reorder helpers", () => {
-  const src = readSrc("src/components/admin/series/AdminSeriesReorder.tsx");
-  assert.ok(src.includes('"use client"'), "must be a client component");
-  assert.ok(src.includes("getJson"), "loads the current order via getJson");
-  assert.ok(src.includes("postJson"), "saves via postJson");
-  assert.ok(src.includes("seriesDetailEndpoint"), "builds the detail URL from the pure helper");
-  assert.ok(src.includes("seriesReorderEndpoint"), "builds the reorder URL from the pure helper");
-  assert.ok(src.includes("moveArticleId"), "reorders via the pure helper");
-  assert.ok(src.includes("sameOrder"), "gates Save/Reset on sameOrder");
-  assert.ok(src.includes("classifyAdminFetchError"), "classifies fetch errors");
-  assert.ok(src.includes("useMutation"), "uses the shared mutation hook for busy/error");
-  assert.ok(src.includes("router.refresh"), "refreshes on a successful save");
-  assert.ok(src.includes("<Sheet"), "opens a Sheet");
-  assert.ok(src.includes("Skeleton"), "renders a loading skeleton");
-  assert.ok(src.includes("EmptyState"), "renders the <2 articles empty state");
-  assert.ok(src.includes("Retry"), "offers a Retry on fetch error");
-});
-
-test("AdminSeriesReorder exposes per-row Move up / Move down controls with aria-labels", () => {
-  const src = readSrc("src/components/admin/series/AdminSeriesReorder.tsx");
-  assert.ok(src.includes("Move article"), "per-row move buttons carry an article aria-label");
-  assert.ok(src.includes('"up"'), 'has an "up" move direction');
-  assert.ok(src.includes('"down"'), 'has a "down" move direction');
-  assert.ok(src.includes("Save order"), "has a Save action");
-  assert.ok(src.includes("Reset"), "has a Reset action");
-  assert.ok(src.includes("aria-live"), "announces order status via aria-live");
-  assert.ok(src.includes("title={id}"), "shows the full id in a title attribute (truncated display)");
-});
-
-test("AdminSeriesRowActions renders AdminSeriesReorder guarded by articleCount >= 2", () => {
+test("AdminSeriesRowActions renders the article manager (superset of reorder)", () => {
   const src = readSrc("src/components/AdminSeriesRowActions.tsx");
-  assert.ok(src.includes("AdminSeriesReorder"), "imports + renders the reorder island");
   assert.ok(
-    src.includes("series.articleCount >= 2") || src.includes("articleCount >= 2"),
-    "gates the control on the series having at least two articles",
+    src.includes("AdminSeriesArticleManager"),
+    "imports + renders the article-manager island",
   );
-});
-
-// ---------------------------------------------------------------------------
-// Token-driven (no raw hex / inline font-size / inline style)
-// ---------------------------------------------------------------------------
-
-test("AdminSeriesReorder is token-driven (no raw hex, no inline font-size/style)", () => {
-  const src = readSrc("src/components/admin/series/AdminSeriesReorder.tsx").replace(/#\d+/g, "");
-  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(src), "must not use a raw hex colour");
-  assert.ok(!src.includes("fontSize"), "must not set an inline fontSize");
-  assert.ok(!src.includes("style={{"), "must not use inline styles");
+  assert.ok(
+    !src.includes("AdminSeriesReorder"),
+    "no longer renders the retired ID-only reorder island",
+  );
 });
 
 // ---------------------------------------------------------------------------

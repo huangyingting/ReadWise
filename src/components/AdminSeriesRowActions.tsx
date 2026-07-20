@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { patchJson, deleteJson } from "@/lib/client-fetch";
 import { useMutation } from "@/hooks/useMutation";
 import ConfirmAction from "@/components/ConfirmAction";
-import AdminSeriesReorder from "@/components/admin/series/AdminSeriesReorder";
+import AdminSeriesArticleManager from "@/components/admin/series/AdminSeriesArticleManager";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -145,9 +145,7 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
           Edit
         </Button>
 
-        {series.articleCount >= 2 && (
-          <AdminSeriesReorder seriesId={series.id} title={series.title} />
-        )}
+        <AdminSeriesArticleManager seriesId={series.id} title={series.title} />
 
         {canActivate && (
           <ConfirmAction

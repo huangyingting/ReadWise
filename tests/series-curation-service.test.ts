@@ -19,6 +19,7 @@ type SeriesRow = {
 };
 
 let seriesRows: SeriesRow[] = [];
+let articleRows: Array<{ id: string; title: string; slug: string | null }> = [];
 let activeEnrollmentCounts = new Map<string, number>();
 let sequence = 0;
 let transactionCalls = 0;
@@ -154,11 +155,26 @@ before(() => {
     }) => activeEnrollmentCounts.get(where.seriesId) ?? 0,
   };
 
+  const article = {
+    findMany: async ({
+      where,
+    }: {
+      where: { id: { in: string[] } };
+      select?: unknown;
+    }) => {
+      const wanted = new Set(where.id.in);
+      return articleRows
+        .filter((row) => wanted.has(row.id))
+        .map((row) => ({ ...row }));
+    },
+  };
+
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
         readingSeries,
         seriesEnrollment,
+        article,
         $transaction: async (
           fn: (tx: { readingSeries: typeof readingSeries; seriesEnrollment: typeof seriesEnrollment }) => Promise<unknown>,
         ) => {
@@ -185,6 +201,7 @@ before(() => {
 
 beforeEach(() => {
   seriesRows = [];
+  articleRows = [];
   activeEnrollmentCounts = new Map();
   sequence = 0;
   transactionCalls = 0;
@@ -220,10 +237,14 @@ test("listSeriesForAdmin returns empty and deterministic non-empty rows", async 
 
 test("getSeriesForAdmin returns detail for existing rows", async () => {
   const { getSeriesForAdmin } = await loadSeries();
+  articleRows = [
+    { id: "a1", title: "First article", slug: "first" },
+    { id: "a2", title: "Second article", slug: null },
+  ];
   const seeded = seedSeries({
     id: "s-detail",
     slug: "detail",
-    articleIds: ["a1", "a2", "a2"],
+    articleIds: ["a2", "a1", "a1", "orphan"],
     status: "active",
     public: true,
   });
@@ -232,7 +253,12 @@ test("getSeriesForAdmin returns detail for existing rows", async () => {
   assert.ok(detail);
   assert.equal(detail?.id, "s-detail");
   assert.equal(detail?.status, "active");
-  assert.deepEqual(detail?.articleIds, ["a1", "a2"]);
+  assert.deepEqual(detail?.articleIds, ["a2", "a1", "orphan"]);
+  // articles resolve titles in articleIds order, skipping the orphan id.
+  assert.deepEqual(detail?.articles, [
+    { id: "a2", title: "Second article", slug: null },
+    { id: "a1", title: "First article", slug: "first" },
+  ]);
 
   assert.equal(await getSeriesForAdmin("missing"), null);
 });
