@@ -25,6 +25,7 @@ import {
   loadEligibleArticles,
   type BaselineIdentityGroup,
 } from "./baseline-backfill";
+import { classifyConflictKind, type ConflictKind } from "./canonical-conflict-policy";
 
 /** The sanitized identity of a conflict (versioned hash keys — never URLs). */
 export type ConflictIdentity = {
@@ -67,9 +68,23 @@ export type CanonicalConflictDto = {
   dependentData: DependentDataCounts;
 };
 
-/** The detail DTO adds a per-Article dependent-data breakdown. */
+/** The detail DTO adds a per-Article dependent-data breakdown + the resolver-agreeing kind. */
 export type CanonicalConflictDetailDto = CanonicalConflictDto & {
+  /**
+   * The conflict KIND, derived by the SAME {@link classifyConflictKind} the
+   * resolver uses (`type-a` ⇔ baseline, `incumbentCandidateId = null`; `type-b`
+   * ⇔ runtime, `incumbentCandidateId` SET). Single-sourced so the UI can only
+   * ever offer the selector shape the resolver will accept.
+   */
+  kind: ConflictKind;
   articles: Array<{ articleId: string; dependentData: DependentDataCounts }>;
+  /**
+   * TYPE B only: sanitized PUBLIC metadata for the incumbent candidate's produced
+   * Article, so the operator can meaningfully choose incumbent vs challenger.
+   * `null` for a Type-A conflict or a Type-B incumbent that produced no Article.
+   * PUBLIC metadata only (id/title/slug) — never a URL, body, or private content.
+   */
+  incumbentArticle: { id: string; title: string; slug: string | null } | null;
 };
 
 /** A bounded, filtered page of canonical conflicts + the total match count. */
@@ -343,24 +358,49 @@ function toDtoBase(row: ConflictRow): Omit<CanonicalConflictDto, "conflictingArt
 }
 
 /**
- * Returns the sanitized detail DTO (conflict + contested Article ids + per-Article
- * dependent-data COUNTS) for ONE conflict, or `null` when it does not exist. Not
- * status-restricted so an operator can inspect an already-resolved conflict.
+ * Loads the sanitized PUBLIC metadata (id/title/slug) for the Article produced by
+ * a Type-B conflict's incumbent candidate, or `null` when there is no incumbent
+ * linkage or the incumbent produced no Article. Public metadata only — never a
+ * URL, body, or private content.
+ */
+async function loadIncumbentArticle(
+  incumbentCandidateId: string | null,
+): Promise<{ id: string; title: string; slug: string | null } | null> {
+  if (!incumbentCandidateId) return null;
+  const candidate = await prisma.crawlCandidate.findUnique({
+    where: { id: incumbentCandidateId },
+    select: { article: { select: { id: true, title: true, slug: true } } },
+  });
+  return candidate?.article ?? null;
+}
+
+/**
+ * Returns the sanitized detail DTO (conflict + kind + contested Article ids +
+ * per-Article dependent-data COUNTS) for ONE conflict, or `null` when it does not
+ * exist. Not status-restricted so an operator can inspect an already-resolved
+ * conflict. `kind` is derived with the SAME {@link classifyConflictKind} the
+ * resolver uses, so the UI can never offer a selector the resolver would reject.
  */
 export async function getCanonicalConflict(id: string): Promise<CanonicalConflictDetailDto | null> {
   const row = await prisma.canonicalConflict.findUnique({ where: { id }, select: CONFLICT_SELECT });
   if (!row) return null;
 
+  const kind = classifyConflictKind(row.incumbentCandidateId);
   const conflictingArticleIds = await resolveConflictParticipants(row);
-  const byArticle = await countDependentDataByArticle(conflictingArticleIds);
+  const [byArticle, incumbentArticle] = await Promise.all([
+    countDependentDataByArticle(conflictingArticleIds),
+    kind === "type-b" ? loadIncumbentArticle(row.incumbentCandidateId) : Promise.resolve(null),
+  ]);
 
   return {
     ...toDtoBase(row),
+    kind,
     conflictingArticleIds,
     dependentData: aggregate(conflictingArticleIds, byArticle),
     articles: conflictingArticleIds.map((articleId) => ({
       articleId,
       dependentData: byArticle.get(articleId) ?? zeroCounts(),
     })),
+    incumbentArticle,
   };
 }

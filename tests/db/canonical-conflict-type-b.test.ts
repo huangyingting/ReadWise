@@ -34,6 +34,7 @@ import {
 
 import { prisma } from "@/lib/prisma";
 import { resolveCanonicalConflict } from "@/lib/scraper/incremental/canonical-conflict-commit";
+import { getCanonicalConflict } from "@/lib/scraper/incremental/canonical-conflict-query";
 import { TYPE_B_CONFLICT_LOSER_TERMINAL_REASON } from "@/lib/scraper/incremental/canonical-conflict-policy";
 
 import { enabled, PREFIX } from "./support/db-config";
@@ -396,4 +397,51 @@ test("AC4: two concurrent Type-B resolutions yield exactly one winner + one cano
 
   const conflict = await prisma.canonicalConflict.findUnique({ where: { id: seed.conflictId } });
   assert.equal(conflict?.status, CanonicalConflictStatus.RESOLVED);
+});
+
+// ---------------------------------------------------------------------------
+// Detail DTO kind discriminator (#1158) — agrees with the resolver by construction
+// ---------------------------------------------------------------------------
+
+test("getCanonicalConflict exposes kind=type-b + sanitized incumbent Article metadata", { skip: !enabled }, async () => {
+  const seed = await seedTypeBConflict({ withIncumbentArticle: true });
+  const detail = await getCanonicalConflict(seed.conflictId);
+  assert.ok(detail, "detail DTO exists");
+  assert.equal(detail.kind, "type-b");
+  assert.equal(detail.incumbentCandidateId, seed.incumbentId);
+  // PUBLIC metadata only (id/title/slug) — never a URL/body/private content.
+  assert.ok(detail.incumbentArticle, "incumbent Article metadata present");
+  assert.equal(detail.incumbentArticle?.id, seed.incumbentArticleId);
+  assert.equal(detail.incumbentArticle?.title, "Type-B incumbent fixture");
+  assert.equal(detail.challengerKey, seed.challengerKey);
+});
+
+test("getCanonicalConflict reports kind=type-b with null incumbentArticle when none was produced", { skip: !enabled }, async () => {
+  const seed = await seedTypeBConflict({ withIncumbentArticle: false });
+  const detail = await getCanonicalConflict(seed.conflictId);
+  assert.ok(detail);
+  assert.equal(detail.kind, "type-b");
+  assert.equal(detail.incumbentArticle, null);
+});
+
+test("getCanonicalConflict reports kind=type-a + null incumbentArticle for a baseline conflict", { skip: !enabled }, async () => {
+  const providerKey = id("prov");
+  const token = randomUUID().replace(/-/g, "").slice(0, 10);
+  const canonicalKey = `1:canon_${token}`;
+  const conflict = await prisma.canonicalConflict.create({
+    data: {
+      providerKey,
+      identityVersion: 1,
+      canonicalKey,
+      challengerKey: canonicalKey,
+      incumbentCandidateId: null,
+      status: CanonicalConflictStatus.OPEN,
+    },
+    select: { id: true },
+  });
+
+  const detail = await getCanonicalConflict(conflict.id);
+  assert.ok(detail);
+  assert.equal(detail.kind, "type-a");
+  assert.equal(detail.incumbentArticle, null);
 });
