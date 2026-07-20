@@ -38,6 +38,18 @@
  * STANDALONE convergence wrapper that retries the identity claim on the canonical
  * `@@unique` slot (P2002 is NEVER caught inside the tx).
  *
+ * TYPE A vs TYPE B (issue #1135): this module resolves BOTH conflict kinds through
+ * the ONE `resolveCanonicalConflict` entry point, detected from the conflict's
+ * `incumbentCandidateId` (`null` ⇒ baseline Type A; SET ⇒ runtime Type B):
+ *   - Type A (baseline) — the operator names the surviving public Article
+ *     (`survivingArticleId`); losers are archived, the survivor claims the slot.
+ *   - Type B (runtime) — the operator makes an explicit incumbent-vs-challenger
+ *     decision (`canonical`). Keeping the incumbent folds the challenger as a
+ *     DUPLICATE; promoting the challenger transfers the canonical claim onto it,
+ *     folds the incumbent's aliases, and archives (retains) the incumbent's
+ *     produced Article. A body whose shape does not match the conflict's kind is
+ *     rejected `wrong-conflict-type` (never a silent wrong-type write).
+ *
  * PRIVACY: every persisted/returned value is a sanitized id, versioned key, count,
  * timestamp, or reason CATEGORY — never a URL, body, secret, or article content.
  */
@@ -51,15 +63,22 @@ import {
   CONFLICT_LOSER_GOVERNANCE_ACTION,
   CONFLICT_LOSER_TERMINAL_REASON,
   CONFLICT_SURVIVOR_TERMINAL_REASON,
+  TYPE_B_CONFLICT_LOSER_TERMINAL_REASON,
+  TYPE_B_INCUMBENT_ARCHIVED_ACTION,
+  classifyConflictKind,
   decideConflictResolution,
+  decideTypeBResolution,
   type ConflictResolveIllegalReason,
   type ConflictResolveNoopReason,
+  type ConflictResolveTypeBIllegalReason,
+  type TypeBCanonicalChoice,
 } from "./canonical-conflict-policy";
 import {
   migrateReaderDataInTx,
   type ReaderDataMigrationSummary,
 } from "./canonical-conflict-migrate";
 import { resolveConflictParticipants } from "./canonical-conflict-query";
+import { foldLoserInTx } from "./final-identity-commit";
 
 /** Bounded retries for convergence-after-conflict on the canonical unique slot. */
 const MAX_CONVERGENCE_RETRIES = 5;
@@ -89,6 +108,20 @@ export type ConflictResolveOutcome =
       migration?: ReaderDataMigrationSummary;
     }
   | {
+      /** A runtime (Type B) conflict resolved by an explicit canonical decision (#1135). */
+      ok: true;
+      kind: "applied-type-b";
+      conflictId: string;
+      /** Which candidate the operator declared canonical. */
+      canonical: TypeBCanonicalChoice;
+      /** The candidate that keeps / receives the canonical claim. */
+      winnerCandidateId: string;
+      /** The folded candidate (challenger when incumbent wins; incumbent when challenger wins). */
+      loserCandidateId: string | null;
+      /** The incumbent's produced Article archived when the challenger was promoted, else null. */
+      archivedArticleId: string | null;
+    }
+  | {
       ok: true;
       kind: "noop";
       conflictId: string;
@@ -100,7 +133,7 @@ export type ConflictResolveOutcome =
       ok: false;
       reason: "illegal";
       conflictId: string;
-      illegal: ConflictResolveIllegalReason;
+      illegal: ConflictResolveIllegalReason | ConflictResolveTypeBIllegalReason;
       status: ConflictRow["status"];
     }
   | { ok: false; reason: "stale"; conflictId: string; status: ConflictRow["status"] };
@@ -125,13 +158,20 @@ function isCanonicalUniqueConflict(error: unknown): boolean {
 
 type ResolveParams = {
   conflictId: string;
-  survivingArticleId: string;
+  /**
+   * TYPE A (baseline): the operator-selected surviving public Article id. Exactly
+   * one of `survivingArticleId` / `canonical` is supplied, validated against the
+   * conflict's detected kind (a mismatch is rejected `wrong-conflict-type`).
+   */
+  survivingArticleId?: string;
+  /** TYPE B (runtime): the explicit incumbent-vs-challenger canonical decision (#1135). */
+  canonical?: TypeBCanonicalChoice;
   /** Operator user id recorded as `resolvedBy` and on the ContentReview rows. */
   resolvedBy: string;
   /**
-   * OPT-IN (issue #1134): when true, actively re-point the losers' article-level
-   * reader/learning data onto the survivor (collision-safe). Default false keeps
-   * #1104's retain-on-loser behavior byte-for-byte.
+   * OPT-IN (issue #1134, Type A only): when true, actively re-point the losers'
+   * article-level reader/learning data onto the survivor (collision-safe). Default
+   * false keeps #1104's retain-on-loser behavior byte-for-byte.
    */
   migrateReaderData?: boolean;
   now?: Date;
@@ -154,29 +194,44 @@ type MigrateOptions = {
 };
 
 /**
- * Resolves ONE canonical conflict onto the operator's chosen survivor. Reads the
- * conflict + its contested public Article ids, asks the pure policy for the
- * decision, and (only for an `apply`) runs the guarded, convergence-wrapped
- * transaction. A concurrently-resolved conflict returns an idempotent `noop`
- * (already-resolved) or `stale`; the winner still owns exactly one public
- * identity key (AC4).
+ * Resolves ONE canonical conflict. Detects the conflict KIND from its
+ * `incumbentCandidateId` and dispatches:
+ *   - TYPE A (baseline, `incumbentCandidateId = null`): resolve onto the operator's
+ *     chosen surviving public Article — reads the conflict + its contested public
+ *     Article ids, asks {@link decideConflictResolution}, and runs the guarded,
+ *     convergence-wrapped transaction. Behavior is byte-identical to #1104/#1134.
+ *   - TYPE B (runtime, `incumbentCandidateId` SET): apply the explicit
+ *     incumbent-vs-challenger `canonical` decision (issue #1135).
+ * A body whose selector does not match the conflict's kind is rejected
+ * `wrong-conflict-type`; a concurrently-resolved conflict returns an idempotent
+ * `noop` / `stale`. Exactly one public identity owner always remains (AC4).
  */
 export async function resolveCanonicalConflict(
   params: ResolveParams,
   deps: ResolveDeps = {},
 ): Promise<ConflictResolveOutcome> {
-  const { conflictId, survivingArticleId, resolvedBy } = params;
+  const { conflictId, resolvedBy } = params;
   const now = params.now ?? new Date();
-  const migrate: MigrateOptions = {
-    migrateReaderData: params.migrateReaderData ?? false,
-    deriveReaderText: deps.deriveReaderText ?? stripTags,
-  };
 
   const conflict = await prisma.canonicalConflict.findUnique({
     where: { id: conflictId },
     select: CONFLICT_SELECT,
   });
   if (!conflict) return { ok: false, reason: "not-found", conflictId };
+
+  if (classifyConflictKind(conflict.incumbentCandidateId) === "type-b") {
+    return resolveTypeBConflict(conflict, params, resolvedBy, now);
+  }
+
+  // TYPE A — require the Type-A selector shape (survivingArticleId, no canonical).
+  if (params.survivingArticleId === undefined || params.canonical !== undefined) {
+    return { ok: false, reason: "illegal", conflictId, illegal: "wrong-conflict-type", status: conflict.status };
+  }
+  const survivingArticleId = params.survivingArticleId;
+  const migrate: MigrateOptions = {
+    migrateReaderData: params.migrateReaderData ?? false,
+    deriveReaderText: deps.deriveReaderText ?? stripTags,
+  };
 
   const participantArticleIds = await resolveConflictParticipants(conflict);
   const decision = decideConflictResolution({
@@ -192,25 +247,89 @@ export async function resolveCanonicalConflict(
     return { ok: true, kind: "noop", conflictId, reason: decision.reason, status: decision.status };
   }
 
-  return convergeResolve(conflict, survivingArticleId, decision.loserArticleIds, resolvedBy, now, migrate);
+  return convergeConflictTx(conflict.id, () =>
+    runResolveTx(conflict, survivingArticleId, decision.loserArticleIds, resolvedBy, now, migrate),
+  );
 }
 
-/** Standalone convergence wrapper: retry the identity claim on a canonical-slot race. */
-async function convergeResolve(
+/**
+ * Resolves a runtime (Type B) conflict from an explicit incumbent-vs-challenger
+ * decision (issue #1135). Requires the Type-B selector shape (`canonical`, no
+ * `survivingArticleId`); reads the incumbent + parked challenger candidates
+ * OUTSIDE the tx, asks {@link decideTypeBResolution}, and — only for an `apply` —
+ * runs the guarded, convergence-wrapped transaction.
+ */
+async function resolveTypeBConflict(
   conflict: ConflictRow,
-  survivingArticleId: string,
-  loserArticleIds: string[],
+  params: ResolveParams,
   resolvedBy: string,
   now: Date,
-  migrate: MigrateOptions,
+): Promise<ConflictResolveOutcome> {
+  const conflictId = conflict.id;
+  if (params.canonical === undefined || params.survivingArticleId !== undefined) {
+    return { ok: false, reason: "illegal", conflictId, illegal: "wrong-conflict-type", status: conflict.status };
+  }
+  const canonical = params.canonical;
+
+  // Reads-before-tx: does the incumbent still exist, and which parked challenger
+  // candidate matches the conflict's challengerKey? (`prisma` client — not the tx.)
+  const [incumbent, challenger] = await Promise.all([
+    conflict.incumbentCandidateId
+      ? prisma.crawlCandidate.findUnique({
+          where: { id: conflict.incumbentCandidateId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+    prisma.crawlCandidate.findUnique({
+      where: {
+        providerKey_identityVersion_provisionalKey: {
+          providerKey: conflict.providerKey,
+          identityVersion: conflict.identityVersion,
+          provisionalKey: conflict.challengerKey,
+        },
+      },
+      select: { id: true },
+    }),
+  ]);
+
+  const decision = decideTypeBResolution({
+    status: conflict.status,
+    canonical,
+    incumbentCandidateId: conflict.incumbentCandidateId,
+    incumbentExists: incumbent != null,
+    challengerCandidateId: challenger?.id ?? null,
+  });
+
+  if (decision.kind === "illegal") {
+    return { ok: false, reason: "illegal", conflictId, illegal: decision.reason, status: decision.status };
+  }
+  if (decision.kind === "noop") {
+    return { ok: true, kind: "noop", conflictId, reason: decision.reason, status: decision.status };
+  }
+
+  // `incumbentCandidateId` is non-null for a Type-B conflict (guarded by the policy).
+  const incumbentCandidateId = conflict.incumbentCandidateId as string;
+  return convergeConflictTx(conflict.id, () =>
+    runTypeBResolveTx(conflict, canonical, incumbentCandidateId, resolvedBy, now),
+  );
+}
+
+/**
+ * Standalone convergence wrapper shared by Type-A and Type-B resolution: retries
+ * the guarded transaction on a canonical-slot `@@unique` race (P2002 is NEVER
+ * caught inside the tx) and maps the OPEN-guard loss to an idempotent noop/stale.
+ */
+async function convergeConflictTx(
+  conflictId: string,
+  run: () => Promise<ConflictResolveOutcome>,
 ): Promise<ConflictResolveOutcome> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_CONVERGENCE_RETRIES; attempt += 1) {
     try {
-      return await runResolveTx(conflict, survivingArticleId, loserArticleIds, resolvedBy, now, migrate);
+      return await run();
     } catch (error) {
       if (error instanceof ConflictRaceError) {
-        return afterRace(conflict.id);
+        return afterRace(conflictId);
       }
       if (isCanonicalUniqueConflict(error) && attempt < MAX_CONVERGENCE_RETRIES) {
         lastError = error;
@@ -314,17 +433,143 @@ async function runResolveTx(
 }
 
 /**
+ * Applies an explicit incumbent-vs-challenger decision to a runtime (Type B)
+ * conflict inside ONE guarded transaction (issue #1135), in this ORDER:
+ *
+ *   1. Claim the conflict: guarded `updateMany` OPEN → RESOLVED (zero rows ⇒ a
+ *      concurrent operator won → roll back).
+ *   2. Re-read the incumbent + parked challenger candidates under the lock (AC4).
+ *   3a. `canonical === "incumbent"` — the incumbent KEEPS its canonical claim +
+ *       Article untouched; the challenger is folded as a DUPLICATE onto it
+ *       (`foldLoserInTx`). A vanished challenger is a safe no-op.
+ *   3b. `canonical === "challenger"` — PROMOTE the challenger: fold the incumbent's
+ *       aliases onto it (freeing the incumbent's canonical slot), transfer the
+ *       canonical claim to the challenger (P2002 ⇒ standalone convergence), re-attach
+ *       the CANONICAL alias, and archive + RETAIN the incumbent's produced Article.
+ *
+ * Sequential awaits only (never `Promise.all` on the tx client); P2002 is never
+ * caught inside the tx (it rolls back to the convergence wrapper).
+ */
+async function runTypeBResolveTx(
+  conflict: ConflictRow,
+  canonical: TypeBCanonicalChoice,
+  incumbentCandidateId: string,
+  resolvedBy: string,
+  now: Date,
+): Promise<ConflictResolveOutcome> {
+  return prisma.$transaction(async (tx) => {
+    // (1) Claim the conflict under the lock — only ONE resolver can win.
+    const claimed = await tx.canonicalConflict.updateMany({
+      where: { id: conflict.id, status: "OPEN" },
+      data: { status: "RESOLVED", resolvedAt: now, resolvedBy, updatedAt: now },
+    });
+    if (claimed.count === 0) throw new ConflictRaceError();
+
+    // (2) Re-read the incumbent + parked challenger under the lock.
+    const incumbent = await tx.crawlCandidate.findUnique({
+      where: { id: incumbentCandidateId },
+      select: { id: true, articleId: true },
+    });
+    if (!incumbent) throw new ConflictRaceError();
+
+    const challenger = await tx.crawlCandidate.findUnique({
+      where: {
+        providerKey_identityVersion_provisionalKey: {
+          providerKey: conflict.providerKey,
+          identityVersion: conflict.identityVersion,
+          provisionalKey: conflict.challengerKey,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (canonical === "incumbent") {
+      // (3a) Incumbent stays canonical; fold the challenger as a DUPLICATE onto it.
+      let loserCandidateId: string | null = null;
+      if (challenger && challenger.id !== incumbent.id) {
+        await foldLoserInTx(tx, challenger.id, incumbent.id, now, TYPE_B_CONFLICT_LOSER_TERMINAL_REASON);
+        loserCandidateId = challenger.id;
+      }
+      return {
+        ok: true as const,
+        kind: "applied-type-b" as const,
+        conflictId: conflict.id,
+        canonical,
+        winnerCandidateId: incumbent.id,
+        loserCandidateId,
+        archivedArticleId: null,
+      };
+    }
+
+    // (3b) Promote the challenger. The parked challenger must still exist (the
+    // policy guaranteed it reads-before-tx; re-validate under the lock).
+    if (!challenger || challenger.id === incumbent.id) throw new ConflictRaceError();
+
+    // Fold the incumbent onto the challenger: re-points the incumbent's aliases
+    // (relabelled DUPLICATE) + observations onto the challenger, marks the
+    // incumbent DUPLICATE_ALIAS terminal, cancels its ingest jobs, and CLEARS its
+    // canonical slot (freeing it before the transfer below).
+    await foldLoserInTx(tx, incumbent.id, challenger.id, now, TYPE_B_CONFLICT_LOSER_TERMINAL_REASON);
+
+    // Transfer the canonical claim to the challenger + return it to the normal
+    // candidate pipeline (its produced Article is a separate, explicit ingest —
+    // this flow only moves the CLAIM). A concurrent claim throws P2002 → rollback
+    // → the standalone wrapper re-queries + converges.
+    await tx.crawlCandidate.update({
+      where: { id: challenger.id },
+      data: {
+        canonicalKey: conflict.canonicalKey,
+        status: CrawlCandidateStatus.DISCOVERED,
+        terminalReason: null,
+        terminalAt: null,
+        updatedAt: now,
+      },
+    });
+
+    // The fold relabelled the incumbent's canonical alias DUPLICATE; upsert it back
+    // to a CANONICAL alias owned by the challenger.
+    await attachCanonicalAliasInTx(tx, {
+      candidateId: challenger.id,
+      providerKey: conflict.providerKey,
+      identityVersion: conflict.identityVersion,
+      aliasKey: conflict.canonicalKey,
+      now,
+    });
+
+    // Apply loser-governance to the incumbent's produced Article if one exists
+    // (archive out of public feeds; data RETAINED, never deleted).
+    let archivedArticleId: string | null = null;
+    if (incumbent.articleId) {
+      await archiveLoserInTx(tx, incumbent.articleId, resolvedBy, now, TYPE_B_INCUMBENT_ARCHIVED_ACTION);
+      archivedArticleId = incumbent.articleId;
+    }
+
+    return {
+      ok: true as const,
+      kind: "applied-type-b" as const,
+      conflictId: conflict.id,
+      canonical,
+      winnerCandidateId: challenger.id,
+      loserCandidateId: incumbent.id,
+      archivedArticleId,
+    };
+  });
+}
+
+/**
  * Archives ONE loser Article out of public feeds using the EXISTING content
  * governance semantics (`takedownState = archived`; a PUBLISHED Article is forced
  * to DRAFT) and records a ContentReview audit row. Nothing is deleted, so all
  * dependent reader/learning data is retained. A vanished Article (concurrent
- * delete) is a safe no-op.
+ * delete) is a safe no-op. `action` tags the ContentReview row so a Type-A loser
+ * and a Type-B promoted-over incumbent are distinguishable in the audit history.
  */
 async function archiveLoserInTx(
   tx: Prisma.TransactionClient,
   loserId: string,
   reviewerId: string,
   now: Date,
+  action: string = CONFLICT_LOSER_GOVERNANCE_ACTION,
 ): Promise<void> {
   const existing = await tx.article.findUnique({
     where: { id: loserId },
@@ -344,7 +589,7 @@ async function archiveLoserInTx(
     data: {
       articleId: loserId,
       reviewerId,
-      action: CONFLICT_LOSER_GOVERNANCE_ACTION,
+      action,
       note: null,
       changes: {
         takedownState: { from: previousState, to: "archived" },

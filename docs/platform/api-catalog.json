@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-20T07:03:41.547Z",
+  "generatedAt": "2026-07-20T07:56:07.637Z",
   "routeCount": 134,
   "methodCount": 159,
   "routes": [
@@ -642,13 +642,16 @@
           ],
           "successStatus": 200,
           "responseKeys": [
-            "detail",
-            "error",
-            "reason",
-            "status"
+            "conflictId",
+            "loserArticleIds",
+            "ok",
+            "outcome",
+            "survivingArticleId",
+            "survivorCandidateId"
           ],
           "queryParamNames": null,
           "bodyFieldNames": [
+            "canonical",
             "confirm",
             "migrateReaderData",
             "reason",

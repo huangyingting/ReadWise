@@ -2574,8 +2574,18 @@ aggregates keyed on `articleId`.
 
 ### Conflict resolution order (AC1 / AC4)
 
-`resolveCanonicalConflict({ conflictId, survivingArticleId, resolvedBy })` reads the
-conflict + its contested Article ids OUTSIDE the transaction, asks the pure
+A `CanonicalConflict` is created two ways, distinguished by `incumbentCandidateId`:
+a **baseline (Type A)** conflict (`incumbentCandidateId = null`) records ≥2 existing
+PUBLIC Articles that normalized to one identity during the source baseline, and a
+**runtime (Type B)** conflict (`incumbentCandidateId` SET) records a live-ingest
+challenger candidate that resolved onto an identity already owned by an incumbent
+candidate. The single `resolve` endpoint detects the kind and branches; the Type-A
+path is described here, the Type-B path in "First-class runtime (Type B) resolution"
+below.
+
+`resolveCanonicalConflict({ conflictId, survivingArticleId, resolvedBy })` (the Type-A
+selector — the operator picks the surviving Article id) reads the conflict + its
+contested Article ids OUTSIDE the transaction, asks the pure
 `decideConflictResolution` policy for a decision, then — only for an `apply` —
 runs a single guarded, convergence-wrapped `$transaction` in this **critical
 order**:
@@ -2636,6 +2646,51 @@ Privacy: highlight quote/prefix/suffix text is read only in-memory to compute
 offsets; the audit/response carry per-model COUNTS + the `migrateReaderData` boolean
 only.
 
+### First-class runtime (Type B) resolution (#1135)
+
+A runtime (Type B) conflict — created in `final-identity-commit.ts` when a
+genuinely-new challenger candidate resolves onto an identity an incumbent candidate
+already owns (`incumbentCandidateId` SET, challenger parked `NEEDS_REVIEW`) — is
+resolved by an **explicit operator decision of which candidate is canonical**, NOT by
+picking a surviving Article. This is DISTINCT from Type-A resolve (which picks between
+existing PUBLIC Articles) and from the candidate-review approve/reject queue (#1100),
+which can only reject/park the challenger and has no clean path to promote it OVER the
+incumbent. The same `resolve` endpoint accepts `canonical: "incumbent" | "challenger"`
+(mutually exclusive with `survivingArticleId`); the pure `decideTypeBResolution` policy
+validates the shape, then a single guarded, convergence-wrapped `$transaction` runs
+`runTypeBResolveTx` in this order:
+
+1. **Re-validate + claim the OPEN conflict** — guarded `updateMany`
+   (`WHERE id AND status = OPEN → RESOLVED`, `count === 0 ⇒ throw ⇒ rollback`).
+2. **Re-read the incumbent + parked challenger under the lock** (a vanished incumbent
+   is a stale race → convergence no-op).
+3a. **`canonical = "incumbent"`** — the incumbent KEEPS its canonical claim + produced
+   Article untouched; the challenger is folded as a DUPLICATE onto it via the exported
+   `foldLoserInTx` (its aliases re-point + relabel DUPLICATE, its canonical slot
+   clears, it becomes `DUPLICATE_ALIAS` terminal). This formalizes today's reject.
+3b. **`canonical = "challenger"`** — PROMOTE the challenger: `foldLoserInTx` folds the
+   INCUMBENT onto the challenger (freeing the incumbent's
+   `@@unique([providerKey, canonicalKey])` slot BEFORE the transfer), then the
+   challenger `update`s its `canonicalKey` to the freed slot and returns to the normal
+   pipeline as `DISCOVERED` (terminal cleared). The CANONICAL `UrlAlias` is re-attached
+   to the challenger, and the incumbent's produced Article — if one exists — gets
+   loser-governance via `archiveLoserInTx` (`takedownState = archived`, `PUBLISHED →
+   DRAFT`, `ContentReview` audit row): **archived + RETAINED, never deleted**, mirroring
+   Type-A loser governance.
+
+**Challenger post-state decision:** promoting the challenger transfers only the
+canonical CLAIM; the challenger is returned to `DISCOVERED` so producing its Article is
+a separate, explicit ingest — this flow never auto-creates an Article or enqueues a
+job, keeping the scraper module boundary clean. A canonical-slot `@@unique` race throws
+P2002 (NEVER caught in-tx) → the bounded standalone convergence loop re-queries and
+retries, so exactly ONE candidate owns the slot afterwards (AC4). Submitting a Type-A
+`survivingArticleId` for a Type-B conflict (or `canonical` for a Type-A conflict) is
+rejected `wrong-conflict-type` (409) with NO mutation; a vanished incumbent/challenger
+candidate is `incumbent-candidate-missing` / `challenger-candidate-missing` (409).
+Only a state-CHANGING outcome writes a sanitized audit entry
+(`conflictType: "type-b"`, `canonical`, winner/loser candidate ids,
+`incumbentArticleArchived` boolean, reason CATEGORY — never a URL/content/secret).
+
 ### Deletion → permanent DELETED outcome (AC2)
 
 Deleting an Article (`deleteArticle` → `DELETE /api/admin/articles/{id}`, gated
@@ -2690,7 +2745,7 @@ All new routes use `createCapabilityHandler(CAPABILITIES.sourcesManage, …)`
 | --- | --- | --- | --- |
 | `GET /api/admin/canonical-conflicts` | query: `status?`, `providerKey?`, `offset?`, `limit?` | `200` `CanonicalConflictPage` | Defaults to OPEN; RESOLVED/DISMISSED inspectable. |
 | `GET /api/admin/canonical-conflicts/{id}` | params: `id` | `200` `CanonicalConflictDetailDto` / `404` | Per-Article dependent-data counts. |
-| `POST /api/admin/canonical-conflicts/{id}/resolve` | body: `survivingArticleId`, `reason`, `confirm: true`, `migrateReaderData?` | `200` applied/noop | `confirm:false` → 400; non-participant → 400; stale → 409. `migrateReaderData:true` (opt-in, default false) also migrates reader data onto the survivor; `applied` returns per-model `migration` counts. Audited `admin.canonical_conflict.resolve` on `applied` only. |
+| `POST /api/admin/canonical-conflicts/{id}/resolve` | body: EXACTLY ONE of `survivingArticleId` (Type A) or `canonical: "incumbent"\|"challenger"` (Type B); plus `reason`, `confirm: true`, `migrateReaderData?` (Type A only) | `200` applied/applied-type-b/noop | `confirm:false` / neither-or-both selector / non-participant → 400; wrong-selector-for-kind (`wrong-conflict-type`), missing incumbent/challenger candidate, `no-participants`, stale → 409. Type A: `migrateReaderData:true` (opt-in, default false) migrates reader data onto the survivor and returns per-model `migration` counts. Type B: promotes/keeps a candidate (challenger-win archives + retains the incumbent's Article). Audited `admin.canonical_conflict.resolve` on a state change only. |
 | `GET /api/admin/deleted-articles` | query: `providerKey?`, `offset?`, `limit?` | `200` `DeletedCandidatePage` | Most-recently-deleted first. |
 | `POST /api/admin/deleted-articles/{id}/recover` | body: `reason`, `confirm: true` (`{id}` = candidate id) | `200` recovered | `confirm:false` → 400; ineligible → 409; concurrent → 409 `stale`. Audited `admin.article.recover` on success only. |
 
@@ -2718,13 +2773,17 @@ secret).
   capability/audit-constant wiring are covered by
   `tests/admin-canonical-conflicts-routes.test.ts` and
   `tests/admin-deleted-articles-routes.test.ts`.
+- **Type B (#1135)** (`tests/db/canonical-conflict-type-b.test.ts`) — an explicit
+  `canonical: "incumbent"` folds the challenger and keeps the incumbent; `"challenger"`
+  transfers the canonical claim, folds the incumbent's aliases, and archives + retains
+  the incumbent's Article; a wrong-kind selector is rejected without mutation; two
+  concurrent resolutions yield exactly one canonical owner (AC4). Route validation +
+  audit shape in `tests/admin-canonical-conflicts-routes.test.ts`.
 
 ### Deferred (follow-ups)
 
-- Active migration of reader/learning data onto the surviving Article on conflict
-  resolution, with per-constraint unique-collision resolution — follow-up #1134.
-- A first-class resolution flow for runtime (Type B) canonical conflicts beyond the
-  existing candidate-review approve/reject — follow-up #1135.
+- Admin UI for the canonical-conflict queue and the deleted-articles queue is
+  delivered separately (Trinity).
 
 ## Planned (see issues #1082–#1104)
 
@@ -2798,6 +2857,6 @@ The following phases build on the Phase 1 ledger and are documented as they land
   (permanent `governance:article-deleted` terminal + `articleDeletedAt`, no new
   enum), explicit audited recovery as re-admission (not content restore), and the
   content-governance reuse (`applyTakedown`) that preserves candidate/review
-  history — CLOSING epic #1080. Active reader-data migration to the survivor
-  (#1134) and a first-class runtime (Type B) conflict flow (#1135) are follow-ups;
-  the admin UI is delivered separately.)*
+  history — CLOSING epic #1080. Opt-in reader-data migration to the survivor
+  (#1134) and a first-class runtime (Type B) conflict resolution flow (#1135) have
+  since landed on the same `resolve` endpoint; the admin UI is delivered separately.)*
