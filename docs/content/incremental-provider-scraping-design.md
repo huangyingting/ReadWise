@@ -2525,6 +2525,162 @@ existing `AI_REBUILD` job type rather than adding a new one.
   claimed `derivedRegenerationRequestedAt` if the best-effort enqueue is lost after
   activation — follow-up #1132.
 
+## Phase 3.5 — Resolve canonical conflicts & govern deleted / withdrawn / taken-down Articles (#1104) — current
+
+Phase 3.5 gives operators explicit, safe, audited ways to (a) resolve a
+canonical-identity conflict onto exactly one surviving public Article, and (b)
+govern content-lifecycle events — deletion, recovery, and withdrawal/takedown —
+**without ever letting normal incremental ingestion refetch, recreate, or revive a
+known Article**. Every recreation/recovery here is EXPLICIT OPERATOR ACTION; the
+scheduler never polls or mutates old Articles. Pure decisions live in
+`canonical-conflict-policy.ts`; sanitized read models in `canonical-conflict-query.ts`;
+the guarded writes in `canonical-conflict-commit.ts`, `deleted-article-recovery.ts`,
+and the leaf `candidate-deletion-stamp.ts`. **No schema change was required** — every
+field already exists (`CanonicalConflict.status/resolvedAt/resolvedBy`,
+`CrawlCandidate.terminalReason/terminalAt/articleDeletedAt`, `Article.takedownState`).
+
+### The read model — conflict queue without content (requirement 1)
+
+`listCanonicalConflicts(filter)` → `CanonicalConflictPage` and
+`getCanonicalConflict(id)` → `CanonicalConflictDetailDto` (in
+`canonical-conflict-query.ts`) power the operator queue. Each DTO carries the
+conflicting **public Article ids**, the normalized identity (`providerKey`,
+`identityVersion`, sanitized `canonicalKey`/`challengerKey` HASHES), the controlled
+`reason` CATEGORY, timestamps, and `dependentData` **COUNTS ONLY** across eight
+reader/learning classes (highlights, readingProgress, readingListItems,
+articleMastery, quizAttempts, pronunciationAttempts, tutorMessages,
+difficultyFeedback). The detail DTO adds a per-Article count breakdown. No field is
+ever a URL, body, secret, or article content — counts come from `groupBy`
+aggregates keyed on `articleId`.
+
+### Conflict resolution order (AC1 / AC4)
+
+`resolveCanonicalConflict({ conflictId, survivingArticleId, resolvedBy })` reads the
+conflict + its contested Article ids OUTSIDE the transaction, asks the pure
+`decideConflictResolution` policy for a decision, then — only for an `apply` —
+runs a single guarded, convergence-wrapped `$transaction` in this **critical
+order**:
+
+1. **Re-validate + claim the OPEN conflict** — a guarded `updateMany`
+   (`WHERE id AND status = OPEN → RESOLVED`, `count === 0 ⇒ throw ⇒ rollback`), so
+   concurrent resolvers can never both win.
+2. **Validate the survivor is one of the contested identities** (the pure policy
+   rejects `survivor-not-a-participant` / `no-participants` before any write).
+3. **Migrate or deliberately retain dependent data** per the documented rule below.
+4. **Attach aliases + candidate history** to the survivor (a `CANONICAL`
+   `UrlAlias`, challenger folded onto the survivor's candidate).
+5. **ONLY THEN populate the unique public identity key** — the survivor's candidate
+   claims the `@@unique([providerKey, identityVersion, canonicalKey])` slot via
+   `upsert` (INSERT … ON CONFLICT), NEVER a catch-P2002-in-tx.
+6. **Stamp** `status = RESOLVED`, `resolvedAt`, `resolvedBy`, removing ONLY that
+   conflict block.
+
+A unique-key race is handled by a bounded standalone convergence loop AFTER the tx
+(mirroring `convergeCanonicalMerge` / `SaveRaceError`); a concurrently-resolved
+conflict returns an idempotent `noop` (`already-resolved`) or `stale` (409). Exactly
+one public identity owner always remains (AC4).
+
+### Dependent-data rule — retain, don't migrate (AC1)
+
+The losing Articles are **archived, not deleted**: `takedownState = archived`,
+`PUBLISHED → DRAFT` (leaving public feeds via the existing content-governance rule),
+and a `ContentReview` row records the transition. Because the losers are retained,
+**all of their reader/learning data is preserved intact** — this is the "deliberately
+retain" branch that satisfies AC1's "preserves required dependent data" without any
+data loss. **Actively migrating** the losers' reader data onto the survivor (with
+per-constraint unique-collision resolution) is deliberately out of scope — follow-up
+#1134.
+
+### Deletion → permanent DELETED outcome (AC2)
+
+Deleting an Article (`deleteArticle` → `DELETE /api/admin/articles/{id}`, gated
+`articles.manage`) now stamps the producing candidate(s) INSIDE the same
+transaction, BEFORE `tx.article.delete`, via `markArticleCandidatesDeletedInTx`
+(leaf module `candidate-deletion-stamp.ts`): a guarded `updateMany`
+(`WHERE articleId = id AND articleDeletedAt = null`) sets `articleDeletedAt`,
+`terminalReason = "governance:article-deleted"`, and `terminalAt`. The FK is
+`SetNull`, so `articleId` clears AFTER the stamp — which is why the stamp runs
+first, while the link still resolves. **`articleDeletedAt != null` is the
+authoritative permanent DELETED outcome**: ordinary discovery and backfill can never
+recreate the identity, and the governing invariant's reactivation guard treats a
+deleted candidate as non-runnable. There is **no new `CrawlCandidateStatus` enum
+value** — the controlled `terminalReason` + `articleDeletedAt` encode the outcome,
+keeping the change dual-engine-free.
+
+### Explicit audited recovery = re-admission, not content restore (AC2)
+
+`recoverDeletedCandidate(candidateId)` →
+`POST /api/admin/deleted-articles/{id}/recover` is the ONLY way a deleted identity
+re-enters ingestion, and it is an explicit operator action. Eligible **only** when
+the candidate is a DELETED outcome (`articleDeletedAt` set AND `articleId` null); a
+candidate still linking a live Article is never touched. Inside a guarded
+transaction it clears the deleted terminal, resets ingest metadata, sets
+`status = DISCOVERED`, **bumps the extractor/processing version** so the enqueued
+`ARTICLE_INGEST` Job gets a FRESH dedupe key (the historical terminal Job is left
+intact for audit — a re-enqueue on the OLD key would be a no-op `upsert`), and
+returns the new Job. This is a re-*admission*, not a content restore: the article
+body is permanently gone; recovery lets the provider re-ingest the identity if it is
+rediscovered. A second concurrent recovery fails safely (guarded `updateMany`
+`count === 0 ⇒` 409 `conflict`), so exactly one re-admission + one Job result (AC4).
+
+### Content governance reuse — withdrawal / takedown (AC3)
+
+Withdrawal, takedown, unpublish, and archive are the **reversible soft states**
+served by the EXISTING `applyTakedown` model (`takedownState` ∈
+active/unpublished/archived/takedown; non-active forces `DRAFT` out of public feeds;
+audited) via the existing `POST /api/admin/articles/{id}/takedown` route (gated
+`content.moderate`). Phase 3.5 adds **no new governance route** — it guarantees (and
+tests) that these state changes never erase the producing `CrawlCandidate` identity
+or its `ContentReview` history, so the discovery ledger stays intact. Upstream
+correction/withdrawal signals are treated as operator INPUT only; normal incremental
+scheduling never mirrors them.
+
+### Capability-gated endpoints (all `sources.manage`, deny-by-default + CSRF)
+
+All new routes use `createCapabilityHandler(CAPABILITIES.sourcesManage, …)`
+(consistent with the Phase 3.1 candidate queue), so Trinity's UI mirrors
+`src/app/admin/candidates/page.tsx`:
+
+| Method + path | Body / params | Success | Notes |
+| --- | --- | --- | --- |
+| `GET /api/admin/canonical-conflicts` | query: `status?`, `providerKey?`, `offset?`, `limit?` | `200` `CanonicalConflictPage` | Defaults to OPEN; RESOLVED/DISMISSED inspectable. |
+| `GET /api/admin/canonical-conflicts/{id}` | params: `id` | `200` `CanonicalConflictDetailDto` / `404` | Per-Article dependent-data counts. |
+| `POST /api/admin/canonical-conflicts/{id}/resolve` | body: `survivingArticleId`, `reason`, `confirm: true` | `200` applied/noop | `confirm:false` → 400; non-participant → 400; stale → 409. Audited `admin.canonical_conflict.resolve` on `applied` only. |
+| `GET /api/admin/deleted-articles` | query: `providerKey?`, `offset?`, `limit?` | `200` `DeletedCandidatePage` | Most-recently-deleted first. |
+| `POST /api/admin/deleted-articles/{id}/recover` | body: `reason`, `confirm: true` (`{id}` = candidate id) | `200` recovered | `confirm:false` → 400; ineligible → 409; concurrent → 409 `stale`. Audited `admin.article.recover` on success only. |
+
+Destructive actions REQUIRE both a non-empty `reason` (schema-enforced) and an
+explicit `confirm: true` (handler returns 400 otherwise), are idempotent, and write
+privacy-safe audit metadata (ids, counts, reason CATEGORY — never a URL, body, or
+secret).
+
+### Acceptance evidence
+
+- **AC1** (`tests/db/canonical-conflict-governance.test.ts`) — resolving a conflict
+  yields one identity owner + preserves loser data + removes only that block;
+  re-resolving is an idempotent no-op; a non-participant survivor is rejected
+  without mutating state.
+- **AC2** (same file) — deleting an Article stamps the producing candidate DELETED
+  and discovery cannot recreate it; explicit recovery re-admits the identity and
+  enqueues exactly one ingest Job; a live (non-deleted) candidate cannot be
+  recovered. Route + unit coverage in `tests/article-library-admin.test.ts`
+  (delete stamps the guarded candidate write) and the two admin-route suites.
+- **AC3** (same DB file) — takedown changes Article state without erasing the
+  candidate or its review history.
+- **AC4** (same DB file) — two concurrent resolutions yield exactly one owner; two
+  concurrent recoveries yield exactly one re-admission + one Job.
+- Admin-route authorization, required-confirmation, audit-write, and
+  capability/audit-constant wiring are covered by
+  `tests/admin-canonical-conflicts-routes.test.ts` and
+  `tests/admin-deleted-articles-routes.test.ts`.
+
+### Deferred (follow-ups)
+
+- Active migration of reader/learning data onto the surviving Article on conflict
+  resolution, with per-constraint unique-collision resolution — follow-up #1134.
+- A first-class resolution flow for runtime (Type B) canonical conflicts beyond the
+  existing candidate-review approve/reject — follow-up #1135.
+
 ## Planned (see issues #1082–#1104)
 
 The following phases build on the Phase 1 ledger and are documented as they land:
@@ -2588,4 +2744,14 @@ The following phases build on the Phase 1 ledger and are documented as they land
   outputs after a refresh #1103 has landed — see "Phase 3.4" above: the real
   annotation migrator (reusing `revalidateAnchor` + ambiguity detection) behind an
   evolved reliability gate, offset migration inside the activation transaction, and
-  deduplicated version-scoped regeneration of ONLY content-derived outputs.)*
+  deduplicated version-scoped regeneration of ONLY content-derived outputs.
+  Resolving canonical conflicts & governing deleted / withdrawn / taken-down
+  Articles #1104 has landed — see "Phase 3.5" above: the capability-gated
+  canonical-conflict queue + `resolve` endpoint (one surviving public identity,
+  losers archived with reader data retained), the Article-delete candidate stamp
+  (permanent `governance:article-deleted` terminal + `articleDeletedAt`, no new
+  enum), explicit audited recovery as re-admission (not content restore), and the
+  content-governance reuse (`applyTakedown`) that preserves candidate/review
+  history — CLOSING epic #1080. Active reader-data migration to the survivor
+  (#1134) and a first-class runtime (Type B) conflict flow (#1135) are follow-ups;
+  the admin UI is delivered separately.)*

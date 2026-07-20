@@ -43,6 +43,7 @@ flowchart TD
 | Admin dashboard | `/admin`, `GET /api/admin/stats` | `admin.access` | System overview counts. |
 | Articles | `/admin/articles`, `/admin/articles/[id]`, `/api/admin/articles/**` | `articles.manage`, `content.moderate` for review/takedown | Search, inspect, delete, rebuild AI, review, takedown, ingest. |
 | Sources | `/admin/sources`, `/api/admin/sources/**` | `sources.manage` | Sync provider registry, toggle providers, inspect health/counters. |
+| Incremental governance | `/api/admin/canonical-conflicts/**`, `/api/admin/deleted-articles/**` | `sources.manage` | Resolve canonical-identity conflicts, list/recover deleted-Article candidates (see [incremental scraping design § Phase 3.5](../content/incremental-provider-scraping-design.md)). |
 | Tags | `/admin/tags`, `/api/admin/tags/**` | `tags.manage` | Rename/merge/delete global tags. |
 | Members | `/admin/members`, `/admin/members/[id]`, `/api/admin/members/**` | `members.manage`, `support.assist` for support actions | Manage roles, support tooling, session revocation, export/repair helpers. |
 | Jobs | `/admin/jobs`, `/api/admin/jobs/**` | `jobs.manage` | Queue dashboard, retry/cancel/archive, enqueue backfills. |
@@ -598,13 +599,14 @@ never erases the investigation trail.
 `AUDIT_ACTIONS` in `src/lib/security/audit.ts` is the source of truth. Current groups:
 
 - Articles: `admin.article.delete`, `admin.article.rebuild_ai`,
-  `admin.article.ingest`, `admin.article.review`, `admin.article.takedown`.
+  `admin.article.ingest`, `admin.article.review`, `admin.article.takedown`,
+  `admin.article.recover`.
 - Members/support: `admin.member.role_update`, `admin.member.delete`,
   `admin.member.revoke_sessions`, `admin.member.export`, `admin.member.repair`,
   `admin.member.resend_help`.
 - Tags: `admin.tag.rename`, `admin.tag.delete`, `admin.tag.merge`.
 - Sources/scraping: `admin.source.toggle`, `admin.source.sync`,
-  `admin.scrape.trigger`.
+  `admin.scrape.trigger`, `admin.canonical_conflict.resolve`.
 - Jobs: `admin.job.retry`, `admin.job.cancel`, `admin.job.archive`,
   `admin.job.backfill`.
 - Privacy/retention: `admin.ledger_erasure`.
@@ -731,6 +733,10 @@ Operationally:
 - Restoring to `active` does not auto-publish; an editor must explicitly review
   and publish.
 - Publishing is blocked while `takedownState !== "active"`.
+- Takedown/withdrawal changes only Article visibility/state; it never erases the
+  producing `CrawlCandidate` identity or its `ContentReview` history, so the
+  incremental discovery ledger stays intact (see [incremental scraping design
+  § Phase 3.5](../content/incremental-provider-scraping-design.md)).
 
 ## Operator checklists
 

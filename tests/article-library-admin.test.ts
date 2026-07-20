@@ -47,6 +47,14 @@ let mediaAssetRows: Array<{ storageKey: string }> = [];
 let storageDeletes: string[] = [];
 let storageDeleteFails = false;
 
+// Records the candidate-ledger stamp performed inside the delete transaction
+// (issue #1104, AC2): deleting an Article marks its producing candidate as a
+// permanent DELETED terminal so ordinary discovery/backfill cannot recreate it.
+let crawlCandidateStampCalls: Array<{
+  where: Record<string, unknown>;
+  data: Record<string, unknown>;
+}> = [];
+
 let lastFindManyArgs: Record<string, unknown> | null = null;
 
 const AI_DERIVATIVE_MODELS = [
@@ -143,6 +151,15 @@ before(() => {
       findMany: async () => processingStepsResult,
       deleteMany: recordDeleteMany("articleProcessingStep"),
     },
+    crawlCandidate: {
+      updateMany: async (args: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => {
+        crawlCandidateStampCalls.push({ where: args.where, data: args.data });
+        return { count: 1 };
+      },
+    },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma),
   });
 
@@ -182,6 +199,7 @@ beforeEach(() => {
   storageDeletes = [];
   storageDeleteFails = false;
   lastFindManyArgs = null;
+  crawlCandidateStampCalls = [];
   resetDeleteMany();
 });
 
@@ -404,6 +422,19 @@ test("deleteArticle deletes the article and returns true (no audit)", async () =
   assert.equal(ok, true);
   assert.deepEqual(deletedIds, ["a1"]);
   assert.equal(auditCalls.length, 0);
+  // AC2: deleting an Article stamps its producing candidate with the permanent
+  // DELETED terminal (governance:article-deleted) inside the same transaction,
+  // guarded by articleDeletedAt: null so the write is idempotent.
+  assert.equal(crawlCandidateStampCalls.length, 1);
+  assert.deepEqual(crawlCandidateStampCalls[0].where, {
+    articleId: "a1",
+    articleDeletedAt: null,
+  });
+  assert.equal(
+    crawlCandidateStampCalls[0].data.terminalReason,
+    "governance:article-deleted",
+  );
+  assert.ok(crawlCandidateStampCalls[0].data.articleDeletedAt instanceof Date);
 });
 
 test("deleteArticle purges every tracked media object after the database transaction", async () => {
