@@ -16,6 +16,8 @@ const SECTIONS = [
   { href: "/admin/sources", label: "Sources" },
   { href: "/admin/discovery-sources", label: "Discovery" },
   { href: "/admin/candidates", label: "Review" },
+  { href: "/admin/canonical-conflicts", label: "Conflicts" },
+  { href: "/admin/deleted-articles", label: "Deleted" },
   { href: "/admin/tags", label: "Tags" },
   { href: "/admin/members", label: "Members" },
   { href: "/admin/jobs", label: "Jobs" },

@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-19T23:21:23.826Z",
-  "routeCount": 129,
-  "methodCount": 154,
+  "generatedAt": "2026-07-20T02:04:05.353Z",
+  "routeCount": 134,
+  "methodCount": 159,
   "routes": [
     {
       "path": "/api/account",
@@ -568,6 +568,149 @@
           "bodyFieldNames": [
             "action",
             "ids",
+            "reason"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/canonical-conflicts",
+      "file": "src/app/api/admin/canonical-conflicts/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": [
+            "limit",
+            "offset",
+            "providerKey",
+            "status"
+          ],
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/canonical-conflicts/{id}",
+      "file": "src/app/api/admin/canonical-conflicts/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/canonical-conflicts/{id}/resolve",
+      "file": "src/app/api/admin/canonical-conflicts/[id]/resolve/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "detail",
+            "error",
+            "reason",
+            "status"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "confirm",
+            "reason",
+            "survivingArticleId"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/deleted-articles",
+      "file": "src/app/api/admin/deleted-articles/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": [
+            "limit",
+            "offset",
+            "providerKey"
+          ],
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/deleted-articles/{id}/recover",
+      "file": "src/app/api/admin/deleted-articles/[id]/recover/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "candidateId",
+            "dedupeKey",
+            "jobId",
+            "ok",
+            "outcome",
+            "processingVersion"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "confirm",
             "reason"
           ]
         }
