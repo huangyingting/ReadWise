@@ -20,10 +20,18 @@ import type {
   CanonicalConflictDto,
   DependentDataCounts,
 } from "@/lib/scraper/incremental/canonical-conflict-query";
+import type { ReaderDataMigrationSummary } from "@/lib/scraper/incremental/canonical-conflict-migrate";
+import type {
+  ConflictKind,
+  TypeBCanonicalChoice,
+} from "@/lib/scraper/incremental/canonical-conflict-policy";
 
 // Re-exported so the client components share one import surface for the sanitized
 // dependent-data count shape (single source of truth: the backend query module).
 export type { DependentDataCounts };
+// The resolver-agreeing conflict discriminator + the Type-B canonical choice union
+// are single-sourced from the pure policy module (runtime-erased `import type`).
+export type { ConflictKind, TypeBCanonicalChoice };
 
 /** The shared `Badge` tone union — kept local so this module stays free of the
  * component graph (it is imported by pure Node tests). Mirrors `BadgeProps["variant"]`. */
@@ -193,6 +201,19 @@ export type ConflictResolveResponse =
       survivingArticleId: string;
       loserArticleIds: string[];
       survivorCandidateId: string;
+      /** Present ONLY when the operator opted into reader-data migration (#1134). Counts only. */
+      migration?: ReaderDataMigrationSummary;
+    }
+  | {
+      /** A runtime (Type B) conflict resolved by an explicit canonical decision (#1135). */
+      ok: true;
+      outcome: "applied-type-b";
+      conflictId: string;
+      canonical: TypeBCanonicalChoice;
+      winnerCandidateId: string;
+      loserCandidateId: string | null;
+      /** The incumbent's produced Article archived when the challenger was promoted, else null. */
+      archivedArticleId: string | null;
     }
   | {
       ok: true;
@@ -237,6 +258,17 @@ export function conflictResolveErrorFrom(
 ): ConflictResolveError {
   const { reason, detail, stale } = errorBodyReason(body);
   if (status === 409 && (reason === "stale" || stale)) return { kind: "stale", message };
+  // A kind mismatch (or a vanished incumbent/challenger candidate) means the
+  // conflict changed underneath us; a refresh reloads the correct selector shape.
+  if (
+    status === 409 &&
+    reason === "illegal" &&
+    (detail === "wrong-conflict-type" ||
+      detail === "incumbent-candidate-missing" ||
+      detail === "challenger-candidate-missing")
+  ) {
+    return { kind: "stale", message };
+  }
   if (status === 400 && reason === "illegal" && detail === "survivor-not-a-participant") {
     return { kind: "notParticipant", message };
   }
@@ -272,11 +304,41 @@ export function resolveNoopLabel(reason: string): string {
   return RESOLVE_NOOP_LABELS[reason] ?? reason;
 }
 
-/** A human sentence describing a single resolution outcome (applied vs no-op). */
+/**
+ * A compact, count-only summary of an opt-in reader-data migration (#1134):
+ * how many reader/learning records were moved onto the survivor (repointed +
+ * merged) and how many were left on the originals (skipped). Counts only.
+ */
+export function summarizeMigration(migration: ReaderDataMigrationSummary): string {
+  let migrated = 0;
+  let skipped = 0;
+  for (const counts of Object.values(migration)) {
+    migrated += counts.repointed + counts.merged;
+    skipped += counts.skipped;
+  }
+  if (migrated === 0 && skipped === 0) return "no reader data to migrate";
+  const parts = [`${migrated} reader record${migrated === 1 ? "" : "s"} migrated`];
+  if (skipped > 0) parts.push(`${skipped} left on the original article${skipped === 1 ? "" : "s"}`);
+  return parts.join(", ");
+}
+
+/** A human sentence describing a single resolution outcome (applied / type-b / no-op). */
 export function describeResolveOutcome(res: ConflictResolveResponse): string {
   if (res.outcome === "applied") {
     const losers = res.loserArticleIds.length;
-    return `Resolved — ${losers} losing article${losers === 1 ? "" : "s"} archived out of public feeds; reader data retained.`;
+    const base = `Resolved — ${losers} losing article${losers === 1 ? "" : "s"} archived out of public feeds`;
+    return res.migration
+      ? `${base}; ${summarizeMigration(res.migration)}.`
+      : `${base}; reader data retained.`;
+  }
+  if (res.outcome === "applied-type-b") {
+    if (res.canonical === "incumbent") {
+      return "Resolved — incumbent kept canonical; the challenger was folded in as a duplicate.";
+    }
+    const archived = res.archivedArticleId
+      ? " and its produced article archived out of public feeds (retained)"
+      : "";
+    return `Resolved — challenger promoted canonical; the incumbent was folded in${archived}.`;
   }
   return `No change — ${resolveNoopLabel(res.reason)}.`;
 }
