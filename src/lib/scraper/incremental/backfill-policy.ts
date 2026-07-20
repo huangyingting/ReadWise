@@ -16,10 +16,11 @@
  *   2. {@link decideBackfillReactivation} — whether ONE matching historical
  *      identity is eligible to be reactivated. Honors the governing invariant:
  *      an identity that already has (or had-then-lost) a public Article is NEVER
- *      reactivated; only the historical states the pipeline actually produces —
- *      OBSERVED_BASELINE (status BASELINE) and OBSERVED_SHADOW (status DISCOVERED
- *      + not observed-in-baseline) — are targets. (SKIPPED_OUTSIDE_WINDOW is a
- *      deferred target: nothing produces it yet — see the follow-up.)
+ *      reactivated; the historical states the pipeline actually produces —
+ *      OBSERVED_BASELINE (status BASELINE), OBSERVED_SHADOW (status DISCOVERED
+ *      + not observed-in-baseline), and the inert SKIPPED_OUTSIDE_WINDOW
+ *      (persisted for a dated ACTIVE-source item at/before the discovery window,
+ *      #1127) — are targets.
  *   3. {@link decideBackfillLifecycle} — the pause / resume / cancel state
  *      machine (legality + idempotency), so pause/resume/retry stays idempotent
  *      and never widens the approved range.
@@ -161,7 +162,10 @@ export function resolveEffectiveBackfillBounds(
 // ---------------------------------------------------------------------------
 
 /** Which historical state a reactivated identity was matched from. */
-export type BackfillReactivationTarget = "observed-baseline" | "observed-shadow";
+export type BackfillReactivationTarget =
+  | "observed-baseline"
+  | "observed-shadow"
+  | "skipped-outside-window";
 
 /** Why a matched identity is NOT reactivated (sanitized category). */
 export type BackfillReactivationIneligibleReason =
@@ -190,9 +194,11 @@ export type BackfillReactivationDecision =
  * approved backfill. Governing invariant first: a KNOWN public Article (present
  * OR previously created-and-deleted) is NEVER recreated/revived by backfill.
  * Only the historical states the pipeline actually produces are targets —
- * OBSERVED_BASELINE (status BASELINE) and OBSERVED_SHADOW (status DISCOVERED,
- * not observed-in-baseline). Every other status (terminal, parked, conflicted,
- * already-queued, rejected) is ineligible. Deterministic + side-effect free.
+ * OBSERVED_BASELINE (status BASELINE), OBSERVED_SHADOW (status DISCOVERED,
+ * not observed-in-baseline), and the inert SKIPPED_OUTSIDE_WINDOW (a dated
+ * ACTIVE-source item at/before the discovery window, #1127). Every other status
+ * (terminal, parked, conflicted, already-queued, rejected) is ineligible.
+ * Deterministic + side-effect free.
  */
 export function decideBackfillReactivation(
   input: BackfillReactivationInput,
@@ -205,6 +211,9 @@ export function decideBackfillReactivation(
   }
   if (input.status === CrawlCandidateStatus.DISCOVERED && !input.observedInBaseline) {
     return { eligible: true, target: "observed-shadow" };
+  }
+  if (input.status === CrawlCandidateStatus.SKIPPED_OUTSIDE_WINDOW) {
+    return { eligible: true, target: "skipped-outside-window" };
   }
   return { eligible: false, reason: "not-reactivatable" };
 }

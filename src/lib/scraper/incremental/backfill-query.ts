@@ -12,12 +12,14 @@
  * {@link eligibleBackfillCandidateWhere} is the ONE shared predicate for "a
  * matching historical identity a backfill may reactivate" — reused by the commit
  * so the dry-run count and the real reactivation scan can never diverge. It
- * selects only OBSERVED_BASELINE (status BASELINE) and OBSERVED_SHADOW (status
- * DISCOVERED, not observed-in-baseline) identities that have NO Article, whose
- * Article was never created-and-deleted, and whose TRUSTED publication date
- * falls inside the effective window. Candidates with an UNKNOWN publication date
- * are deliberately excluded from a windowed backfill — an identity that cannot
- * be confirmed to fall in the approved interval is never reactivated.
+ * selects OBSERVED_BASELINE (status BASELINE), OBSERVED_SHADOW (status
+ * DISCOVERED, not observed-in-baseline), and inert SKIPPED_OUTSIDE_WINDOW (a
+ * dated ACTIVE-source item at/before the discovery window, #1127) identities
+ * that have NO Article, whose Article was never created-and-deleted, and whose
+ * TRUSTED publication date falls inside the effective window. Candidates with an
+ * UNKNOWN publication date are deliberately excluded from a windowed backfill —
+ * an identity that cannot be confirmed to fall in the approved interval is never
+ * reactivated.
  */
 import { CrawlCandidateStatus, Prisma, BackfillRunStatus } from "@prisma/client";
 
@@ -64,6 +66,7 @@ export function eligibleBackfillCandidateWhere(
     OR: [
       { status: CrawlCandidateStatus.BASELINE },
       { status: CrawlCandidateStatus.DISCOVERED, observedInBaseline: false },
+      { status: CrawlCandidateStatus.SKIPPED_OUTSIDE_WINDOW },
     ],
   };
 }
@@ -76,6 +79,12 @@ export type BackfillPreview = {
   observedBaselineCount: number;
   /** Of those, post-baseline shadow identities (status DISCOVERED, not baseline). */
   observedShadowCount: number;
+  /**
+   * Of those, inert SKIPPED_OUTSIDE_WINDOW identities — a dated ACTIVE-source
+   * item persisted at/before the discovery window (#1127), reactivatable only by
+   * an approved windowed backfill.
+   */
+  skippedOutsideWindowCount: number;
   /**
    * Identities in the same window that ALREADY link a public Article — reported
    * for transparency and NEVER recreated by backfill (governing invariant).
@@ -96,45 +105,57 @@ export async function previewBackfill(
 ): Promise<BackfillPreview> {
   const eligibleWhere = eligibleBackfillCandidateWhere(scope, bounds);
 
-  const [observedBaselineCount, observedShadowCount, knownWithArticleCount] = await Promise.all([
-    prisma.crawlCandidate.count({
-      where: {
-        providerKey: scope.providerKey,
-        ...(scope.discoverySourceId ? { discoverySourceId: scope.discoverySourceId } : {}),
-        articleId: null,
-        articleDeletedAt: null,
-        trustedPublishedAt: { gte: bounds.windowStart, lte: bounds.windowEnd },
-        status: CrawlCandidateStatus.BASELINE,
-      },
-    }),
-    prisma.crawlCandidate.count({
-      where: {
-        providerKey: scope.providerKey,
-        ...(scope.discoverySourceId ? { discoverySourceId: scope.discoverySourceId } : {}),
-        articleId: null,
-        articleDeletedAt: null,
-        trustedPublishedAt: { gte: bounds.windowStart, lte: bounds.windowEnd },
-        status: CrawlCandidateStatus.DISCOVERED,
-        observedInBaseline: false,
-      },
-    }),
-    prisma.crawlCandidate.count({
-      where: {
-        providerKey: scope.providerKey,
-        ...(scope.discoverySourceId ? { discoverySourceId: scope.discoverySourceId } : {}),
-        trustedPublishedAt: { gte: bounds.windowStart, lte: bounds.windowEnd },
-        articleId: { not: null },
-      },
-    }),
-  ]);
-  // Sanity: the eligible count is exactly the two target buckets combined; count
-  // it independently so a future predicate change can't silently desync.
+  const [observedBaselineCount, observedShadowCount, skippedOutsideWindowCount, knownWithArticleCount] =
+    await Promise.all([
+      prisma.crawlCandidate.count({
+        where: {
+          providerKey: scope.providerKey,
+          ...(scope.discoverySourceId ? { discoverySourceId: scope.discoverySourceId } : {}),
+          articleId: null,
+          articleDeletedAt: null,
+          trustedPublishedAt: { gte: bounds.windowStart, lte: bounds.windowEnd },
+          status: CrawlCandidateStatus.BASELINE,
+        },
+      }),
+      prisma.crawlCandidate.count({
+        where: {
+          providerKey: scope.providerKey,
+          ...(scope.discoverySourceId ? { discoverySourceId: scope.discoverySourceId } : {}),
+          articleId: null,
+          articleDeletedAt: null,
+          trustedPublishedAt: { gte: bounds.windowStart, lte: bounds.windowEnd },
+          status: CrawlCandidateStatus.DISCOVERED,
+          observedInBaseline: false,
+        },
+      }),
+      prisma.crawlCandidate.count({
+        where: {
+          providerKey: scope.providerKey,
+          ...(scope.discoverySourceId ? { discoverySourceId: scope.discoverySourceId } : {}),
+          articleId: null,
+          articleDeletedAt: null,
+          trustedPublishedAt: { gte: bounds.windowStart, lte: bounds.windowEnd },
+          status: CrawlCandidateStatus.SKIPPED_OUTSIDE_WINDOW,
+        },
+      }),
+      prisma.crawlCandidate.count({
+        where: {
+          providerKey: scope.providerKey,
+          ...(scope.discoverySourceId ? { discoverySourceId: scope.discoverySourceId } : {}),
+          trustedPublishedAt: { gte: bounds.windowStart, lte: bounds.windowEnd },
+          articleId: { not: null },
+        },
+      }),
+    ]);
+  // Sanity: the eligible count is exactly the three target buckets combined;
+  // count it independently so a future predicate change can't silently desync.
   const eligibleCount = await prisma.crawlCandidate.count({ where: eligibleWhere });
 
   return {
     eligibleCount,
     observedBaselineCount,
     observedShadowCount,
+    skippedOutsideWindowCount,
     knownWithArticleCount,
     effectiveReactivationCount: Math.min(eligibleCount, bounds.maxItems),
   };

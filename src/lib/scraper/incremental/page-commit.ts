@@ -255,10 +255,44 @@ async function commitClassifiedItem(
         candidateId = existing.id;
         candidateEnsured = true;
       }
+    } else if (outcome === "outside-window") {
+      // Phase 3.2 (#1127): an ACTIVE-source item that is admitted + DATED but
+      // whose trusted publication date falls at/before the active discovery
+      // window is persisted as an INERT SKIPPED_OUTSIDE_WINDOW candidate — a
+      // no-Article ledger row that only an operator-approved, windowed backfill
+      // may later reactivate. Normal incremental runs NEVER auto-enqueue it (the
+      // ingest gate below stays `eligible`-only; governing invariant, same as
+      // SKIPPED_REVIEW). trustedPublishedAt is REQUIRED here — the classifier
+      // only emits `outside-window` for a dated item — so the windowed backfill
+      // predicate can match it.
+      const candidate = await tx.crawlCandidate.upsert({
+        where: composite,
+        create: {
+          providerKey: identity.providerKey,
+          discoverySourceId: sourceId,
+          identityVersion: identity.identityVersion,
+          provisionalKey: identity.provisionalKey,
+          status: CrawlCandidateStatus.SKIPPED_OUTSIDE_WINDOW,
+          observedInBaseline: false,
+          firstObservedAt: classified.trustedPublishedAt ?? now,
+          lastObservedAt: now,
+          observationCount: 1,
+          trustedPublishedAt: classified.trustedPublishedAt,
+          dateProvenance: classified.dateProvenance,
+        },
+        // Idempotent re-observation: only advance lastObservedAt. NEVER change
+        // status/observedInBaseline/articleId (never revived; same governing
+        // invariant as the eligible path above).
+        update: { lastObservedAt: now },
+        select: { id: true, status: true },
+      });
+      candidateId = candidate.id;
+      candidateStatus = candidate.status;
+      candidateEnsured = true;
     }
-    // policy-rejected / outside-window / review-required create NO candidate:
-    // observation-only records the explicit outcome without admitting a
-    // permanent identity (rejections/frontier decisions stay re-evaluable).
+    // policy-rejected / review-required create NO candidate: observation-only
+    // records the explicit outcome without admitting a permanent identity
+    // (rejections/frontier decisions stay re-evaluable).
 
     if (candidateId && outcome !== "policy-rejected") {
       await tx.urlAlias.upsert({

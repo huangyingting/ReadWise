@@ -61,7 +61,7 @@ import { createCrawlCandidate, providerKey } from "./support/discovery-fixtures"
 
 registerIntegrationCleanup();
 
-const { BASELINE, DISCOVERED, QUEUED } = CrawlCandidateStatus;
+const { BASELINE, DISCOVERED, QUEUED, SKIPPED_OUTSIDE_WINDOW } = CrawlCandidateStatus;
 
 /** Effective bounds are always concrete; build them directly for deterministic scans. */
 const WINDOW_START = new Date("2020-01-01T00:00:00.000Z");
@@ -119,9 +119,10 @@ afterEach(async () => {
 
 test("dry-run preview counts eligible buckets and creates NO run or Job", { skip: !enabled }, async () => {
   const pk = providerKey("bf");
-  // eligible: OBSERVED_BASELINE + OBSERVED_SHADOW, both in-window
+  // eligible: OBSERVED_BASELINE + OBSERVED_SHADOW + SKIPPED_OUTSIDE_WINDOW, all in-window
   const baselineCand = await createCrawlCandidate({ providerKey: pk, status: BASELINE, observedInBaseline: true, trustedPublishedAt: IN_WINDOW });
   const shadowCand = await createCrawlCandidate({ providerKey: pk, status: DISCOVERED, observedInBaseline: false, trustedPublishedAt: IN_WINDOW });
+  const outsideWindowCand = await createCrawlCandidate({ providerKey: pk, status: SKIPPED_OUTSIDE_WINDOW, observedInBaseline: false, trustedPublishedAt: IN_WINDOW });
   // ineligible: DISCOVERED but already observed-in-baseline (not a shadow)
   await createCrawlCandidate({ providerKey: pk, status: DISCOVERED, observedInBaseline: true, trustedPublishedAt: IN_WINDOW });
   // ineligible: out-of-window and unknown-date
@@ -135,14 +136,17 @@ test("dry-run preview counts eligible buckets and creates NO run or Job", { skip
 
   assert.equal(preview.observedBaselineCount, 1);
   assert.equal(preview.observedShadowCount, 1);
-  assert.equal(preview.eligibleCount, 2);
+  assert.equal(preview.skippedOutsideWindowCount, 1);
+  // Breakdown reconciles: eligibleCount === the three target buckets combined.
+  assert.equal(preview.eligibleCount, 3);
   assert.equal(preview.knownWithArticleCount, 1);
-  assert.equal(preview.effectiveReactivationCount, 2);
+  assert.equal(preview.effectiveReactivationCount, 3);
 
   // No run and no Jobs were created by the preview.
   assert.equal(await prisma.backfillRun.count({ where: { providerKey: pk } }), 0);
   assert.equal(await ingestJobFor(baselineCand.id), null);
   assert.equal(await ingestJobFor(shadowCand.id), null);
+  assert.equal(await ingestJobFor(outsideWindowCand.id), null);
 });
 
 test("dry-run effectiveReactivationCount is capped by maxItems", { skip: !enabled }, async () => {
@@ -235,6 +239,48 @@ test("advance reactivates OBSERVED_SHADOW (DISCOVERED + not observed-in-baseline
   const after = await prisma.crawlCandidate.findUnique({ where: { id: cand.id } });
   assert.equal(after?.status, QUEUED);
   assert.ok(await ingestJobFor(cand.id));
+});
+
+test("advance reactivates SKIPPED_OUTSIDE_WINDOW → QUEUED and enqueues a -100 ingest Job (#1127)", { skip: !enabled }, async () => {
+  const pk = providerKey("bf");
+  const cand = await createCrawlCandidate({ providerKey: pk, status: SKIPPED_OUTSIDE_WINDOW, observedInBaseline: false, trustedPublishedAt: IN_WINDOW });
+  ingestCandidateIds.add(cand.id);
+  const runId = await makeRun(pk);
+
+  const outcome = await advanceBackfillRun({ runId, batchSize: 50 });
+  assert.equal(outcome.ok === true && outcome.kind === "advanced" && outcome.reactivated, 1);
+
+  const after = await prisma.crawlCandidate.findUnique({ where: { id: cand.id } });
+  assert.equal(after?.status, QUEUED);
+  assert.equal(after?.observedInBaseline, false);
+
+  const job = await ingestJobFor(cand.id);
+  assert.ok(job, "a candidate-ingest job was enqueued for the reactivated outside-window candidate");
+  assert.equal(job?.priority, BACKFILL_JOB_PRIORITY);
+
+  const run = await getBackfillRun(runId);
+  assert.equal(run?.reactivatedCount, 1);
+});
+
+test("governing invariant: a SKIPPED_OUTSIDE_WINDOW candidate with (or that lost) an Article is NEVER reactivated (#1127)", { skip: !enabled }, async () => {
+  const pk = providerKey("bf");
+  const article = await prisma.article.create({ data: { id: id("article"), title: "known", content: "public" } });
+  const withArticle = await createCrawlCandidate({ providerKey: pk, status: SKIPPED_OUTSIDE_WINDOW, observedInBaseline: false, trustedPublishedAt: IN_WINDOW, articleId: article.id });
+  const deletedArticle = await createCrawlCandidate({ providerKey: pk, status: SKIPPED_OUTSIDE_WINDOW, observedInBaseline: false, trustedPublishedAt: IN_WINDOW, articleDeletedAt: new Date() });
+  for (const c of [withArticle.id, deletedArticle.id]) ingestCandidateIds.add(c);
+
+  const runId = await makeRun(pk);
+  const outcome = await advanceBackfillRun({ runId, batchSize: 50 });
+  // Nothing eligible → the scan drains and completes without reactivating anyone.
+  assert.equal(outcome.ok === true && outcome.kind, "completed");
+
+  for (const candId of [withArticle.id, deletedArticle.id]) {
+    const after = await prisma.crawlCandidate.findUnique({ where: { id: candId } });
+    assert.equal(after?.status, SKIPPED_OUTSIDE_WINDOW, `candidate ${candId} must be untouched`);
+    assert.equal(await ingestJobFor(candId), null, `candidate ${candId} must not be enqueued`);
+  }
+  const run = await getBackfillRun(runId);
+  assert.equal(run?.reactivatedCount, 0);
 });
 
 test("governing invariant: has-article, deleted-article, out-of-window, and unknown-date identities are NEVER reactivated", { skip: !enabled }, async () => {
