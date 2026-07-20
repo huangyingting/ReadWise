@@ -510,6 +510,12 @@ test("admin article schemas reject long query strings and invalid statuses", asy
 
   assert.equal(ingestBody({ url: "https://example.test/a" }).ok, true);
   assert.equal(reviewBody({ tags: ["one"], status: "PUBLISHED" }).ok, true);
+  // Visibility accepts only the public-library subset PUBLIC/UNLISTED.
+  assert.equal(reviewBody({ visibility: "PUBLIC" }).ok, true);
+  assert.equal(reviewBody({ visibility: "UNLISTED" }).ok, true);
+  assert.equal(reviewBody({ visibility: "PRIVATE" }).ok, false);
+  assert.equal(reviewBody({ visibility: "ORG" }).ok, false);
+  assert.equal(reviewBody({ visibility: "bogus" }).ok, false);
   assert.equal(takedownBody({ state: "REQUESTED" }).ok, true);
   assert.equal(parseAdminArticlesQuery(new URLSearchParams([["q", "x".repeat(201)]])).ok, false);
   assert.equal(parseAdminArticlesQuery(new URLSearchParams([["status", "bogus"]])).ok, false);
