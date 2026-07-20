@@ -18,15 +18,20 @@
  *      identity's CrawlCandidate (claiming `@@unique([providerKey, canonicalKey])`)
  *      and attach a CANONICAL UrlAlias + fold any challenger candidate history.
  *
- * DEPENDENT-DATA RULE (requirement #2 — "migrate OR deliberately retain"): losers
- * are ARCHIVED, never deleted, so BOTH content-position-derived data (translations,
- * vocabulary, quiz, speech, tags, grammar, processing steps — kept on each
- * Article) AND article-level reader data (highlights, reading progress, lists,
- * mastery, quiz attempts, pronunciation, tutor messages, difficulty feedback) are
- * RETAINED intact. Nothing is erased; the survivor keeps its own data and becomes
- * the sole public identity owner. (The follow-up option — actively re-pointing
- * reader data onto the survivor with unique-collision resolution — is deliberately
- * out of scope to avoid destructive merges.)
+ * DEPENDENT-DATA RULE (requirement #2 — "migrate OR deliberately retain"): by
+ * DEFAULT (opt-in flag absent/false) losers are ARCHIVED, never deleted, so BOTH
+ * content-position-derived data (translations, vocabulary, quiz, speech, tags,
+ * grammar, processing steps — kept on each Article) AND article-level reader data
+ * (highlights, reading progress, lists, mastery, quiz attempts, pronunciation,
+ * tutor messages, difficulty feedback) are RETAINED intact. Nothing is erased; the
+ * survivor keeps its own data and becomes the sole public identity owner.
+ *
+ * When the operator OPTS IN (`migrateReaderData: true`, issue #1134), the losers'
+ * article-level reader data is additionally RE-POINTED onto the survivor inside the
+ * same transaction, resolving every `@@unique` collision by the documented rule
+ * (see `canonical-conflict-migrate.ts`) — highlights are re-anchored onto the
+ * survivor's current content, unreliable ones are skipped (left on the loser). The
+ * migration is atomic with the archive + identity claim and returns COUNTS only.
  *
  * CONCURRENCY (mirrors `final-identity-commit.ts`): reads-before-tx, a single
  * interactive `$transaction`, guarded `updateMany`, idempotent `upsert` — and a
@@ -39,7 +44,9 @@
 import { ArticleStatus, CrawlCandidateStatus, Prisma, UrlAliasKind } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { stripTags } from "@/lib/scraper/extract";
 
+import type { DeriveReaderText } from "./annotation-migrator";
 import {
   CONFLICT_LOSER_GOVERNANCE_ACTION,
   CONFLICT_LOSER_TERMINAL_REASON,
@@ -48,6 +55,10 @@ import {
   type ConflictResolveIllegalReason,
   type ConflictResolveNoopReason,
 } from "./canonical-conflict-policy";
+import {
+  migrateReaderDataInTx,
+  type ReaderDataMigrationSummary,
+} from "./canonical-conflict-migrate";
 import { resolveConflictParticipants } from "./canonical-conflict-query";
 
 /** Bounded retries for convergence-after-conflict on the canonical unique slot. */
@@ -74,6 +85,8 @@ export type ConflictResolveOutcome =
       survivingArticleId: string;
       loserArticleIds: string[];
       survivorCandidateId: string;
+      /** Present ONLY when `migrateReaderData` was requested (issue #1134). Counts only. */
+      migration?: ReaderDataMigrationSummary;
     }
   | {
       ok: true;
@@ -115,7 +128,29 @@ type ResolveParams = {
   survivingArticleId: string;
   /** Operator user id recorded as `resolvedBy` and on the ContentReview rows. */
   resolvedBy: string;
+  /**
+   * OPT-IN (issue #1134): when true, actively re-point the losers' article-level
+   * reader/learning data onto the survivor (collision-safe). Default false keeps
+   * #1104's retain-on-loser behavior byte-for-byte.
+   */
+  migrateReaderData?: boolean;
   now?: Date;
+};
+
+/** Injectable seams (boundary rule: scraper cannot import `@/lib/content-pipeline`). */
+type ResolveDeps = {
+  /**
+   * HTML → Reader plain text for highlight re-anchoring during an opt-in migration.
+   * The route supplies `articleHtmlToReaderText`; the module default is the
+   * in-boundary {@link stripTags}.
+   */
+  deriveReaderText?: DeriveReaderText;
+};
+
+/** Options threaded into the transaction to drive the opt-in reader-data migration. */
+type MigrateOptions = {
+  migrateReaderData: boolean;
+  deriveReaderText: DeriveReaderText;
 };
 
 /**
@@ -126,9 +161,16 @@ type ResolveParams = {
  * (already-resolved) or `stale`; the winner still owns exactly one public
  * identity key (AC4).
  */
-export async function resolveCanonicalConflict(params: ResolveParams): Promise<ConflictResolveOutcome> {
+export async function resolveCanonicalConflict(
+  params: ResolveParams,
+  deps: ResolveDeps = {},
+): Promise<ConflictResolveOutcome> {
   const { conflictId, survivingArticleId, resolvedBy } = params;
   const now = params.now ?? new Date();
+  const migrate: MigrateOptions = {
+    migrateReaderData: params.migrateReaderData ?? false,
+    deriveReaderText: deps.deriveReaderText ?? stripTags,
+  };
 
   const conflict = await prisma.canonicalConflict.findUnique({
     where: { id: conflictId },
@@ -150,7 +192,7 @@ export async function resolveCanonicalConflict(params: ResolveParams): Promise<C
     return { ok: true, kind: "noop", conflictId, reason: decision.reason, status: decision.status };
   }
 
-  return convergeResolve(conflict, survivingArticleId, decision.loserArticleIds, resolvedBy, now);
+  return convergeResolve(conflict, survivingArticleId, decision.loserArticleIds, resolvedBy, now, migrate);
 }
 
 /** Standalone convergence wrapper: retry the identity claim on a canonical-slot race. */
@@ -160,11 +202,12 @@ async function convergeResolve(
   loserArticleIds: string[],
   resolvedBy: string,
   now: Date,
+  migrate: MigrateOptions,
 ): Promise<ConflictResolveOutcome> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_CONVERGENCE_RETRIES; attempt += 1) {
     try {
-      return await runResolveTx(conflict, survivingArticleId, loserArticleIds, resolvedBy, now);
+      return await runResolveTx(conflict, survivingArticleId, loserArticleIds, resolvedBy, now, migrate);
     } catch (error) {
       if (error instanceof ConflictRaceError) {
         return afterRace(conflict.id);
@@ -201,6 +244,7 @@ async function runResolveTx(
   loserArticleIds: string[],
   resolvedBy: string,
   now: Date,
+  migrate: MigrateOptions,
 ): Promise<ConflictResolveOutcome> {
   return prisma.$transaction(async (tx) => {
     // (1) Claim the conflict under the lock — only ONE resolver can win.
@@ -216,6 +260,18 @@ async function runResolveTx(
       select: { id: true },
     });
     if (!survivor) throw new ConflictRaceError();
+
+    // (2) OPT-IN (#1134): re-point the losers' reader/learning data onto the
+    // survivor (collision-safe) BEFORE archiving, inside this same transaction.
+    let migration: ReaderDataMigrationSummary | undefined;
+    if (migrate.migrateReaderData && loserArticleIds.length > 0) {
+      migration = await migrateReaderDataInTx(tx, {
+        loserArticleIds,
+        survivingArticleId,
+        deriveReaderText: migrate.deriveReaderText,
+        now,
+      });
+    }
 
     // (3) Archive every loser out of public feeds (data RETAINED, never deleted).
     for (const loserId of loserArticleIds) {
@@ -252,6 +308,7 @@ async function runResolveTx(
       survivingArticleId,
       loserArticleIds,
       survivorCandidateId,
+      ...(migration ? { migration } : {}),
     };
   });
 }
