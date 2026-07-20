@@ -9,6 +9,7 @@ import {
 } from "@/lib/scraper/sources";
 import AdminSourceActions from "@/components/AdminSourceActions";
 import AdminSourceSync from "@/components/AdminSourceSync";
+import AdminSourceCrawlHistory from "@/components/admin/sources/AdminSourceCrawlHistory";
 import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { Badge, Card, CardBody } from "@/components/ui";
 import { formatDateTime } from "@/lib/display-format";
@@ -120,6 +121,12 @@ function SourcesTable({ rows }: { rows: SourceRow[] }) {
             </td>
             <td>
               <RecentRuns runs={runs} />
+              <div className="mt-[var(--space-2)]">
+                <AdminSourceCrawlHistory
+                  providerKey={source.providerKey}
+                  displayName={source.displayName}
+                />
+              </div>
             </td>
             <td>
               <AdminSourceActions
