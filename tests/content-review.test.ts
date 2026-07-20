@@ -14,6 +14,7 @@ type ArticleRow = {
   qualityFlags: unknown;
   takedownState: string;
   publishedAt: Date | null;
+  visibility: string;
 };
 
 let articles: Map<string, ArticleRow>;
@@ -95,6 +96,7 @@ beforeEach(() => {
         qualityFlags: "[]",
         takedownState: "active",
         publishedAt: null,
+        visibility: "PUBLIC",
       },
     ],
   ]);
@@ -153,6 +155,48 @@ test("reviewArticle publishing sets publishedAt when first published", async () 
   const row = articles.get("a1");
   assert.equal(row?.status, "PUBLISHED");
   assert.ok(row?.publishedAt instanceof Date);
+});
+
+test("reviewArticle applies a PUBLIC→UNLISTED visibility change and records the diff", async () => {
+  const { reviewArticle } = await import("@/lib/article-library/review");
+  const result = await reviewArticle({ articleId: "a1", visibility: "UNLISTED" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(articles.get("a1")?.visibility, "UNLISTED");
+  assert.deepEqual(result.changes.visibility, { from: "PUBLIC", to: "UNLISTED" });
+  assert.equal(reviews.length, 1);
+});
+
+test("reviewArticle no-ops an unchanged visibility but still records history", async () => {
+  const { reviewArticle } = await import("@/lib/article-library/review");
+  const result = await reviewArticle({ articleId: "a1", visibility: "PUBLIC" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.ok(!("visibility" in result.changes));
+  assert.equal(reviews.length, 1);
+});
+
+test("reviewArticle refuses to change visibility of a PRIVATE (owned) article (409)", async () => {
+  articles.get("a1")!.visibility = "PRIVATE";
+  const { reviewArticle } = await import("@/lib/article-library/review");
+  const result = await reviewArticle({ articleId: "a1", visibility: "UNLISTED" });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.status, 409);
+  assert.equal(result.error, "Cannot change visibility of owned or organization article");
+  assert.equal(articles.get("a1")?.visibility, "PRIVATE");
+  assert.equal(reviews.length, 0);
+});
+
+test("reviewArticle refuses to change visibility of an ORG article (409)", async () => {
+  articles.get("a1")!.visibility = "ORG";
+  const { reviewArticle } = await import("@/lib/article-library/review");
+  const result = await reviewArticle({ articleId: "a1", visibility: "PUBLIC" });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.status, 409);
+  assert.equal(articles.get("a1")?.visibility, "ORG");
+  assert.equal(reviews.length, 0);
 });
 
 test("reviewArticle rejects an invalid category (400)", async () => {

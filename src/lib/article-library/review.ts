@@ -6,7 +6,7 @@
  * lives in {@link ./takedown}.
  */
 import { prisma } from "@/lib/prisma";
-import { ArticleStatus, type Prisma } from "@prisma/client";
+import { ArticleStatus, ArticleVisibility, type Prisma } from "@prisma/client";
 import { isValidCategorySlug } from "@/lib/categories";
 import { parseLevel } from "@/lib/difficulty";
 import { getArticleTags, setArticleTags } from "@/lib/article-library/collections";
@@ -85,6 +85,8 @@ export type ReviewCorrections = {
   category?: string | null;
   difficulty?: string | null;
   status?: "DRAFT" | "PUBLISHED";
+  /** Operator-settable visibility, restricted to the public-library subset. */
+  visibility?: "PUBLIC" | "UNLISTED";
   reviewState?: ReviewState;
   qualityFlags?: string[];
   tags?: string[];
@@ -151,6 +153,7 @@ export async function reviewArticle(
       category: true,
       difficulty: true,
       status: true,
+      visibility: true,
       reviewState: true,
       qualityFlags: true,
       takedownState: true,
@@ -232,6 +235,33 @@ export async function reviewArticle(
         data.publishedAt = new Date();
       }
     }
+  }
+
+  if (input.visibility !== undefined) {
+    if (input.visibility !== "PUBLIC" && input.visibility !== "UNLISTED") {
+      return { ok: false, error: "Invalid visibility", status: 400 };
+    }
+    // GUARD: moderation only governs the ownerless public library. An article
+    // that is currently PRIVATE (owner-scoped) or ORG (organization-scoped) must
+    // never be reassigned into the public library from here — that would strand
+    // its owner/organization coupling (tenant-integrity.ts).
+    if (
+      article.visibility !== ArticleVisibility.PUBLIC &&
+      article.visibility !== ArticleVisibility.UNLISTED
+    ) {
+      return {
+        ok: false,
+        error: "Cannot change visibility of owned or organization article",
+        status: 409,
+      };
+    }
+    recordChangedField(
+      data,
+      changes,
+      "visibility",
+      article.visibility,
+      input.visibility as ArticleVisibility,
+    );
   }
 
   // Tag corrections are a separate join table; reconcile them up front so the

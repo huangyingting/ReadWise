@@ -16,6 +16,10 @@ const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
   { value: "PUBLISHED", label: "Published" },
 ] as const;
+const VISIBILITY_OPTIONS = [
+  { value: "PUBLIC", label: "Public" },
+  { value: "UNLISTED", label: "Unlisted (hidden from feeds)" },
+] as const;
 
 export type ReviewStateOption = { value: string; label: string };
 
@@ -29,6 +33,7 @@ export type AdminArticleReviewProps = {
     category: string;
     difficulty: string;
     status: "DRAFT" | "PUBLISHED";
+    visibility: string;
     reviewState: string;
     qualityFlags: string[];
     tags: string;
@@ -36,6 +41,8 @@ export type AdminArticleReviewProps = {
 };
 
 type PublicationStatus = AdminArticleReviewProps["initial"]["status"];
+/** The operator-settable public-library visibility subset (PRIVATE/ORG excluded). */
+type VisibilityChoice = "PUBLIC" | "UNLISTED";
 
 function humanizeFlag(flag: string): string {
   return flag.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -70,6 +77,13 @@ export default function AdminArticleReview({
   const [category, setCategory] = useState(initial.category);
   const [difficulty, setDifficulty] = useState(initial.difficulty);
   const [status, setStatus] = useState<PublicationStatus>(initial.status);
+  // Visibility is only operator-editable for the ownerless public-library states
+  // (PUBLIC/UNLISTED). PRIVATE/ORG are owner/organization-scoped and shown
+  // read-only — the guard in reviewArticle rejects a change server-side too.
+  const visibilityEditable = initial.visibility === "PUBLIC" || initial.visibility === "UNLISTED";
+  const [visibility, setVisibility] = useState<VisibilityChoice>(
+    visibilityEditable ? (initial.visibility as VisibilityChoice) : "PUBLIC",
+  );
   const [reviewState, setReviewState] = useState(initial.reviewState);
   const [flags, setFlags] = useState<string[]>(initial.qualityFlags);
   const [tags, setTags] = useState(initial.tags);
@@ -90,6 +104,7 @@ export default function AdminArticleReview({
         category,
         difficulty,
         status,
+        ...(visibilityEditable ? { visibility } : {}),
         reviewState,
         qualityFlags: flags,
         tags: parseTagList(tags),
@@ -131,6 +146,32 @@ export default function AdminArticleReview({
           </Select>
         </Field>
       </div>
+
+      {visibilityEditable ? (
+        <Field
+          label="Visibility"
+          hint="Unlisted hides the article from public feeds and listings but keeps it reachable by direct link."
+        >
+          <Select
+            value={visibility}
+            onChange={(e) => setVisibility(e.target.value as VisibilityChoice)}
+            selectSize="md"
+          >
+            {VISIBILITY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : (
+        <Field label="Visibility">
+          <p className="muted text-[length:var(--text-sm)] m-0">
+            {initial.visibility} — owned or organization article. Visibility is managed
+            with its owner/organization, not from the public moderation queue.
+          </p>
+        </Field>
+      )}
 
       <Field label="Title">
         <Input value={title} onChange={(e) => setTitle(e.target.value)} inputSize="md" />
