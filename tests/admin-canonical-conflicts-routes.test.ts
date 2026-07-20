@@ -21,7 +21,12 @@ import { getReq, jsonPost, readJson, type RouteHandler, withParams } from "./sup
 import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 type AuditCall = { action: string; metadata?: Record<string, unknown>; targetId?: string; targetType?: string };
-type ResolveInput = { conflictId: string; survivingArticleId: string; resolvedBy: string };
+type ResolveInput = {
+  conflictId: string;
+  survivingArticleId: string;
+  resolvedBy: string;
+  migrateReaderData?: boolean;
+};
 
 let authState: AuthState = "ok";
 let auditCalls: AuditCall[] = [];
@@ -265,7 +270,12 @@ test("POST resolve applies, returns 200, and audits sanitized metadata (no URL/c
   assert.equal(data.outcome, "applied");
   assert.equal(data.survivingArticleId, "a1");
   assert.deepEqual(data.loserArticleIds, ["a2"]);
-  assert.deepEqual(resolveCalls[0], { conflictId: "cf-1", survivingArticleId: "a1", resolvedBy: "admin-1" });
+  assert.deepEqual(resolveCalls[0], {
+    conflictId: "cf-1",
+    survivingArticleId: "a1",
+    resolvedBy: "admin-1",
+    migrateReaderData: false,
+  });
 
   const audit = auditCalls.at(-1);
   assert.equal(audit?.action, "admin.canonical_conflict.resolve");
@@ -274,6 +284,56 @@ test("POST resolve applies, returns 200, and audits sanitized metadata (no URL/c
   assert.equal((audit?.metadata as { loserArticleCount?: number })?.loserArticleCount, 1);
   const meta = JSON.stringify(audit?.metadata ?? {});
   assert.doesNotMatch(meta, /https?:\/\//);
+});
+
+test("POST resolve forwards the opt-in migrateReaderData flag and surfaces migration counts (#1134)", async () => {
+  resolveResult = {
+    ok: true,
+    kind: "applied",
+    conflictId: "cf-1",
+    survivingArticleId: "a1",
+    loserArticleIds: ["a2"],
+    survivorCandidateId: "cand-1",
+    migration: {
+      readingProgress: { repointed: 2, merged: 1, skipped: 0 },
+      readingListItems: { repointed: 0, merged: 0, skipped: 0 },
+      highlights: { repointed: 3, merged: 1, skipped: 2 },
+      articleMastery: { repointed: 1, merged: 0, skipped: 0 },
+      difficultyFeedback: { repointed: 0, merged: 0, skipped: 0 },
+      tutorMessages: { repointed: 5, merged: 0, skipped: 0 },
+      quizAttempts: { repointed: 0, merged: 0, skipped: 0 },
+      pronunciationAttempts: { repointed: 0, merged: 0, skipped: 0 },
+    },
+  };
+  const POST = await importResolve();
+  const res = await POST(
+    jsonPost("http://test/api/admin/canonical-conflicts/cf-1/resolve", {
+      survivingArticleId: "a1",
+      reason: "operator kept the canonical copy and migrated reader data",
+      confirm: true,
+      migrateReaderData: true,
+    }),
+    withParams({ id: "cf-1" }),
+  );
+  assert.equal(res.status, 200);
+  const data = await readJson<{
+    outcome: string;
+    migration?: { highlights?: { skipped?: number } };
+  }>(res);
+  assert.equal(data.outcome, "applied");
+  assert.equal(data.migration?.highlights?.skipped, 2, "migration counts surfaced in the response");
+
+  assert.equal(resolveCalls[0]?.migrateReaderData, true, "opt-in flag forwarded to the resolver");
+
+  const audit = auditCalls.at(-1);
+  const meta = audit?.metadata as {
+    migrateReaderData?: boolean;
+    migration?: { highlights?: { skipped?: number } };
+  };
+  assert.equal(meta?.migrateReaderData, true);
+  assert.equal(meta?.migration?.highlights?.skipped, 2, "audit records migration counts");
+  // Privacy: metadata carries counts/ids/booleans only — never a URL or content.
+  assert.doesNotMatch(JSON.stringify(audit?.metadata ?? {}), /https?:\/\//);
 });
 
 test("POST resolve noop is a 200 that writes NO audit (idempotent)", async () => {
