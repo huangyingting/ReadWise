@@ -82,6 +82,22 @@ The revalidation algorithm checks in this order:
 4. Whitespace-flexible token match.
 5. Missing.
 
+## Re-anchoring during an audited force-rescrape
+
+Anchors are immutable by convention (see [Anchor strategy](#anchor-strategy)), with
+ONE sanctioned exception: when an operator runs an audited **force-rescrape**
+(`POST /api/admin/articles/{id}/force-rescrape`, incremental-scraping Phase 3.4,
+#1103) that activates a validated replacement content version, the migrator updates
+each reliable highlight's offsets IN the same atomic activation transaction as the
+content. It REUSES this same `revalidateAnchor` engine — it does not invent a
+second format — and adds ambiguity detection: an anchor migrates only when it is
+`valid` (exact) or `moved` to an UNAMBIGUOUS location. If any anchor is `missing`,
+or its quote repeats without a unique context hit, the whole activation is BLOCKED,
+the old version is retained, and the uncertain anchors are exposed for confirmation
+(count + Highlight IDs — never quote/note text) rather than dropped or moved
+arbitrarily. Ordinary reader rendering and normal incremental discovery NEVER
+migrate offsets; only the audited force-rescrape does.
+
 ## Notes and offline conflict handling
 
 Offline note edits use `baseUpdatedAt` to detect whether the server note changed

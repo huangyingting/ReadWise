@@ -2364,12 +2364,14 @@ persists a proposed body (privacy minimization).
   KNOWN, `PUBLIC`, non-taken-down Article WITH a source URL to refetch is
   eligible (else `not-found`/`not-public`/`missing-source-url`/`taken-down`, no
   writes).
-- `decideAnnotationMigrationGate(input)` — the FAIL-CLOSED annotation-migration
-  gate (the #1103 seam). If the Article has reader annotations/highlights that
-  need re-anchoring and NO migrator is wired (the #1102 state), the gate BLOCKS
-  activation → controlled `annotation_migration_required` failure → the old
-  version is retained. It NEVER silently migrates; with no annotations (or once
-  #1103 wires a migrator) it passes.
+- `decideAnnotationMigrationGate(input)` — the annotation-migration gate. With no
+  annotations it passes; if the Article has reader annotations/highlights that need
+  re-anchoring and NO migrator is wired, it BLOCKS activation → controlled
+  `annotation_migration_required` failure → the old version is retained. #1103 (see
+  Phase 3.4) EVOLVED it: a wired migrator only opens the gate when EVERY required
+  anchor migrated RELIABLY — if any anchor is missing or ambiguous
+  (`unreliableAnchorCount > 0`) the gate still BLOCKS, preserving the old version
+  and exposing the uncertain anchors. It NEVER silently migrates.
 - `decideForceRescrapeActivation({signals, annotation})` — the ordered validation
   gate over the impure fetch/sanitize/extract signals with a deterministic
   failure precedence: empty body (`empty_body`) → blocked identity
@@ -2407,15 +2409,16 @@ persists a proposed body (privacy minimization).
   pending lock via a controlled `internal_error` failure so a stuck lock can never
   wedge future refreshes.
 
-### "Mark derived outputs for regeneration" — the #1103 gate seam
+### "Mark derived outputs for regeneration" — the #1103 gate seam (now implemented)
 
 Activation stamps `derivedRegenerationRequestedAt` to MARK the Article's derived
 outputs (translations, speech, quiz, vocabulary, difficulty, processing steps)
-and reader annotations for regeneration/re-anchoring. #1102 only MARKS and DEFINES
-the seam: the `AnnotationMigrator` type's mere PRESENCE opens the
-annotation-migration gate, but #1102 NEVER wires one (so an annotated Article
-fails closed) and NEVER calls it. #1103 both supplies the migrator and performs
-the actual re-anchoring + derived regeneration behind this gate.
+and reader annotations for regeneration/re-anchoring. #1102 only MARKED and
+DEFINED the seam: the `AnnotationMigrator` type's mere PRESENCE opens the
+annotation-migration gate, but #1102 NEVER wired one (so an annotated Article
+failed closed) and NEVER called it. #1103 (Phase 3.4 below) both supplies the
+migrator and performs the actual re-anchoring + derived regeneration behind this
+gate.
 
 ### Capability-gated endpoint (`sources.manage`, deny-by-default + CSRF)
 
@@ -2440,7 +2443,87 @@ Production body-fetch dispatch for the `PrepareRescrapeDraft` seam is the same
 a real force-rescrape currently records a controlled failure and RETAINS the
 current version until the SSRF-safe fetch + sanitizer + extractor + quality/safety
 gates are wired behind that one boundary (follow-up #1129). The annotation
-re-anchoring migrator behind the fail-closed gate is #1103.
+re-anchoring migrator behind the fail-closed gate landed in #1103 — see Phase 3.4.
+
+## Phase 3.4 — re-anchor annotations & regenerate derived outputs (#1103) — current
+
+Phase 3.4 plugs the real annotation migrator into the Phase 3.3 gate seam so a
+validated replacement content version can ACTIVATE without silently corrupting
+highlights, notes, reading state, or derived assets. It runs ONLY inside the
+audited force-rescrape activation — NEVER from ordinary incremental rediscovery
+(the governing invariant; a regression test proves normal save + repeat
+rediscovery creates no version and triggers no regeneration).
+
+### Content-position vs article-level classification (requirement #1)
+
+The migrator draws an explicit line (documented in `derived-regeneration.ts`):
+
+- **CONTENT-POSITION dependent** — basis is the article prose, so they are
+  regenerated (or, for anchors, MIGRATED): highlight/note anchors, narration/
+  `ArticleSpeech` timing, `Translation` + `SentenceTranslation` caches,
+  `QuizQuestion`, `VocabularyItem`, `GrammarExplanation`, and the Article
+  difficulty/lexile fields.
+- **ARTICLE-LEVEL** — attached to the Article identity, NOT its text, so they
+  remain attached and UNMIGRATED: ownership/visibility/status, `ReadingProgress`,
+  `ReadingListItem`, `ArticleMastery`, saved words, audit, `ContentReview`, and
+  assignments. Force-rescrape refreshes the Article in place, so these stay valid.
+
+### Re-anchoring engine reuse + ambiguity detection
+
+The migrator REUSES the Reader's `revalidateAnchor` engine (`offline-conflict.ts`)
+— it does NOT invent a second annotation format. The pure core
+(`annotation-reanchor.ts`) layers the net-new AMBIGUITY DETECTION on top: an
+anchor is RELIABLE only when it is `valid` (still at its offsets → "exact"), or
+`moved` to an UNAMBIGUOUS location — the quote occurs once, OR (for repeated text)
+the stored prefix+quote+suffix context resolves to exactly one place, OR a reflow
+match is unique. A `missing` quote, or a `moved` quote whose position cannot be
+uniquely resolved (`revalidateAnchor` would otherwise latch onto the FIRST
+`indexOf` for repeated text), is AMBIGUOUS/UNRELIABLE. A collision pass guards the
+`@@unique([userId, articleId, startOffset, endOffset])` constraint: if two
+reliable anchors for one user would land on the same offsets, an `exact` keeps the
+slot and colliding moves are demoted to ambiguous rather than moved arbitrarily.
+
+### Reliability gate + offset migration in the activation tx
+
+The runner (reads-before-tx) calls the injected `annotationMigrator.assess()` —
+which loads the Article's anchors and derives the PROPOSED version's plain text the
+SAME way the Reader does (injected `deriveReaderText = articleHtmlToReaderText`, so
+offsets line up) — and feeds the `unreliableAnchorCount` into
+`decideAnnotationMigrationGate`. If ANY anchor is unreliable the gate BLOCKS: the
+old version is retained and `recordRescrapeFailure` stamps `unresolvedAnchorCount`
++ `unresolvedAnchorIds` on the rejected version (METADATA ONLY — Highlight IDs,
+never quote/note text) for operator/user confirmation via the existing
+stale-highlight Reader surface + the force-rescrape status endpoint. If every
+anchor is reliable, `activateRescrape` migrates the reliable "moved" offsets IN THE
+SAME atomic swap transaction as the content (two-phase parking to avoid transient
+unique collisions), so highlight offsets and content change all-or-nothing.
+
+### Deduplicated derived-output regeneration
+
+After activation, `requestDerivedRegeneration` invalidates and re-enqueues ONLY the
+content-derived outputs whose basis changed. It CLAIMS a per-version
+`ArticleProcessingStep` (`rescrape-regen:<versionId>`, guarded by
+`@@unique([articleId, step])`) so a worker restart/retry is a no-op
+(`alreadyRequested`); clears the stale caches + feature steps in a transaction; and
+enqueues ONE `AI_REBUILD` via the `@/lib/jobs` barrel with a dedupeKey scoped to
+BOTH the Article id AND the target content-version id
+(`rescrape-regen:<articleId>:<versionId>`) — so retries converge on the single job
+(AC3/AC4). Regeneration is best-effort/retryable and does NOT block activation on
+optional AI/narration provider availability (requirement #5); the job payload
+carries ids + language codes + a `tts` flag only — never article/quote/note/prompt
+text. New columns `ArticleContentVersion.unresolvedAnchorCount` /
+`unresolvedAnchorIds` are the only schema change (dual-engine parity migration
+`20260720070000_annotation_migration_regeneration`); regeneration REUSES the
+existing `AI_REBUILD` job type rather than adding a new one.
+
+### Deferred (follow-ups)
+
+- Retiring the orphaned narration `MediaAsset` blob when `ArticleSpeech` is cleared
+  for regeneration (the row is deleted; the underlying asset is left for a storage
+  reaper) — follow-up #1131.
+- A reconciler that re-drives `requestDerivedRegeneration` from a stamped-but-not-
+  claimed `derivedRegenerationRequestedAt` if the best-effort enqueue is lost after
+  activation — follow-up #1132.
 
 ## Planned (see issues #1082–#1104)
 
@@ -2499,6 +2582,10 @@ The following phases build on the Phase 1 ledger and are documented as they land
   pending/active slots, validate-before-activate with a deterministic failure
   taxonomy, atomic in-place activation preserving Article identity + reading
   relationships, and the fail-closed annotation-migration gate seam that #1103
-  will implement. The `force-rescrape` trigger mode stays DEFINED in the Phase 2.7
+  implements. The `force-rescrape` trigger mode stays DEFINED in the Phase 2.7
   taxonomy and rejected by the normal trigger — it is served EXCLUSIVELY by the
-  dedicated endpoint.)*
+  dedicated endpoint. Re-anchoring annotations & regenerating affected derived
+  outputs after a refresh #1103 has landed — see "Phase 3.4" above: the real
+  annotation migrator (reusing `revalidateAnchor` + ambiguity detection) behind an
+  evolved reliability gate, offset migration inside the activation transaction, and
+  deduplicated version-scoped regeneration of ONLY content-derived outputs.)*

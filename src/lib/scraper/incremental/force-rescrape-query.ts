@@ -28,6 +28,8 @@ const VERSION_DTO_SELECT = {
   pendingForArticleId: true,
   activeForArticleId: true,
   derivedRegenerationRequestedAt: true,
+  unresolvedAnchorCount: true,
+  unresolvedAnchorIds: true,
   createdAt: true,
   activatedAt: true,
   supersededAt: true,
@@ -58,11 +60,26 @@ export type ForceRescrapeVersionDto = {
   readingMinutes: number | null;
   /** Set when activation marked derived outputs for regeneration (#1103 seam). */
   derivedRegenerationRequestedAt: Date | null;
+  /** #1103 — anchors that could not be reliably re-anchored (blocks activation). */
+  unresolvedAnchorCount: number | null;
+  /** #1103 — IDs of those anchors (metadata only — never quote/note text). */
+  unresolvedAnchorIds: string[] | null;
   createdAt: Date;
   activatedAt: Date | null;
   supersededAt: Date | null;
   updatedAt: Date;
 };
+
+/**
+ * Coerces the `unresolvedAnchorIds` Json column to a `string[] | null` DTO
+ * value — accepts only an array of strings (Highlight IDs); anything else
+ * (null/legacy) becomes null. Never surfaces non-id content.
+ */
+function toStringIdArray(value: VersionRow["unresolvedAnchorIds"]): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const ids = value.filter((item): item is string => typeof item === "string");
+  return ids.length > 0 ? ids : null;
+}
 
 function toVersionDto(row: VersionRow): ForceRescrapeVersionDto {
   return {
@@ -79,6 +96,8 @@ function toVersionDto(row: VersionRow): ForceRescrapeVersionDto {
     wordCount: row.wordCount,
     readingMinutes: row.readingMinutes,
     derivedRegenerationRequestedAt: row.derivedRegenerationRequestedAt,
+    unresolvedAnchorCount: row.unresolvedAnchorCount,
+    unresolvedAnchorIds: toStringIdArray(row.unresolvedAnchorIds),
     createdAt: row.createdAt,
     activatedAt: row.activatedAt,
     supersededAt: row.supersededAt,

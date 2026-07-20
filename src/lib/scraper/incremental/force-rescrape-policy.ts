@@ -137,6 +137,17 @@ export type AnnotationMigrationGateInput = {
    * this true so an annotated Article can activate behind the gate.
    */
   migratorWired: boolean;
+  /**
+   * #1103 — how many of this Article's anchors could NOT be reliably re-anchored
+   * onto the PROPOSED content (missing, or a repeated/ambiguous "moved" whose
+   * location the context could not uniquely resolve). Assessed by the wired
+   * migrator BEFORE the gate. A wired migrator only opens the gate when this is
+   * ZERO; any unreliable anchor blocks activation so the old version is retained
+   * and the uncertain anchors are surfaced for confirmation (never dropped or
+   * moved arbitrarily). Defaults to 0 so an un-wired caller (the #1102 state) and
+   * the "no annotations" path are unaffected.
+   */
+  unreliableAnchorCount?: number;
 };
 
 /** Outcome of {@link decideAnnotationMigrationGate}. */
@@ -146,18 +157,26 @@ export type AnnotationMigrationGateDecision =
 
 /**
  * The FAIL-CLOSED annotation-migration gate. Passes when there are NO annotations
- * to re-anchor (nothing to migrate) OR a migrator is wired (#1103). Otherwise it
- * BLOCKS: an Article with reader annotations and no wired migrator must NOT have
- * its content swapped, because that would silently break every highlight's
- * offsets. Blocking here makes the run record a controlled
- * `annotation_migration_required` failure and retain the old active version.
+ * to re-anchor (nothing to migrate) OR a migrator is wired (#1103) AND every
+ * required anchor migrated RELIABLY. Otherwise it BLOCKS:
+ *   - an annotated Article with NO wired migrator (the #1102 state) must not have
+ *     its content swapped, because that would silently break every anchor; and
+ *   - #1103 — even WITH a wired migrator, if any anchor could not be reliably
+ *     re-anchored onto the proposed content (`unreliableAnchorCount > 0`) the
+ *     swap is blocked so those anchors are preserved on the OLD version and
+ *     surfaced for confirmation rather than dropped or moved arbitrarily.
+ * Blocking here makes the run record a controlled `annotation_migration_required`
+ * failure and retain the old active version.
  */
 export function decideAnnotationMigrationGate(
   input: AnnotationMigrationGateInput,
 ): AnnotationMigrationGateDecision {
   if (input.annotationCount <= 0) return { pass: true, reason: "no-annotations" };
-  if (input.migratorWired) return { pass: true, reason: "migrator-available" };
-  return { pass: false, reason: "annotation-migration-required" };
+  if (!input.migratorWired) return { pass: false, reason: "annotation-migration-required" };
+  if ((input.unreliableAnchorCount ?? 0) > 0) {
+    return { pass: false, reason: "annotation-migration-required" };
+  }
+  return { pass: true, reason: "migrator-available" };
 }
 
 // ---------------------------------------------------------------------------
