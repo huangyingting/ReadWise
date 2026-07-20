@@ -21,6 +21,7 @@ import {
   type ConflictArticle,
   type ConflictResolveError,
   type ConflictResolveResponse,
+  type TypeBCanonicalChoice,
 } from "@/lib/scraper/incremental/canonical-conflict-ui";
 
 const DASH = "—";
@@ -138,10 +139,14 @@ function ConflictDetailBody({
 }) {
   const badge = conflictStatusBadge(detail.status);
   const total = totalDependentData(detail.dependentData);
+  const isTypeB = detail.kind === "type-b";
   return (
     <div className="flex flex-col gap-[var(--space-5)]">
       <div className="flex flex-wrap items-center gap-[var(--space-2)]">
         <Badge variant={badge.variant}>{badge.label}</Badge>
+        <Badge variant={isTypeB ? "primary" : "neutral"}>
+          {isTypeB ? "Runtime conflict" : "Baseline conflict"}
+        </Badge>
         <span className="text-text-muted text-[length:var(--text-xs)]">v{detail.identityVersion}</span>
       </div>
 
@@ -180,8 +185,10 @@ function ConflictDetailBody({
       </section>
 
       {detail.status === "OPEN" ? (
-        detail.articles.length > 0 ? (
-          <ResolveForm detail={detail} onResolved={onResolved} onReload={onReload} />
+        detail.kind === "type-b" ? (
+          <ResolveFormTypeB detail={detail} onResolved={onResolved} onReload={onReload} />
+        ) : detail.articles.length > 0 ? (
+          <ResolveFormTypeA detail={detail} onResolved={onResolved} onReload={onReload} />
         ) : (
           <p className="m-0 text-text-muted text-[length:var(--text-sm)]">
             This conflict has no contested public article and cannot be resolved.
@@ -210,7 +217,7 @@ function ArticleCountsRow({ article }: { article: ConflictArticle }) {
   );
 }
 
-function ResolveForm({
+function ResolveFormTypeA({
   detail,
   onResolved,
   onReload,
@@ -222,6 +229,7 @@ function ResolveForm({
   const [survivor, setSurvivor] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [confirm, setConfirm] = useState(false);
+  const [migrateReaderData, setMigrateReaderData] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ConflictResolveError | null>(null);
   const groupName = useId();
@@ -237,7 +245,7 @@ function ResolveForm({
     try {
       const res = await postJson<ConflictResolveResponse>(
         `/api/admin/canonical-conflicts/${encodeURIComponent(detail.id)}/resolve`,
-        { survivingArticleId: survivor, reason: reason.trim(), confirm: true },
+        { survivingArticleId: survivor, reason: reason.trim(), confirm: true, migrateReaderData },
       );
       onResolved(describeResolveOutcome(res));
     } catch (err) {
@@ -252,7 +260,7 @@ function ResolveForm({
       <h3 className="m-0 text-[length:var(--text-sm)] font-semibold">Resolve conflict</h3>
       <p className="m-0 text-text-muted text-[length:var(--text-xs)]">
         Pick the surviving article. The other contested articles are archived out of
-        public feeds; their reader data is retained. This is destructive and audited.
+        public feeds. This is destructive and audited.
       </p>
 
       <fieldset className="m-0 flex flex-col gap-[var(--space-2)] border-0 p-0">
@@ -305,11 +313,170 @@ function ResolveForm({
 
       <label className="flex items-start gap-[var(--space-2)] text-[length:var(--text-sm)]">
         <Switch
+          checked={migrateReaderData}
+          onCheckedChange={setMigrateReaderData}
+          disabled={busy}
+          aria-label="Also migrate reader and learning data onto the surviving article"
+        />
+        <span>
+          Also migrate reader &amp; learning data (highlights, progress, quiz/pronunciation
+          history) onto the surviving article. Off by default: reader data is retained in
+          place on the archived articles.
+        </span>
+      </label>
+
+      <label className="flex items-start gap-[var(--space-2)] text-[length:var(--text-sm)]">
+        <Switch
           checked={confirm}
           onCheckedChange={setConfirm}
           aria-label="Confirm the destructive resolution"
         />
         <span>I understand the losing articles are archived out of public feeds.</span>
+      </label>
+
+      {error && <ResolveErrorBanner error={error} onRefresh={onReload} />}
+
+      <div className="flex justify-end">
+        <Button variant="danger" size="sm" loading={busy} disabled={!canSubmit} onClick={submit}>
+          Resolve conflict
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Runtime (Type B) resolution form (#1135): the operator declares which of the two
+ * contending candidates is canonical — keep the INCUMBENT (folds the challenger as
+ * a duplicate) or promote the CHALLENGER (transfers the canonical claim, folds the
+ * incumbent, and archives + retains the incumbent's produced Article). Same
+ * required audit `reason` + explicit `confirm` gating as Type A; posts `canonical`
+ * (never `survivingArticleId`), matching the resolver's Type-B selector shape.
+ */
+function ResolveFormTypeB({
+  detail,
+  onResolved,
+  onReload,
+}: {
+  detail: CanonicalConflictDetail;
+  onResolved: (message: string) => void;
+  onReload: () => void;
+}) {
+  const [canonical, setCanonical] = useState<TypeBCanonicalChoice | null>(null);
+  const [reason, setReason] = useState("");
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<ConflictResolveError | null>(null);
+  const groupName = useId();
+  const reasonFieldId = useId();
+
+  const reasonValid = isResolveReasonValid(reason);
+  const canSubmit = canonical !== null && reasonValid && confirm && !busy;
+
+  async function submit() {
+    if (!canSubmit || canonical === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await postJson<ConflictResolveResponse>(
+        `/api/admin/canonical-conflicts/${encodeURIComponent(detail.id)}/resolve`,
+        { canonical, reason: reason.trim(), confirm: true },
+      );
+      onResolved(describeResolveOutcome(res));
+    } catch (err) {
+      setError(classifyConflictResolveError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const incumbentLabel = detail.incumbentArticle
+    ? detail.incumbentArticle.title
+    : detail.incumbentCandidateId
+      ? `Candidate ${detail.incumbentCandidateId}`
+      : "Incumbent candidate";
+
+  return (
+    <section className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-md)] border border-border bg-surface px-[var(--space-4)] py-[var(--space-4)]">
+      <h3 className="m-0 text-[length:var(--text-sm)] font-semibold">Resolve runtime conflict</h3>
+      <p className="m-0 text-text-muted text-[length:var(--text-xs)]">
+        A live challenger resolved to an identity an incumbent already owns. Choose which
+        candidate is canonical. This is destructive and audited.
+      </p>
+
+      <fieldset className="m-0 flex flex-col gap-[var(--space-2)] border-0 p-0">
+        <legend className="mb-[var(--space-1)] p-0 text-[length:var(--text-xs)] text-text-muted">
+          Canonical decision
+        </legend>
+
+        <label className="flex items-start gap-[var(--space-2)] rounded-[var(--radius-md)] border border-border px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]">
+          <input
+            type="radio"
+            name={groupName}
+            className="mt-[var(--space-1)] size-4 accent-[var(--primary)] cursor-pointer"
+            checked={canonical === "incumbent"}
+            disabled={busy}
+            onChange={() => setCanonical("incumbent")}
+            aria-label="Keep the incumbent as canonical"
+          />
+          <span className="flex flex-col gap-[var(--space-1)]">
+            <span className="font-semibold">Keep incumbent</span>
+            <span className="break-words">{incumbentLabel}</span>
+            {detail.incumbentArticle?.slug && (
+              <code className="text-[length:var(--text-xs)] break-all">
+                /{detail.incumbentArticle.slug}
+              </code>
+            )}
+            <span className="text-text-muted text-[length:var(--text-xs)]">
+              The incumbent keeps its canonical claim and article; the challenger is folded
+              in as a duplicate.
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-[var(--space-2)] rounded-[var(--radius-md)] border border-border px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]">
+          <input
+            type="radio"
+            name={groupName}
+            className="mt-[var(--space-1)] size-4 accent-[var(--primary)] cursor-pointer"
+            checked={canonical === "challenger"}
+            disabled={busy}
+            onChange={() => setCanonical("challenger")}
+            aria-label="Promote the challenger to canonical"
+          />
+          <span className="flex flex-col gap-[var(--space-1)]">
+            <span className="font-semibold">Promote challenger</span>
+            <code className="text-[length:var(--text-xs)] break-all">{detail.challengerKey}</code>
+            <span className="text-text-muted text-[length:var(--text-xs)]">
+              The canonical claim transfers to the challenger; the incumbent is folded in and
+              its produced article is archived out of public feeds (retained, never deleted).
+            </span>
+          </span>
+        </label>
+      </fieldset>
+
+      <Field
+        label="Reason to resolve"
+        hint="Recorded in the audit log (1–500 characters). Never include private content."
+        required
+      >
+        <Textarea
+          id={reasonFieldId}
+          rows={3}
+          maxLength={MAX_RESOLVE_REASON}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Why is this the canonical identity?"
+        />
+      </Field>
+
+      <label className="flex items-start gap-[var(--space-2)] text-[length:var(--text-sm)]">
+        <Switch
+          checked={confirm}
+          onCheckedChange={setConfirm}
+          aria-label="Confirm the destructive resolution"
+        />
+        <span>I understand the folded candidate&apos;s article is archived out of public feeds.</span>
       </label>
 
       {error && <ResolveErrorBanner error={error} onRefresh={onReload} />}

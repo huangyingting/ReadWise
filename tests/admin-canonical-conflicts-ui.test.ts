@@ -43,10 +43,12 @@ import {
   parseConflictStatus,
   resolveNoopLabel,
   summarizeDependentData,
+  summarizeMigration,
   totalDependentData,
   type ConflictResolveResponse,
   type DependentDataCounts,
 } from "@/lib/scraper/incremental/canonical-conflict-ui";
+import type { ReaderDataMigrationSummary } from "@/lib/scraper/incremental/canonical-conflict-migrate";
 import { ApiResponseError } from "@/lib/client-fetch";
 
 const WORKTREE = resolve(import.meta.dirname, "..");
@@ -66,6 +68,20 @@ function counts(partial: Partial<DependentDataCounts>): DependentDataCounts {
     tutorMessages: 0,
     difficultyFeedback: 0,
     ...partial,
+  };
+}
+
+function zeroMigration(): ReaderDataMigrationSummary {
+  const zero = { repointed: 0, merged: 0, skipped: 0 };
+  return {
+    readingProgress: { ...zero },
+    readingListItems: { ...zero },
+    highlights: { ...zero },
+    articleMastery: { ...zero },
+    difficultyFeedback: { ...zero },
+    tutorMessages: { ...zero },
+    quizAttempts: { ...zero },
+    pronunciationAttempts: { ...zero },
   };
 }
 
@@ -246,6 +262,92 @@ test("describeResolveOutcome describes applied vs no-op", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Type A opt-in migration summary (#1134) + Type B resolution copy (#1135)
+// ---------------------------------------------------------------------------
+
+test("summarizeMigration reports moved + skipped reader records (counts only)", () => {
+  assert.equal(summarizeMigration(zeroMigration()), "no reader data to migrate");
+
+  const moved: ReaderDataMigrationSummary = {
+    ...zeroMigration(),
+    highlights: { repointed: 3, merged: 1, skipped: 2 },
+    readingProgress: { repointed: 4, merged: 0, skipped: 0 },
+  };
+  const summary = summarizeMigration(moved);
+  // repointed + merged = 3+1+4 = 8 migrated; skipped = 2 left behind.
+  assert.match(summary, /8 reader records migrated/);
+  assert.match(summary, /2 left on the original articles/);
+
+  const one: ReaderDataMigrationSummary = {
+    ...zeroMigration(),
+    highlights: { repointed: 1, merged: 0, skipped: 1 },
+  };
+  assert.match(summarizeMigration(one), /1 reader record migrated/);
+  assert.match(summarizeMigration(one), /1 left on the original article\b/);
+});
+
+test("describeResolveOutcome surfaces the opt-in migration summary when present", () => {
+  const withMigration: ConflictResolveResponse = {
+    ok: true,
+    outcome: "applied",
+    conflictId: "cf1",
+    survivingArticleId: "a1",
+    loserArticleIds: ["a2"],
+    survivorCandidateId: "cand1",
+    migration: { ...zeroMigration(), highlights: { repointed: 2, merged: 0, skipped: 0 } },
+  };
+  const msg = describeResolveOutcome(withMigration);
+  assert.match(msg, /Resolved/);
+  assert.match(msg, /1 losing article/);
+  assert.match(msg, /2 reader records migrated/);
+  assert.doesNotMatch(msg, /reader data retained/);
+});
+
+test("describeResolveOutcome describes both Type-B canonical decisions", () => {
+  const incumbent: ConflictResolveResponse = {
+    ok: true,
+    outcome: "applied-type-b",
+    conflictId: "cf1",
+    canonical: "incumbent",
+    winnerCandidateId: "inc1",
+    loserCandidateId: "chal1",
+    archivedArticleId: null,
+  };
+  const challengerArchived: ConflictResolveResponse = {
+    ok: true,
+    outcome: "applied-type-b",
+    conflictId: "cf1",
+    canonical: "challenger",
+    winnerCandidateId: "chal1",
+    loserCandidateId: "inc1",
+    archivedArticleId: "art-inc",
+  };
+  const challengerNoArticle: ConflictResolveResponse = {
+    ...challengerArchived,
+    archivedArticleId: null,
+  };
+
+  assert.match(describeResolveOutcome(incumbent), /incumbent kept canonical/i);
+  assert.match(describeResolveOutcome(incumbent), /challenger.*folded/i);
+
+  assert.match(describeResolveOutcome(challengerArchived), /challenger promoted canonical/i);
+  assert.match(describeResolveOutcome(challengerArchived), /archived/i);
+  assert.doesNotMatch(describeResolveOutcome(challengerNoArticle), /archived/i);
+});
+
+test("conflictResolveErrorFrom treats a Type-B kind/candidate mismatch as a refreshable stale", () => {
+  for (const detail of [
+    "wrong-conflict-type",
+    "incumbent-candidate-missing",
+    "challenger-candidate-missing",
+  ]) {
+    const err = conflictResolveErrorFrom(409, { reason: "illegal", detail }, "x");
+    assert.equal(err.kind, "stale", `${detail} → stale`);
+    assert.equal(conflictResolveNeedsRefresh(err), true);
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Client islands: correct endpoint, required states, confirm+reason, survivor
 // ---------------------------------------------------------------------------
 
@@ -274,6 +376,24 @@ test("ConflictDetailSheet posts an explicit confirm + reason + survivor selectio
   assert.ok(src.includes("Switch"));
   assert.ok(src.includes("Refresh"));
   assert.ok(src.includes("classifyConflictResolveError"));
+});
+
+test("ConflictDetailSheet is kind-aware: Type-A migrate opt-in + Type-B canonical decision", () => {
+  const src = readSrc("src/components/admin/canonical-conflicts/ConflictDetailSheet.tsx");
+  // Branches on the resolver-agreeing kind discriminator.
+  assert.ok(src.includes('detail.kind === "type-b"'));
+  assert.ok(src.includes("ResolveFormTypeA"));
+  assert.ok(src.includes("ResolveFormTypeB"));
+  // Type A opt-in: the migrateReaderData flag is a Switch and is posted in the body.
+  assert.ok(src.includes("migrateReaderData"));
+  assert.ok(src.includes("setMigrateReaderData"));
+  // Type B: the incumbent-vs-challenger canonical decision is posted (never a survivor).
+  assert.ok(src.includes("canonical,"));
+  assert.ok(src.includes('setCanonical("incumbent")'));
+  assert.ok(src.includes('setCanonical("challenger")'));
+  // Type B surfaces the sanitized incumbent metadata + challenger key (never a URL/body).
+  assert.ok(src.includes("incumbentArticle"));
+  assert.ok(src.includes("challengerKey"));
 });
 
 // ---------------------------------------------------------------------------
