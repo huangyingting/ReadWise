@@ -9,7 +9,7 @@ import {
   isReportStatus,
   type ContentReportRow,
 } from "@/lib/moderation/reports";
-import { Badge, Button, Select, type BadgeProps } from "@/components/ui";
+import { Badge, Select, type BadgeProps } from "@/components/ui";
 import {
   AdminPageHeader,
   AdminFilterBar,
@@ -17,6 +17,7 @@ import {
   AdminTableWrap,
   AdminPagination,
 } from "@/components/admin";
+import AdminReportActions from "@/components/AdminReportActions";
 import { formatDateTime } from "@/lib/display-format";
 
 type SearchParams = { status?: string; page?: string };
@@ -73,24 +74,7 @@ function ReportActions({ report }: { report: ContentReportRow }) {
     );
   }
 
-  return (
-    <>
-      <form method="POST" action={`/api/admin/reports/${report.id}`}>
-        <input type="hidden" name="_method" value="PATCH" />
-        <input type="hidden" name="status" value={ContentReportStatus.RESOLVED} />
-        <Button type="submit" size="sm" variant="secondary">
-          Resolve
-        </Button>
-      </form>
-      <form method="POST" action={`/api/admin/reports/${report.id}`}>
-        <input type="hidden" name="_method" value="PATCH" />
-        <input type="hidden" name="status" value={ContentReportStatus.DISMISSED} />
-        <Button type="submit" size="sm" variant="outline">
-          Dismiss
-        </Button>
-      </form>
-    </>
-  );
+  return <AdminReportActions reportId={report.id} />;
 }
 
 function ReportsTable({ reports }: { reports: ContentReportRow[] }) {
