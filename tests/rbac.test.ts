@@ -34,6 +34,7 @@ const ADMIN_ONLY_CAPS = [
   CAPABILITIES.articlesManage,
   CAPABILITIES.tagsManage,
   CAPABILITIES.membersManage,
+  CAPABILITIES.organizationsManage,
   CAPABILITIES.jobsManage,
   CAPABILITIES.analyticsView,
   CAPABILITIES.securityView,

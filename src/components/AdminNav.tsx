@@ -21,6 +21,7 @@ const SECTIONS = [
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/tags", label: "Tags" },
   { href: "/admin/members", label: "Members" },
+  { href: "/admin/organizations", label: "Organizations" },
   { href: "/admin/jobs", label: "Jobs" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/security", label: "Security" },

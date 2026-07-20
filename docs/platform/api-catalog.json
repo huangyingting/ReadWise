@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-20T07:56:07.637Z",
-  "routeCount": 134,
-  "methodCount": 159,
+  "generatedAt": "2026-07-20T21:23:56.796Z",
+  "routeCount": 136,
+  "methodCount": 162,
   "routes": [
     {
       "path": "/api/account",
@@ -1036,6 +1036,83 @@
           ],
           "successStatus": 200,
           "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/organizations",
+      "file": "src/app/api/admin/organizations/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "organizationsManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.organizationsManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": [
+            "order",
+            "page",
+            "q",
+            "sort"
+          ],
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "organizationsManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.organizationsManage"
+          ],
+          "successStatus": 201,
+          "responseKeys": [
+            "membership",
+            "ok",
+            "organization"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "name",
+            "ownerUserId",
+            "slug"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/organizations/{id}",
+      "file": "src/app/api/admin/organizations/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "organizationsManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.organizationsManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "organization"
+          ],
           "queryParamNames": null,
           "bodyFieldNames": null
         }
