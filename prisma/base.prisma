@@ -9,6 +9,9 @@ datasource db {
 enum Role {
   Admin
   Reader
+  Moderator
+  ContentEditor
+  SupportAgent
 }
 
 enum ArticleVisibility {

@@ -124,7 +124,7 @@ test("updateMemberRole audits a changed role inside the transaction", async () =
   setStubUser("Reader");
   const { updateMemberRole } = await loadMemberCommands();
 
-  const result = await updateMemberRole("reader-1", "Admin", (auditResult) =>
+  const result = await updateMemberRole("reader-1", "SupportAgent", (auditResult) =>
     makeAudit("member.role.changed", {
       changed: auditResult.changed,
       previousRole: auditResult.previousRole,
@@ -140,7 +140,7 @@ test("updateMemberRole audits a changed role inside the transaction", async () =
   assert.deepEqual(auditCalls[0].input.metadata, {
     changed: true,
     previousRole: "Reader",
-    role: "Admin",
+    role: "SupportAgent",
   });
 });
 

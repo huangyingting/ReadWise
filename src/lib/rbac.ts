@@ -1,11 +1,10 @@
 /**
  * Capability-based RBAC model (RW-011).
  *
- * ReadWise stores only `Admin` and `Reader` in the Prisma {@link Role} enum
- * today. That is enough to ship, but the product roadmap (moderators, content
- * editors, support agents, and tenant-level classroom/organization roles) needs
- * a permission model that can grow WITHOUT another hard-coded role check in
- * every page and route.
+ * ReadWise stores assignable global roles in the Prisma {@link Role} enum.
+ * Capability-based checks let admins delegate scoped access to moderators,
+ * content editors, support agents, and future tenant-level classroom/organization
+ * roles WITHOUT another hard-coded role check in every page and route.
  *
  * This module is the single source of truth for that model. It is intentionally
  * PURE — no Prisma, no `next-auth`, no I/O — so it is trivially testable and can
@@ -14,16 +13,15 @@
  * Design:
  *   - {@link CAPABILITIES} are the fine-grained, named permissions. Code gates
  *     on these (e.g. `articles.manage`) instead of `role === "Admin"`.
- *   - {@link ROLES} enumerates every role in the model: the two ACTIVE roles
+ *   - {@link ROLES} enumerates every role in the model: ACTIVE global roles
  *     that exist in the DB enum today, the `System` pseudo-principal used for
- *     trusted server/CLI contexts, and PLANNED system + tenant roles that are
- *     documented here but not yet assignable.
+ *     trusted server/CLI contexts, and tenant roles that are documented here.
  *   - {@link ROLE_CAPABILITIES} maps each role to the capabilities it grants.
  *   - {@link hasCapability} resolves a principal's role to capabilities.
  *
- * Behavior today is identical to the previous `role === "Admin"` checks because
- * `Admin` is granted every current admin capability and `Reader` is granted only
- * the base reader capabilities. See `docs/access/rbac.md` for the migration path.
+ * `Admin` is granted every current admin capability, `Reader` is granted only
+ * the base reader capabilities, and scoped admin roles receive targeted grants.
+ * See `docs/access/rbac.md` for the role model.
  */
 
 /**
@@ -47,11 +45,11 @@ export const CAPABILITIES = {
   analyticsView: "analytics.view",
   /** View security and audit logs. */
   securityView: "security.view",
-  /** Moderate user-visible content (future Moderator role; Admin has it now). */
+  /** Moderate user-visible content (Moderator and Admin). */
   contentModerate: "content.moderate",
   /** Manage content sources / provider governance (enable/disable, health). */
   sourcesManage: "sources.manage",
-  /** Assist members via support tooling (future SupportAgent role). */
+  /** Assist members via support tooling (SupportAgent and Admin). */
   supportAssist: "support.assist",
 
   // --- Base reader capabilities (granted to every authenticated user) -------
@@ -85,9 +83,15 @@ export const ALL_CAPABILITIES: readonly Capability[] = Object.values(CAPABILITIE
 
 /**
  * Roles that exist in the Prisma `Role` enum TODAY and can be assigned to a
- * user. Keep this in exact sync with `enum Role` in both Prisma schemas.
+ * user. Keep this in exact sync with `enum Role` in all Prisma schemas.
  */
-export const ACTIVE_ROLES = ["Admin", "Reader"] as const;
+export const ACTIVE_ROLES = [
+  "Admin",
+  "Reader",
+  "Moderator",
+  "ContentEditor",
+  "SupportAgent",
+] as const;
 export type ActiveRole = (typeof ACTIVE_ROLES)[number];
 
 // Compile-time guard: `ActiveRole` must stay identical to the Prisma `Role`
@@ -110,17 +114,8 @@ type _AssertActiveRolesMatchPrisma = Expect<Equals<ActiveRole, PrismaRoleName>>;
  */
 export const SYSTEM_ROLE = "System" as const;
 
-/**
- * System-level roles planned for a later migration. Documented in
- * `docs/access/rbac.md` and kept here as the capability grants are already
- * wired; NOT exported because they are not yet assignable to any user.
- */
-const PLANNED_SYSTEM_ROLES = [
-  "Moderator",
-  "ContentEditor",
-  "SupportAgent",
-] as const;
-type PlannedSystemRole = (typeof PLANNED_SYSTEM_ROLES)[number];
+// No planned global system roles remain; scoped admin roles are active DB roles.
+const PLANNED_SYSTEM_ROLES = [] as const;
 
 /**
  * Tenant-level (organization/classroom) roles. These are SEPARATE from global
@@ -160,7 +155,6 @@ export type ClassroomRoleName = (typeof CLASSROOM_ROLES)[number];
 export type RoleName =
   | ActiveRole
   | typeof SYSTEM_ROLE
-  | PlannedSystemRole
   | TenantRole
   | "Member"
   | "Student";
@@ -216,18 +210,14 @@ const ADMIN_CAPABILITIES: readonly Capability[] = [
 ];
 
 /**
- * Role → capability mapping. The ACTIVE roles (`Admin`, `Reader`) and the
- * `System` principal are consulted at runtime today; the PLANNED entries
- * document the intended grants for the future migration and are exercised only
- * by tests until the roles become assignable.
+ * Role → capability mapping. ACTIVE global roles and the `System` principal are
+ * consulted at runtime today; tenant entries support membership capability
+ * resolution on the separate organization/classroom axis.
  */
 export const ROLE_CAPABILITIES: Record<RoleName, readonly Capability[]> = {
-  // Active, DB-backed roles -------------------------------------------------
+  // Active, DB-backed global roles -----------------------------------------
   Admin: ADMIN_CAPABILITIES,
   Reader: BASE_READER_CAPABILITIES,
-  // Trusted server/CLI principal -------------------------------------------
-  System: ALL_CAPABILITIES,
-  // Planned system roles (not assignable yet) ------------------------------
   Moderator: [
     ...BASE_READER_CAPABILITIES,
     CAPABILITIES.adminAccess,
@@ -246,6 +236,8 @@ export const ROLE_CAPABILITIES: Record<RoleName, readonly Capability[]> = {
     CAPABILITIES.supportAssist,
     CAPABILITIES.analyticsView,
   ],
+  // Trusted server/CLI principal -------------------------------------------
+  System: ALL_CAPABILITIES,
   // Planned tenant roles (not assignable yet) ------------------------------
   OrgAdmin: [
     ...BASE_READER_CAPABILITIES,
@@ -298,9 +290,8 @@ export function roleHasCapability(
  * The single runtime authorization check. Resolves the principal's role to its
  * capability set and tests membership. A null/anonymous principal is denied.
  *
- * Today every session user has role `Admin` or `Reader`, so this returns the
- * exact same answer as the previous `role === "Admin"` checks — that is the
- * point: the refactor is behavior-preserving.
+ * Session users resolve through the same capability table whether they are full
+ * admins, readers, or scoped admin roles.
  */
 export function hasCapability(
   principal: CapabilityPrincipal,

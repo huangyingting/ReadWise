@@ -1,7 +1,7 @@
 ---
 type: "architecture"
 status: "accepted"
-last_updated: "2026-07-19"
+last_updated: "2026-07-20"
 description: "Architecture decision record for capability-based authorization. Captures capability vocabulary, role mapping, route guard posture, and consequences."
 ---
 
@@ -22,32 +22,32 @@ flowchart TD
 ```
 ## Context
 
-ReadWise authorizes with a two-value `Role` enum (`Admin`, `Reader`) and
-historically used hard-coded `role === "Admin"` checks across pages and routes.
-The product also has tenant-level roles for organizations and classrooms
-(teachers, organization admins, students). Hard-coded system-role checks do not
-scale across these axes, but changing the global `Role` enum would risk the
-working app before the broader system-role set is settled. ReadWise therefore
-needs an extensible permission model that keeps existing Admin/Reader behavior
-byte-for-byte identical.
+ReadWise historically authorized with a two-value `Role` enum (`Admin`,
+`Reader`) and hard-coded `role === "Admin"` checks across pages and routes. The
+global enum now also includes scoped admin roles (`Moderator`, `ContentEditor`,
+`SupportAgent`). The product also has tenant-level roles for organizations and
+classrooms (teachers, organization admins, students). Hard-coded system-role
+checks do not scale across these axes, so ReadWise needs an extensible permission
+model that preserves existing Admin/Reader behavior while allowing scoped
+delegation.
 
 ## Decision
 
 Introduce a **capability layer in code** (`src/lib/rbac.ts`) and gate features on
 named capabilities (e.g. `articles.manage`) instead of roles. The module defines
-the capabilities, the full near-term + future role set (active, planned system,
-and tenant roles), and a role → capability mapping. `hasCapability(principal,
-capability)` is the single runtime check; `requireCapability` (pages) and
-`requireCapabilityApi` (routes) wrap it. Top-level admin access uses the
-`admin.access` capability directly. **No Prisma migration** ships: the `Role` enum stays
-`{ Admin, Reader }`, capabilities live in code, and the DB-backed migration path
-is documented (`docs/access/rbac.md`). A compile-time guard keeps `ACTIVE_ROLES` in sync
-with the Prisma enum.
+the capabilities, active global roles, tenant roles, and a role → capability
+mapping. `hasCapability(principal, capability)` is the single runtime check;
+`requireCapability` (pages) and `requireCapabilityApi` (routes) wrap it.
+Top-level admin access uses the `admin.access` capability directly. Capabilities
+live in code, and the DB-backed role migration process is documented
+(`docs/access/rbac.md`). A compile-time guard keeps `ACTIVE_ROLES` in sync with
+the Prisma enum.
 
 ## Alternatives considered
 
-- **Add roles to the `Role` enum now:** Premature; the future role set is not
-  settled and a breaking enum/migration would risk the working app.
+- **Add all possible roles to the `Role` enum immediately:** Premature; tenant
+  roles and future global roles should become assignable only when product
+  requirements are settled.
 - **Full DB-backed Role/Capability/RoleCapability tables now:** Overengineered
   for a two-role app; adds schema, queries, and admin UI before they are needed.
 - **Keep hard-coded `role === "Admin"` checks:** Does not support new roles
@@ -64,7 +64,8 @@ with the Prisma enum.
 
 ## Current status
 
-- Global DB-backed roles remain `Admin` and `Reader`.
+- Global DB-backed roles are `Admin`, `Reader`, `Moderator`, `ContentEditor`,
+  and `SupportAgent`.
 - Tenant roles are stored separately on organization/classroom membership
   models, not in `User.role`.
 - Additional global system roles require an explicit enum + `ACTIVE_ROLES`

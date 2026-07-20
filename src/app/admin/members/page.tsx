@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Avatar from "@/components/ui/Avatar";
 import { requireCapability } from "@/lib/session";
-import { CAPABILITIES } from "@/lib/rbac";
+import { ACTIVE_ROLES, CAPABILITIES } from "@/lib/rbac";
 import { listMembers } from "@/lib/account-lifecycle";
 import AdminMemberActions from "@/components/AdminMemberActions";
 import { Input } from "@/components/ui/Input";
@@ -28,7 +28,8 @@ type SearchParams = {
 
 type Member = Awaited<ReturnType<typeof listMembers>>["members"][number];
 
-const ROLE_OPTIONS = ["Admin", "Reader"] as const;
+const ROLE_OPTIONS = ACTIVE_ROLES;
+const SCOPED_ADMIN_ROLES = ["Moderator", "ContentEditor", "SupportAgent"] as const;
 
 function parsePage(value: string | undefined): number {
   return Math.max(1, Number.parseInt(value ?? "1", 10) || 1);
@@ -87,8 +88,14 @@ function MemberIdentity({
 }
 
 function MemberRoleBadge({ role }: { role: Member["role"] }) {
+  const variant =
+    role === "Admin"
+      ? "primary"
+      : (SCOPED_ADMIN_ROLES as readonly string[]).includes(role)
+        ? "warning"
+        : "neutral";
   return (
-    <Badge variant={role === "Admin" ? "primary" : "neutral"}>
+    <Badge variant={variant}>
       {role}
     </Badge>
   );

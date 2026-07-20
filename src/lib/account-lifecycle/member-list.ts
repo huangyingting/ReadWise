@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Prisma, Role } from "@prisma/client";
+import { ACTIVE_ROLES } from "@/lib/rbac";
 
 /** Page size for the admin member listing. */
 export const ADMIN_MEMBERS_PAGE_SIZE = 20;
@@ -50,7 +51,9 @@ export type ListMembersOpts = {
 };
 
 function asRole(value: string | null | undefined): Role | null {
-  return value === "Admin" || value === "Reader" ? value : null;
+  return value != null && (ACTIVE_ROLES as readonly string[]).includes(value)
+    ? (value as Role)
+    : null;
 }
 
 function normalizePage(page: number | undefined): number {
