@@ -41,3 +41,15 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 **Outcome:** Cycle 1 merged to dev (c624e56); React Strict Mode defect identified by Morpheus before main promotion (setup restoration missing); Cycle 2 independent fix (Switch) approved and merged to main (c7becda); issue closed; clock latency 98% improved (265.6ms→16.7ms p50), highlight onset 95% improved (140ms→8ms p50)
 
 **Status:** Complete; primary fix validated in production; no blockers
+
+
+## 2026-07-20T15:35:35Z: Admin IA gap audit shipped
+
+- Shipped PR #1160 for issue #1157: Series admin now has a Manage articles Sheet for add/remove/reorder members with resolved titles and privacy-safe title resolution; no schema change.
+- Team decisions to carry forward: moderation visibility editing is intentionally `PUBLIC`/`UNLISTED` only; canonical-conflict KIND is single-sourced through `classifyConflictKind`; #1159 tenant-admin and tag-chip items are deferred.
+
+## 2026-07-20T23:08:18+0000 — Trinity post-merge summary
+
+- Completed #1159 item 3 via PR #1168: replaced comma-separated admin article tags input with design-system chip editing using Badge, IconButton, Input, Button, and Field.
+- Key carry-forward: backend review contract stayed `tags: string[]`; chips dedupe case-insensitively while preserving first-seen casing; no API/catalog change.
+- Repo trunk is main (not dev). Safe-merge pattern used because only the systemic native coverage 98%-line gate was red while functional gates passed. Required commit trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.

@@ -2,7 +2,6 @@
 
 ## Active Decisions
 
-
 ### 2026-07-14: Cycle-2 Independent Revision — Issue #1060 PR #1061 test coverage completion
 
 **By:** Tank (Cycle-2 Reviser)
@@ -16,7 +15,6 @@
 **References:** #1060, PR #1061, cycle-1 rejection (Switch REQUEST_CHANGES), Tank cycle-2 independent authority, Mouse lockout observed
 
 **Verdict:** APPROVE cycle-2 revision; coverage 100%; unblock Switch re-review
-
 
 ### 2026-07-14: REQUEST_CHANGES on PR #1061 — Issue #1060 cycle-1 test coverage gap
 
@@ -52,7 +50,6 @@
 
 **Verdict:** APPROVE rejection rationale; confirm Tank cycle-2 eligibility; 3 tests blocking merge
 
-
 ### 2026-07-14: Secondary Fix Implementation — Issue #1060 span completeness recovery
 
 **By:** Mouse (Span Repair)
@@ -67,7 +64,6 @@
 
 **Verdict:** APPROVE secondary fix; span completeness 100% (151→217); combined with Trinity primary fix delivers full termination criteria
 
-
 ### 2026-07-14: Primary Fix Implementation — Issue #1060 rAF-sampled browser clock
 
 **By:** Trinity (Implementation)
@@ -81,7 +77,6 @@
 **References:** #1060 analysis, PR #1061, branch squad/1060-reader-audio-highlight-sync, Trinity analysis (16.7ms rAF counterfactual validated)
 
 **Verdict:** APPROVE primary fix; clock latency 98% reduced; unblock Mouse span recovery; ready for dev merge
-
 
 ### 2026-07-14: Browser Analysis — Issue #1060 highlight latency measurement
 
@@ -117,7 +112,6 @@
 
 **Verdict:** APPROVE data analysis; MP3 offset disproven; browser clock primary; span completeness secondary
 
-
 ### 2026-07-14: Design Review — Issue #1060 speech/highlight sync root-cause spike
 
 **By:** Morpheus (Lead)
@@ -131,7 +125,6 @@
 **References:** #1060, #1054 (generation verified), #1057 (V1 compat), 937,273 words aggregated, 217 azure-batch rows, empirical onset/gap analysis
 
 **Verdict:** APPROVE design review; analysis phase initiated
-
 
 ### 2026-07-14: APPROVE + merge PR #1059 — Issue #1057 compact V1 timing promotion to main
 
@@ -149,7 +142,6 @@
 
 **Verdict:** APPROVE + MERGED — issue closed on main; all CI green; storage-boundary change complete and verified
 
-
 ### 2026-07-14: Cycle-2 APPROVE on PR #1058 — Mouse revision (Issue #1057)
 
 **By:** Switch
@@ -162,7 +154,6 @@
 
 **Verdict:** APPROVE (dev merge authorized)
 
-
 ### 2026-07-14: Cycle-2 independent revision complete — barrel export + explicit --target error
 
 **By:** Mouse
@@ -174,7 +165,6 @@
 **References:** #1057, PR #1058 (squad/1057-compact-v1-timing-format), commit b1d2f6d, tests/optional-provider-boundaries.test.ts, scripts/migrate-speech-timing.ts, tests/migrate-speech-timing-script.test.ts
 
 **Verification:** boundary 9/9, script 6/6 (new error case), compact 20/20, migration 16/16, typecheck clean, ESLint clean, 51/51 total pass
-
 
 ### 2026-07-14: REQUEST_CHANGES on PR #1058 — barrel snapshot not updated
 **By:** Switch
@@ -203,7 +193,6 @@
 
 **Learning:** Barrel-export snapshot tests are pre-existing CI gates; they must be updated in the same commit as new public API exports. Reviewer lockout protocol prevents author bias; independent reviser (Mouse) ensures separation of concerns.
 
-
 ### 2026-07-14: Compact V1 timing format storage/parse boundary implementation (PR #1058)
 **By:** Tank
 **What:** Implemented SpeechTimingPayloadV1 {version:1, words:string[], startMs:number[], endMs:number[]} with version===1 parser gate BEFORE V2 provider/unit checks in parseSpeechTimingPayload. Added createSpeechTimingPayloadV1, legacySpeechWordsToTimingPayloadV1, migrateArticleSpeechTimings(target: 'v1'|'v2', default 'v2'), CLI --target flag, and backward-compat wrapper migrateArticleSpeechTimingsToV2. V2 serialization and production saveSpeechResult frozen (no changes). 46 tests pass (V1 shape, parser gate, normalization, migration paths). Full typecheck/ESLint/diff-check clean. 217/217 rows remain V2; no schema/db migration needed.
@@ -218,7 +207,6 @@
 **Why:** The user wants legacy timing data stored compactly like V2 without fabricating V2's provider/UTF-16/text-span metadata and without changing Reader playback/highlight behavior. Playback consumes only normalized `SpeechWord[]` server-side, so the change is confined to the storage/parse boundary in `src/lib/speech/timing.ts` + `timing-migration.ts`. Freezing V2 bytes and playback prevents highlight/anchoring regressions.
 **Ownership:** Tank (timing/parser/migration/tests, API-safe); Switch (independent V2-byte + playback-normalization regression review); Trinity standby (touch playback only on a demonstrated regression).
 **References:** #1057, src/lib/speech/timing.ts, src/lib/speech/timing-migration.ts, src/lib/speech/repository.ts, scripts/migrate-speech-timing.ts, tests/speech-json.test.ts, tests/speech-timing-migration.test.ts
-
 
 ### 2026-07-14: PR #1056 — dev → main promotion (Issue #1054) — APPROVED & MERGED
 **By:** Morpheus (Lead, reviewer)
@@ -244,7 +232,6 @@
 
 **Review comment URL:** https://github.com/huangyingting/ReadWise/pull/1056#issuecomment-4968668169
 
-
 ### 2026-07-14: PR #1055 — Azure Batch TTS word-sync — APPROVED
 
 **By:** Switch
@@ -262,636 +249,6 @@
 **Why:** Issue #1054 acceptance criteria fully met with evidence. The timing-unit claim was the critical risk; empirical three-point verification across min/median/max articles confirms ms units unambiguously. Analyzer V2 fix is correct and well-tested. No defects found.
 
 **Comment URL:** https://github.com/huangyingting/ReadWise/pull/1055#issuecomment-4968579073
-
-### 2026-07-09 — Difficulty calibration harness stays aggregate-only and license-gated
-
-**Source:** Tank inbox (`decisions/inbox/tank-difficulty-eval-harness.md`) plus Mouse methodology, Morpheus independent revision, and Switch approval.
-
-The difficulty calibration harness is accepted as a read-only evaluation path for CEFR/OneStop-style ordinal calibration, provider drift, Lexile-like metrics, and vocabulary audits. It must keep raw calibration datasets, article text, selected text, and other license-restricted or user-private content outside the repository and Squad state; committed fixtures/templates may describe schemas and labels but must not include article text.
-
-**Decision/caveats:**
-1. Harness reports are aggregate-only and live under `.calibration-state/`; human labels are allowed only without article text.
-2. Provider DB scans are restricted to `prisma/provider-dbs/*` and must exclude root Prisma DBs and sidecars.
-3. Dataset source metadata must record license and non-commercial status. Non-commercial datasets require explicit `--enable-nc` opt-in; OneStopEnglish CC BY-SA remains default-allowed, while UniversalCEFR, Cambridge, CEFR-SP, and NC-marked sources require opt-in.
-4. Vocabulary audits must remain MIT-safe, and provider drift thresholds should be treated as calibration guardrails.
-5. Lexile output remains Lexile-like wording only, not official Lexile.
-
-**Implementation/review record:** Tank implemented `scripts/difficulty-eval.ts`, `npm run difficulty:eval`, docs/tests/template/package updates, and the provider smoke, but Switch rejected the first version because it lacked the NC dataset gate. Reviewer lockout was enforced against Tank; Morpheus independently added the explicit `--enable-nc` gate, `datasetSources` license/non-commercial metadata, and docs/tests updates. Switch re-reviewed and approved.
-
-**Validation:** difficulty eval script tests passed 9/9; ESLint passed; typecheck passed; `git diff --check` passed; provider smoke was scoped to `prisma/provider-dbs/*` only and aggregate-only.
-
-
-### 2026-07-09 — Hybrid v4 CEFR calibration uses legal-approved NC data plus OneStopEnglish ordinal anchors
-
-**Source:** Tank inbox (`decisions/inbox/tank-hybrid-calibration-v4.md`) plus Mouse v4 target synthesis and Switch approval.
-
-`deterministic-cefr/hybrid-calibrated-v4` is accepted as the current deterministic CEFR threshold calibration. The implementation is threshold-only with cutoffs `[9,18,27,36,50]`, uses legal-approved UniversalCEFR/elg_cefr_en A1-C2 aggregate evidence only behind the explicit `--enable-nc` gate, and retains OneStopEnglish article labels as ordinal anchors.
-
-**Decision/caveats:** NC evidence is legally approved for this repository's calibration work when explicitly enabled, but raw calibration data remains outside the repository and Squad state. OneStopEnglish labels remain ordinal anchors, not exact A1-C2 gold labels. CEFR output remains a heuristic/calibrated deterministic estimate rather than authoritative CEFR certification. Lexile output remains Lexile-like and was not changed by v4.
-
-**Validation:** NC exact/within-one improved from v3 `.095/.450` to v4 `.308/.798`; OneStopEnglish exact/within-one improved from v3 `.485/.984` to v4 `.499/.995`. Switch approved after diff check, ESLint, typecheck, targeted Node tests (54/54), and provider filter/count/aggregate smoke. Provider aggregate used 19 `prisma/provider-dbs/*.db` files only, covering 286,985 articles: A2 191, B1 8,966, B2 97,611, C1 179,138, C2 1,079; average score 38.042, p50 38; Lexile-like average 842.206, p50 850.
-
-## 2026-07-10 — PR #965 Review (Issue #962)
-**Reviewer:** Morpheus | **Verdict:** REQUEST_CHANGES
-**Blocking:** Six identical `TODAY_ROUTE_FEATURE_GATE` declarations across six routes replaces one duplication pattern with another. Must extract to a single shared Today-domain module (e.g. `src/lib/engagement/today-session/feature-gate.ts`).
-**Green:** Behavior preserved, gate ordering correct, tests adequate, no `any`/casts/new deps/unrelated changes, CI typecheck+lint pass, PG failure pre-existing.
-**Action:** Tank locked out. Switch must revise with exact deltas: extract shared gate, update six route imports.
-
-## 2026-07-10 — PR #965 Cycle 2 Re-Review (Morpheus)
-
-**Verdict:** REQUEST_CHANGES
-**Blocking delta:** CI "Unit tests + native coverage" fails — `reflection/route.ts` at 95.45% < 98% threshold (lines 40-41 uncovered: `!result.ok` error branch). PR adds tests that import the route (making it measured) without covering the error path.
-**Architecture:** APPROVED — single canonical gate, zero duplicates, correct dependency direction, clean export surface.
-**Cycle-3 owner:** Switch (not locked out — cycle 2, not final rejection).
-**Fix required:** One additional test exercising `recordTodayReflection → { ok: false }`.
-**Comment URL:** https://github.com/huangyingting/ReadWise/pull/965
-
-
-### 2026-07-10 — PR #973 Review (Issue #948 partial delivery)
-
-**Reviewer:** Morpheus | **Verdict:** REQUEST_CHANGES (CI gate only)
-**Technical verdict:** APPROVE — all boundary, type-safety, provider, frozen-file, and test gates pass.
-**Blocking:** "Unit tests + native coverage" CI pending at review time. Cannot verify 98% coverage gate.
-**Comment URL:** https://github.com/huangyingting/ReadWise/pull/973#issuecomment-4936920771
-**Findings:**
-1. All removed barrel exports have zero legitimate external consumers (verified via grep).
-2. Flashcard grade cast removal is type-safe (`oneOf(GRADES)` infers exact `Grade` union).
-3. Lazy provider: same singleton identity, improved error semantics (caller-visible vs import-time), no test leakage, no privacy change.
-4. Frozen files untouched, #948 open, #972 exact/deduplicated.
-**Gate:** Merge when "Unit tests + native coverage" CI passes green. If fails, Mouse locked, Switch revises.
-
-
-## Recent Strategic Decisions (Post-Refactor)
-
-### 2026-07-10T05-51-36: Repository-wide refactor program: dev-first staged flow with 6-wave dependency-aware sequencing
-**By:** Morpheus
-**What:** Repository-wide refactor program: dev-first staged flow with 6-wave dependency-aware sequencing
-**References:** #939, #940, #941, #942, #943, #944, #945, #946, #947, #948, #949, #950, #951, #952, #953, #954
-**Why:** ## Decision
-
-Adopted a 6-wave, dependency-aware refactor program (#939) using the git-workflow skill's dev-first model. Remote `dev` must be bootstrapped from `main` (#940) before any subsystem work begins.
-
-## Branch strategy
-- Bootstrap `dev` from current `main` HEAD (one-time, #940)
-- All subsystem PRs target `dev` using `squad/{issue-number}-{slug}` branches
-- PR #937 (Dependabot ESLint) remains targeting `main` independently
-- Final promotion: reviewed PR `dev` → `main` (#954) after all waves complete
-
-## Wave ordering (13 subsystem issues)
-- Wave 1: Foundation — shared primitives/errors (#941), runtime-config/observability (#942)
-- Wave 2: Platform — auth consolidation (#943), API handler/security patterns (#944)
-- Wave 3: Domain services — AI boundaries (#945), scraper/content-pipeline dedup (#946), speech/push/jobs (#947)
-- Wave 4: Product domain — learning/vocabulary (#948), article/reader/difficulty (#949), classroom/org/analytics (#950)
-- Wave 5: UI — primitives/shared (#951), reader state (#952)
-- Wave 6: Cross-cutting — scripts/hooks/test-infra (#953)
-
-## Concurrency rule
-No two agents edit the same shared file concurrently. Shared files (api-handler, prisma.ts, test helpers, runtime-config barrel) are frozen unless coordinated through Morpheus.
-
-## Termination condition
-Program complete when all subsystem issues closed, `dev` passes full CI, and promotion PR merges to `main`.
-
-## Rollback
-Each subsystem PR is independently revertable on `dev`. Main is never force-pushed.
-
-## Feature-Completeness Epic #1008 Scope Decisions (2026-07-11)
-
-### 2026-07-11T22:31:57: Classroom membership remains teacher-managed
-**By:** Copilot (user directive)
-**What:** For feature-completeness epic #1008, maintain classroom membership as teacher-managed only.
-**Why:** Student self-service joining via invite links or codes is intentionally out-of-scope for the completeness roadmap. Teacher-driven classroom formation and membership management aligns with the deployment model and administrative governance patterns.
-**Implication:** #1008 child issues must not include student self-service joining/invite-code flows; scope those for future roadmap phases.
-
-### 2026-07-11T22:31:57: Defer topology and corpus-dependent automation
-**By:** Copilot (user directive)
-**What:** Do not add repository-owned backup automation without a committed production deployment topology; do not fabricate difficulty gold-corpus results when prisma/provider-dbs/* is absent.
-**Why:** Deployment topology (high-availability, failover, RTO/RPO) is external-facing and requires production operations alignment; corpus-dependent calibration (difficulty gold labels) requires approved provider data and legal review. Both require external input unavailable in the development environment.
-**Implication:** Retain the current provider-neutral backup/restore runbook. Retain the aggregate-only, license-gated difficulty evaluation harness. Defer empirical calibration until approved provider databases are integrated.
-
-### 2026-07-11T22:31:57: Prefer evidence-backed autonomous defaults
-**By:** Copilot (user directive)
-**What:** When decisions would normally require human confirmation, use the safest evidence-backed best guess instead. Escalate only for permissions, safety, destructive impact, or unavailable external input.
-**Why:** Reduces decision latency and team blocking while maintaining safety guardrails. Evidence-backed defaults for API changes, non-breaking refactors, or design choices are preferable to pausing for async confirmation.
-**Implication:** Squad agents use this authority for scope/design questions during Wave 1–5. Morpheus evaluates evidence and owns escalation decisions when the autonomous default is insufficient.
-
-
-## Wave 1 Feature-Completeness Completions (2026-07-12)
-
-### 2026-07-11T22:31:57.145+00:00 — Admin series page intentionally omits article-picker and reorder UI
-**By:** Trinity
-**What:** #1018 /admin/series stays focused on core metadata and status lifecycle; it does not add an articleIds picker or drag-and-drop reorder UI.
-**Why:** The #1015 API already supports articleIds and reorder, but #1018 acceptance criteria only require minimal curation UX. Picker/search and drag-and-drop would add substantial interaction design without changing the approved metadata lifecycle, so they belong in a follow-up issue with dedicated UX work.
-**Implication:** Keep #1018 scoped to create/edit/status/delete flows; treat article selection and reorder as future enhancements.
-
-### 2026-07-12T01:54:08: PR #1020 admin-member-detail browser coverage completion
-**By:** Morpheus (approver), Tank (revised author)
-**What:** Completed issue #1012 — native fixture coverage restored to >=98% on admin/member-detail module alongside comprehensive Chromium E2E scenarios.
-**Why:** Initial PR head rejected due native coverage regression without browser evidence. Tank revised at 520609e with both seedE2eMember unit test restoration and 10/10 E2E scenarios. Morpheus approved; merged to dev as 730bfc8.
-**Implication:** Helper executable code requires native fixture coverage alongside browser coverage; strict reviewer lockout on native debt regressions is correctness enforcement, not gatekeeping.
-
-### 2026-07-12T01:54:08: PR #1021 onboarding wizard E2E completion
-**By:** Morpheus (approver), Trinity (author)
-**What:** Completed issue #1009 — five-step onboarding E2E journey wired into canonical smoke gate with real keyboard activation assertions.
-**Why:** Initial cycle approved with advisory: spec existed but was not in canonical CI (`npm run e2e:smoke`). Coordinator validation required cycle 2 because tabIndex assertions were tautological. Trinity revised at c3e3fd7 wiring spec into canonical smoke and replacing helper checks with real keyboard navigation. Morpheus independently approved; merged to dev as 919da904.
-**Implication:** Executable E2E specs must be wired into canonical CI commands (not standalone decorators); tautological helper assertions must be replaced with real user-interaction verification.
-
-## Inbox Decision Merges 2026-07-12T02:41:59.148+00:00
-
----
-id: 1bfdfbde-6c21-4559-a35a-13421cae66cb
-class: DECISION
-loadGuidance: [ALWAYS]
-title: "Provider DBs for CEFR/Lexile evaluation"
-author: "Squad"
-createdAt: 2026-07-07T08:03:23.470Z
-metadata: {}
----
-
-User directive on 2026-07-07T08:02:46.354+00:00: For CEFR/Lexile algorithm evaluation, use smaller databases from prisma/provider-dbs/*, not databases directly under prisma/. Previous use of prisma/e2e.db should be replaced with provider DB evaluation.
-
----
-id: 16857482-fc68-4e4e-afb2-dbd0adde22e2
-class: DECISION
-loadGuidance: [ALWAYS]
-title: "NC CEFR data legal approval"
-author: "Squad"
-createdAt: 2026-07-09T12:18:42.670Z
-metadata: {}
----
-
-User stated on 2026-07-09T12:18:22.400+00:00: "I have the legal approval, can we use v2". Treat NC CEFR datasets as approved for this repository's calibration work when explicitly enabled, while still preserving license metadata and no-raw-text handling.
-
-### 2026-07-10T06-06-37: PR #955 retrospective: Branch protection configuration defects require pre-deployment validation and decision alignment
-**By:** Switch
-**What:** PR #955 retrospective: Branch protection configuration defects require pre-deployment validation and decision alignment
-**References:** PR #955, decision #940, issue #940, tests/db/postgres-jobs.test.ts
-**Why:** ## Retrospective: PR #955 Rejection
-
-**Ceremony Role:** Switch (substitute facilitator, fact synthesis only). Morpheus (original author) is locked out by reviewer protocol. Tank is independent revision owner.
-
----
-
-## Facts
-
-**PR #955 Status:** OPEN, REQUEST_CHANGES (2026-07-10T06:04:39Z)
-
-**CI Check Outcomes:**
-- ✅ 4 passing checks: Build, Fast checks, Supply-chain hygiene, Dependency review, smoke test
-- ❌ 2 failing checks: PostgreSQL Migrate/Integration, Unit tests + native coverage (E2E skipped, non-blocking)
-
-**Code Review Verdict:** Two critical blocking defects in branch protection configuration (not in code/docs/YAML of PR itself):
-
-1. **BLOCKING-1 — Required Check Name Mismatch**
-   - Configured context: `"Supply-chain hygiene"` (GitHub API exact match)
-   - Actual CI job name: `"Supply-chain hygiene (lockfile + audit)"`
-   - Effect: GitHub will never receive matching status; check permanently shows pending/missing on all `dev` PRs
-   - Fix: Change branch protection context to `"Supply-chain hygiene (lockfile + audit)"`
-
-2. **BLOCKING-2 — Pre-existing PostgreSQL Test Failure**
-   - Test: `tests/db/postgres-jobs.test.ts:27` (worker/processor article state)
-   - Assertion: line 87 (actual includes 'dbit_processor_enriched_...' not in expected)
-   - Consistency: deterministic failure across all 5 recent main-branch runs
-   - Codebase state: pre-existing on `origin/main` HEAD c65355904c3c8c9d8782c5a809b156899a6b9cb6
-   - Scope misalignment: Issue #940 (coverage strategy decision) lists required checks as `typecheck / lint / unit-tests / build` only; PostgreSQL integration not intended
-   - Effect: Making PostgreSQL required on `dev` blocks all future PRs from day one
-   - Fix: Repair test on main first, then add to required checks; or keep as non-required per decision #940
-
----
-
-## Root Causes
-
-1. **No pre-deployment CI validation:**
-   - Branch protection applied without first verifying all proposed required checks pass on target branch
-   - Required check names not synchronized with actual CI job names
-   - No smoke test or sync step in implementation workflow
-
-2. **Insufficient decision alignment:**
-   - PostgreSQL was added to required checks without consulting decision #940
-   - Test failure pre-existing and known; no pre-implementation check
-
-3. **Lack of separation between feature and infrastructure work:**
-   - Branch protection (high-impact platform-level change) bundled with feature bootstrap
-   - No dedicated review gate or approval step before platform changes went live
-
----
-
-## Process Changes Required
-
-1. **Mandate pre-deployment validation for branch protection:**
-   - Run CI on target branch; verify all proposed required checks pass
-   - Sync required check names with actual CI job names in workflow definition
-   - Document validation evidence in PR
-
-2. **Enforce decision alignment before implementation:**
-   - Review decision log (e.g., #940) before implementing branch protection or required checks
-   - Escalate and update decision if implementation diverges
-
-3. **Separate branch protection from feature branches:**
-   - Extract infrastructure work (branch protection, required checks) to dedicated PRs
-   - Easier to review, validate, and potentially roll back
-
-4. **Conservative default on required checks:**
-   - Never add a check to required until you have evidence it passes on target or main
-   - If test is long-failing, fix first or explicitly defer as non-required
-
----
-
-## Action Items
-
-| ID | Action | Owner | Priority |
-|----|--------|-------|----------|
-| A1 | Fix branch protection: change required context from `"Supply-chain hygiene"` to `"Supply-chain hygiene (lockfile + audit)"` | Tank | 🔴 Blocker |
-| A2 | Fix `tests/db/postgres-jobs.test.ts:87` on main OR remove PostgreSQL from required checks until fixed | Tank (primary) | 🔴 Blocker |
-| A3 | Document branch protection validation runbook (pre-deployment CI check, name sync, decision review) | Infrastructure/Tank | 🟠 High |
-| A4 | Confirm branch protection scope with decision #940 author and Tank | Team | 🟠 High |
-| A5 | Extract infrastructure work to separate PRs in future (not bundled with feature bootstrap) | Team (process) | 🟡 Medium |
-
----
-
-## Decision
-
-**Branch protection with required status checks must pass pre-deployment validation:**
-- Required checks must be synchronized with actual CI job names
-- All proposed required checks must pass on target branch before deployment
-- Implementation must align with prior architectural decisions
-- Platform-level changes require separate review and validation gates
-
-This decision applies to all future branch protection work in the repository.
-
-### 2026-07-10: Bootstrap merge sequence completed
-
-**By:** Tank
-**What:** Executed the two-PR bootstrap merge sequence (#955 → #957) into dev.
-**Why:** One-time escape from circular bootstrap: #955 installed dev CI triggers; #957 repaired the pre-existing coverage gate. Sequence was evidence-backed with Switch APPROVE (#955) and Mouse APPROVE (#957), all four required checks green on #957 before merge.
-
-## Merge SHAs
-- PR #955 merge commit: `4c70523c961a939a1f5f6c1149f546eb92af4dac`
-- PR #957 merge commit: `5e5044e3e2c4f77406936f93615b3be05ca8379a`
-- Final dev SHA: `5e5044e3e2c4f77406936f93615b3be05ca8379a`
-
-## Required-check results (PR #957)
-| Check | Result |
-|---|---|
-| Fast checks (typecheck + lint) | ✅ PASS |
-| Unit tests + native coverage | ✅ PASS |
-| Build | ✅ PASS |
-| Supply-chain hygiene (lockfile + audit) | ✅ PASS |
-| PostgreSQL Migrate / Integration | ❌ FAIL (non-required, known baseline) |
-
-## Issue states
-- #940: CLOSED
-- #956: CLOSED
-
-## Cleanup
-- Worktrees `/home/azadmin/ReadWise-940` and `/home/azadmin/ReadWise-956` removed
-- Remote branches `squad/940-bootstrap-dev` and `squad/956-restore-coverage-gate` deleted
-- Local feature branches deleted
-- Main checkout remains on `main` (unchanged)
-- PR #937 untouched (OPEN)
-
-## Post-merge CI
-- Run: https://github.com/huangyingting/ReadWise/actions/runs/29076660254
-- Status at handoff: in_progress (not yet complete — do not claim success until it finishes)
-
-### 2026-07-10T10-32-38: PR #965 Retrospective: Duplication anti-pattern in feature-gate extraction
-**By:** Morpheus
-**What:** PR #965 Retrospective: Duplication anti-pattern in feature-gate extraction
-**References:** PR #965, Issue #962, Tank (author, locked out), Switch (revision owner)
-**Why:** ## Root Cause
-Tank created six identical `TODAY_ROUTE_FEATURE_GATE` const definitions across six route files instead of extracting to a single shared Today-domain module. This replaced repeated conditionals with repeated policy objects—a duplication anti-pattern that defeats the "single source of truth" principle.
-
-## Process Learning
-Feature-gate extractions require a two-move operation:
-1. Extract the abstraction (seam: `defineFeatureGate`, `enforceFeatureGate` imports)
-2. Extract the configuration (policy object) to a canonical module once, not replicated N times
-
-Principle: No route/handler should carry its own policy object. Gates are infrastructure defined once in the domain they protect, then imported by N consumers.
-
-## Objective Deltas for Switch
-1. Create `src/lib/engagement/today-session/feature-gate.ts` exporting `TODAY_ROUTE_FEATURE_GATE`
-2. Update 6 route files to import the shared gate instead of defining locally
-3. Keep all behavior/error handling identical; no API contract changes
-4. Validate: typecheck, lint, targeted route tests (56 passing)
-
-**Constraints:** No upward dependency cycle from today-session. Tank locked out (original author, REQUEST_CHANGES protocol). Switch owns revision independently.
-
-### 2026-07-10T10-48-29: PR #965 Cycle-2 Rejection: CI Coverage Failure Analysis
-
-**By:** Morpheus (retrospective synthesis)
-
-**Participants:**
-- Tank: Locked (revision 1 author, protocol override)
-- Switch: Locked (revision 2 author, REQUEST_CHANGES protocol)
-- Mouse: Eligible cycle-3 owner (independent revision)
-
-**What:** Cycle-2 rejection root cause synthesis: Switch's revision 2 correctly refactored policy duplication away, but the reflection route (`src/app/api/today/reflection/route.ts`) became measured without corresponding test coverage for the error path.
-
-**Objective Evidence**
-
-**File:** `src/app/api/today/reflection/route.ts`
-- **Lines 40-41** (`!result.ok`): Error path now **uncovered** post-refactor
-- **Current behavior:** Route catches `!result.ok`, maps to `ApiError(result.status, result.error)`, throws
-- **Test gap:** No test exercises `recordTodayReflection() → {ok: false}` failure case
-
-**Root Cause**
-
-Switch's revision correctly extracted `TODAY_ROUTE_FEATURE_GATE` to `src/lib/engagement/today-session/feature-gate.ts` and updated six route files to import it instead of defining locally. However:
-
-1. The reflection route became measured (captured in CI coverage snapshot)
-2. During refactoring, no error-path test was added for `recordTodayReflection` failure
-3. CI coverage gate (98%) fails on lines 40-41: `!result.ok` throws error, untested
-
-**Process Safeguard**
-
-Feature refactorings that add measurement must include test coverage for all error branches before merge.
-
-**Objective Action Item (Cycle-3)**
-
-Single, precise delta for Mouse:
-- **Add one test** to `tests/` exercising `recordTodayReflection → {ok: false}`
-- **Assert** the route returns the mapped error response (e.g., status and error field)
-- **Verify:** CI coverage gate passes (lines 40-41 now covered)
-
-**Constraints:**
-- No code refactoring beyond adding the test
-- Tank and Switch remain locked (protocol: no revision contribution from prior cycle authors)
-
----
-**Summary Counts:**
-- **Locked agents:** 2 (Tank/revision-1, Switch/revision-2)
-- **Eligible owners:** 1 (Mouse)
-- **Root causes:** 1 (unmeasured error path)
-- **Action items:** 1 (add reflection failure test)
-
-### 2026-07-10: Add reflection route error-path test for cycle-3 coverage blocker
-
-**By:** Mouse
-**What:** Added `tests/today-reflection-error.test.ts` with 2 tests covering the `!result.ok` branch (lines 40-41) of `src/app/api/today/reflection/route.ts`.
-**Why:** CI coverage gate failed at 95.45% (uncovered lines 40-41). The tests mock `recordTodayReflection` to return `{ ok: false, status, error }` and assert exact HTTP status, body `{ error, requestId }`, and `x-request-id` header — consistent with `createHandler` error contract. Route now at 100% coverage. All CI checks green. Commit: 2a2acf3. No production code changed.
-
-### 2026-07-10T13-20-49: #951 W5a UI primitives — GO: safe to proceed before #946/#948/#949
-**By:** Morpheus
-**What:** #951 W5a UI primitives — GO: safe to proceed before #946/#948/#949
-**References:** #939, #946, #948, #949, #951
-**Why:** ## Decision: GO
-
-### Evidence
-- Active scraper work is confined to `src/lib/scraper/extract.ts`, `src/lib/scraper/providers/index.ts`, `src/lib/scraper/providers/newyorker.ts` (new), and four test files. All confirmed via `git status`.
-- Full grep of `src/components/` and `src/hooks/` for `lib/scraper` import paths: **zero matches**. The UI/hook layer never imports from the scraper domain directly.
-- Avatar.tsx match for "provider" is OAuth context only. Landing-content.ts "extract" is English prose. No functional cross-domain dependency exists.
-- #951's scope — `src/components/ui/` (28 files), `src/hooks/{useLoadMoreList,useFilteredFetch,useMutation,useAdminAction}.ts`, `src/components/{CategoryBrowser,ForYouFeed,ArticleListingGrid}.tsx`, `src/components/teacher/*Form.tsx`, both Wordmark files — touches no file with any active dirty status.
-- #948/#949 depend on #946's scraper seam (content-pipeline API contract). #951 does not consume that seam — it is a pure intra-UI/hook consolidation pass.
-
-### Allowed Areas
-- `src/components/ui/**` — full audit and token compliance sweep
-- `src/hooks/useLoadMoreList.ts`, `useFilteredFetch.ts`, `useMutation.ts`, `useAdminAction.ts` — verify and enforce consistent usage
-- `src/components/CategoryBrowser.tsx`, `ForYouFeed.tsx`, `ArticleListingGrid.tsx` — replace copy-pasted load-more state machines with `useLoadMoreList`
-- `src/components/command/CommandPalette.tsx` — replace debounce/abort pattern with `useFilteredFetch`
-- `src/components/teacher/{AddStudentForm,AssignArticleForm,CreateClassroomForm,CreateOrgForm,TeacherFormShell}.tsx` — replace `postJson` boilerplate with `useMutation`/`useAdminAction`
-- `src/components/Wordmark.tsx` and `src/components/marketing/Wordmark.tsx` — resolve duplication (one canonical component)
-
-### Frozen Areas (must not touch)
-- `src/lib/scraper/**` — active intentional work on #946; lockout enforced
-- `tests/providers.test.ts`, `tests/scraper-cleanup.test.ts`, `tests/scraper-extract-readability-comparison.test.ts`, `tests/scraper-providers-discovery.test.ts` — active test changes on #946
-- `src/lib/content-pipeline/**` — domain seam being stabilised by #946
-- Any API route files consumed by #948/#949 — must remain stable; no UI-layer code should add new scraper-domain imports
-
-### Constraints
-1. Do not introduce any import path containing `lib/scraper` or `lib/content-pipeline` in any component or hook touched by #951.
-2. Wordmark consolidation is markup/token-only — no logic touching content or article pipeline.
-3. Validate with: `npm run typecheck` (full pass) and `npm run lint -- src/components/ui/ src/hooks/`.
-4. Smoke e2e: `npm run test:e2e:smoke` must pass before handoff.
-5. #951 does not alter routes, Prisma schema, or API contracts — only presentation layer.
-
-### Issue dependency note
-#951's stated "Depends on Wave 4 completion" is a wave-ordering heuristic, not a hard import dependency. Confirmed stable: all Wave 4 domain seams that #951 touches (hooks, UI primitives) are fully merged and green per CI (#940–#945, #947, #950, #961, #962). The only outstanding Wave 4 item (#946) is in a different domain partition with no compile-time coupling to #951's file set.
-
-### 2026-07-10T15-07-16: GO/NO-GO for #948: PARTIAL GO — vocabulary.ts rename frozen, all other domains safe to proceed
-**By:** Morpheus
-**What:** GO/NO-GO for #948: PARTIAL GO — vocabulary.ts rename frozen, all other domains safe to proceed
-**References:** #948, #946, #939, #970
-**Why:** ## Decision: PARTIAL GO for #948 (Learning/Study/Engagement/Vocabulary consolidation)
-
-**Requested by:** Ralph Agent
-**Date:** 2026-07-10
-
----
-
-## Import Graph Evidence
-
-### Coupling between #948 and #946 (the active blocker)
-
-**Critical junction — `src/lib/vocabulary.ts`:**
-- Line 3: `import { articleHtmlToReaderText } from "@/lib/content-pipeline"` → **consumes** a #946-frozen file
-- `src/lib/processing/processor.ts:19`: `import { getOrCreateArticleVocabulary } from "@/lib/vocabulary"` → **is consumed by** a #946-frozen file
-
-This places `src/lib/vocabulary.ts` at the intersection of both change sets:
-- Upstream: `content-pipeline/index.ts` (#946 will restructure its exports)
-- Downstream: `processing/processor.ts` (#946 will edit this file for normalization consolidation)
-
-Moving/renaming `vocabulary.ts` → `vocabulary/service.ts` (AC #1 of #948) would require updating `processing/processor.ts`, a file frozen by active #946 work.
-
-**All other #948 domains are clean (zero coupling to #946 files):**
-- `src/lib/learning/` — no imports from `scraper/`, `content-pipeline/`, `processing/`; not imported by those modules
-- `src/lib/engagement/` — same: clean
-- `src/lib/study/` — same: clean
-- `src/lib/lexical/` — same: clean
-- `src/lib/vocabulary/` (schemas directory, existing) — same: clean
-
-Reverse check: `scraper/`, `content-pipeline/`, `processing/` do NOT import from `learning/`, `engagement/`, `study/`, or `lexical/`. The only reverse import is `processing/processor.ts` → `vocabulary.ts`.
-
----
-
-## Decision
-
-**PARTIAL GO**: #948 may begin immediately on a bounded scope.
-
-### ✅ ALLOWED FILES (safe to proceed now)
-
-| Module | AC coverage |
-|---|---|
-| `src/lib/learning/index.ts` (barrel audit, 20-file surface) | AC #2 |
-| `src/lib/engagement/index.ts` (barrel audit, 22 files) | AC #3 |
-| `src/lib/study/schemas.ts` (verify placement) | AC #4 |
-| `src/lib/lexical/` (clarify relationship to vocabulary) | AC #3/4 |
-| `src/lib/vocabulary/` schemas dir (existing, no structural change) | AC #5 |
-| Remove unjustified `any` from `learning/`, `engagement/`, `study/`, `lexical/` exports | AC #5 |
-
-### 🚫 FROZEN FILE (must not be touched until #946 merges)
-
-| File | Reason |
-|---|---|
-| `src/lib/vocabulary.ts` | Sits at content-pipeline/#946 junction; rename would force edit to `processing/processor.ts` (frozen) and may be affected by `content-pipeline/index.ts` export changes (#946 upstream) |
-
-This means **AC #1** ("No file-vs-directory confusion — vocabulary.ts resolved") cannot be completed now. This is a real scope reduction and must NOT be silently dropped.
-
----
-
-## Required Follow-Up Tracking
-
-After #946 merges:
-1. Reopen/continue #948 for the frozen AC: move `src/lib/vocabulary.ts` → `src/lib/vocabulary/service.ts` (or agreed destination)
-2. Update `src/lib/processing/processor.ts` import from `@/lib/vocabulary` to the new path
-3. Update `src/lib/vocabulary.ts` import of `articleHtmlToReaderText` to the new `content-pipeline` export shape
-4. Re-run `npm run typecheck` and targeted tests including `tests/vocabulary.test.ts`
-
-A follow-up sub-issue or task should be filed against #948 to track the deferred AC #1 to prevent silent scope shrinkage.
-
----
-
-## Validation Constraints for PARTIAL GO work
-
-- Run `npm run typecheck` after barrel changes
-- Run `npm test -- tests/srs.test.ts tests/flashcards.test.ts tests/word-mastery.test.ts tests/engagement*.test.ts tests/study*.test.ts` (exclude vocabulary.test.ts until freeze is lifted)
-- Do not touch `src/lib/vocabulary.ts`, `src/lib/processing/processor.ts`, `src/lib/content-pipeline/index.ts`, `src/lib/scraper/`
-
-### 2026-07-10T16-14-39: PARTIAL GO — Issue #949 (W4b: Article library, reader, difficulty & recommendations): allowed/deferred seams, frozen blast-radius, and deferred child tracking requirement
-**By:** Morpheus
-**What:** PARTIAL GO — Issue #949 (W4b: Article library, reader, difficulty & recommendations): allowed/deferred seams, frozen blast-radius, and deferred child tracking requirement
-**References:** #946, #949, #939, src/lib/scraper/providers/index.ts, src/lib/content-pipeline/index.ts, src/lib/processing/state.ts, src/lib/recommendations/scoring.ts, src/lib/article-library/admin.ts, src/lib/article-library/collections/tags.ts, src/lib/difficulty.ts, src/lib/reader/page-loader.ts, src/lib/engagement/today-session/generator.ts
-**Why:** ## Decision: PARTIAL GO for Issue #949
-
-**Requested by:** Ralph Agent
-**Date:** 2026-07-10
-**Depends on:** #946 (blocked by active scraper/New Yorker work)
-
----
-
-## Evidence: Bidirectional Import Graph
-
-### #949 scope → frozen (#946) scope
-
-| #949 file | Imports | Frozen target | Status |
-|---|---|---|---|
-| `article-library/admin.ts:16` | `getArticleProcessingSteps`, `StepRow` | `@/lib/processing/state` | FROZEN |
-| `article-library/collections/tags.ts:11` | `articleHtmlToReaderText` | `@/lib/content-pipeline` | FROZEN |
-| `difficulty.ts:3` | `articleHtmlToReaderText` | `@/lib/content-pipeline` | FROZEN |
-| `reader/page-loader.ts:20` | `sanitizeArticleHtml`, `articleHtmlToReaderText` | `@/lib/content-pipeline` | FROZEN |
-| `recommendations/scoring.ts:35-38` | `getProviderByName`, `isProviderCategoryReadingSuitable` | `@/lib/scraper/providers` | FROZEN + UNCOMMITTED |
-
-### frozen (#946) scope → #949 scope (reverse)
-
-| Frozen file | Imports from #949 |
-|---|---|
-| `processing/processor.ts:21` | `getOrCreateArticleTags` (article-library/collections/tags) |
-| `processing/processor.ts:31` | policy symbols (article-library/policy) |
-| `scraper/index.ts:16` | `PUBLIC_ARTICLE_CREATE_FIELDS`, `findPublicLibraryArticleBySourceUrl` |
-
-### Additional finding: Recommendations is NOT a pure leaf
-
-`engagement/today-session/generator.ts:21` imports `listScoredPicksPage` from `@/lib/recommendations/picks`. Acceptance criterion "Recommendations is a leaf module with no reverse imports" is **currently false**. The engagement→recommendations direction is an intentional architectural pattern (recommendations-as-a-service), but must be explicitly reviewed and documented—not silently accepted.
-
-### Active uncommitted work in frozen zone (git diff --name-only HEAD)
-
-The following scraper files have uncommitted changes confirming active #946 work:
-- `src/lib/scraper/declutter.ts`
-- `src/lib/scraper/extract.ts`
-- `src/lib/scraper/providers/index.ts` ← directly consumed by `recommendations/scoring.ts`
-
----
-
-## ALLOWED — Can proceed now without touching #946 frozen files
-
-### 1. `src/lib/leveling/` — FULL GREEN
-Zero imports from frozen scope. Imports only: prisma, option-registries, profile, learning/skill-mastery, article-library (safe). Full module boundary audit, `any` removal, type-safety pass.
-
-### 2. `src/lib/difficulty-version.ts` — FULL GREEN
-Constants only, no frozen imports. Co-location decision with difficulty domain can proceed.
-
-### 3. `src/lib/recommendations/` — PARTIAL (5/6 files safe)
-SAFE: `index.ts`, `context.ts`, `diversity.ts`, `explanations.ts`, `types.ts`
-Barrel documentation, `any` audit, import-direction verification on these 5 files can proceed.
-FROZEN: `scoring.ts` — imports from `scraper/providers` which has live uncommitted changes. DEFER.
-
-### 4. `src/lib/reader/` — PARTIAL (3/4 files safe)
-SAFE: `commands.ts`, `schemas.ts`, `route-guard.ts`
-Import audit, `any` check, scope review documentation allowed.
-FROZEN: `page-loader.ts` — imports `sanitizeArticleHtml`, `articleHtmlToReaderText` from content-pipeline.
-EXECUTION of merge-into-article-library is DEFERRED (carrying `page-loader.ts` pipeline imports into merged module tightens coupling with #946). DECISION (document only) is allowed.
-
-### 5. `src/lib/article-library/` — PARTIAL (14/16 files safe)
-SAFE files (no frozen imports):
-- `policy.ts`, `mapper.ts`, `listings.ts`, `listing-response.ts`
-- `moderation.ts`, `review.ts`, `takedown.ts`, `tenant-integrity.ts`
-- `collections/commands.ts`, `collections/default-list-policy.ts`, `collections/index.ts`
-- `collections/membership.ts`, `collections/read-models.ts`, `collections/schemas.ts`
-
-BARREL `index.ts`: documentation audit and any-check on safe re-exports is ALLOWED. Structural reorganization of exports that depend on deferred sub-modules (admin, collections/tags) is DEFERRED.
-
-FROZEN:
-- `admin.ts` — structural changes touching `getArticleProcessingSteps`/`StepRow` from `processing/state`
-- `collections/tags.ts` — imports `articleHtmlToReaderText` from `content-pipeline`
-
----
-
-## DEFERRED — Must wait for #946 resolution
-
-1. `src/lib/difficulty.ts` consolidation — `articleHtmlToReaderText` from `content-pipeline` shape may change under #946.
-2. `src/lib/reader/page-loader.ts` — `sanitizeArticleHtml` + `articleHtmlToReaderText` from `content-pipeline`.
-3. `src/lib/recommendations/scoring.ts` — `scraper/providers` has live uncommitted changes; interface is in flux.
-4. `src/lib/article-library/admin.ts` — structural refactor touching `getArticleProcessingSteps`/`StepRow`.
-5. `src/lib/article-library/collections/tags.ts` — `articleHtmlToReaderText` from `content-pipeline`.
-6. `reader/` merge execution (if decided) — execution carries `page-loader.ts` pipeline coupling into article-library.
-7. Full `difficulty.ts` + `difficulty-version.ts` consolidation into clean module — gated on content-pipeline final boundary.
-
----
-
-## Deferred-Work Tracking Requirement (non-negotiable)
-
-**The deferred scope MUST NOT be silently dropped.** A dedicated follow-up child issue must be filed under #939 to track these 7 deferred items explicitly. Acceptance criteria from #949 that are not deliverable in the PARTIAL GO pass must be replicated verbatim in the child issue with "Blocked by #946" annotation. This is a condition of PARTIAL GO authorization.
-
----
-
-## Validation Path for ALLOWED Work
-
-```
-npm run typecheck
-npm test -- tests/article*.test.ts tests/reader*.test.ts tests/recommendations*.test.ts tests/leveling*.test.ts
-```
-
-Note: `tests/difficulty*.test.ts` target remains in scope only for the constants/version file; `difficulty.ts` itself deferred.
-
----
-
-## Ordering
-
-1. **Start with leveling/** — fully isolated, clean seam, fastest win
-2. **difficulty-version.ts** — constants consolidation decision
-3. **recommendations/ (5 safe files)** — barrel + import-direction audit; document engagement→recommendations direction as intentional
-4. **article-library/ (14 safe files)** — barrel doc pass + any-removal on safe sub-modules
-5. **reader/ (3 safe files)** — scope review + document merge decision (do not execute)
-6. **After #946 merges** → file child issue → execute deferred 7 items in one pass
-
-### 2026-07-12: Grammar route test mocks @/lib/reader/route-guard directly
-**By:** Tank
-**What:** `tests/grammar-routes.test.ts` mocks `@/lib/reader/route-guard` at the module level rather than cascading through `@/lib/article-library` + `@/lib/security/rate-limit`.
-**Why:** Mocking the guard directly is the established seam (seen in `routes-api-fallbacks.test.ts`) and keeps the route test focused on the HTTP contract boundary rather than internal guard wiring already covered by `tests/reader-route-guard.test.ts`.
-
-### 2026-07-12: Today nav placed in secondary group / More sheet on mobile
-
-**By:** Switch
-**What:** Today (`/today`) is added to NAV_ITEMS with `group: "secondary"` and `mobileTab: false`. On mobile it appears in the More sheet (overflow), not as a fifth primary tab.
-**Why:** The four primary tabs (Dashboard, Browse, Study, Progress) fill the constrained mobile budget. A fifth tab would crowd smallest viewports. The More sheet is the established overflow channel per issue #1011 acceptance criteria ("choose the most evidence-backed overflow placement"). Feature-gate (`requiresFeature: "todaySession"`) threads through `ShellUser.showTodayNav` derived in the RSC layout — no server runtime config leaks to client modules.
-
-### 2026-07-12T02-44-24: Issue #1015 admin ReadingSeries API contract and lifecycle guardrails
-**By:** Trinity
-**What:** Issue #1015 admin ReadingSeries API contract and lifecycle guardrails
-**References:** #1015, src/lib/engagement/series.ts, src/app/api/admin/series/route.ts, src/app/api/admin/series/[id]/route.ts, src/app/api/admin/series/[id]/reorder/route.ts
-**Why:** Implemented the ReadingSeries curation contract as service-first + capability-gated admin API. Service now owns list/detail/create/update/delete/reorder, slug/title/description normalization, duplicate/not-found handling, one-way lifecycle transitions (draft→active→archived; no regressions), active-enrollment delete conflict, and transactional reorder requiring identical membership. Admin routes are /api/admin/series (GET, POST), /api/admin/series/[id] (GET, PATCH, DELETE), and /api/admin/series/[id]/reorder (POST), all gated by CAPABILITIES.articlesManage and mapped via throwIfFailed/ApiError without direct Prisma in route handlers. Added focused service + route tests and updated route-group normalization for admin series dynamic IDs.
-
-### 2026-07-11T22:31:57.145+00:00 — Epic #1008 final promotion accepted
-55f2dfbb73892eaa574e2d8b087b1265ca50a97d https://github.com/huangyingting/ReadWise/pull/1032 https://github.com/huangyingting/ReadWise/actions/runs/29190298960 https://github.com/huangyingting/ReadWise/actions/runs/29190298930
-### 2026-07-12 — Issue #1035 mobile UI audit reaches GO; main promotion pending
-
-**Source:** Issue #1035 final audit/review trail
-
-Accepted roots: safe-area, viewport-aware popover geometry, reader 100dvh, canonical high-risk wiring, and the semantic auth-boundary anchor. Child mapping is corrected and final: #1036→PR #1039→dev d4adc823; #1037→PR #1040→dev 6928c076 (PR body corrected after issue-number mix-up); #1038→PR #1041→dev 80bfc51; #1042→PR #1043→dev caffbad (v1 rejected; strict lockout preserved; final 79/79 zero-skip approval); #1044→PR #1045→dev d27cc36. Final QA is 520/520, 79/79 zero-skip/only/retry, 5/5 smoke, and 16/16 CTA matrix. Architecture final GO, Rai final GREEN, and Fact Checker final GO. Parent #1035 stays open until dev→main promotion and post-main CI.
-
-### 2026-07-13 — Issue #1035 mobile UI audit closes after main promotion
-**Source:** Promotion PR #1047 and post-main validation.
-**Evidence:** PR https://github.com/huangyingting/ReadWise/pull/1047 merged dev→main at commit https://github.com/huangyingting/ReadWise/commit/a15412fae26d2b2790a6d7161603cd66c60ee951. Post-main CI https://github.com/huangyingting/ReadWise/actions/runs/29227918120 succeeded on that exact SHA; release workflow https://github.com/huangyingting/ReadWise/actions/runs/29227918111 succeeded and skipped tag/release creation by contract because the version already existed.
-**State:** Final product gates remained 5/5 smoke, 79/79 high-risk zero skips, 520/520 full UI audit, and 16/16 CTA matrix. Architecture GO, Rai GREEN, and Fact Checker GO held. Parent #1035 and children #1036/#1037/#1038/#1042/#1044 are closed.
-
 
 ### 2026-07-14: Cycle 2 Review — PR #1061 APPROVED
 
@@ -916,3 +273,1252 @@ Accepted roots: safe-area, viewport-aware popover geometry, reader 100dvh, canon
 **References:** PR #1061, commit 40371e7, CI run 29352599245
 
 **Verdict:** APPROVE cycle-2 revision; coverage 100%; unblock Switch re-review
+
+# Morpheus review — PR #1105 (`squad/1081-discovery-ledger-schema`)
+
+**Reviewer:** Morpheus  
+**Date:** 2026-07-19  
+**Verdict:** APPROVE
+
+---
+
+## Checklist findings
+
+### 1. All 5 models present with required field groups ✅
+
+- **DiscoverySource** — all 16 field groups from issue present: identity (providerKey/sourceKey/definitionVersion), role, lifecycleMode, automationPolicy, health, schedule (scheduleCron/pollIntervalSeconds/nextRunAt/lastRunAt), lease (leaseOwner/leaseAcquiredAt/leaseExpiresAt), checkpoint (checkpointCursor/checkpointPage), watermark (watermarkAt/watermarkKey), validator (validatorVersion), baseline (baselineStartedAt/baselineCompletedAt/baselineObservedCount), activation (activatedAt), backoff (backoffUntil/backoffLevel/consecutiveFailures), budget (discoveryBudgetPerRun/bodyFetchBudgetPerRun/backfillBudgetPerRun), gap (gapState/gapDetectedAt/gapNote).
+- **CrawlCandidate** — permanent public-ingestion identity, lifecycle status, first/last observation, owning provider, processing version, trusted date provenance, terminal reason, optional Article ref (nullable + SetNull), deletion-safe history (terminalReason/terminalAt/ingestedAt/articleDeletedAt).
+- **UrlAlias**, **DiscoveryObservation**, **CanonicalConflict** — all present with versioned sanitized identity keys.
+
+### 2. Orthogonal controlled fields ✅
+
+`role`, `lifecycleMode`, `automationPolicy`, `health` are four separate enums/columns on `DiscoverySource`. On `CrawlCandidate`, `status` and `observedInBaseline` are independent. No single overloaded state column.
+
+### 3. Uniqueness constraints ✅
+
+All six required constraints in both migrations:
+| Constraint | Table |
+|---|---|
+| `(providerKey, sourceKey, definitionVersion)` | DiscoverySource |
+| `(providerKey, identityVersion, provisionalKey)` | CrawlCandidate |
+| `(providerKey, canonicalKey)` | CrawlCandidate |
+| `(providerKey, identityVersion, aliasKey)` | UrlAlias |
+| `(discoverySourceId, observationKey)` | DiscoveryObservation |
+| `(providerKey, identityVersion, canonicalKey)` | CanonicalConflict |
+
+### 4. Governing invariant — CrawlCandidate.articleId nullable + SET NULL ✅
+
+**SQLite migration:**
+```sql
+"articleId" TEXT,  -- nullable
+CONSTRAINT "CrawlCandidate_articleId_fkey" FOREIGN KEY ("articleId") REFERENCES "Article" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+```
+**PG migration:**
+```sql
+"articleId" TEXT,  -- nullable
+ALTER TABLE "CrawlCandidate" ADD CONSTRAINT "CrawlCandidate_articleId_fkey"
+  FOREIGN KEY ("articleId") REFERENCES "Article"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+```
+Both engines correct. Cascade is NOT used; SET NULL is enforced.
+
+### 5. Cascade choices deliberate ✅
+
+| Relationship | onDelete | Verified |
+|---|---|---|
+| CrawlCandidate → DiscoverySource | SetNull | Both migrations |
+| CrawlCandidate → Article | SetNull | Both migrations (governing invariant) |
+| UrlAlias → CrawlCandidate | Cascade | Both migrations |
+| DiscoveryObservation → DiscoverySource | Cascade | Both migrations |
+| DiscoveryObservation → CrawlCandidate | Cascade | Both migrations |
+| CanonicalConflict → CrawlCandidate (incumbent) | SetNull | Both migrations |
+
+### 6. Metadata only ✅
+
+No article text, credentials, secrets, tokens, signed URLs, prompts, translations, or user-private content. Identity keys (`provisionalKey`, `canonicalKey`, `aliasKey`, `observationKey`, `watermarkKey`, `checkpointCursor`) are annotated as sanitized digests. `leaseOwner` annotated as opaque worker token, not a credential.
+
+### 7. SQLite/PostgreSQL parity ✅
+
+- `base.prisma` is source of truth; both generated schemas match — diff shows only the `provider` line differs.
+- Both migration directories contain `20260719051551_add_discovery_ledger_schema/migration.sql`.
+- PG migration uses `CREATE TYPE ... AS ENUM (...)` for all 9 enums; SQLite uses TEXT columns with DEFAULT values.
+- PG migration uses `ALTER TABLE ... ADD CONSTRAINT` for FKs; SQLite uses inline CONSTRAINT syntax.
+- **`rw_scope_article_tag` trigger NOT dropped**: the new PG migration contains zero DROP/ALTER TRIGGER statements. Existing trigger lives in its own prior migration.
+
+### 8. Scope discipline ✅
+
+All changes in: `prisma/base.prisma`, generated schemas, both migration dirs, `tests/db/discovery-ledger.test.ts`, `tests/db/support/discovery-fixtures.ts`, `tests/db/support/db-helpers.ts` (cleanup), `docs/content/incremental-provider-scraping-design.md`, `docs/README.md`. No unrelated refactors, no runtime compatibility layers.
+
+### 9. Tests genuinely exercise the required scenarios ✅
+
+12 tests covering:
+- Creation of all 5 models and read-back
+- Orthogonal field storage (role/lifecycleMode/automationPolicy/health/gapState independently stored/retrieved)
+- Uniqueness collisions for every required constraint
+- `canonicalKey = NULL` allows multiple rows (correct NULL semantics, both engines)
+- **Article deletion preserves candidate identity** (governing invariant): row survives, `articleId` → null, `status`/`provisionalKey`/`canonicalKey`/`ingestedAt` all retained, aliases and conflicts survive, re-observation of same `provisionalKey` collides
+- DiscoverySource deletion cascades observations but preserves candidate (SetNull)
+- CanonicalConflict resolution workflow
+
+Cleanup sweep in `db-helpers.ts` correctly handles SetNull cascade ordering (conflicts removed first, then candidates, then sources).
+
+### 10. Design doc ✅
+
+`docs/content/incremental-provider-scraping-design.md` — frontmatter `status: "current"`, `last_updated: "2026-07-19"`. Fully documents Phase-1 data model including all enums (table), all uniqueness constraints, all cascade decisions (table with rationale), and orthogonality of controlled fields. Later phases stubbed as planned.
+
+---
+
+## Non-blocking nits
+
+1. **CanonicalConflict uniqueness is unconditional on status** — `@@unique(providerKey, identityVersion, canonicalKey)` prevents a second conflict record for the same canonical key even after resolution. In Phase 3 (conflict review UI), a resolved conflict cannot be "reopened" as a new row at the same identityVersion; the escape hatch is to bump `identityVersion`. Worth tracking as a known constraint for Phase 3 design.
+
+2. **No test for `CanonicalConflict.incumbentCandidateId → SetNull` on candidate deletion** — since candidates are permanent in normal operation this code path is never exercised in practice, so omitting it is pragmatically fine for Phase 1.
+
+---
+
+## Decision
+
+**APPROVE.** All correctness and parity requirements from issue #1081 are met. Uniqueness, cascade, orthogonality, and the governing invariant (SetNull on articleId in both engines) are all correct. Scope is clean. Tests are substantive, not ceremonial.
+
+# Decision — Versioned URL normalization & public article identity (#1082)
+
+**Agent:** Mouse (Data/AI Pipeline)
+**Date:** 2026-07-19
+**Branch:** squad/1082-url-normalization
+**Status:** proposed (pending review)
+
+## What
+
+New pure module `src/lib/scraper/url-identity.ts` turns secret-free provider URLs
+into a readable normalized URL + a fixed-size versioned identity key. Extends the
+`Provider` type with a data-only `urlIdentity?: ProviderUrlIdentityPolicy`
+(mirrors the existing `cleanup`/`declutter`/`extraction` pattern). No DB/schema
+change (correct for a pure module; ledger columns land in later phases).
+
+## Key design decisions
+
+- **Identity-key format:** `<identityVersion>:<sha256hex>` — for v1, literal
+  `v1:` + 64-char lowercase SHA-256 hex of the normalized URL (67 chars total).
+  Fixed-size, non-null, suitable for a DB unique constraint. Chose SHA-256 hex
+  (full digest, not truncated) matching existing repo convention
+  (`src/lib/storage/key.ts`, `src/lib/sentence-translation.ts`).
+- **Version tag:** `URL_IDENTITY_VERSION = "v1"`. Any normalization-behavior
+  change requires bumping the tag; migration procedure documented in the design
+  doc. `v1`/`v2` coexist via the ledger's `identityVersion`-scoped uniques.
+- **Tracking allowlist-to-strip:** explicit central set (`utm_*`/`pk_*`/... +
+  named click IDs). Unknown params are NEVER stripped generically — only a
+  provider's `meaningfulParams` may drop params, and tests must prove it.
+- **Credential/signature stripping (security):** userinfo + fragment stripped at
+  the parse boundary; `x-amz-*`/`x-goog-*`/`x-ms-*` presign families + credential
+  name/substring set (token, sig, signature, hmac, apikey, password, secret,
+  sessionid, jwt, bearer, expires, ...) always dropped. Errors + `redactUrlForLog`
+  never echo secret parts; unparseable input → `[unparseable-url]`.
+- **Provisional vs canonical:** two separate operations. Canonical ownership
+  accepted only for same provider, a separately-registered provider (reruns its
+  own admission), or an explicitly-associated domain (host preserved). Unknown
+  cross-domain canonical → `unknown-cross-domain-canonical` error.
+- **Provider wiring (additive, real):** natgeo `meaningfulParams: []` (discovery
+  already discards query string); bbcfeatures fold `bbc.com→www.bbc.com`, strip
+  trailing slash, associated `bbc.co.uk`; theconversation fold `www` alias +
+  `…/amp` suffix.
+
+## Evidence
+
+- Focused: `tests/scraper-url-identity.test.ts` — 57 pass / 0 fail.
+- Full suite: 4580 pass / 0 fail / 34 skipped (baseline 4523 + 57 new = 4580; zero
+  new failures).
+- `npm run typecheck` clean; eslint clean on touched files.
+
+## Deferred follow-ups
+
+- Ledger data migration / key backfill on a future identity-version bump belongs
+  to the ingestion phases (P1.3+), not this pure module.
+
+# 2026-07-19: Issue #1084 (Phase 1.4) — discovery fetch seam
+
+**By:** Mouse (Data/AI Pipeline)
+
+**What:** Implemented `fetchDiscoveryResponse` in `src/lib/scraper/fetch.ts` exposing HTTP
+response metadata (status, final URL, ETag/Last-Modified validators, Retry-After, and a
+minimal Content-Type-only header allowlist) to discovery adapters, alongside the unchanged
+body-only `fetchCore`/`fetchHtml`/`fetchText`.
+
+**Key decisions:**
+1. **Shared SSRF hop loop (no fork).** Extracted an internal `performSafeFetch(url, init,
+   timeoutMs, consume)` that owns the one-and-only safe hop loop (per-hop `resolveAndPin`
+   IP-pinning, manual bounded redirects `MAX_REDIRECTS=5`, single `AbortController` timeout,
+   `readBodyWithLimit` size cap, dispatcher close). BOTH `fetchCore` (re-throws its typed
+   stops to preserve historical throwing contract) and `fetchDiscoveryResponse` (maps to
+   typed results) are built on it. This is the #1 anti-regression: SSRF cannot drift.
+2. **Result type = discriminated union** on `outcome`: `ok` | `not-modified` (304, no body) |
+   `retryable` (429/5xx + parsed `retryAfterMs`) | `error` (other non-2xx) | `blocked`
+   (`reason: "unsafe-address" | "too-many-redirects"`, NO url). 304 is a normal no-body
+   success, never a throw.
+3. **Discovery path does NOT run the bot-challenge strategy chain** (browser/reader/Wayback).
+   That rotation stays reserved for article-body GETs via `fetchHtml` (unchanged). Discovery
+   issues a single validated origin request per hop.
+4. **Redaction:** extracted the pure `redactUrlForLog` into new dependency-free
+   `src/lib/scraper/url-redaction.ts`; `url-identity.ts` re-exports it (preserves #1082
+   surface). Reason: importing it from `url-identity.ts` into `fetch.ts` transitively pulled
+   the provider registry into the SSRF hot path and broke 3 tests that mock `providers`/`fetch`
+   incompletely. The light module keeps the fetch layer free of that coupling. `blocked`
+   outcomes omit the URL; only the redacted REQUEST url + hop index are logged.
+5. **DI seam:** `DiscoverDeps.fetchResponse` (defaults to `fetchDiscoveryResponse`) passed to
+   `urlExtractor` via new optional `UrlExtractorContext.fetchResponse` — mirrors
+   `deps.fetchHtml`, keeps discovery tests network-free.
+
+**Verification:** `npm test` 4601 pass / 0 fail / 40 skipped (baseline 4590 + 11 new tests).
+`npm run typecheck` 0 errors. `npm run lint` clean on touched files. New tests in
+`tests/scraper-discovery-fetch.test.ts` (11) cover conditional headers, 304, final redirect
+URL, Retry-After, oversized body, blocked private-redirect (no leak), redaction of
+signed URLs + auth headers, and single-request (no strategy rotation).
+
+**Files changed:** src/lib/scraper/fetch.ts, types.ts, discovery.ts, url-identity.ts,
+url-redaction.ts (new), tests/scraper-discovery-fetch.test.ts (new),
+tests/discovery-default-fetch.test.ts (mock updated), docs/content/incremental-provider-scraping-design.md,
+docs/README.md.
+
+**References:** #1084, epic #1078, program #1077.
+
+# Decision: #1086 frontier is pure decisions + compound window in classify
+
+- **PR:** #1112 (branch `squad/1086-watermark-gap-detection`)
+- **Context:** Phase 1.6 watermark/overlap/calibration/gap detection.
+
+## Decisions
+1. **Compound window comparison added to `classify.ts`.** classify previously used
+   a timestamp-only `<= windowStart` bound. To make the compound `(publishedAt,
+   key)` watermark SAFE for same-timestamp/delayed entries, I added an OPTIONAL
+   `windowKey` to `PageClassificationContext`. When omitted, behavior is
+   byte-identical to #1085 (all existing tests unchanged). This is the minimal
+   change that lets the compound watermark prevent silent same-timestamp misses.
+2. **Watermark eligibility is provenance-gated (FEED + PAGE_METADATA).** Sitemap
+   `lastmod` must be presented by adapters with a NON-eligible provenance (it is
+   not an "approved structured page field"); URL/HTTP_HEADER/INFERRED/UNKNOWN
+   never advance the watermark. Configurable per-provider via `Provider.discovery`.
+3. **Frontier logic is PURE decisions; a thin `frontier-commit.ts` persists** with
+   the #1085 guarded `updateMany({id, leaseOwner, definitionVersion})` pattern.
+   Adapter/worker wiring + periodic calibration scheduling + alert delivery are
+   deferred to the ingestion/worker phase (noted in the PR).
+
+# Decision: Source observability, auto-degradation & admin API (backend, #1089 P1.9)
+
+CURRENT_DATETIME: 2026-07-19T10:15:00Z
+By: Mouse (via Copilot, requested by huangyingting)
+
+## Operational-status taxonomy (AC1)
+A single derived enum lets the UI render a source without DB inspection.
+Precedence (first match wins): `gap-detected` > `stalled` > `partial` > `healthy-backlog` > `healthy-caught-up`.
+- `gap-detected` — gapState = DETECTED (completeness gap surfaced; never auto-fetched).
+- `stalled` — health FAILING/BLOCKED, OR active drift: zero-discovery streak >= threshold, OR watermark stalled beyond threshold, OR consecutiveFailures beyond threshold. Needs attention.
+- `partial` — health DEGRADED, gap SUSPECTED, or backoff active. Incomplete but progressing.
+- `healthy-backlog` — HEALTHY with pending work (QUEUED + INGESTING candidates).
+- `healthy-caught-up` — HEALTHY, caught up, no backlog.
+
+## Auto-degradation thresholds (AC3) — provider-aware, PURE
+`decideDegradation(signals, thresholds)` only ever acts on ACTIVE sources; all other
+modes → `keep`/`not-active` (baseline/shadow are pre-active; paused/disabled/retired
+are operator-managed). Demotion is ACTIVE→SHADOW (a "rollback" edge) via the existing
+`transitionDiscoveryLifecycle`, so checkpoint/candidate/watermark state is preserved and
+the source is recoverable (SHADOW→ACTIVE re-activates).
+Default thresholds (overridable per provider):
+- maxZeroDiscoveryStreak = 8 consecutive boundary-reached HTTP-200 runs with 0 new eligible identities → `demote-to-shadow` (zero-discovery-drift). This is the AC3 trigger.
+- maxWatermarkStallMs = 21 days with the source otherwise running → `demote-to-shadow` (watermark-stall).
+- SUSPECTED gap → `flag-review` (no demotion).
+Auto-degradation runs inside the worker's own lease at run-finalize and is no-throw
+(failure-isolated; never breaks the loop).
+
+## Zero-discovery streak persistence
+Added ONE additive column `DiscoverySource.consecutiveZeroDiscoveryRuns Int @default(0)`
+(mirrors `consecutiveFailures`). Incremented when a run reaches boundary with 0 new
+eligible identities; reset to 0 on any new discovery. Durable, guarded, deterministic —
+the only reliable per-source signal for the sustained HTTP-200/zero-discovery scenario
+(CrawlRun is provider-level legacy and not tied to a DiscoverySource).
+
+## Admin API shape (capability: sources.manage)
+- GET  /api/admin/discovery-sources                 → list summaries (+ status)
+- GET  /api/admin/discovery-sources/[id]            → detail metric summary
+- POST /api/admin/discovery-sources/[id]/lifecycle  → { action } lifecycle mutation
+  actions: begin-baseline | complete-baseline | activate | pause | resume | rollback | disable | retire
+  Every mutation validated (oneOf action + id param) + audited (AUDIT_ACTIONS.adminDiscoverySourceLifecycle).
+Non-goals (deferred): review, backfill, conflict resolution, authenticated-source
+secrets, force-rescrape.
+
+# Decisions — issue #1090 (Phase 1.10 capstone)
+
+## 2026-07-19T11:30:00Z — Canary selection rationale
+By: Mouse (via Copilot, requested by huangyingting)
+
+**What:** Three UNAUTHENTICATED, fixture/live-stable discovery canaries, one per
+common discovery channel, mapped to the existing `DiscoverySourceRole`:
+- RSS canary → `theconversation` (`PRIMARY_FEED`) — a stable, high-volume RSS 2.0
+  feed with trusted `<pubDate>` (FEED provenance).
+- Sitemap canary → `worksinprogress` (`SITEMAP`) — a small `<urlset>` sitemap with
+  `<lastmod>` (PAGE_METADATA provenance, trusted).
+- Seed-HTML canary → `undark` (`SECTION_INDEX`) — a section index whose anchors are
+  article links; no trusted per-item date (URL provenance → review-required when ACTIVE).
+
+**Why:** These are already-registered, unauthenticated public providers with a
+representative shape for each channel. Choosing one representative of each channel
+proves the SAME common incremental-discovery model against all three input styles.
+No authenticated source is chosen (explicit non-goal). Adapters are fixture-driven so
+the soak is deterministic and needs no live network.
+
+## 2026-07-19T11:30:00Z — Exit-gate thresholds
+By: Mouse (via Copilot, requested by huangyingting)
+
+**What:** Five quantitative Phase-1 exit gates, ALL must pass (hard zeros, no relaxation):
+- `no-old-item-false-positives`: `oldItemFalsePositives === 0` (no known/baseline
+  identity reclassified as new/eligible/queued).
+- `no-duplicate-jobs`: `duplicateJobs === 0`.
+- `no-unexplained-misses`: reconciliation `unexplainedMisses === 0` (explained misses
+  — outside-window / not-yet-observable — are allowed).
+- `recovery-successful`: `faultsInjected > 0 && unrecoveredFaults === 0`.
+- `within-budget`: `discoveredPerRun <= discoveryBudgetPerRun` (when budget set) AND
+  volume anomaly is not `spike`.
+
+**Why:** These are the four go/no-go conditions in the epic (zero old-item false
+positives, zero duplicate jobs, no unexplained misses, successful recovery) plus a
+volume/cost budget bound. Hard zeros because Phase 1 is the correctness gate.
+
+## 2026-07-19T11:30:00Z — Activation enforcement design
+By: Mouse (via Copilot, requested by huangyingting)
+
+**What:** `activateDiscoverySource` accepts an optional async `exitGateGuard`. When the
+guard returns a non-passing verdict, activation is REFUSED with a new typed failure
+`exit-gates-failed` and the source stays SHADOW (no mode flip, no candidate queueing).
+`applyLifecycleAction("activate")` installs a default canary guard
+(`evaluateCanaryExitGatesForSource`) for canary-configured sources, so the admin path
+cannot activate a failing canary. The admin route maps `exit-gates-failed` → 409. No
+override in this phase (fix/replace the canary instead).
+
+**Why:** SHADOW→ACTIVE via `activateDiscoverySource` is the ONLY code path to ACTIVE
+(`classifyLifecycleTransition` only allows SHADOW→ACTIVE forward, and `applyLifecycleAction`
+routes every other action through `transitionDiscoveryLifecycle` whose targets are never
+ACTIVE). Gating that single seam closes every activation shortcut. The guard is injectable
+so tests prove refusal deterministically. Default preserved as no-guard so existing
+non-canary activation behaviour and tests are unchanged.
+
+## 2026-07-19T11:30:00Z — Definition-version replacement + rollback mechanism
+By: Mouse (via Copilot, requested by huangyingting)
+
+**What:** No schema change. A source definition version is a distinct `DiscoverySource`
+row keyed by the existing `@@unique([providerKey, sourceKey, definitionVersion])`.
+Replacement = create a NEW row `definitionVersion = max+1` in DISABLED and begin its own
+independent baseline/shadow, leaving the prior row RETAINED and untouched. Rollback =
+RETIRE the newer row and keep/re-enable the retained prior row. Pure planners
+(`planDefinitionVersionReplacement` / `planDefinitionVersionRollback`) + guarded commit
+helpers; DB test proves both rows coexist, the new version shadows independently, and the
+prior version is restorable.
+
+**Why:** `definitionVersion` is already the cross-program guard (lease/checkpoint/commit
+all revalidate it). Representing versions as separate rows means each version has its own
+lease, checkpoint, watermark and candidates, so a new version genuinely runs independently
+in shadow and the prior version is retained intact for rollback — with zero schema churn.
+
+## 2026-07-19T11:30:00Z — AC4 no-body-work evidence
+By: Mouse (via Copilot, requested by huangyingting)
+
+**What:** Structural proof. Canary adapters only fetch the feed/sitemap/index document
+(never an article body). DB tests inject FAILING body-fetch / Article-write / ingest-enqueue
+deps and assert they are NEVER reached across baseline + shadow + the gated activation path,
+and assert `Article`/`ARTICLE_INGEST` job counts stay zero. Reuses the #1088
+`lifecycle-run-guard` + the run handler that already performs no body work.
+
+# Decision — #1092 Phase 2.2: canonical identity + prose fingerprint convergence
+
+Date: 2026-07-19T14:30:00Z
+By: Mouse (via Copilot, requested by huangyingting)
+
+## Final-identity resolution model (pure)
+- `resolveFinalIdentity({ owningProviderKey, finalUrl, canonicalUrl? })` returns one of
+  `keep-own-provider | transfer-to-provider | route-to-review`.
+- Declared canonical is authoritative over the fetched final URL; falls back to the
+  final URL when no canonical is declared.
+- Delegates to the versioned #1082 `deriveCanonicalIdentity`, so keys stay sanitized +
+  versioned. `UrlIdentityError` maps to review reasons
+  (`unknown-cross-domain-canonical`, `invalid-final-url`, `unsupported-scheme`).
+- **Why**: identity derivation must never re-implement normalization; a page must not be
+  able to claim an unrelated domain's identity. Associated domains keep the owner
+  (host preserved); a different registered provider triggers a transfer.
+
+## Provider ownership transfer
+- On transfer, the target provider's admission policy (`articleUrlPattern` +
+  `articleUrlFilter`) is RE-RUN via `admittedByProvider`. Failure → `route-to-review`
+  (`transfer-admission-rejected`), never silently accepted under a laxer policy.
+- **Why**: syndicated content owned by another provider must satisfy that provider's
+  admission gate before it is saved. Source-window/publication re-evaluation on transfer
+  is deferred to the #1095 pipeline (which owns source context) — noted as a follow-up.
+
+## Prose fingerprint version + normalization
+- `PROSE_FINGERPRINT_VERSION = 1`. Fingerprint = `v1:<sha256hex>` of normalized prose.
+- Normalization: NFKC → lowercase → collapse Unicode whitespace to one space → trim.
+- **Exact-only, no fuzzy/semantic**: a hash yields zero false merges. Fuzzy matching could
+  merge distinct articles or masquerade as a content refresh of a KNOWN Article (forbidden
+  by the governing invariant). Empty normalized prose returns `null` (never collides).
+- The prose text is NEVER stored/logged — only the hash + version columns
+  (`bodyFingerprint`, `bodyFingerprintVersion`).
+
+## Collision-merge winner selection (pure `selectMergeWinner`)
+1. Two or more participants with an Article → unmergeable → `review`
+   (`multiple-known-articles`).
+2. Protected-tier precedence: a participant with an Article wins; failing that a baseline
+   participant wins; among equally-protected the earliest wins.
+3. Otherwise earliest by `firstObservedAt`, then `createdAt`, then `id`.
+- **Why**: a KNOWN Article (or baseline identity) must win so it is never touched (AC4);
+  otherwise the earliest candidate is the stable, deterministic winner.
+
+## DUPLICATE_ALIAS / NEEDS_REVIEW semantics
+- `DUPLICATE_ALIAS`: a later candidate folded into the winner — its aliases (relabelled
+  `DUPLICATE`) + observations are re-pointed to the winner, its canonical slot cleared, its
+  pending `ARTICLE_INGEST` job cancelled.
+- `NEEDS_REVIEW`: parked before Article creation with an OPEN `CanonicalConflict` row
+  (unknown cross-domain, rejected transfer, cross-provider fingerprint, multiple known
+  articles). Ingest job cancelled.
+- SQLite `CrawlCandidateStatus` is TEXT (no migration for new values); PostgreSQL uses
+  `ALTER TYPE … ADD VALUE`.
+
+## Convergence-after-conflict
+- The canonical `@@unique([providerKey, canonicalKey])` is the collision point.
+- Merge runs in a single guarded interactive `$transaction` (reads-before-tx, guarded
+  `updateMany`, `upsert` for the conflict row — never catch-P2002-in-tx).
+- A concurrent claim of the slot makes the tx throw P2002; the STANDALONE wrapper
+  (`convergeCanonicalMerge`, ≤5 retries) catches it, re-queries the now-existing winner, and
+  folds into it — so two racing workers converge on ONE candidate instead of both failing
+  (AC1). No global unique on the fingerprint — cross-provider matches route to review.
+
+## Governing invariant (AC4)
+- `applyFinalIdentity` no-ops (leaves untouched) any candidate with `articleId != null` or
+  `observedInBaseline`, both before and again inside the tx. A fingerprint/identity check
+  NEVER refreshes/replaces a known Article; a colliding fresh candidate folds INTO the known
+  Article instead.
+
+### 2026-07-20T15:35:35Z: Canonical-conflict KIND is single-sourced
+
+**By:** Scribe (recording Admin IA gap audit decision)
+
+**What:** Conflict KIND is single-sourced through `classifyConflictKind(incumbentCandidateId)` in `canonical-conflict-policy.ts`. The resolver and detail query both call the same helper so baseline Type A and runtime Type B behavior remains in agreement.
+
+**Why:** Agreement by construction prevents the UI from presenting a resolution selector the resolver rejects. The invariant is pinned by a source-level test.
+
+**References:** Issue #1158, PR #1161.
+
+### 2026-07-20T15:35:35Z: Deferred #1159 tenant-admin and tag-chip items
+
+**By:** Scribe (recording Admin IA gap audit decision)
+
+**What:** Issue #1159 items 1 and 3 remain deferred. Item 1 (tenant Organization/Classroom admin surface) needs product scoping and RBAC wiring, so it is not a minimal gap fix. Item 3 (per-tag chip UI) is a UX nicety over the already-functional replace-all tag editing surface.
+
+**Why:** The Admin IA audit fixed backend-supported relationships/attributes where a minimal UI could safely expose them. Tenant administration requires broader authorization/product decisions, while tag chips do not block existing tag configuration.
+
+**References:** Issue #1159 items 1 and 3.
+
+### 2026-07-20T15:35:35Z: Article moderation visibility is public-library-only
+
+**By:** Scribe (recording Admin IA gap audit decision)
+
+**What:** Article moderation visibility editing is intentionally restricted to the ownerless public-library subset `PUBLIC` ↔ `UNLISTED`. `PRIVATE` and `ORG` are owner/organization-scoped, tenant-integrity-coupled values. They are hard-blocked server-side with HTTP 409 and rendered read-only in the UI.
+
+**Why:** Moderation can safely toggle discoverability for public-library articles, but reassignment into owner/org scope would require tenant/product ownership semantics outside a minimal admin fix. This mirrors the existing moderation `status` restriction to `DRAFT`/`PUBLISHED`.
+
+**References:** Issue #1159 item 2, PR #1162.
+
+# Switch: Baseline Unit Test Fix — Source Untouched
+
+**Date:** 2026-07-19  
+**Agent:** Switch (Tester)  
+**PR:** https://github.com/huangyingting/ReadWise/pull/1107  
+**Branch:** squad/fix-baseline-unit-tests
+
+## Decision
+
+All 4 fixes were test-side only. No production source was modified.
+
+## Diagnosis Summary
+
+| Test | Root Cause | Fix |
+|------|-----------|-----|
+| `query-indexes.test.ts:67` | Assertion checked function body for `ownerId: null` but refactor moved value into `PUBLIC_LISTABLE_RULE` const | Check const has `ownerId: null` and function spreads it |
+| `routes-api-fallbacks.test.ts:697` | Multiple `mock.module()` stubs missing exports after refactor; transitive `today-session/actions` (not mocked) pulled in full generator/recommendations/article-library chain | Added missing exports + new mock for `/actions` sub-module |
+| `server-read-models-runtime.test.ts:464` | `@/lib/article-library` mock missing `readableArticleSqlPredicate` needed by `fulltext.ts` | Added `readableArticleSqlPredicate` to mock |
+| `config-runtime-env.test.ts:172` | `ENV_KEYS` list missing provider credential env vars (`AZURE_OPENAI_*`, `GOOGLE_CLIENT_*`, `AZURE_AD_*`, `VAPID_*`); `.env` loaded by test runner sets them globally | Added missing keys to `ENV_KEYS` |
+
+## Key Learnings
+
+1. **`--experimental-test-module-mocks` with barrels**: When a barrel is mocked, ALL exports needed by transitive unmocked imports must be listed — no lazy resolution. One missing export = hard `SyntaxError` at link time.
+
+2. **`today-session/actions` is a fan-out barrel**: It re-exports from 6 sub-modules. Without a dedicated mock, loading it pulls in `set-article.ts` → `generator.ts` → `recommendations/picks.ts` — a deep chain.
+
+3. **env isolation in full-suite runs**: Tests using `--env-file-if-exists=.env` share a process. `beforeEach` must clear ALL env vars that could affect config assertions, not just the ones the test sets itself.
+
+## Tally
+
+- Before: `tests 4557 | pass 4519 | fail 4`
+- After:  `tests 4557 | pass 4523 | fail 0`
+
+# Decision: Discovery ledger schema (#1081)
+
+- **Author:** Tank (Backend Dev)
+- **Date:** 2026-07-19
+- **Issue:** #1081 (parent epic #1078, program #1077)
+
+## Context
+Phase 1 of stateful incremental provider ingestion needs durable relational
+state for source scheduling and a permanent candidate/alias ledger that makes
+the governing invariant (never auto-reingest a known Article) enforceable.
+
+## Decisions
+
+1. **`providerKey` is a plain string, NOT an FK to `ContentSource`.**
+   Rationale: matches the existing `ContentSource` / `CrawlRun` convention
+   (providerKey references the code registry key, not a row). Keeps the change
+   additive and decouples ledger lifecycle from `ContentSource` rows. The new
+   `DiscoverySource` lives ALONGSIDE `ContentSource`/`CrawlRun` (not a
+   replacement): ContentSource holds provider health/policy; DiscoverySource
+   holds per-source incremental scheduling/lease/watermark state.
+
+2. **`CrawlCandidate.articleId` is nullable + `onDelete: SetNull`.**
+   Core invariant enforcement: deleting an Article nulls the back-reference but
+   never deletes/resets the candidate identity, so a known URL is never silently
+   re-ingested. `articleDeletedAt`/`terminalReason` preserve history.
+
+3. **Cascade split:** source-run observations expire with their DiscoverySource
+   (Cascade); candidate identity, aliases, conflicts survive (SetNull to
+   source/article; aliases Cascade to the permanent candidate).
+
+4. **Orthogonal controlled fields:** role / lifecycleMode / automationPolicy /
+   health are separate enums; candidate `status` vs `observedInBaseline` are
+   independent — no overloaded state column.
+
+5. **Versioned sanitized identity keys** (`identityVersion` + `*Key`), never raw
+   secret-bearing URLs. Metadata only.
+
+6. **Migration timestamp `20260719051551`** used for both engines (PG dir renamed
+   to match SQLite to satisfy migration-name parity).
+
+## Verification
+- `npm run schema:generate` + `schema:check-parity` + `schema:validate`: OK.
+- `npm run typecheck`: clean.
+- SQLite focused test (`tests/db/discovery-ledger.test.ts`): 12/12 pass.
+- PostgreSQL: same test 12/12 pass; full `test:db` suite 34/34 pass.
+
+# Tank — Issue #1083 (Phase 1.3) baseline seed & conflict isolation
+
+**By:** Tank (Backend Dev)
+**Date:** 2026-07-19
+**Branch:** squad/1083-baseline-seed
+**PR:** #1109 (https://github.com/huangyingting/ReadWise/pull/1109)
+
+## Decisions
+
+### Identity mapping (#1082 string tag → #1081 numeric+string columns)
+- `identityVersion` (Int) = numeric parse of `URL_IDENTITY_VERSION`: `"v1"` → `1`
+  (strip leading `v`, parse int; guarded).
+- `provisionalKey` / `aliasKey` / `canonicalKey` / `challengerKey` (String) =
+  the FULL versioned key emitted by #1082 (`"v1:<sha256hex>"`), NOT the bare hash.
+  Rationale: the full key is the module's public identity token, self-describing,
+  and collision-safe even if a future version reused the numeric column. Applied
+  EVERYWHERE consistently (candidate + alias + conflict).
+
+### CrawlCandidateStatus for backfilled articles
+- Chose `INGESTED` with `ingestedAt` + `terminalAt` set, `terminalReason =
+  "baseline-existing-article"`, `observedInBaseline = true`.
+  Rationale: these are EXISTING, fully-published public Articles whose body is
+  already persisted — INGESTED is the truthful terminal outcome. `BASELINE`
+  denotes "seen during baseline but not necessarily ingested"; that would
+  understate reality. `observedInBaseline=true` is the governing-invariant flag
+  that keeps normal incremental runs from ever re-ingesting.
+- `firstObservedAt`/`lastObservedAt` = `article.publishedAt ?? article.createdAt`
+  (preserves temporal ordering; NOT inferred from network). `canonicalKey` left
+  NULL (we never infer a page canonical here).
+
+### Conflict-reason vocabulary
+- `CanonicalConflict.reason = "baseline-duplicate-provisional-identity"`,
+  `status = OPEN`, `canonicalKey = challengerKey = <contested key>`,
+  `incumbentCandidateId = null` (fail closed for that identity ONLY; no candidate
+  created for any article in the group). Unrelated identities/providers proceed.
+
+### Skip reasons (recorded in report, metadata-only)
+- `missing-source-url`, `no-registered-provider`, `invalid-url`,
+  `unsupported-scheme`. `deriveProvisionalIdentity` is permissive but returns
+  `providerKey: null` for unregistered hosts → we SKIP (candidate.providerKey is
+  NOT NULL; we never fabricate a provider). Throwing UrlIdentityError → skip.
+
+### Idempotency / safety
+- No schema change (relies on #1081 `@@unique([providerKey, identityVersion,
+  provisionalKey])`). Existence-check + create with P2002-tolerant catch →
+  accurate created/existing counts and rerun/interrupt-safe convergence.
+- Dry-run/report mode: reads + classification only, ZERO writes, imports only the
+  PURE url-identity module (no scraper fetch dependency).
+- Report is metadata-only: article IDs + controlled conflict reason + counts;
+  no content, titles, URLs, or user-private data.
+
+### Placement
+- Core logic: `src/lib/scraper/incremental/baseline-backfill.ts` (testable).
+- CLI: `scripts/backfill-discovery-baseline.ts` (`--dry-run`), npm script
+  `backfill:discovery-baseline`.
+
+# Tank — Issue #1085 (Phase 1.5) atomic page commit & classification
+
+**By:** Tank (Backend Dev)
+**Date:** 2026-07-19
+**Branch:** squad/1085-atomic-page-commit
+**Base HEAD:** 546daa06
+
+## Decisions
+
+### Module layout (orchestration interface under src/lib/scraper/incremental/)
+- `classify.ts` — PURE classifier (no DB/network). `page-commit.ts` —
+  single-transaction commit + re-exports the pure surface so callers import ONE
+  module. Routes/scripts/workers call `commitDiscoveryPage`; they never
+  re-implement admission/classification.
+
+### Page adapter result shape (`DiscoveryPageResult`)
+- `items: DiscoveryPageItem[]` (url, optional `stableId`, controlled
+  `publishedAt` + `dateProvenance`, optional `positionRank`/`httpStatus`),
+  `continuation: {cursor?, page?} | null`, `boundaryReached`, and
+  `validators: {etag?, lastModified?, validatorVersion?}`. Built on the #1084
+  `DiscoveredUrl` shape via `pageItemFromDiscoveredUrl` (channel→provenance:
+  rss/api→FEED, sitemap→PAGE_METADATA, else URL).
+
+### Classification outcome vocabulary (exactly one per item)
+`policy-rejected` | `existing-identity` | `baseline-shadow` | `outside-window` |
+`review-required` | `eligible`.
+- Identity mapping kept CONSISTENT with #1083: `identityVersionToInt`, full
+  `"v1:<sha256hex>"` key as `provisionalKey`. Admission gate = provider
+  `articleUrlPattern` + `articleUrlFilter` on the normalized (secret-free) URL.
+- Precedence: normalize→provider→admission (reject) → existing-identity (wins in
+  ALL modes) → non-ACTIVE ⇒ baseline-shadow → ACTIVE dated-window
+  (review-required if undated, outside-window if ≤ windowStart, else eligible).
+- **Candidate persistence policy (deliberate):** candidates are created only for
+  `eligible` (DISCOVERED) and `baseline-shadow` (BASELINE, observedInBaseline).
+  `existing-identity` bumps the existing candidate's `lastObservedAt` ONLY (never
+  status/observedInBaseline/articleId — governing invariant). `policy-rejected` /
+  `outside-window` / `review-required` are OBSERVATION-ONLY (no candidate), so
+  rejections/frontier decisions stay re-evaluable and the permanent ledger is not
+  polluted with nav-link/rejected identities.
+- **Observation = universal per-item durable outcome.** Every item gets exactly
+  one idempotent `DiscoveryObservation`. `observationKey` = versioned identity key
+  when derivable, else a one-way digest (`id:<stableId>` / `url:<sha256>`) — never
+  a raw URL.
+
+### Atomicity (checkpoint-after-writes)
+- All classification reads (source snapshot + known-identity set) happen BEFORE
+  the tx. ONE `prisma.$transaction`: (1) re-read + revalidate lease
+  (`leaseOwner` + `definitionVersion`), (2) upsert candidates, (3) upsert aliases,
+  (4) upsert observations, (5) **guarded** checkpoint advance
+  (`updateMany where {id, leaseOwner, definitionVersion}`); count===0 ⇒ throw ⇒
+  full rollback. Checkpoint advances only after every write, so a fault at any
+  boundary rolls the whole page back — the checkpoint never advances with a
+  missing outcome. TEST-ONLY `debugHooks` (receive the tx client) inject faults /
+  a mid-commit lease steal.
+
+### Idempotent races (cross-engine)
+- Used `upsert` (INSERT … ON CONFLICT) for candidate/alias/observation — NOT a
+  catch-P2002-inside-tx (which poisons a PostgreSQL transaction, unlike the
+  standalone-write races in #1083). Two concurrent commits of the same page
+  converge on one row set + one checkpoint; replay adds zero rows. Mirrors the
+  guarded-conditional-update spirit of `claim-generic.ts`/`claim-postgres.ts`.
+
+### Lease/version revalidation
+- Pre-tx cheap check (early `lease-lost`/`source-not-found` return, no writes) +
+  in-tx re-read + guarded checkpoint-advance conditional. A lease lost before OR
+  during the commit never advances the checkpoint.
+
+## Scope / non-goals honored
+- No schema change (relies on #1081 models + constraints; parity OK).
+- No due-source claiming / scheduler (#1087). No article body fetch, no
+  `ARTICLE_INGEST` job — proven by tests. Network reads stay outside the tx.
+
+## Verification
+- `npm test`: 4622 pass / 0 fail / 51 skipped (baseline 4601/0/40 + 21 new pure
+  tests; +11 db tests skipped without RUN_DB_INTEGRATION). Zero new failures.
+- `npm run test:db` (SQLite): 11 new page-commit integration tests pass; only the
+  22 pre-existing PG-guard failures remain (no new test:db failures).
+- `npm run typecheck`: 0 errors. `npm run lint`: clean on touched files.
+  `npm run schema:check-parity`: OK.
+
+## Files
+- src/lib/scraper/incremental/classify.ts (new)
+- src/lib/scraper/incremental/page-commit.ts (new)
+- tests/scraper-page-classify.test.ts (new)
+- tests/db/page-commit.test.ts (new)
+- docs/content/incremental-provider-scraping-design.md, docs/README.md
+
+**References:** #1085, parent epic #1078, program #1077. Deps #1081/#1082/#1084.
+
+# Decision: leased DiscoverySource scheduling (#1087, Phase 1.7)
+
+- **Sibling loop, not a second daemon.** `runDiscoveryLoop` runs under the same
+  `runJobWorker` runtime, sharing poll cadence / stop signal / `once` mode. The
+  pass is activated only when `options.discovery.fetchPage` is supplied.
+- **No schema change.** All fields (#1081) sufficed. "Pause" is modelled via the
+  existing `PAUSED`/`DISABLED` lifecycle modes and `MANUAL` policy (not claimed),
+  plus future `nextRunAt` / active `backoffUntil` (not due).
+- **"Fallback" without a FALLBACK enum.** Modelled in the pure scheduler as a
+  designated source that stays dormant (returns null → not due) until an
+  activation flag (primary-failing / zero-discovery) is set by the caller.
+- **Bounded single-page claim** over heartbeat: keeps leases short and resumes
+  from the durable checkpoint. Non-boundary pages set `nextRunAt = now` so
+  pagination continues page-by-page across claims.
+- **Deferred:** production provider->DiscoveryPageResult fetcher wiring into
+  `scripts/worker.ts` (later phase); machinery is fully tested via the seam.
+
+PR: #1113 · branch: squad/1087-leased-discovery-scheduling
+
+# Tank — Issue #1091 (Phase 2.1) atomically enqueue candidate-based ARTICLE_INGEST work
+
+**By:** Tank (via Copilot, requested by huangyingting)
+**Date:** 2026-07-19T13:00:00Z
+**Branch:** squad/1091-candidate-ingest-enqueue
+**Base HEAD:** cc134dc0
+
+## Decisions
+
+### Transaction-aware enqueue (`enqueueJobInTx` / `enqueueCandidateIngestInTx`)
+- Added `enqueueJobInTx(tx, type, payload, dedupeKey, opts)` in
+  `src/lib/jobs/enqueue.ts` that participates in the caller's EXISTING interactive
+  transaction. Idempotency uses `tx.job.upsert({ where: { dedupeKey }, create,
+  update: {} })` — NOT catch-P2002. A caught P2002 poisons a PostgreSQL
+  transaction; `upsert` (INSERT … ON CONFLICT) is race-safe and returns the DB
+  winner directly, so concurrent/replayed enqueues converge on one Job.
+- The `update: {}` no-op is deliberate: an existing Job (ACTIVE or TERMINAL) is
+  REUSED, never reset. This is the opposite of the standalone `enqueueDeduped`
+  (which resets terminal jobs) and is what makes AC3 hold — the dedupe key
+  includes the processing version, so ordinary rediscovery reuses the winner.
+- No queue metric is emitted inside the tx (the surrounding page commit may roll
+  back; counting "enqueued" before commit would be wrong). The standalone
+  `enqueueJob`/`enqueueDeduped` remain unchanged for non-incremental callers.
+
+### Candidate-based payload + dedupe key (pure seam `candidate-ingest.ts`)
+- Payload shape: `{ candidateId, processingVersion }` ONLY — never a URL,
+  provider policy, credential, or article data (AC4). Type lives in
+  `types.ts` (`CandidateIngestPayload`); builder/validator/dedupe-key/predicate
+  live in the PURE, DB-free `src/lib/jobs/candidate-ingest.ts` so they are
+  unit-testable + covered by the unit-only coverage gate.
+- Dedupe key: `article-ingest:candidate:<candidateId>:v<processingVersion>`.
+- Processing version: a code-defined constant
+  `CANDIDATE_INGEST_PROCESSING_VERSION = 1` — NO schema change (the existing
+  nullable `CrawlCandidate.processingVersion` column is not needed at
+  enqueue-time; bumping the constant in code starts a fresh, independently-deduped
+  attempt without disturbing prior terminal Job history).
+
+### Page-commit wiring (eligible-only, ACTIVE-only, same transaction)
+- In `commitClassifiedItem` (`page-commit.ts`), after the candidate upsert +
+  provisional alias, an item classified `eligible` in `ACTIVE` lifecycle mode
+  enqueues one candidate-based ARTICLE_INGEST job via
+  `enqueueCandidateIngestInTx(tx, candidateId)` INSIDE the same `$transaction`
+  that writes candidate/alias/observation and advances the guarded checkpoint.
+  Any later rollback (fault or lost lease at the checkpoint advance) rolls the
+  Job back too, so a committed checkpoint never points past a missing Job (AC1).
+- Gate is `outcome === "eligible" && lifecycleMode === ACTIVE`. `eligible` is
+  only ever emitted by the pure classifier in ACTIVE mode; the explicit mode
+  check is belt-and-suspenders. Baseline / shadow / existing-identity /
+  review-required / outside-window / policy-rejected candidates NEVER enqueue.
+- `CommitDiscoveryPageResult` gained `ingestJobsEnqueued` for observability/tests.
+
+### Worker dispatch + #1095 hand-off boundary
+- `createDefaultRegistry` now dispatches ARTICLE_INGEST on payload shape: a
+  candidate-based payload → `makeCandidateIngestHandler(loadCandidate)`; the
+  legacy url/articleId ArticleIngest payload → the existing article processor
+  (kept as-is for its existing callers; NO runtime compat layer added).
+- The candidate handler RESOLVES the candidate by id at execution time
+  (`loadCandidate`, injectable for unit tests; defaults to
+  `prisma.crawlCandidate.findUnique`), then:
+  - malformed payload → permanent `validation` JobError;
+  - missing candidate → permanent `missing` JobError (dead-letter);
+  - terminal (INGESTED/REJECTED/SKIPPED) / `observedInBaseline` / already
+    `articleId`-linked candidate → safe no-op (a known identity is never
+    re-ingested — governing invariant);
+  - otherwise → a clear no-op hand-off point. Fetch / extract / Article creation
+    is EXPLICITLY OUT OF SCOPE (#1095); nothing is fetched or created here, and
+    no URL/article content is ever logged (AC4).
+
+## Verification (SQLite locally; PG job in CI)
+- `npm run typecheck` → 0 errors.
+- `npm test` → 4935 tests, 4833 pass, 0 fail, 102 skipped (baseline 4819 pass /
+  0 fail / 95 skipped; +14 new unit tests, +7 DB tests skipped in the unit run).
+- `npm run test:db` → 22 failures, ALL pre-existing "requires a PostgreSQL
+  DATABASE_URL"; new candidate-ingest DB suite (7) + updated page-commit (11) pass.
+- `npm run lint` (touched files) → clean.
+- No schema change → no parity run needed. No API route touched → no api-catalog.
+
+## Test-behavior change (intentional)
+- The existing `page-commit.test.ts` "eligible page commit …" test asserted NO
+  ingest job (Phase-1 discovery-only). Updated to assert exactly ONE candidate-
+  based ingest job + PII-free payload + still NO Article. Its `afterEach` now also
+  deletes the candidate-keyed ingest jobs (they are not swept by the PREFIX sweep).
+
+# Decision Log — #1093 (Phase 2.3) retries, quarantine, extractor-version reactivation
+
+Datetime: 2026-07-19T16:00:00Z
+By: Tank (via Copilot, requested by huangyingting)
+
+## Failure taxonomy → disposition
+- Pure `classifyIngestAttempt({outcome, now, attemptNumber, firstAttemptAt, config})` maps a #1095-supplied ingest-attempt outcome to `{disposition, reason, retryAfterMs?, nextAttemptAt?}`.
+- Reason codes are machine-only (never bodies/URLs): fetch_timeout, network_error, http_404_pre_propagation, http_403_temporary, http_429, http_5xx, extraction_incomplete, quality_rejected, http_410_gone, access_restricted, http_client_error, http_404_after_grace.
+- Permanent (immediate `terminal`): 410, access-restricted, other non-404/403/429 4xx.
+- Transient (`retry` while attempts remain, else `quarantine-on-exhaustion`): timeout, network, 404 within grace, 403 temp, 429, 5xx, extraction-incomplete.
+- Deterministic reprocessable (`quarantine-on-exhaustion` immediately, reactivatable by extractor upgrade): quality-rejected; and 404 after the propagation grace window elapses.
+
+## Grace + backoff + Retry-After
+- Newly-discovered candidate gets a CONFIGURABLE propagation grace window (SCRAPER_INGEST_PROPAGATION_GRACE_MS, default 6h) measured from firstIngestAttemptAt.
+- A 404 within grace = pre-propagation transient (retry); after grace = quarantine (persistent not-found).
+- Next attempt = now + Retry-After when the server supplied one (overrides backoff); otherwise now + jitteredExponentialBackoff(attemptNumber, base, max) reusing src/lib/backoff.ts. Fake-clock + injectable random for determinism.
+
+## QUARANTINED semantics
+- New CrawlCandidateStatus.QUARANTINED = ONE visible terminal-ish state for exhausted transient or deterministic reprocessable failures.
+- NOT re-enqueued on rescan: page-commit only enqueues ingest for a NEW `eligible` classification; re-observing an existing candidate touches lastObservedAt only and never enqueues, and the ingest Job dedupe key already exists (terminal Job reused, never reset). QUARANTINED is thus stable across scans.
+- Permanent (410/access) → status REJECTED (immediate terminal), distinct from QUARANTINED.
+
+## Reactivation eligibility + budget + version-bump dedupe
+- Pure `selectReactivationEligible(candidates, {newExtractorVersion, budget})`: eligible iff articleId==null AND !observedInBaseline AND status==QUARANTINED AND lastFailureReason ∈ {extraction_incomplete, quality_rejected} AND (extractorVersion==null || extractorVersion < newExtractorVersion). Budget caps the returned set (deterministic order).
+- Prohibited (never reactivated): INGESTED/any-articleId (saved/deleted), NEEDS_REVIEW, CONFLICT, DUPLICATE_ALIAS, SKIPPED (policy), REJECTED (permanent), BASELINE/observedInBaseline.
+- `reactivateCandidate` bumps candidate processing version to newExtractorVersion, sets extractorVersion, resets attempt metadata + status→DISCOVERED, and enqueues a NEW ARTICLE_INGEST Job via candidateIngestDedupeKey(id, newExtractorVersion). The prior terminal Job (dedupe v1) stays intact for audit.
+
+## New CrawlCandidate columns (metadata only)
+ingestAttemptCount Int @default(0); nextAttemptAt DateTime?; lastFailureReason String?; firstIngestAttemptAt DateTime?; extractorVersion Int?.
+
+## Governing invariant enforcement
+All recovery/reactivation persistence guards on articleId==null AND !observedInBaseline AND status in the in-progress/quarantine set via a guarded updateMany (count===0 ⇒ throw ⇒ rollback). A known Article (articleId set) or baseline identity is never retried, quarantined, or reactivated.
+
+# Decision: #1094 rate-governor durability split & fairness design
+
+- **Date:** 2026-07-19T17:30:00Z
+- **Author:** Tank (Backend/DB/Jobs)
+- **Issue:** #1094 (Incremental scraping P2.4)
+
+## Context
+Enforce a shared per-hostname budget across discovery + body, provider fairness,
+incremental>backfill priority reservation, independent cost budgets, backoff/pause,
+and backlog throttling — deterministic, no external broker.
+
+## Decisions
+1. **Pure/thin split.** All logic in pure `rate-governor.ts` (injected `now` +
+   plain snapshots, no DB/net/clock). Persistence in thin `rate-governor-commit.ts`
+   (reads before tx; single `$transaction` re-validates; guarded increment then
+   rollback → defer). Config assembly in `rate-governor-config.ts`.
+2. **In-flight concurrency = ephemeral, derived** from leased sources / locked jobs
+   (self-heals across restart). NOT stored. Passed into the pure decision as input.
+3. **Durable state = two tables.** `ScraperBudgetWindow` (per (scope,scopeKey,utcDay)
+   counter — auto-resets by UTC day, no sweeper) for hostname ceiling / provider
+   quota / cost budgets; `HostnameGovernorState` (per hostKey, cross-day) for
+   lastRequestAt / pausedUntil / consecutiveErrors / lastFailureReason.
+4. **`scope` is a plain String, not a Prisma enum** — adding a budget kind needs no
+   PostgreSQL `ALTER TYPE`.
+5. **Idempotent increment = upsert (INSERT..ON CONFLICT)**, never catch-P2002-in-tx.
+6. **Fairness comparator:** incremental tier → fewest in-flight (anti-starvation)
+   → oldest pending (FIFO) → providerKey. KEEP the PG FOR UPDATE SKIP LOCKED claim
+   intact; fairness pre-filters the eligible provider set, not the atomic claim.
+7. **AI budget is advisory** — never stops discovery/candidate persistence.
+
+## Deferred to #1095
+Body-fetch DISPATCH wiring and per-provider/hostname BODY in-flight derivation
+(Job payload today is only {candidateId, processingVersion}; no hostname/provider,
+no Job→CrawlCandidate relation). Governor + discovery-path gate + seams delivered.
+
+# Tank — #1095 Atomic Article save (Phase 2.5) — as-built decisions
+
+Date: 2026-07-19T19:00:00Z
+Branch: squad/1095-atomic-article-save
+
+## Composition approach
+Composed the #1092 pure resolver + thin guarded persistence rather than
+duplicating them. New `ingest-runner.ts` (`createIngestAttemptRunner`) does
+fetch/extract (injected seam) OUTSIDE the tx → `applyFinalIdentity` (#1092) →
+only on a `kept`/`transferred` genuinely-new public identity → new
+`article-save-commit.ts` (`saveIncrementalArticle`) which owns the single
+all-or-nothing `$transaction` (create Article → guarded candidate link →
+in-tx `ARTICLE_PROCESS` enqueue).
+
+## INGESTED vs SAVED
+REUSED `CrawlCandidateStatus.INGESTED` (+ attach `articleId`). No new `SAVED`
+enum. INGESTED already means "candidate → Article" and is already in every
+terminal set; the governing-invariant guard keys on `articleId != null`. A
+distinct SAVED added no semantics and would have forced a 3-file schema-parity
+change + terminal-set edits. Deliberately avoided.
+
+## Schema-or-not
+NO schema change. The candidate-level #1092 body fingerprint (linked via
+`articleId`) already supports the cross-provider body-match stop; no Article
+fingerprint columns were added. Avoids the 3-file parity workflow entirely.
+
+## Race / convergence handling
+- Article created + candidate linked + job enqueued in ONE interactive tx.
+- Guarded `updateMany({ id, articleId: null, observedInBaseline: false, status in SAVEABLE })`
+  in the SAME tx as the Article insert is the serialization point: a losing
+  concurrent worker matches 0 rows → throw → its Article insert rolls back too.
+- P2002 is NEVER caught inside the tx. `SaveRaceError` / Article `@@unique`
+  P2002 propagate out; a bounded standalone loop (MAX 5) re-reads the winner and
+  converges (attach to existing Article, ensure its job). Never a duplicate
+  Article, never a saved candidate without its required job.
+
+## Revalidation guards (inside tx, before create)
+governing invariant (articleId null + not baseline), saveable status,
+provider ownership (`expectedProviderKey`), source activation generation
+(lifecycleMode ACTIVE + definitionVersion + activatedAt marker unchanged).
+Failure → deterministic `revalidation-failed` (stale-generation /
+provider-mismatch), whole tx rolls back, NOT retried.
+
+## Governor-body decision
+DEFERRED (documented follow-up). Body-fetch dispatch + routing through the
+#1094 rate governor land behind the ONE injected `prepareDraft` seam. The Job
+payload + ledger persist only sanitized hashed identity keys
+(`{candidateId, processingVersion}`), NOT a fetchable URL, so resolving a URL to
+fetch needs a separate URL-availability change out of #1095's atomic-save scope.
+`createDefaultRegistry` leaves `runIngestAttempt` unset by default (preserves the
+existing hand-off no-op) unless `candidateIngest.runIngestAttempt` is supplied.
+
+## Verification
+- typecheck: 0 errors
+- npm test: 4918 pass / 0 fail / 138 skipped (baseline 4907/0/127; +11 unit
+  tests, +11 new DB tests skip without RUN_DB_INTEGRATION)
+- npm run test:db (SQLite): 117 pass / 22 fail — all 22 are the expected
+  "test:db requires a PostgreSQL DATABASE_URL" guards (== baseline), no other
+  not-ok lines; the 11 new DB tests pass.
+- eslint on every touched file: clean
+- no schema change → no parity check needed
+
+# Decision: publication-policy module lives in lib/processing, not lib/scraper
+
+Date: 2026-07-19T20:30:00Z
+Agent: Tank
+Issue: #1096 (Phase 2.6 — gate trusted-provider auto-publication)
+
+## Context
+
+The #1096 seam map recommended placing the pure publication-policy module at
+`src/lib/scraper/incremental/publication-policy.ts`. However the trusted-provider
+publication GATE is enforced inside `src/lib/processing/processor.ts`
+(`publishDraftIfReady`), so the processor must consume the policy.
+
+## Constraint
+
+`tests/scraper-content-boundaries.test.ts` enforces a one-way ownership boundary:
+`src/lib/processing/*` MUST NOT import from `@/lib/scraper`, `@/lib/content-pipeline`,
+or `@/lib/sanitize`. Importing the policy from `lib/scraper` (and `MIN_WORD_COUNT`
+from `@/lib/scraper/quality`) violated this boundary.
+
+## Decision
+
+- The pure policy lives at `src/lib/processing/publication-policy.ts` (the publish
+  gate's owner). No scraper code consumes it (ingest does not publish).
+- The body-quality word floor is declared locally as `MIN_PUBLISH_WORD_COUNT = 50`
+  in the processor (mirrors the scraper `MIN_WORD_COUNT` value) rather than
+  importing across the boundary.
+
+## Consequence
+
+Respects the module boundary with zero behavior change. The DiscoverySource trust
+fields are still read via the `crawlCandidates` relation in the processor; no
+scraper import is required.
+
+# Decision: explicit incremental trigger modes + active→shadow rollback
+
+Date: 2026-07-19T22:00:00Z
+Agent: Tank
+Issue: #1097 (Phase 2.7 — move admin/CLI triggers to explicit incremental mode with rollback)
+
+## Context
+
+The admin provider trigger (`admin-trigger.ts`) and the provider CLI
+(`scripts/scrape-provider.ts`) both synchronously looped `discoverProviderUrls` +
+`scrapeAndSave`, which can rescrape KNOWN public Articles — a governing-invariant
+violation. #1097 closes those legacy paths and routes normal operator actions
+through the incremental ledger.
+
+## Decision 1 — Trigger-mode taxonomy
+
+New pure module `src/lib/scraper/incremental/trigger-mode.ts`:
+`TRIGGER_MODES = ["incremental","backfill","force-rescrape"]`, default
+`incremental`, IMPLEMENTED = `["incremental"]`. `validateTriggerMode` accepts
+only `incremental`; `backfill`/`force-rescrape` return a typed
+`not-implemented` rejection (explicit "until Phase 3"). The route body validator
+uses `oneOf(TRIGGER_MODES)` and `object()` drops unknown keys, so a client cannot
+smuggle a `force`/bypass flag (AC3). Phase-3 modes are NOT implemented here
+(non-goal).
+
+## Decision 2 — Job cancellation uses DEAD_LETTER (no new enum value)
+
+"Cancel unclaimed candidate jobs" = the source's `PENDING` candidate-based
+`ARTICLE_INGEST` jobs. The house already has `cancelJob()` moving a job to
+`DEAD_LETTER` with a controlled reason; there is no `JobStatus.CANCELLED`. I
+REUSE `DEAD_LETTER` (reason `"rollback-cancelled"`) rather than adding a new enum
+value. Rationale: consistent with the existing cancellation convention, avoids an
+enum-add migration, and `DEAD_LETTER` is already terminal + non-claimable
+(`RUNNABLE_STATUSES = [PENDING, FAILED]`). Guarded on `status = PENDING` so a
+concurrently-claimed job is never cancelled — it fails closed at Article commit
+via the #1095 generation guard instead. Candidates + observations are untouched.
+
+## Decision 3 — Activation generation = new `activationGeneration Int` column
+
+The #1095 guard (`revalidateSourceGeneration`) already fails in-flight saves
+closed while `lifecycleMode !== ACTIVE`. The MISSING piece: a job whose snapshot
+predates a rollback must ALSO fail closed after a LATER re-activation. Because
+`activatedAt` is stamped only once (first activation), re-activation does not
+change it, so the pre-rollback snapshot would wrongly pass. I add
+`DiscoverySource.activationGeneration Int @default(0)`, INCREMENTED on every
+active→shadow rollback, captured in `SourceGenerationSnapshot`, and checked by
+`revalidateSourceGeneration`. A pre-rollback snapshot then has a strictly lower
+generation than the re-activated source → `stale-generation` → NO Article
+(dovetails with, and keeps, the existing definitionVersion/activatedAt/mode
+guards). Chose an explicit counter over re-stamping `activatedAt` to preserve
+`activatedAt`'s display semantics and the once-only stamping.
+
+## Decision 4 — Admin trigger + CLI request a run; they do not fetch/save
+
+Normal path now REQUESTS an incremental discovery run by making the provider's
+claimable-mode discovery sources (`SHADOW/BASELINE/ACTIVE`) due
+(`nextRunAt = now`, guarded `updateMany`). Bodies are fetched later by the
+candidate-ingest job pipeline; the trigger never fetches or saves. `scrapeAndSave`
+and `discoverProviderUrls` are removed from both normal paths, proving the legacy
+save path unreachable.
+
+## Decision 5 — Which scripts are "normal workflows" vs dev/one-off tools
+
+- CONVERT (normal provider workflow): `scripts/scrape-provider.ts` `scrape`/
+  `resume` → incremental request.
+- LEAVE (explicitly-authorized dev/one-off tools, invoked only by a manual
+  `npm run …`, wired into NO admin route or scheduler): `scripts/scrape.ts`,
+  `scrape-undark.ts`, `scrape-smithsonian.ts`, `scrape-reading-sources.ts`,
+  `scrape-review.ts` (no DB), `build-quality-corpus.ts`, and `src/lib/seed.ts`
+  (used only by `scripts/seed.ts` for local dev seeding). They already skip
+  existing sourceUrls and are not reachable as a normal operator action. The
+  scheduled discovery workflow already runs through the ledger
+  (`runDiscoveryLoop`), so there is no legacy scheduled synchronous scrape.
+
+## Consequence
+
+Rollback (active→shadow) atomically: stops enqueue (mode flip + parks
+`nextRunAt`), cancels unclaimed candidate ingest jobs, and bumps
+`activationGeneration` so stale running work fails closed even across
+re-activation — while retaining candidates + observations for deterministic
+requeue on a later explicit activation.
+
+# Decision note — #1132 reconcile stamped-but-unclaimed rescrape regeneration
+
+- **Agent:** Tank (Backend/DB/Jobs)
+- **PR:** #1137 — `squad/1132-rescrape-regen-reconciler` → `main`
+- **Commit:** 2d203e7d25347fe892c7103e319b98fd8e1c746b
+- **Schema change:** none (queries existing columns/tables only)
+
+## What shipped
+- `src/lib/scraper/incremental/rescrape-regen-reconcile.ts` — `countUnclaimedRescrapeRegen()` +
+  `reconcileUnclaimedRescrapeRegen({ limit?, now? })`, pure `clampReconcileLimit` /
+  `reconcileStampCutoff` helpers.
+- `scripts/reconcile-rescrape-regen.ts` + `maintenance:rescrape-regen` npm script (mirrors
+  `retention-maintenance`).
+- Tests: `tests/db/rescrape-regen-reconcile.test.ts`, `tests/rescrape-regen-reconcile.test.ts`,
+  `tests/reconcile-rescrape-regen-cli.test.ts`.
+- Docs: `docs/operations/admin-operations.md`.
+
+## Key decisions (rationale for reviewers)
+1. **"Unclaimed" predicate:** version `status = ACTIVE` AND `derivedRegenerationRequestedAt <= now - grace`
+   AND no `ArticleProcessingStep` with `step = rescrape-regen:<versionId>`. A step in **any** status
+   (running OR generated) = claimed → skip. The claim persists permanently on success, so absence
+   unambiguously means lost-enqueue.
+2. **In-memory anti-join, action-bounded (not scan-bounded).** Prisma has no anti-join and the claim
+   key is a computed string (not a relation). I scan the stamped-ACTIVE population id-only and subtract
+   claimed steps (chunked lookup), then bound the **action** to `limit`. Deliberately did NOT bound the
+   candidate *fetch* by `limit`: because almost every stamped-ACTIVE version is already claimed, a
+   `take: limit` candidate fetch (oldest-first) could **starve** a genuinely-unclaimed version behind
+   many older claimed ones. Force-rescrape is operator-gated/rare, so the id-only scan is cheap.
+3. **Grace window = 2 min (`RECONCILE_GRACE_MS`), a named constant.** Skips just-activated versions so
+   the sweep never races the original runner. Optimization only — re-invoking is already race-safe via
+   the unique claim. Both sides tested.
+4. **Re-invokes `requestDerivedRegeneration` (not reimplemented).** Idempotency + at-most-once come from
+   the existing `@@unique([articleId, step])` claim; a raced claim returns `alreadyRequested`.
+
+## Validation
+- typecheck 0 errors; eslint (touched files) clean.
+- `npm test` 0 fail (5248 pass, +7 new unit/CLI).
+- `npm run test:db` — only the 22 pre-existing PG-guard failures (fail == guard-message count == 22);
+  all 6 new DB tests pass on SQLite.
+- `api-catalog` clean; `schema:check-parity` OK+OK.
+
+## Deferred
+None.
+
+## 2026-07-19T10:45:00Z — Discovery-source admin UI (frontend half of #1089)
+
+By: Trinity (via Copilot, requested by huangyingting)
+
+**What:** Built the admin surface for discovery-source observability at
+`/admin/discovery-sources` (list + `[id]` detail) plus lifecycle action controls
+(`AdminDiscoverySourceActions`), a client-safe action-metadata module
+(`lifecycle-action-meta.ts`), a pure action-eligibility mirror
+(`lifecycle-action-eligibility.ts`), a shared status badge
+(`DiscoverySourceStatusBadge`), and a `formatAgeSeconds` day-aware duration
+helper. Added a "Discovery" AdminNav link, a unit test, and a Playwright spec.
+
+**Why / notable decisions:**
+- Server components read the observability query lib directly for the initial
+  render (mirroring `/admin/sources`); the client component uses the POST
+  lifecycle API for mutations. Keeps auth via `requireCapability` on the page.
+- Single-sourced the seven action NAMES in a client-safe `lifecycle-action-meta`
+  module and re-exported them from the server dispatcher (`lifecycle-actions.ts`)
+  so the UI button set and the validated API set never drift.
+- Action-button eligibility is a PURE mirror of `applyLifecycleAction` via
+  `classifyLifecycleTransition`, computed server-side and passed as `enabledActions`
+  so the client bundle never imports server/prisma code. `resume` is restricted
+  to PAUSED (a safe subset of backend acceptance) rather than the broader classify
+  result, so the UI never offers "resume" on a non-paused source.
+- AC1 status badge uses `data-status` for robust test targeting; AC4 upheld by
+  rendering only PII-free DTO fields (a unit test asserts no PII field names).
+- E2e ran green in this environment (46s).
+
+# Decision — #1104 P3.5: canonical-conflict + deleted-article governance UI
+
+Date: 2026-07-20T09:00:00Z
+By: Trinity (via Copilot, requested by huangyingting)
+
+## Scope
+Admin UI + focused UI-state tests only, layered on Tank's already-verified backend
+(query/commit modules + 5 API routes) on branch `squad/1104-canonical-conflict-governance`.
+No backend logic, routes, or query/commit modules were touched.
+
+## Pure UI-state helper modules (React-free, shared by pages + tests)
+- `src/lib/scraper/incremental/canonical-conflict-ui.ts` and
+  `src/lib/scraper/incremental/deleted-article-ui.ts` hold all parsing, constants,
+  type-guards, badge tones, count formatters, and error classifiers.
+- **Why**: mirrors the `candidate-review-ui.ts` pattern so `node:test` suites can assert
+  logic without importing React/jsdom. Pages import the same parsers, so searchParam
+  bounds (`DEFAULT_*_LIMIT=50`, `MAX_*_LIMIT=200`, offset≥0) are single-sourced.
+- Wire-accuracy: I `import type` the backend DTOs from the query/recovery modules and
+  override `Date` fields to `string` via `Omit<Dto,"field"> & { field: string }`. This
+  keeps compile-time field-name safety while matching the JSON serialization. Only
+  `import type` is used, so no prisma value ever reaches the client bundle.
+
+## Resolve flow (destructive, two-key)
+- `ConflictDetailSheet` fetches `/api/admin/canonical-conflicts/{id}`, renders per-article
+  dependent-data counts, and hosts a survivor radio over `detail.articles`, a required
+  reason `Textarea`, and an explicit confirm `Switch`. POSTs
+  `{ survivingArticleId, reason: reason.trim(), confirm: true }`.
+- Server outcomes mapped in UI: 200 applied/noop, 400 `survivor-not-a-participant`
+  (surface server message), 409 `stale` → "refresh & retry" banner, 404 not-found.
+- **Why**: the survivor must be chosen from the conflict's own participants (never a free
+  text id), and a destructive merge requires reason + confirm so the audit trail is
+  complete before any Article is retired.
+
+## Recover flow (destructive, two-key)
+- `DeletedRecoverButton` (Popover, mirrors `ReviewActionButton`) collects reason + confirm
+  and POSTs `{ reason, confirm: true }` to `/api/admin/deleted-articles/{id}/recover`
+  (`{id}` = CrawlCandidate id). 409 `ineligible` and `conflict`(stale) get distinct
+  messages; recovery is described as re-admission to the crawl pipeline, not a content
+  restore.
+
+## Privacy invariant
+- UI renders only ids, sanitized hashes, dependent-data counts, reason categories, and
+  timestamps. No URL, title, article/selected text, or credential field is fetched or
+  displayed — enforced by the DTO shape and asserted by a dedicated test in each suite
+  that greps the component source for forbidden field names.
+
+## Design-system compliance
+- Composed from `src/components/ui/*` primitives (`Button`, `Switch`, `Popover`, `Sheet`,
+  `Field`, `Textarea`, `SegmentedControl`, `Badge`, `EmptyState`, `Skeleton`) +
+  `AdminPageHeader`/`AdminTableWrap`. No raw hex/rgb/hsl, no raw `font-size`, no inline
+  `style` font-size; token classes only (e.g. `text-[length:var(--text-sm)]`,
+  `color-mix(... var(--danger) ...)`). Tests strip `#\d+` issue refs before the hex scan.
+
+## AC3 (withdrawal/takedown) — verified, not rebuilt
+- Existing UI `src/components/AdminArticleTakedown.tsx`, rendered from
+  `src/app/admin/articles/[id]/page.tsx`, already drives
+  `POST /api/admin/articles/{id}/takedown` (the existing content-governance model). No new
+  UI was added — AC3 is satisfied by the existing surface.
+
+## Deferred
+- None. All deliverables landed; no follow-up issue filed.
+
+---
+
+### 2026-07-20: Platform-admin Organizations surface built ON the existing tenant system
+
+**By:** Tank (Backend)
+**What:** Added issue #1163's `/admin/organizations` oversight surface without rebuilding tenancy. One new global capability `organizations.manage` (Admin-only), a read-only `src/lib/admin/organizations/*` module (platform-wide list + org detail), two admin API routes (`GET`/`POST /api/admin/organizations`, `GET /api/admin/organizations/[id]`), and admin pages + two client islands. Member role/removal REUSES the existing `/api/orgs/[id]/members/[memberId]` tenant routes (system-admin bypass already there); create REUSES `createOrganization` + `addMember`.
+**Why:** The tenant RBAC + CRUD already existed and was wired; the only gap was a staff-facing list-all/oversight surface. Reusing tenant commands/routes avoids duplicated mutation logic and keeps the last-admin guard authoritative in one place. Also corrected now-stale "not wired yet" comments in `src/lib/rbac.ts` (tenant caps/roles ARE resolved via membership) and regenerated `docs/platform/api-catalog.{json,md}` for the two new routes.
+
+---
+
+# Decision: Assignment sub-system (#1164)
+
+**Author:** Tank (Backend) · **Date:** 2026-07-20 · **Issue:** #1164
+
+## Context
+Make the classroom assignment sub-system fully work: quiz-driven completion,
+assignment edit, overdue indicators, and an optional manual-revert.
+
+## Decisions
+
+1. **Quiz-driven completion is a best-effort side-effect.** `markAssignmentQuizComplete`
+   is called from the quiz-attempt route via `bestEffortMastery("quiz.assignment_completion", …)`,
+   mirroring the existing `markTodayComprehensionComplete` wiring. It NEVER breaks the
+   quiz write. Student id + score are server-derived (session + `result.attempt.scorePct`),
+   never trusted from the body. Enrollment is scoped with the same
+   `classroom: { members: { some: { userId } } }` pattern as `getStudentAssignmentContext`.
+   The same article assigned in >1 enrolled classroom completes all matching assignments.
+
+2. **Shared due-date/instructions helpers.** `parseOptionalDueDate` and `trimOrNull`
+   are now exported from `article-assignments.ts` and reused by `updateAssignment`
+   (commands.ts) so create and edit validate identically. `updateAssignment` only
+   writes the fields present in its input (partial update).
+
+3. **PATCH mirrors DELETE gating.** `PATCH /api/assignments/[id]` resolves the
+   classroom via `getAssignmentClassroom`, then `requireClassroomManageApi` — teacher /
+   org-admin / system-admin pass, others 403; missing assignment → 404. Body schema
+   reuses the create route's `dueDate string({min:1,max:40})` + `instructions string({max:2000})`.
+
+4. **Client-safe overdue helper.** `isAssignmentOverdue(dueDate, status, now)` lives in
+   `src/lib/classroom/overdue.ts` with NO server-only imports (compares status against the
+   `"COMPLETED"` string literal, not the Prisma enum) so it is safe to import into client
+   and server components alike. Teacher-list status is synthesized from the analytics
+   aggregate (`completed >= assigned && assigned > 0` → COMPLETED).
+
+5. **New `listClassroomAssignmentMeta` query.** The analytics `perAssignment` aggregate
+   omits `dueDate`/`instructions`, so the teacher page merges in a focused meta query for
+   the overdue badge + edit-form prefill (keyed by assignmentId).
+
+6. **Part 4 kept light.** Manual (quizScore == null) completions get an "Undo" button that
+   POSTs `status: IN_PROGRESS` to the existing completion route. Quiz-driven completions
+   (quizScore set) remain read-only in the UI — no new endpoint, no quiz-path complexity.
+
+## No schema change
+All fields already existed (`Assignment.dueDate/instructions`,
+`AssignmentCompletion.status/quizScore/completedAt`).
+
+---
+
+# Decision: Tag chip editor for article moderation (#1159, item 3)
+
+**Date:** 2026-07-20
+**Agent:** Trinity (Frontend)
+**Branch:** squad/1159-tag-chips
+**Scope:** `src/components/AdminArticleReview.tsx` (client island) + new test.
+
+## What changed
+Replaced the single comma-separated tags `Input` with an add/remove **chip** UI.
+
+- Tag state is now `string[]` (`useState<string[]>(() => parseTagList(initial.tags))`),
+  seeded ONCE from the existing comma-joined `initial.tags` prop. `parseTagList` is
+  retained solely for that initial parse.
+- Each tag renders as a `Badge` (neutral) chip with a removable `IconButton` (lucide `X`,
+  `aria-label={`Remove tag ${tag}`}`).
+- New tags append via **Enter** (with `preventDefault` so it does not submit the form) OR
+  an **Add** `Button`. Pure helper `addTagTo()` trims, ignores empties, and dedupes
+  case-insensitively.
+- Submit sends `tags` (the array) directly to the SAME `POST /api/admin/articles/[id]/review`
+  body — dropped the `parseTagList(tags)` re-parse at submit.
+
+## Decisions / tradeoffs
+- **Backend contract unchanged.** The payload remains `tags: string[]` (replace-all); only the
+  client-side representation changed. No route/api-catalog impact.
+- **Primitives only.** Composed from `Badge` + `IconButton` + `Input` + `Button` + `Field`;
+  no hand-rolled chip/button/focus ring. Token-driven (no raw hex / inline font-size).
+- **Case-insensitive dedupe** keeps the first-seen casing (does not rewrite existing chips).
+- **`IconButton size="sm"`** (28px) is the smallest shared icon-button; kept it rather than
+  hand-rolling a tighter control, to honour design-system governance.
+
+## Verification
+- `npm run typecheck` → 0 errors
+- `npm run lint` (touched file) → clean
+- `npm test` → 5434 pass / 0 fail / 238 skipped
+
+PR: targets `main`, closes #1159 (items 1 & 2 already shipped via #1163/#1164 and #1162).
