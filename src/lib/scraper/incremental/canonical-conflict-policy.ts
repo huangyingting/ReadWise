@@ -50,6 +50,20 @@ export const CONFLICT_LOSER_TERMINAL_REASON = "governance:conflict-loser";
  */
 export const CONFLICT_LOSER_GOVERNANCE_ACTION = "conflict-resolution.archived-loser";
 
+/**
+ * Terminal reason stamped on a folded candidate during a first-class runtime
+ * (Type B) conflict resolution (issue #1135) — the challenger when the incumbent
+ * is kept, or the incumbent when the challenger is promoted. History is folded as
+ * a DUPLICATE alias onto the winner, never erased.
+ */
+export const TYPE_B_CONFLICT_LOSER_TERMINAL_REASON = "governance:type-b-conflict-loser";
+
+/**
+ * Machine reason recorded on the ContentReview row when the incumbent's produced
+ * Article is archived because the challenger was promoted canonical (issue #1135).
+ */
+export const TYPE_B_INCUMBENT_ARCHIVED_ACTION = "conflict-resolution.type-b-incumbent-archived";
+
 // ---------------------------------------------------------------------------
 // Conflict-resolution decision (pure).
 // ---------------------------------------------------------------------------
@@ -126,4 +140,105 @@ export function decideConflictResolution(
 
   const loserArticleIds = participantArticleIds.filter((articleId) => articleId !== survivingArticleId);
   return { kind: "apply", survivingArticleId, loserArticleIds };
+}
+
+// ---------------------------------------------------------------------------
+// First-class runtime (Type B) conflict resolution decision (pure) — issue #1135.
+// ---------------------------------------------------------------------------
+
+/**
+ * A runtime (Type B) conflict is created during live ingest when a genuinely-new
+ * challenger candidate resolves to an identity already owned by an incumbent
+ * candidate (`incumbentCandidateId` is SET). This is DISTINCT from a baseline
+ * (Type A) conflict — contested EXISTING public Article ids, `incumbentCandidateId
+ * = null` — resolved by {@link decideConflictResolution}.
+ */
+export type ConflictKind = "type-a" | "type-b";
+
+/** Detects the conflict KIND from its incumbent-candidate linkage (audit trail). */
+export function classifyConflictKind(incumbentCandidateId: string | null): ConflictKind {
+  return incumbentCandidateId == null ? "type-a" : "type-b";
+}
+
+/**
+ * The explicit operator decision for a runtime (Type B) conflict — which of the
+ * two contending CANDIDATES is canonical (net-new value beyond the candidate-
+ * review approve/reject queue, which can only park/reject the challenger):
+ *   - `incumbent` — the incumbent stays canonical; the challenger is folded as a
+ *     DUPLICATE (formalizes today's reject).
+ *   - `challenger` — the challenger is PROMOTED: the canonical claim transfers
+ *     from the incumbent to the challenger, the incumbent's aliases fold onto it,
+ *     and the incumbent's produced Article (if any) is archived + RETAINED.
+ */
+export type TypeBCanonicalChoice = "incumbent" | "challenger";
+
+/** Illegal Type-B resolution reason codes (sanitized categories — never content). */
+export type ConflictResolveTypeBIllegalReason =
+  /** The conflict's shape does not match the submitted decision (Type-A vs Type-B). */
+  | "wrong-conflict-type"
+  /** The conflict's `incumbentCandidateId` references a candidate that no longer exists. */
+  | "incumbent-candidate-missing"
+  /** Promoting the challenger requires a parked challenger candidate that no longer exists. */
+  | "challenger-candidate-missing";
+
+/** Inputs the pure Type-B decision reads — all metadata ids/status, no URLs/content. */
+export type ConflictResolveTypeBInput = {
+  status: CanonicalConflictStatus;
+  /** The operator's explicit canonical decision. */
+  canonical: TypeBCanonicalChoice;
+  /** The conflict's incumbent linkage — `null` means it is NOT a Type-B conflict. */
+  incumbentCandidateId: string | null;
+  /** Whether the incumbent candidate row still exists (computed reads-before-tx). */
+  incumbentExists: boolean;
+  /** The parked challenger candidate id matching `challengerKey`, or null if gone. */
+  challengerCandidateId: string | null;
+};
+
+/** Outcome of {@link decideTypeBResolution}. */
+export type ConflictResolveTypeBDecision =
+  | { kind: "apply"; canonical: TypeBCanonicalChoice }
+  | { kind: "noop"; reason: ConflictResolveNoopReason; status: CanonicalConflictStatus }
+  | {
+      kind: "illegal";
+      reason: ConflictResolveTypeBIllegalReason;
+      status: CanonicalConflictStatus;
+    };
+
+/**
+ * Decides whether an operator may resolve a runtime (Type B) conflict with an
+ * explicit incumbent-vs-challenger decision. Deterministic and side-effect free.
+ *
+ * Legality:
+ *   - A RESOLVED / DISMISSED conflict is an idempotent no-op (never re-opened).
+ *   - A conflict with no `incumbentCandidateId` is a Type-A conflict — the Type-B
+ *     decision shape does not apply (`wrong-conflict-type`).
+ *   - The incumbent candidate must still exist (it owns the contested canonical
+ *     slot / Article); a vanished incumbent cannot be resolved automatically.
+ *   - Promoting the challenger requires the parked challenger candidate to still
+ *     exist (the canonical claim is transferred ONTO it). Keeping the incumbent
+ *     tolerates a vanished challenger (the fold is then a safe no-op).
+ */
+export function decideTypeBResolution(
+  input: ConflictResolveTypeBInput,
+): ConflictResolveTypeBDecision {
+  const { status, canonical, incumbentCandidateId, incumbentExists, challengerCandidateId } = input;
+
+  if (status === CanonicalConflictStatus.RESOLVED) {
+    return { kind: "noop", reason: "already-resolved", status };
+  }
+  if (status === CanonicalConflictStatus.DISMISSED) {
+    return { kind: "noop", reason: "already-dismissed", status };
+  }
+
+  if (incumbentCandidateId == null) {
+    return { kind: "illegal", reason: "wrong-conflict-type", status };
+  }
+  if (!incumbentExists) {
+    return { kind: "illegal", reason: "incumbent-candidate-missing", status };
+  }
+  if (canonical === "challenger" && challengerCandidateId == null) {
+    return { kind: "illegal", reason: "challenger-candidate-missing", status };
+  }
+
+  return { kind: "apply", canonical };
 }

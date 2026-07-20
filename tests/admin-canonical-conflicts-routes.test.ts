@@ -23,9 +23,10 @@ import { type AuthState, fullAuthExports } from "./support/auth-mock";
 type AuditCall = { action: string; metadata?: Record<string, unknown>; targetId?: string; targetType?: string };
 type ResolveInput = {
   conflictId: string;
-  survivingArticleId: string;
+  survivingArticleId?: string;
   resolvedBy: string;
   migrateReaderData?: boolean;
+  canonical?: "incumbent" | "challenger";
 };
 
 let authState: AuthState = "ok";
@@ -255,6 +256,21 @@ test("POST resolve requires a surviving article id (400)", async () => {
   assert.equal(resolveCalls.length, 0);
 });
 
+test("POST resolve rejects BOTH selectors at once (400) without running the commit", async () => {
+  const POST = await importResolve();
+  const res = await POST(
+    jsonPost("http://test/api/admin/canonical-conflicts/cf-1/resolve", {
+      survivingArticleId: "a1",
+      canonical: "incumbent",
+      reason: "r",
+      confirm: true,
+    }),
+    withParams({ id: "cf-1" }),
+  );
+  assert.equal(res.status, 400);
+  assert.equal(resolveCalls.length, 0);
+});
+
 test("POST resolve applies, returns 200, and audits sanitized metadata (no URL/content)", async () => {
   const POST = await importResolve();
   const res = await POST(
@@ -393,4 +409,133 @@ test("POST resolve not-found maps to 404", async () => {
     withParams({ id: "cf-1" }),
   );
   assert.equal(res.status, 404);
+});
+
+// ---------------------------------------------------------------------------
+// Type B (runtime) resolution branch (#1135)
+// ---------------------------------------------------------------------------
+
+test("POST resolve forwards the Type-B canonical selector ONLY (no Type-A keys) and returns 200", async () => {
+  resolveResult = {
+    ok: true,
+    kind: "applied-type-b",
+    conflictId: "cf-1",
+    canonical: "challenger",
+    winnerCandidateId: "cand-chal",
+    loserCandidateId: "cand-inc",
+    archivedArticleId: "art-inc",
+  };
+  const POST = await importResolve();
+  const res = await POST(
+    jsonPost("http://test/api/admin/canonical-conflicts/cf-1/resolve", {
+      canonical: "challenger",
+      reason: "operator promoted the challenger",
+      confirm: true,
+    }),
+    withParams({ id: "cf-1" }),
+  );
+  assert.equal(res.status, 200);
+  const data = await readJson<{ outcome: string; canonical: string; winnerCandidateId: string; archivedArticleId: string }>(res);
+  assert.equal(data.outcome, "applied-type-b");
+  assert.equal(data.canonical, "challenger");
+  assert.equal(data.winnerCandidateId, "cand-chal");
+  assert.equal(data.archivedArticleId, "art-inc");
+  // Only the Type-B shape is forwarded — never a stray survivingArticleId / migrateReaderData.
+  assert.deepEqual(resolveCalls[0], {
+    conflictId: "cf-1",
+    resolvedBy: "admin-1",
+    canonical: "challenger",
+  });
+});
+
+test("POST resolve Type-B applied audits sanitized metadata (type-b, counts/ids/booleans — no URL/content)", async () => {
+  resolveResult = {
+    ok: true,
+    kind: "applied-type-b",
+    conflictId: "cf-1",
+    canonical: "challenger",
+    winnerCandidateId: "cand-chal",
+    loserCandidateId: "cand-inc",
+    archivedArticleId: "art-inc",
+  };
+  const POST = await importResolve();
+  const res = await POST(
+    jsonPost("http://test/api/admin/canonical-conflicts/cf-1/resolve", {
+      canonical: "challenger",
+      reason: "operator promoted the challenger",
+      confirm: true,
+    }),
+    withParams({ id: "cf-1" }),
+  );
+  assert.equal(res.status, 200);
+
+  const audit = auditCalls.at(-1);
+  assert.equal(audit?.action, "admin.canonical_conflict.resolve");
+  assert.equal(audit?.targetType, "canonical_conflict");
+  assert.equal(audit?.targetId, "cf-1");
+  const meta = audit?.metadata as {
+    conflictType?: string;
+    canonical?: string;
+    winnerCandidateId?: string;
+    loserCandidateId?: string;
+    incumbentArticleArchived?: boolean;
+    survivingArticleId?: unknown;
+  };
+  assert.equal(meta?.conflictType, "type-b");
+  assert.equal(meta?.canonical, "challenger");
+  assert.equal(meta?.winnerCandidateId, "cand-chal");
+  assert.equal(meta?.loserCandidateId, "cand-inc");
+  assert.equal(meta?.incumbentArticleArchived, true);
+  // No Type-A leakage, no URL/content.
+  assert.equal(meta?.survivingArticleId, undefined);
+  assert.doesNotMatch(JSON.stringify(audit?.metadata ?? {}), /https?:\/\//);
+});
+
+test("POST resolve Type-B with no incumbent Article records incumbentArticleArchived:false", async () => {
+  resolveResult = {
+    ok: true,
+    kind: "applied-type-b",
+    conflictId: "cf-1",
+    canonical: "challenger",
+    winnerCandidateId: "cand-chal",
+    loserCandidateId: "cand-inc",
+    archivedArticleId: null,
+  };
+  const POST = await importResolve();
+  const res = await POST(
+    jsonPost("http://test/api/admin/canonical-conflicts/cf-1/resolve", {
+      canonical: "challenger",
+      reason: "operator promoted the challenger",
+      confirm: true,
+    }),
+    withParams({ id: "cf-1" }),
+  );
+  assert.equal(res.status, 200);
+  const meta = auditCalls.at(-1)?.metadata as { incumbentArticleArchived?: boolean };
+  assert.equal(meta?.incumbentArticleArchived, false);
+});
+
+test("POST resolve wrong-conflict-type maps to 409 with NO audit", async () => {
+  resolveResult = { ok: false, reason: "illegal", conflictId: "cf-1", illegal: "wrong-conflict-type", status: "OPEN" };
+  const POST = await importResolve();
+  const res = await POST(
+    jsonPost("http://test/api/admin/canonical-conflicts/cf-1/resolve", { canonical: "incumbent", reason: "r", confirm: true }),
+    withParams({ id: "cf-1" }),
+  );
+  assert.equal(res.status, 409);
+  const data = await readJson<{ reason: string; detail: string }>(res);
+  assert.equal(data.detail, "wrong-conflict-type");
+  assert.equal(auditCalls.length, 0);
+});
+
+test("POST resolve challenger-candidate-missing maps to 409", async () => {
+  resolveResult = { ok: false, reason: "illegal", conflictId: "cf-1", illegal: "challenger-candidate-missing", status: "OPEN" };
+  const POST = await importResolve();
+  const res = await POST(
+    jsonPost("http://test/api/admin/canonical-conflicts/cf-1/resolve", { canonical: "challenger", reason: "r", confirm: true }),
+    withParams({ id: "cf-1" }),
+  );
+  assert.equal(res.status, 409);
+  const data = await readJson<{ detail: string }>(res);
+  assert.equal(data.detail, "challenger-candidate-missing");
 });

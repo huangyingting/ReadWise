@@ -220,12 +220,17 @@ async function upsertConflictInTx(
  * (relabelled DUPLICATE) and observations to the winner, clears its canonical
  * slot, marks it DUPLICATE_ALIAS, and cancels its pending ingest job. Aliases +
  * observations are RETAINED so every place a variant was discovered is preserved.
+ *
+ * `terminalReason` defaults to the final-identity duplicate marker; callers in a
+ * different governance flow (e.g. the first-class Type-B conflict resolution,
+ * issue #1135) pass their own sanitized reason CATEGORY.
  */
-async function foldLoserInTx(
+export async function foldLoserInTx(
   tx: Prisma.TransactionClient,
   loserId: string,
   winnerId: string,
   now: Date,
+  terminalReason: string = `final-identity: duplicate of ${winnerId}`,
 ): Promise<number> {
   await tx.urlAlias.updateMany({
     where: { candidateId: loserId },
@@ -240,7 +245,7 @@ async function foldLoserInTx(
     data: {
       status: CrawlCandidateStatus.DUPLICATE_ALIAS,
       canonicalKey: null,
-      terminalReason: `final-identity: duplicate of ${winnerId}`,
+      terminalReason,
       terminalAt: now,
       updatedAt: now,
     },
