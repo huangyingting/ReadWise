@@ -9,6 +9,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
+import { redactSensitiveValue } from "@/lib/security/redaction";
 import { getMediaStorage, type PutMediaResult } from "@/lib/storage";
 import type { SpeechWord } from "./timing";
 import {
@@ -129,6 +130,21 @@ function articleSpeechData(params: {
   };
 }
 
+async function deleteUploadedSpeechBlob(
+  storage: NonNullable<ReturnType<typeof getMediaStorage>>,
+  storageKey: string,
+  articleId: string,
+): Promise<void> {
+  try {
+    await storage.delete(storageKey);
+  } catch (err) {
+    log.error("speech.storage_cleanup_failed", {
+      articleId,
+      error: redactSensitiveValue(err instanceof Error ? err.message : String(err)),
+    });
+  }
+}
+
 /**
  * Persists synthesized audio to media storage and upserts both the MediaAsset
  * record and the ArticleSpeech cache row.
@@ -188,29 +204,38 @@ export async function saveSpeechResult(params: {
     voice,
     articleId,
   });
-  await prisma.$transaction(async (tx) => {
-    const asset = await tx.mediaAsset.upsert({
-      where: { storageKey: put.storageKey },
-      update: assetData,
-      create: {
-        storageKey: put.storageKey,
-        ...assetData,
-      },
-      select: { id: true },
-    });
+  try {
+    await prisma.$transaction(async (tx) => {
+      const asset = await tx.mediaAsset.upsert({
+        where: { storageKey: put.storageKey },
+        update: assetData,
+        create: {
+          storageKey: put.storageKey,
+          ...assetData,
+        },
+        select: { id: true },
+      });
 
-    const speechData = articleSpeechData({
-      mediaAssetId: asset.id,
-      words: timingPayload,
+      const speechData = articleSpeechData({
+        mediaAssetId: asset.id,
+        words: timingPayload,
+      });
+      await tx.articleSpeech.upsert({
+        where: { articleId },
+        update: speechData,
+        create: {
+          articleId,
+          ...speechData,
+        },
+      });
     });
-    await tx.articleSpeech.upsert({
-      where: { articleId },
-      update: speechData,
-      create: {
-        articleId,
-        ...speechData,
-      },
+  } catch (err) {
+    await deleteUploadedSpeechBlob(storage, put.storageKey, articleId);
+    log.error("speech.persistence_failed", {
+      articleId,
+      error: redactSensitiveValue(err instanceof Error ? err.message : String(err)),
     });
-  });
+    return false;
+  }
   return true;
 }
