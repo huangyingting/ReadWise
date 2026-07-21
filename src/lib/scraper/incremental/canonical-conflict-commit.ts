@@ -53,7 +53,13 @@
  * PRIVACY: every persisted/returned value is a sanitized id, versioned key, count,
  * timestamp, or reason CATEGORY — never a URL, body, secret, or article content.
  */
-import { ArticleStatus, CrawlCandidateStatus, Prisma, UrlAliasKind } from "@prisma/client";
+import {
+  ArticleStatus,
+  CanonicalConflictStatus,
+  CrawlCandidateStatus,
+  Prisma,
+  UrlAliasKind,
+} from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { stripTags } from "@/lib/scraper/extract";
@@ -348,10 +354,10 @@ async function afterRace(conflictId: string): Promise<ConflictResolveOutcome> {
     select: { status: true },
   });
   if (!fresh) return { ok: false, reason: "not-found", conflictId };
-  if (fresh.status === "RESOLVED") {
+  if (fresh.status === CanonicalConflictStatus.RESOLVED) {
     return { ok: true, kind: "noop", conflictId, reason: "already-resolved", status: fresh.status };
   }
-  if (fresh.status === "DISMISSED") {
+  if (fresh.status === CanonicalConflictStatus.DISMISSED) {
     return { ok: true, kind: "noop", conflictId, reason: "already-dismissed", status: fresh.status };
   }
   return { ok: false, reason: "stale", conflictId, status: fresh.status };
@@ -368,8 +374,8 @@ async function runResolveTx(
   return prisma.$transaction(async (tx) => {
     // (1) Claim the conflict under the lock — only ONE resolver can win.
     const claimed = await tx.canonicalConflict.updateMany({
-      where: { id: conflict.id, status: "OPEN" },
-      data: { status: "RESOLVED", resolvedAt: now, resolvedBy, updatedAt: now },
+      where: { id: conflict.id, status: CanonicalConflictStatus.OPEN },
+      data: { status: CanonicalConflictStatus.RESOLVED, resolvedAt: now, resolvedBy, updatedAt: now },
     });
     if (claimed.count === 0) throw new ConflictRaceError();
 
@@ -460,8 +466,8 @@ async function runTypeBResolveTx(
   return prisma.$transaction(async (tx) => {
     // (1) Claim the conflict under the lock — only ONE resolver can win.
     const claimed = await tx.canonicalConflict.updateMany({
-      where: { id: conflict.id, status: "OPEN" },
-      data: { status: "RESOLVED", resolvedAt: now, resolvedBy, updatedAt: now },
+      where: { id: conflict.id, status: CanonicalConflictStatus.OPEN },
+      data: { status: CanonicalConflictStatus.RESOLVED, resolvedAt: now, resolvedBy, updatedAt: now },
     });
     if (claimed.count === 0) throw new ConflictRaceError();
 
