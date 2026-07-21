@@ -15,8 +15,10 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { normalizeCandidates } from "@/lib/lexical/normalize";
+import { lemmaFor } from "@/lib/lexical/normalize";
 import { clamp01, parseStringArray } from "./primitives";
+
+export { lemmaFor } from "@/lib/lexical/normalize";
 
 /** Max source article ids retained per word (most-recent-first, bounded). */
 export const MAX_SOURCE_ARTICLE_IDS = 20;
@@ -37,23 +39,6 @@ export type WordMasteryRecord = {
   lastSeenAt: Date;
   lastReviewedAt: Date | null;
 };
-
-/**
- * Normalizes a raw word/token to a canonical lemma key. Reuses the dictionary
- * lemmatizer's first (surface-normalized) candidate so the lemma is consistent
- * across every call site (lowercased, contraction-expanded, possessive- and
- * punctuation-stripped). Returns "" for tokens with no alphabetic content.
- *
- * Note: this deliberately uses the first candidate (never an over-reduced stem)
- * so a lemma is always a real surface form — case/possessive variants merge,
- * while aggressive inflection-merging is left to the dictionary's resolved base
- * form. It never produces a garbage key.
- */
-export function lemmaFor(word: string): string {
-  const candidates = normalizeCandidates(word);
-  if (candidates.length > 0) return candidates[0];
-  return word.toLowerCase().trim();
-}
 
 /**
  * Blends exposures and review accuracy into a 0–1 familiarity score.

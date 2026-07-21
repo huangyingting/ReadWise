@@ -13,6 +13,27 @@ const log = createLogger("learning");
 const SCORE_MIN = 0;
 const SCORE_MAX = 1;
 
+/**
+ * Study-plan weak saved word threshold (#1184): a saved word is weak when its
+ * WordMastery familiarity is below this value.
+ */
+export const WEAK_SAVED_WORD_FAMILIARITY = 0.4;
+
+/**
+ * Recommendation weak-word re-exposure threshold (#808): intentionally more
+ * permissive than the study-plan weakness threshold so re-exposure can nudge
+ * words before they become urgent study-plan weaknesses.
+ */
+export const WEAK_REEXPOSURE_FAMILIARITY = 0.5;
+
+export function isWeakSavedWordFamiliarity(familiarity: number): boolean {
+  return familiarity < WEAK_SAVED_WORD_FAMILIARITY;
+}
+
+export function isWeakReexposureFamiliarity(familiarity: number): boolean {
+  return familiarity < WEAK_REEXPOSURE_FAMILIARITY;
+}
+
 function isString(value: unknown): value is string {
   return typeof value === "string";
 }

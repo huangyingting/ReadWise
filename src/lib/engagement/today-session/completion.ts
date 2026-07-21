@@ -21,6 +21,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { COMPLETION_THRESHOLD } from "@/lib/engagement/progress-rules";
 import { advanceSeriesOnArticleRead } from "@/lib/engagement/series";
 import {
   getTodaySession,
@@ -47,11 +48,10 @@ import type {
 // ---------------------------------------------------------------------------
 
 /**
- * Scroll percent at/above which reading is considered complete. Mirrors
- * `COMPLETION_THRESHOLD` in `@/lib/engagement/progress` — kept as a local const
- * so the pure threshold check stays dependency-light and unit-testable.
+ * Scroll percent at/above which reading is considered complete. Re-exported
+ * for tests/callers that use the Today-specific name.
  */
-export const READING_COMPLETION_PERCENT = 95;
+export const READING_COMPLETION_PERCENT = COMPLETION_THRESHOLD;
 
 /**
  * Word-review threshold: when `≤ WORD_REVIEW_ALL_AT_MOST` resolvable target

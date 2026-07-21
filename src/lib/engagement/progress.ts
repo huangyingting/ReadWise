@@ -14,11 +14,11 @@ import { publicListableArticleWhere } from "@/lib/article-library";
 import { recordReadingActivity } from "@/lib/engagement/activity";
 import { recordReadingWordExposures } from "@/lib/learning/reading-exposure";
 import { createLogger } from "@/lib/observability/logger";
+import { isCompletePercent } from "@/lib/engagement/progress-rules";
+
+export { COMPLETION_THRESHOLD } from "@/lib/engagement/progress-rules";
 
 const log = createLogger("progress");
-
-/** Scroll percent at/above which an article is considered finished. */
-export const COMPLETION_THRESHOLD = 95;
 
 /** Serializable progress summary safe to send to the client. */
 export type ProgressSummary = {
@@ -32,10 +32,6 @@ export function clampPercent(value: number): number {
     return value > 0 ? 100 : 0;
   }
   return Math.min(100, Math.max(0, Math.round(value)));
-}
-
-function isCompletePercent(percent: number): boolean {
-  return percent >= COMPLETION_THRESHOLD;
 }
 
 function toProgressSummary(row: ReadingProgress): ProgressSummary {

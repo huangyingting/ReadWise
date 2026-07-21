@@ -7,6 +7,7 @@
 
 import type { AdaptiveLevelRecommendation } from "@/lib/leveling";
 import type { SkillSummary } from "./types";
+import { WEAK_SAVED_WORD_FAMILIARITY } from "./primitives";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -94,7 +95,7 @@ export type StudyDiagnostics = {
 // ---------------------------------------------------------------------------
 
 /** Familiarity below this marks a saved word as "weak". */
-export const WEAK_WORD_FAMILIARITY = 0.4;
+export const WEAK_WORD_FAMILIARITY = WEAK_SAVED_WORD_FAMILIARITY;
 /** Comprehension score below this marks an article as poorly understood. */
 export const LOW_COMPREHENSION = 0.5;
 

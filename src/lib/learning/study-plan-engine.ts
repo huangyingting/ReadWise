@@ -9,16 +9,15 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { clamp01 } from "./primitives";
+import { lemmaFor } from "@/lib/lexical/normalize";
+import { clamp01, WEAK_SAVED_WORD_FAMILIARITY } from "./primitives";
 import { getSkillProfile } from "./skill-mastery";
 import { coachMemorySkillConfidences } from "./coach-memory";
-import { lemmaFor } from "./word-mastery";
 import { SKILLS, type Skill, type SkillSummary } from "./types";
 import {
   getAdaptiveLevelRecommendation,
 } from "@/lib/leveling";
 import {
-  WEAK_WORD_FAMILIARITY,
   LOW_COMPREHENSION,
   readingRecItem,
   planItemForArea,
@@ -94,7 +93,7 @@ export function diagnoseWeakAreas(diag: StudyDiagnostics): WeakArea[] {
     if (diag.vocab.weakCount > 0 || diag.vocab.dueCount > 0 || fromSkill > 0) {
       const evidence: string[] = [];
       if (diag.vocab.weakCount > 0)
-        evidence.push(`${diag.vocab.weakCount} saved word(s) below ${Math.round(WEAK_WORD_FAMILIARITY * 100)}% familiarity`);
+        evidence.push(`${diag.vocab.weakCount} saved word(s) below ${Math.round(WEAK_SAVED_WORD_FAMILIARITY * 100)}% familiarity`);
       if (diag.vocab.dueCount > 0)
         evidence.push(`${diag.vocab.dueCount} flashcard(s) due for review`);
       const skillEvidence = fromSkill > 0 ? confidenceEvidence("Vocabulary", vocabSkill) : null;
@@ -316,7 +315,7 @@ export async function gatherStudyDiagnostics(
       select: { word: true },
     }),
     prisma.wordMastery.findMany({
-      where: { userId, familiarity: { lt: WEAK_WORD_FAMILIARITY } },
+      where: { userId, familiarity: { lt: WEAK_SAVED_WORD_FAMILIARITY } },
       select: { lemma: true },
     }),
     prisma.savedWord.count({
