@@ -63,13 +63,16 @@ export {
 } from "./article-assignments";
 export {
   type RecordCompletionInput,
+  ASSIGNMENT_START_PERCENT,
   getStudentAssignmentContext,
   recordAssignmentCompletion,
   markAssignmentQuizComplete,
+  syncAssignmentReadingProgress,
 } from "./completions";
 export {
   type StudentAssignment,
   listAssignmentsForStudent,
+  listStudentAssignmentsForArticle,
 } from "./student-reads";
 export {
   type ClassroomProgressStudent,
