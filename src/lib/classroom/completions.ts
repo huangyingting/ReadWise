@@ -8,6 +8,16 @@
  */
 import { AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isCompletePercent } from "@/lib/engagement/progress-rules";
+
+/** Minimum reading percent (inclusive) at/above which an assignment advances from ASSIGNED to IN_PROGRESS. */
+export const ASSIGNMENT_START_PERCENT = 1;
+
+const STATUS_RANK: Record<AssignmentStatus, number> = {
+  [AssignmentStatus.ASSIGNED]: 0,
+  [AssignmentStatus.IN_PROGRESS]: 1,
+  [AssignmentStatus.COMPLETED]: 2,
+};
 
 export type RecordCompletionInput = {
   status?: AssignmentStatus;
@@ -127,4 +137,93 @@ export async function markAssignmentQuizComplete(input: {
     ),
   );
   return { completedCount: assignments.length };
+}
+
+/**
+ * Monotonically advances every active assignment for `articleId` in classrooms
+ * the student is enrolled in, based on reading progress. Never downgrades a
+ * status, never clears or overwrites an existing `quizScore`, and keeps
+ * `completedAt` sticky (only stamped on the first reading-driven completion).
+ *
+ * Called as a best-effort side effect after a progress save — the student
+ * identity is always session-derived (userId), never from an untrusted body.
+ * Short-circuits before any DB read when `percent` is below the start threshold
+ * and the article is not already `completed`.
+ */
+export async function syncAssignmentReadingProgress(input: {
+  userId: string;
+  articleId: string;
+  percent: number;
+  completed: boolean;
+}): Promise<{ updatedCount: number }> {
+  const { userId, articleId, percent, completed } = input;
+  if (percent < ASSIGNMENT_START_PERCENT && !completed) {
+    return { updatedCount: 0 };
+  }
+  const assignments = await prisma.assignment.findMany({
+    where: {
+      articleId,
+      classroom: { archivedAt: null, members: { some: { userId } } },
+    },
+    select: { id: true },
+  });
+  if (assignments.length === 0) {
+    return { updatedCount: 0 };
+  }
+  const assignmentIds = assignments.map((a) => a.id);
+  const existingCompletions = await prisma.assignmentCompletion.findMany({
+    where: { assignmentId: { in: assignmentIds }, studentId: userId },
+    select: { assignmentId: true, status: true, quizScore: true, completedAt: true },
+  });
+  const completionByAssignmentId = new Map(
+    existingCompletions.map((c) => [c.assignmentId, c]),
+  );
+  const targetStatus = isCompletePercent(percent) || completed
+    ? AssignmentStatus.COMPLETED
+    : AssignmentStatus.IN_PROGRESS;
+  const targetRank = STATUS_RANK[targetStatus];
+  const now = new Date();
+  const writes = await Promise.all(
+    assignments.map(async (assignment) => {
+      const existing = completionByAssignmentId.get(assignment.id);
+      const currentRank = STATUS_RANK[existing?.status ?? AssignmentStatus.ASSIGNED];
+      if (targetRank <= currentRank) {
+        return false;
+      }
+      if (targetStatus === AssignmentStatus.COMPLETED) {
+        await prisma.assignmentCompletion.upsert({
+          where: { assignmentId_studentId: { assignmentId: assignment.id, studentId: userId } },
+          update: {
+            status: AssignmentStatus.COMPLETED,
+            // Sticky: only stamp completedAt the first time.
+            ...(existing?.completedAt ? {} : { completedAt: now }),
+          },
+          create: {
+            assignmentId: assignment.id,
+            studentId: userId,
+            status: AssignmentStatus.COMPLETED,
+            completedAt: now,
+            quizScore: null,
+          },
+        });
+      } else {
+        await prisma.assignmentCompletion.upsert({
+          where: { assignmentId_studentId: { assignmentId: assignment.id, studentId: userId } },
+          update: {
+            status: AssignmentStatus.IN_PROGRESS,
+            completedAt: null,
+          },
+          create: {
+            assignmentId: assignment.id,
+            studentId: userId,
+            status: AssignmentStatus.IN_PROGRESS,
+            completedAt: null,
+            quizScore: null,
+          },
+        });
+      }
+      return true;
+    }),
+  );
+  return { updatedCount: writes.filter(Boolean).length };
 }

@@ -81,3 +81,22 @@ export async function listAssignmentsForStudent(
 
   return rows.map(mapStudentAssignment).sort(compareByDueDateAsc);
 }
+
+/**
+ * A student's own assignments for a specific article, across all their enrolled
+ * non-archived classrooms. Used by the reader banner to surface assignment
+ * context (classroom, due date, instructions, status) without exposing peer data.
+ * Returns an empty array when the article is not assigned to the student.
+ */
+export async function listStudentAssignmentsForArticle(
+  userId: string,
+  articleId: string,
+): Promise<StudentAssignment[]> {
+  const rows = (await prisma.assignment.findMany({
+    where: { articleId, classroom: { archivedAt: null, members: { some: { userId } } } },
+    include: assignmentIncludeForStudent(userId),
+    orderBy: [{ createdAt: "desc" }],
+  })) as AssignmentWithStudentCompletion[];
+
+  return rows.map(mapStudentAssignment).sort(compareByDueDateAsc);
+}
