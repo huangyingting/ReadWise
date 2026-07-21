@@ -2,6 +2,13 @@ process.env.LOG_LEVEL = "error";
 
 import { before, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import {
+  ArticleStatus,
+  ArticleVisibility,
+  type Article,
+  type Prisma,
+} from "@prisma/client";
+import { buildArticle } from "./helpers";
 
 type IntegrityResult =
   | { ok: true; article: { id: string } }
@@ -20,6 +27,40 @@ let integrityResult: IntegrityResult;
 let integrityCalls: Array<{ articleId: string; organizationId: string }>;
 let createCalls: Array<{ data: Record<string, unknown> }>;
 let assignmentThrows: boolean;
+let articleRows: Article[];
+
+function matchesWhere(article: Article, where: Prisma.ArticleWhereInput = {}): boolean {
+  const record = article as unknown as Record<string, unknown>;
+  const clauses = where as Record<string, unknown>;
+  const and = clauses.AND;
+  if (Array.isArray(and) && !and.every((clause) => matchesWhere(article, clause as Prisma.ArticleWhereInput))) {
+    return false;
+  }
+  const or = clauses.OR;
+  if (Array.isArray(or) && !or.some((clause) => matchesWhere(article, clause as Prisma.ArticleWhereInput))) {
+    return false;
+  }
+  for (const [key, expected] of Object.entries(clauses)) {
+    if (key === "AND" || key === "OR") continue;
+    const actual = record[key];
+    if (expected && typeof expected === "object" && "in" in expected) {
+      const values = (expected as { in?: unknown[] }).in ?? [];
+      if (!values.includes(actual)) return false;
+      continue;
+    }
+    if (actual !== expected) return false;
+  }
+  return true;
+}
+
+function project(article: Article, select?: Record<string, boolean>): unknown {
+  if (!select) return article;
+  return Object.fromEntries(
+    Object.entries(select)
+      .filter(([, include]) => include)
+      .map(([key]) => [key, (article as unknown as Record<string, unknown>)[key]]),
+  );
+}
 
 before(() => {
   mock.module("@/lib/article-library/tenant-integrity", {
@@ -36,6 +77,15 @@ before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
+        article: {
+          findFirst: async (args: {
+            where?: Prisma.ArticleWhereInput;
+            select?: Record<string, boolean>;
+          }) => {
+            const found = articleRows.find((article) => matchesWhere(article, args.where));
+            return found ? project(found, args.select) : null;
+          },
+        },
         assignment: {
           create: async (input: { data: Record<string, unknown> }) => {
             createCalls.push(input);
@@ -53,6 +103,15 @@ beforeEach(() => {
   integrityCalls = [];
   createCalls = [];
   assignmentThrows = false;
+  articleRows = [
+    buildArticle({
+      id: "article-1",
+      status: ArticleStatus.PUBLISHED,
+      visibility: ArticleVisibility.PUBLIC,
+      ownerId: null,
+      organizationId: null,
+    }),
+  ];
 });
 
 async function create(overrides: Partial<{
@@ -69,6 +128,7 @@ async function create(overrides: Partial<{
     classroomId: "classroom-1",
     organizationId: "organization-1",
     articleId: "article-1",
+    accessContext: { userId: "teacher-1", role: "Reader", orgId: "organization-1" },
     ...overrides,
   });
 }
@@ -119,6 +179,48 @@ test("returns invalid_due_date only after article validation succeeds", async ()
     ok: false,
     status: 400,
     reason: "invalid_due_date",
+  });
+  assert.deepEqual(createCalls, []);
+});
+
+test("rejects draft articles even when organization integrity passes", async () => {
+  articleRows = [
+    buildArticle({
+      id: "draft-article",
+      status: ArticleStatus.DRAFT,
+      visibility: ArticleVisibility.PUBLIC,
+      ownerId: null,
+      organizationId: null,
+    }),
+  ];
+
+  const result = await create({ articleId: "draft-article" });
+
+  assert.deepEqual(result, {
+    ok: false,
+    status: 404,
+    reason: "article_not_found",
+  });
+  assert.deepEqual(createCalls, []);
+});
+
+test("rejects foreign private articles even when organization integrity passes", async () => {
+  articleRows = [
+    buildArticle({
+      id: "foreign-private",
+      status: ArticleStatus.PUBLISHED,
+      visibility: ArticleVisibility.PRIVATE,
+      ownerId: "other-user",
+      organizationId: null,
+    }),
+  ];
+
+  const result = await create({ articleId: "foreign-private" });
+
+  assert.deepEqual(result, {
+    ok: false,
+    status: 404,
+    reason: "article_not_found",
   });
   assert.deepEqual(createCalls, []);
 });

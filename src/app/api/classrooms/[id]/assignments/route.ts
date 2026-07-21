@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, optional, string, nonEmptyString } from "@/lib/validation";
+import { articleAccessContext } from "@/lib/article-library";
 import { createArticleAssignment } from "@/lib/classroom/article-assignments";
 import { requireClassroomManageApi } from "@/lib/tenant-api";
 
@@ -23,6 +24,7 @@ export const POST = createHandler(
       classroomId: classroom.id,
       organizationId: classroom.orgId,
       articleId: body.articleId,
+      accessContext: articleAccessContext(session.user, classroom.orgId),
       dueDate: body.dueDate,
       instructions: body.instructions ?? null,
     });

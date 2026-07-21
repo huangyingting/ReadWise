@@ -99,6 +99,7 @@ let updateAssignmentResult:
 // the inline RBAC check in GET /classrooms/[id]/analytics.
 // isOrgAdminStub = true → hasOrgCapability() returns true in both paths.
 let membershipStub: { role: string } | null = null;
+let targetMembershipStub: { role: string } | null = { role: "Member" };
 let isOrgAdminStub = false;
 
 // analytics stubs
@@ -201,11 +202,24 @@ before(() => {
       },
     },
   });
+  mock.module("@/lib/article-library", {
+    namedExports: {
+      articleAccessContext: (
+        user: { id?: string | null; role?: string | null },
+        orgId?: string | null,
+      ) => ({
+        userId: user.id ?? null,
+        role: user.role ?? null,
+        ...(orgId ? { orgId } : {}),
+      }),
+    },
+  });
 
   // @/lib/org — kept for route modules that still consume the barrel directly.
   mock.module("@/lib/org", {
     namedExports: {
-      getMembership: async () => membershipStub,
+      getMembership: async (userId: string) =>
+        userId === currentSession.user.id ? membershipStub : targetMembershipStub,
       // hasOrgCapability controls both requireOrgCapabilityApi (POST /classrooms) and
       // the inline isOrgAdmin check in the analytics route.
       hasOrgCapability: () => isOrgAdminStub,
@@ -215,7 +229,8 @@ before(() => {
   });
   mock.module("@/lib/org/queries", {
     namedExports: {
-      getMembership: async () => membershipStub,
+      getMembership: async (userId: string) =>
+        userId === currentSession.user.id ? membershipStub : targetMembershipStub,
     },
   });
   mock.module("@/lib/org/guards", {
@@ -257,6 +272,7 @@ beforeEach(() => {
   assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
   articleAssignmentFailure = null;
   membershipStub = null;
+  targetMembershipStub = { role: "Member" };
   isOrgAdminStub = false;
   analyticsViewerRoleStub = "teacher";
   analyticsDataStub = { classroomId: "c1", completionRate: 0.75, members: [] };
@@ -601,6 +617,15 @@ test("POST /api/classrooms/[id]/members returns 403 when caller cannot manage cl
   // teacherId !== user-1 (readerSession), membership is null → canManageClassroom = false → 403
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
   const res = await postClassroomMember("c1", { userId: "u2", role: "Student" });
+  assert.equal(res.status, 403);
+});
+
+test("POST /api/classrooms/[id]/members rejects users outside the classroom org", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  targetMembershipStub = null;
+
+  const res = await postClassroomMember("c1", { userId: "outside-org", role: "Student" });
+
   assert.equal(res.status, 403);
 });
 

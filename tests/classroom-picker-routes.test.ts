@@ -7,8 +7,8 @@ import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 let authState: AuthState = "ok";
 let requireManageCalls: Array<{ userId: string; classroomId: string }> = [];
-let articleSearchCalls: Array<{ access: { userId: string; role: string }; query: string }> = [];
-let studentSearchCalls: Array<{ classroomId: string; query: string }> = [];
+let articleSearchCalls: Array<{ access: { userId: string; role: string; orgId?: string }; query: string }> = [];
+let studentSearchCalls: Array<{ classroomId: string; orgId: string; query: string }> = [];
 
 before(() => {
   mock.module("@/lib/api-auth", {
@@ -22,27 +22,32 @@ before(() => {
         classroomId: string,
       ) => {
         requireManageCalls.push({ userId: session.user.id, classroomId });
+        return { classroom: { id: classroomId, orgId: "org-1", teacherId: session.user.id }, membership: null };
       },
     },
   });
 
   mock.module("@/lib/article-library", {
     namedExports: {
-      articleAccessContext: (user: { id: string; role: string }) => ({ userId: user.id, role: user.role }),
+      articleAccessContext: (user: { id: string; role: string }, orgId?: string) => ({
+        userId: user.id,
+        role: user.role,
+        ...(orgId ? { orgId } : {}),
+      }),
     },
   });
 
   mock.module("@/lib/classroom", {
     namedExports: {
       searchAssignableArticleOptions: async (
-        access: { userId: string; role: string },
+        access: { userId: string; role: string; orgId?: string },
         query: string,
       ) => {
         articleSearchCalls.push({ access, query });
         return [{ id: "article-1", title: "Article" }];
       },
-      searchClassroomStudentCandidates: async (classroomId: string, query: string) => {
-        studentSearchCalls.push({ classroomId, query });
+      searchClassroomStudentCandidates: async (classroomId: string, orgId: string, query: string) => {
+        studentSearchCalls.push({ classroomId, orgId, query });
         return [{ id: "student-1", name: "Ada" }];
       },
     },
@@ -91,6 +96,7 @@ test("classroom article-options route validates manage access and trims query", 
   assert.deepEqual(requireManageCalls, [{ userId: "user-1", classroomId: "class-1" }]);
   assert.equal(articleSearchCalls.length, 1);
   assert.equal(articleSearchCalls[0]?.access.userId, "user-1");
+  assert.equal(articleSearchCalls[0]?.access.orgId, "org-1");
   assert.equal(articleSearchCalls[0]?.query.length, 100);
 });
 
@@ -104,5 +110,5 @@ test("classroom student-candidates route validates manage access and returns can
   assert.equal(payload.candidates[0]?.id, "student-1");
 
   assert.deepEqual(requireManageCalls, [{ userId: "user-1", classroomId: "class-1" }]);
-  assert.deepEqual(studentSearchCalls, [{ classroomId: "class-1", query: "  ada" }]);
+  assert.deepEqual(studentSearchCalls, [{ classroomId: "class-1", orgId: "org-1", query: "  ada" }]);
 });
