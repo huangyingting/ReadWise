@@ -4,9 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
 import { useMutation } from "@/hooks/useMutation";
+import {
+  ADMIN_BACKFILL_ENDPOINT,
+  parseArticleIds,
+} from "@/lib/admin/jobs/backfill-ui";
 
 const FEATURES = [
   "difficulty",
@@ -61,10 +67,13 @@ export default function AdminBackfillForm() {
   const [status, setStatus] = useState("");
   const [category, setCategory] = useState("");
   const [langs, setLangs] = useState("");
+  const [articleIdsDraft, setArticleIdsDraft] = useState("");
   const [batchCap, setBatchCap] = useState("50");
   const { busy, error, run } = useMutation("Backfill failed");
   const [result, setResult] = useState<BackfillResponse | null>(null);
-  const submitDisabled = selected.size === 0 || !reason.trim();
+  const parsedArticleIds = parseArticleIds(articleIdsDraft);
+  const submitDisabled =
+    selected.size === 0 || !reason.trim() || parsedArticleIds.error !== null;
 
   function toggle(feature: string) {
     setSelected((prev) => {
@@ -78,8 +87,9 @@ export default function AdminBackfillForm() {
   async function submit(dryRun: boolean) {
     setResult(null);
     const translateLangs = parseTranslateLangs(langs);
+    const articleIds = parsedArticleIds.articleIds;
     const data = await run(() =>
-      postJson<BackfillResponse>("/api/admin/jobs/backfill", {
+      postJson<BackfillResponse>(ADMIN_BACKFILL_ENDPOINT, {
         features: Array.from(selected),
         mode,
         reason,
@@ -88,6 +98,7 @@ export default function AdminBackfillForm() {
         status: status || undefined,
         category: category || undefined,
         translateLangs: translateLangs.length > 0 ? translateLangs : undefined,
+        articleIds: articleIds.length > 0 ? articleIds : undefined,
       }),
     );
     if (!data) return;
@@ -172,6 +183,20 @@ export default function AdminBackfillForm() {
         inputSize="md"
         aria-label="Backfill reason"
       />
+
+      <Field
+        label="Target article IDs"
+        hint="Optional. Enter comma-separated IDs or one ID per line to limit this run."
+        error={parsedArticleIds.error ?? undefined}
+      >
+        <Textarea
+          value={articleIdsDraft}
+          onChange={(e) => setArticleIdsDraft(e.target.value)}
+          rows={3}
+          placeholder="article-id-1, article-id-2"
+          disabled={busy}
+        />
+      </Field>
 
       <div className="admin-actions-row">
         <Button

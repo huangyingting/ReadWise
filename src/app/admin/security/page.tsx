@@ -1,6 +1,7 @@
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { StatCard } from "@/components/analytics/StatCard";
+import AdminSloDashboardPanel from "@/components/admin/security/AdminSloDashboardPanel";
 import AdminSecurityEventsPanel from "@/components/admin/security/AdminSecurityEventsPanel";
 import AdminAuditLogPanel from "@/components/admin/security/AdminAuditLogPanel";
 import {
@@ -49,6 +50,11 @@ export default async function AdminSecurityPage() {
           value={csrfEnforceSameOrigin() ? "enforced" : "disabled"}
         />
       </div>
+
+      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
+        Service-level objectives
+      </h2>
+      <AdminSloDashboardPanel />
 
       <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
         Recent security events

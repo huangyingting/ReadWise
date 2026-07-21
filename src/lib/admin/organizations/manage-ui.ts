@@ -4,6 +4,7 @@
  * Owns the presentation contract for the two client islands on the platform-admin
  * organizations surface WITHOUT any React/DOM/network:
  *   - the "Create organization" form (POST `/api/admin/organizations`), and
+ *   - the "Add member" form, which REUSES `POST /api/orgs/[id]/members`,
  *   - the per-member role/remove actions, which REUSE the existing tenant routes
  *     `/api/orgs/[id]/members/[memberId]` (PATCH/DELETE) rather than duplicating
  *     them (those routes already grant the system-admin super-user bypass).
@@ -32,6 +33,11 @@ export function adminOrganizationEndpoint(orgId: string): string {
   return `/api/admin/organizations/${orgId}`;
 }
 
+/** Existing tenant collection endpoint reused by the admin add-member island. */
+export function orgMembersEndpoint(orgId: string): string {
+  return `/api/orgs/${orgId}/members`;
+}
+
 /**
  * The EXISTING tenant member endpoint reused for role changes + removal. The
  * admin surface does not duplicate member mutations; it calls the tenant route,
@@ -48,6 +54,12 @@ export interface CreateOrganizationRequest {
   ownerUserId: string;
 }
 
+/** Request body for adding/re-roling an organization member. */
+export interface AddOrganizationMemberRequest {
+  userId: string;
+  role: MembershipRole;
+}
+
 /**
  * Builds the exact POST body for creating an organization. Trims inputs and
  * omits `slug` when blank (the server derives it from the name). PURE.
@@ -62,5 +74,19 @@ export function createOrganizationBody(input: {
     name: input.name.trim(),
     ownerUserId: input.ownerUserId.trim(),
     ...(slug.length > 0 ? { slug } : {}),
+  };
+}
+
+/**
+ * Builds the exact POST body for adding (or re-roling) an organization member.
+ * Keeps this pure so the client island can be source-tested without DOM/network.
+ */
+export function addOrganizationMemberBody(input: {
+  userId: string;
+  role: MembershipRole;
+}): AddOrganizationMemberRequest {
+  return {
+    userId: input.userId.trim(),
+    role: input.role,
   };
 }
