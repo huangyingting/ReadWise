@@ -26,6 +26,8 @@ export type ProgressSummary = {
   completed: boolean;
 };
 
+export type SaveProgressResult = ReadingProgress & { completedNow: boolean };
+
 export function clampPercent(value: number): number {
   if (!Number.isFinite(value)) {
     // Positive infinity clamps to full; NaN / negative infinity clamp to zero.
@@ -191,10 +193,11 @@ export async function saveProgress(
   articleId: string,
   rawPercent: number,
   opts: { timezone?: string | null } = {},
-): Promise<ReadingProgress> {
+): Promise<SaveProgressResult> {
   const incoming = clampPercent(rawPercent);
   const before = await getProgress(userId, articleId);
   const result = await writeProgressForwardOnly(userId, articleId, incoming);
+  const completedNow = !before?.completed && result.completed;
 
   // Side-effect: record daily activity (errors are logged but never
   // affect the caller's return value or forward-only semantics).
@@ -212,9 +215,9 @@ export async function saveProgress(
   // saved words that appear in this article gain a real-reading mastery
   // exposure. Best-effort + self-defensive — never blocks or throws into the
   // forward-only progress write.
-  if (!before?.completed && result.completed) {
+  if (completedNow) {
     await recordReadingWordExposures(userId, articleId);
   }
 
-  return result;
+  return { ...result, completedNow };
 }
