@@ -25,8 +25,9 @@
  *   5. Baseline/shadow commits create NO Article, NO body fetch, and NO
  *      `ARTICLE_INGEST` job. In ACTIVE mode, an `eligible` candidate enqueues
  *      exactly one candidate-based `ARTICLE_INGEST` job IN THIS SAME transaction
- *      (#1091/Phase 2.1) — but still NO Article and NO body fetch here (fetch/
- *      extract/Article creation is #1095). The single `baseline-shadow`
+ *      only when `CANDIDATE_INGEST_ENABLED=true`; the flag stays default-off
+ *      until the #1095 production prepareDraft seam exists. Either way, this
+ *      commit writes NO Article and fetches NO body here. The single `baseline-shadow`
  *      classification outcome is split HERE by the source's live lifecycle mode
  *      (#1088): BASELINE mode records OBSERVED_BASELINE (status BASELINE +
  *      observedInBaseline=true, a known pre-existing identity), while SHADOW mode
@@ -42,6 +43,7 @@ import {
 
 import { prisma } from "@/lib/prisma";
 import { enqueueCandidateIngestInTx } from "@/lib/jobs";
+import { isCandidateIngestEnabled } from "@/lib/runtime-config/scraper";
 
 import {
   classifyPage,
@@ -325,6 +327,9 @@ async function commitClassifiedItem(
     // already-terminal Job is reused, never reset (AC2/AC3). The payload is
     // candidate-identity only — never a URL or article data (AC4).
     //
+    // #1217: This enqueue is default-off until #1095 wires the production
+    // prepareDraft seam; otherwise worker-processed jobs complete as no-ops.
+    //
     // Gated to `eligible` in ACTIVE mode ONLY: baseline/shadow/existing-identity/
     // review-required/outside-window/policy-rejected candidates never enqueue
     // ingest work (governing invariant — a known/pre-baseline identity is never
@@ -342,7 +347,8 @@ async function commitClassifiedItem(
       candidateId &&
       candidateStatus === CrawlCandidateStatus.DISCOVERED &&
       outcome === "eligible" &&
-      lifecycleMode === DiscoverySourceLifecycleMode.ACTIVE
+      lifecycleMode === DiscoverySourceLifecycleMode.ACTIVE &&
+      isCandidateIngestEnabled()
     ) {
       await enqueueCandidateIngestInTx(tx, candidateId);
       ingestJobEnsured = true;

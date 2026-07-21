@@ -13,10 +13,11 @@ import { CrawlCandidateStatus } from "@prisma/client";
 import { makeCandidateIngestHandler, type CandidateIngestRow } from "@/lib/worker/registry";
 import { JobError } from "@/lib/jobs";
 
+const loggerCalls: Array<{ level: "info" | "warn" | "error"; message: string; meta?: unknown }> = [];
 const logger = {
-  info: () => {},
-  warn: () => {},
-  error: () => {},
+  info: (message: string, meta?: unknown) => loggerCalls.push({ level: "info", message, meta }),
+  warn: (message: string, meta?: unknown) => loggerCalls.push({ level: "warn", message, meta }),
+  error: (message: string, meta?: unknown) => loggerCalls.push({ level: "error", message, meta }),
 };
 
 function job(payload: unknown): never {
@@ -52,6 +53,7 @@ test("missing candidate is a permanent 'missing' failure", async () => {
 });
 
 test("resolves an eligible DISCOVERED candidate and stops at the #1095 hand-off (no throw)", async () => {
+  loggerCalls.length = 0;
   let loadedId: string | undefined;
   const handler = makeCandidateIngestHandler(async (id) => {
     loadedId = id;
@@ -59,6 +61,8 @@ test("resolves an eligible DISCOVERED candidate and stops at the #1095 hand-off 
   });
   await handler(job({ candidateId: "cand-9", processingVersion: 1 }), { logger });
   assert.equal(loadedId, "cand-9", "candidate resolved by id at execution time");
+  assert.equal(loggerCalls.at(-1)?.level, "warn");
+  assert.match(loggerCalls.at(-1)?.message ?? "", /#1095/);
 });
 
 test("terminal / baseline / already-linked candidates are a safe no-op (never re-ingested)", async () => {

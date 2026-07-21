@@ -13,13 +13,14 @@
  * suppressed from AUTOMATIC ingestion by its `observedInBaseline=true` flag AND
  * by the deep save guard. An administrator-approved backfill promotes it into
  * active work by flipping `observedInBaseline=false` + `status=QUEUED` in the
- * SAME guarded update that enqueues its LOW-priority candidate-ingest Job, so the
- * UNCHANGED downstream pipeline (worker handler → ingest runner → atomic save)
- * then treats it as ordinary queued work. Because the guarded update matches only
- * a still-eligible row (BASELINE/DISCOVERED, no Article, not deleted) and the
- * enqueue is an idempotent upsert on the candidate/version dedupe key, a
- * resumed/retried/concurrent advance NEVER reactivates an identity twice and
- * NEVER creates a duplicate Job. The `checkpointCursor` (last processed candidate
+ * guarded update and, while `CANDIDATE_INGEST_ENABLED=true`, enqueuing its
+ * LOW-priority candidate-ingest Job in the same transaction. The flag remains
+ * default-off until #1095 wires the production prepareDraft seam. Because the
+ * guarded update matches only a still-eligible row (BASELINE/DISCOVERED, no
+ * Article, not deleted) and the enqueue is an idempotent upsert on the
+ * candidate/version dedupe key, a resumed/retried/concurrent advance NEVER
+ * reactivates an identity twice and NEVER creates a duplicate Job. The
+ * `checkpointCursor` (last processed candidate
  * id) is advanced under a compare-and-set guard, so progress survives a worker
  * restart and pause/resume/cancel never widen the approved range.
  */
@@ -27,6 +28,7 @@ import { CrawlCandidateStatus, BackfillRunStatus, Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma";
 import { enqueueCandidateIngestInTx } from "@/lib/jobs";
+import { isCandidateIngestEnabled } from "@/lib/runtime-config/scraper";
 
 import {
   BACKFILL_JOB_PRIORITY,
@@ -231,7 +233,9 @@ export async function advanceBackfillRun(input: {
           },
         });
         if (updated.count === 1) {
-          await enqueueCandidateIngestInTx(tx, candidate.id, { priority: BACKFILL_JOB_PRIORITY });
+          if (isCandidateIngestEnabled()) {
+            await enqueueCandidateIngestInTx(tx, candidate.id, { priority: BACKFILL_JOB_PRIORITY });
+          }
           reactivated += 1;
         } else {
           skipped += 1;

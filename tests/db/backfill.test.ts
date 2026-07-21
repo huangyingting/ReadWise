@@ -62,6 +62,7 @@ import { createCrawlCandidate, providerKey } from "./support/discovery-fixtures"
 registerIntegrationCleanup();
 
 const { BASELINE, DISCOVERED, QUEUED, SKIPPED_OUTSIDE_WINDOW } = CrawlCandidateStatus;
+const ORIGINAL_CANDIDATE_INGEST_ENABLED = process.env.CANDIDATE_INGEST_ENABLED;
 
 /** Effective bounds are always concrete; build them directly for deterministic scans. */
 const WINDOW_START = new Date("2020-01-01T00:00:00.000Z");
@@ -77,6 +78,18 @@ function bounds(maxItems = 100) {
 const ingestCandidateIds = new Set<string>();
 /** provider keys whose BackfillRun rows must be swept (not PREFIX-swept by cleanup). */
 const runProviderKeys = new Set<string>();
+
+function enableCandidateIngestForTest(): void {
+  process.env.CANDIDATE_INGEST_ENABLED = "true";
+}
+
+function restoreCandidateIngestFlag(): void {
+  if (ORIGINAL_CANDIDATE_INGEST_ENABLED === undefined) {
+    delete process.env.CANDIDATE_INGEST_ENABLED;
+    return;
+  }
+  process.env.CANDIDATE_INGEST_ENABLED = ORIGINAL_CANDIDATE_INGEST_ENABLED;
+}
 
 async function makeRun(pk: string, over: { maxItems?: number } = {}): Promise<string> {
   runProviderKeys.add(pk);
@@ -99,6 +112,7 @@ async function ingestJobFor(candidateId: string) {
 }
 
 afterEach(async () => {
+  restoreCandidateIngestFlag();
   if (!enabled) return;
   const dedupeKeys = [...ingestCandidateIds].map((cid) =>
     candidateIngestDedupeKey(cid, CANDIDATE_INGEST_PROCESSING_VERSION),
@@ -203,7 +217,23 @@ test("createBackfillRun persists provenance and clamp warnings; getBackfillRun r
 // Advance: reactivation + LOW-priority enqueue + governing invariant.
 // ---------------------------------------------------------------------------
 
+test("advance does not enqueue backfill candidate ingest while CANDIDATE_INGEST_ENABLED is off by default", { skip: !enabled }, async () => {
+  delete process.env.CANDIDATE_INGEST_ENABLED;
+  const pk = providerKey("bf");
+  const cand = await createCrawlCandidate({ providerKey: pk, status: BASELINE, observedInBaseline: true, trustedPublishedAt: IN_WINDOW });
+  ingestCandidateIds.add(cand.id);
+  const runId = await makeRun(pk);
+
+  const outcome = await advanceBackfillRun({ runId, batchSize: 50 });
+
+  assert.equal(outcome.ok === true && outcome.kind === "advanced" && outcome.reactivated, 1);
+  const after = await prisma.crawlCandidate.findUnique({ where: { id: cand.id } });
+  assert.equal(after?.status, QUEUED);
+  assert.equal(await ingestJobFor(cand.id), null);
+});
+
 test("advance reactivates OBSERVED_BASELINE → QUEUED, flips observedInBaseline, enqueues a -100 ingest Job", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const pk = providerKey("bf");
   const cand = await createCrawlCandidate({ providerKey: pk, status: BASELINE, observedInBaseline: true, trustedPublishedAt: IN_WINDOW });
   ingestCandidateIds.add(cand.id);
@@ -230,6 +260,7 @@ test("advance reactivates OBSERVED_BASELINE → QUEUED, flips observedInBaseline
 });
 
 test("advance reactivates OBSERVED_SHADOW (DISCOVERED + not observed-in-baseline)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const pk = providerKey("bf");
   const cand = await createCrawlCandidate({ providerKey: pk, status: DISCOVERED, observedInBaseline: false, trustedPublishedAt: IN_WINDOW });
   ingestCandidateIds.add(cand.id);
@@ -242,6 +273,7 @@ test("advance reactivates OBSERVED_SHADOW (DISCOVERED + not observed-in-baseline
 });
 
 test("advance reactivates SKIPPED_OUTSIDE_WINDOW → QUEUED and enqueues a -100 ingest Job (#1127)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const pk = providerKey("bf");
   const cand = await createCrawlCandidate({ providerKey: pk, status: SKIPPED_OUTSIDE_WINDOW, observedInBaseline: false, trustedPublishedAt: IN_WINDOW });
   ingestCandidateIds.add(cand.id);
@@ -311,6 +343,7 @@ test("governing invariant: has-article, deleted-article, out-of-window, and unkn
 // ---------------------------------------------------------------------------
 
 test("the maxItems cap bounds the run: only the budget is reactivated, then COMPLETED (budget-reached)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const pk = providerKey("bf");
   const c1 = await createCrawlCandidate({ providerKey: pk, status: BASELINE, observedInBaseline: true, trustedPublishedAt: IN_WINDOW });
   const c2 = await createCrawlCandidate({ providerKey: pk, status: BASELINE, observedInBaseline: true, trustedPublishedAt: IN_WINDOW });
@@ -337,6 +370,7 @@ test("the maxItems cap bounds the run: only the budget is reactivated, then COMP
 // ---------------------------------------------------------------------------
 
 test("batched advance resumes from the checkpoint and NEVER double-reactivates (restart-safe)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const pk = providerKey("bf");
   const c1 = await createCrawlCandidate({ providerKey: pk, status: BASELINE, observedInBaseline: true, trustedPublishedAt: IN_WINDOW });
   const c2 = await createCrawlCandidate({ providerKey: pk, status: DISCOVERED, observedInBaseline: false, trustedPublishedAt: IN_WINDOW });
@@ -439,6 +473,7 @@ test("listRunnableBackfillRunIds returns only RUNNING runs", { skip: !enabled },
 // ---------------------------------------------------------------------------
 
 test("contention: a real-time ingest Job (priority 0) is claimed BEFORE a backfill Job (-100)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const realtimePk = providerKey("rt");
   const backfillPk = providerKey("bf");
 
