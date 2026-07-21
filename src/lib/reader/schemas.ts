@@ -16,7 +16,7 @@ import {
 } from "@/lib/validation";
 import { HIGHLIGHT_NOTE_MAX } from "@/lib/annotations";
 import { MAX_ACTIVE_TIME_MS } from "@/lib/engagement/reading-speed";
-import { isValidTimezoneString } from "@/lib/offline/registry";
+import { optionalTimezoneString } from "@/lib/timezone";
 
 /** Helper: extract the validated value type from any Schema<T>. */
 type InferSchema<S extends Schema<unknown>> = S extends Schema<infer T> ? T : never;
@@ -41,17 +41,6 @@ const MAX_HIGHLIGHT_COLOR_CHARS = 20;
 const MAX_QUIZ_ANSWERS = 1000;
 const MAX_QUIZ_ANSWER_INDEX = 1000;
 const MAX_CLIENT_MUTATION_ID_CHARS = 100;
-const MAX_TIMEZONE_CHARS = 100;
-
-const timezoneString: Schema<string> = (value, field) => {
-  const parsed = string({ max: MAX_TIMEZONE_CHARS })(value, field);
-  if (!parsed.ok) return parsed;
-  if (!isValidTimezoneString(parsed.value)) {
-    return { ok: false, error: `${field ?? "timezone"} must be a valid IANA timezone` };
-  }
-  return parsed;
-};
-
 // ---------------------------------------------------------------------------
 // POST /api/reader/[id]/highlights
 // ---------------------------------------------------------------------------
@@ -74,7 +63,7 @@ export type CreateHighlightBody = InferSchema<typeof createHighlightBody>;
 
 export const progressBody = object({
   percent: number({ min: 0, max: 100 }),
-  timezone: optional(timezoneString),
+  timezone: optionalTimezoneString,
 });
 
 export type ProgressBody = InferSchema<typeof progressBody>;

@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 
 let findManyResult: Array<{ date: Date; articlesRead: number }> = [];
 let capturedArgs: Record<string, unknown> = {};
+let profileTimezone: string | null = "UTC";
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -24,6 +25,10 @@ before(() => {
             return findManyResult;
           },
         },
+        profile: {
+          findUnique: async () =>
+            profileTimezone === null ? null : { timezone: profileTimezone },
+        },
       },
     },
   });
@@ -32,6 +37,7 @@ before(() => {
 beforeEach(() => {
   findManyResult = [];
   capturedArgs = {};
+  profileTimezone = "UTC";
 });
 
 test("getActivityHeatmap: empty DB result → exactly 365 zero cells", async () => {
@@ -74,6 +80,38 @@ test("getActivityHeatmap: in-window rows are mapped to the correct cell", async 
   assert.ok(todayCell, "today's cell should exist in results");
   assert.strictEqual(todayCell!.count, 4);
   assert.ok(todayCell!.level > 0, "level should be non-zero for count=4");
+});
+
+test("getActivityHeatmap: ends on the request-local day for non-UTC timezones", async () => {
+  const { getActivityHeatmap } = await import("@/lib/engagement/heatmap-repo");
+  const now = new Date("2026-06-27T15:30:00Z"); // 2026-06-28 in Asia/Tokyo
+  findManyResult = [{
+    date: new Date("2026-06-28T00:00:00Z"),
+    articlesRead: 2,
+  }];
+
+  const cells = await getActivityHeatmap("user-local-day", {
+    timezone: "Asia/Tokyo",
+    now,
+  });
+
+  assert.strictEqual(cells.at(-1)?.date, "2026-06-28");
+  assert.strictEqual(cells.at(-1)?.count, 2);
+});
+
+test("getActivityHeatmap: falls back to the profile-local day when no request timezone is supplied", async () => {
+  const { getActivityHeatmap } = await import("@/lib/engagement/heatmap-repo");
+  profileTimezone = "Asia/Tokyo";
+  const now = new Date("2026-06-27T15:30:00Z"); // 2026-06-28 in Asia/Tokyo
+  findManyResult = [{
+    date: new Date("2026-06-28T00:00:00Z"),
+    articlesRead: 1,
+  }];
+
+  const cells = await getActivityHeatmap("user-profile-day", { now });
+
+  assert.strictEqual(cells.at(-1)?.date, "2026-06-28");
+  assert.strictEqual(cells.at(-1)?.count, 1);
 });
 
 test("getActivityHeatmap: userId is forwarded in the query where clause", async () => {

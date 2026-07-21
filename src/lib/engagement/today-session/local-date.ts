@@ -10,44 +10,23 @@
  * reader whose evening straddles UTC midnight still gets one stable day.
  *
  * Timezone fallback chain:
- *   1. `Profile.timezone` (the learner's saved IANA zone), when valid;
- *   2. a request/browser-supplied timezone, when valid;
- *   3. UTC, when neither is a valid IANA zone (invalid strings are ignored).
+ *   1. request/browser-supplied timezone, when valid;
+ *   2. `Profile.timezone` (the learner's saved IANA zone), when valid;
+ *   3. UTC, when neither is a valid IANA zone.
  */
 
 import { prisma } from "@/lib/prisma";
+import { resolveTimezone as resolveSharedTimezone } from "@/lib/timezone";
 import { dateKey } from "../time";
 
-const DEFAULT_TIMEZONE = "UTC";
+export { isValidTimezoneString as isValidTimezone } from "@/lib/timezone";
 
 /**
- * True when `tz` is a usable IANA timezone string. Invalid or empty strings
- * (and non-strings) return false so callers can fall through the chain.
- */
-export function isValidTimezone(tz: unknown): tz is string {
-  if (typeof tz !== "string" || tz.trim() === "") return false;
-  try {
-    // Throws RangeError for unknown/invalid zones.
-    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Resolve the effective IANA timezone from the (already loaded) profile zone and
- * an optional request/browser zone, falling back to UTC. Pure — no DB access —
+ * Resolve the effective IANA timezone from an optional request/browser zone and
+ * the (already loaded) profile zone, falling back to UTC. Pure — no DB access —
  * so it is unit-testable in isolation.
  */
-export function resolveTimezone(
-  profileTimezone: string | null | undefined,
-  requestTimezone?: string | null,
-): string {
-  if (isValidTimezone(profileTimezone)) return profileTimezone;
-  if (isValidTimezone(requestTimezone)) return requestTimezone;
-  return DEFAULT_TIMEZONE;
-}
+export { resolveTimezone } from "@/lib/timezone";
 
 /** Resolved local-date anchor for a Today session. */
 export type LocalDateResolution = {
@@ -68,7 +47,7 @@ async function loadProfileTimezone(userId: string): Promise<string | null> {
 /**
  * Compute the learner's local date + the timezone snapshot used to derive it.
  *
- * Prefers `Profile.timezone`; falls back to a request/browser zone, then UTC.
+ * Prefers the request/browser zone; falls back to `Profile.timezone`, then UTC.
  * `now` is injectable for deterministic tests.
  */
 export async function resolveLocalDate(args: {
@@ -78,6 +57,6 @@ export async function resolveLocalDate(args: {
 }): Promise<LocalDateResolution> {
   const { userId, requestTimezone, now = new Date() } = args;
 
-  const timezone = resolveTimezone(await loadProfileTimezone(userId), requestTimezone);
+  const timezone = resolveSharedTimezone(requestTimezone, await loadProfileTimezone(userId));
   return { localDate: dateKey(now, timezone), timezone };
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import type { ValidationResult } from "@/lib/validation";
-import { queryString } from "@/lib/validation";
+import { parseOptionalTimezoneQuery } from "@/lib/timezone";
 import { loadTodayViewModel } from "@/lib/engagement/today-session";
 import {
   defineFeatureGate,
@@ -20,37 +19,23 @@ import {
  *
  * The session is always scoped to the authenticated user; an optional
  * `?timezone=` query param anchors the correct local day, otherwise the saved
- * profile timezone (then UTC) is used. 404s when the feature is disabled.
+ * profile timezone (then UTC) is used. Invalid IANA zones are rejected. 404s
+ * when the feature is disabled.
  */
-type TodayQuery = { timezone: string };
-
-const MAX_TIMEZONE_LENGTH = 100;
 const TODAY_ROUTE_FEATURE_GATE = defineFeatureGate<null, Response>({
   feature: "todaySession",
   whenDisabled: () => NextResponse.json({ error: "Not found" }, { status: 404 }),
 });
 
-function parseTodayQuery(params: URLSearchParams): ValidationResult<TodayQuery> {
-  const timezone = queryString(params, "timezone");
-  if (timezone.length > MAX_TIMEZONE_LENGTH) {
-    return { ok: false, error: `timezone must be at most ${MAX_TIMEZONE_LENGTH} characters` };
-  }
-  return { ok: true, value: { timezone } };
-}
-
-function toRequestTimezone(timezone: string): string | null {
-  return timezone || null;
-}
-
 export const GET = createHandler(
-  { query: parseTodayQuery },
+  { query: parseOptionalTimezoneQuery },
   async ({ query, session }) => {
     const disabledResponse = enforceFeatureGate(TODAY_ROUTE_FEATURE_GATE, null);
     if (disabledResponse) return disabledResponse;
 
     const view = await loadTodayViewModel({
       user: { id: session.user.id, role: session.user.role },
-      requestTimezone: toRequestTimezone(query.timezone),
+      requestTimezone: query.timezone,
     });
 
     return NextResponse.json(view);
