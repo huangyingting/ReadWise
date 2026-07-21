@@ -7,14 +7,14 @@
  * Downloads the article content via GET /api/reader/[id]/offline and stores it
  * in IndexedDB via the offline-db helper.
  *
- * States: idle → loading → saved (click to remove) → error
+ * States: checking → idle → loading → saved (click to remove) → error
  *
  * Degrades gracefully when IndexedDB is unavailable (e.g. private browsing).
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { Download, Check, Trash2, WifiOff } from "lucide-react";
-import { Button, Tooltip } from "@/components/ui";
+import { Button, PanelError, Tooltip } from "@/components/ui";
 import {
   saveOfflineArticle,
   removeOfflineArticle,
@@ -25,7 +25,8 @@ import {
 } from "@/lib/offline/article-store";
 import type { OfflineArticle } from "@/lib/offline/article-store";
 
-type State = "idle" | "loading" | "saved" | "error" | "unsupported";
+type State = "checking" | "idle" | "loading" | "saved" | "error" | "unsupported";
+type ErrorMode = "availability" | "download";
 
 function offlineArticleUrl(articleId: string, meta = false): string {
   return `/api/reader/${articleId}/offline${meta ? "?meta=1" : ""}`;
@@ -44,8 +45,9 @@ export default function OfflineDownloadButton({
 }: {
   articleId: string;
 }) {
-  const [state, setState] = useState<State>("idle");
+  const [state, setState] = useState<State>("checking");
   const [error, setError] = useState<string | null>(null);
+  const [errorMode, setErrorMode] = useState<ErrorMode>("download");
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   /**
@@ -77,27 +79,35 @@ export default function OfflineDownloadButton({
     }
   }, [articleId]);
 
+  const checkOfflineAvailability = useCallback(async (isCancelled: () => boolean = () => false) => {
+    if (typeof indexedDB === "undefined") {
+      if (!isCancelled()) setState("unsupported");
+      return;
+    }
+    setState("checking");
+    setError(null);
+    try {
+      const saved = await isArticleOffline(articleId);
+      if (isCancelled()) return;
+      setState(saved ? "saved" : "idle");
+      if (saved) void revalidateCachedCopy();
+    } catch {
+      if (isCancelled()) return;
+      setError("Offline storage couldn’t be checked. Please retry.");
+      setErrorMode("availability");
+      setState("error");
+    }
+  }, [articleId, revalidateCachedCopy]);
+
   // Check initial state on mount; if already saved, revalidate the cached copy
   // against the server version and refresh (or drop) it as needed (RW-044).
   useEffect(() => {
-    if (typeof indexedDB === "undefined") {
-      setState("unsupported");
-      return;
-    }
     let cancelled = false;
-    isArticleOffline(articleId)
-      .then((saved) => {
-        if (cancelled) return;
-        setState(saved ? "saved" : "idle");
-        if (saved) void revalidateCachedCopy();
-      })
-      .catch(() => {
-        if (!cancelled) setState("idle");
-      });
+    void checkOfflineAvailability(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [articleId, revalidateCachedCopy]);
+  }, [checkOfflineAvailability]);
 
   async function handleDownload() {
     setState("loading");
@@ -122,6 +132,7 @@ export default function OfflineDownloadButton({
       setState("saved");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Download failed");
+      setErrorMode("download");
       setState("error");
     }
   }
@@ -137,7 +148,23 @@ export default function OfflineDownloadButton({
     setError(null);
   }
 
-  if (state === "unsupported") return null;
+  if (state === "unsupported") {
+    return (
+      <Tooltip content="Offline reading needs browser storage, which is unavailable in this browser or mode.">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="offline-btn"
+          disabled
+          aria-label="Offline reading unavailable: browser storage is unavailable"
+          leadingIcon={<WifiOff size={13} aria-hidden />}
+        >
+          Offline unavailable
+        </Button>
+      </Tooltip>
+    );
+  }
 
   if (state === "saved") {
     if (confirmRemove) {
@@ -189,10 +216,23 @@ export default function OfflineDownloadButton({
     return (
       <span className="offline-btn-group">
         {error && (
-          <span className="offline-error" role="alert">
-            {error}
-          </span>
+          <PanelError message={error} />
         )}
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="offline-btn"
+          onClick={() => {
+            if (errorMode === "availability") {
+              void checkOfflineAvailability();
+            } else {
+              void handleDownload();
+            }
+          }}
+        >
+          Retry
+        </Button>
         <Button
           type="button"
           variant="ghost"
@@ -215,17 +255,19 @@ export default function OfflineDownloadButton({
         size="sm"
         className="offline-btn"
         onClick={() => void handleDownload()}
-        disabled={state === "loading"}
+        disabled={state === "loading" || state === "checking"}
         aria-label={
-          state === "loading" ? "Downloading article…" : "Download for offline reading"
+          state === "checking"
+            ? "Checking offline availability…"
+            : state === "loading" ? "Downloading article…" : "Download for offline reading"
         }
         leadingIcon={
-          state === "loading"
+          state === "loading" || state === "checking"
             ? <WifiOff size={13} aria-hidden />
             : <Download size={13} aria-hidden />
         }
       >
-        {state === "loading" ? "Saving…" : "Offline"}
+        {state === "checking" ? "Checking…" : state === "loading" ? "Saving…" : "Offline"}
       </Button>
     </Tooltip>
   );

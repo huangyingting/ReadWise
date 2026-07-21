@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useTransition } from "react";
+import { useState, useCallback, useMemo, useRef, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen } from "lucide-react";
 import {
@@ -133,16 +133,15 @@ export default function VocabularyJournal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkPending, setBulkPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const lastWordsQueryRef = useRef(searchParams.toString());
 
   // Debounce + abort + stale-response guarding is delegated to useFilteredFetch.
   const { run } = useFilteredFetch<JournalData>(300);
 
-  const fetchWords = useCallback(
-    (
-      opts: FetchWordsOptions,
-      debounce = false,
-    ) => {
-      const queryString = buildWordsQueryString(searchParams.toString(), opts);
+  const fetchWordsQuery = useCallback(
+    (queryString: string, debounce = false) => {
+      lastWordsQueryRef.current = queryString;
 
       run({
         immediate: !debounce,
@@ -152,16 +151,32 @@ export default function VocabularyJournal({
           });
           return getJson<JournalData>(`/api/study/words?${queryString}`, { signal });
         },
-        // Swallow failures (incl. aborts) — keep current data rather than blanking
-        // the table; only commit on a fresh, non-superseded success.
         onResult: (json) => {
           setData(json);
           setSelected(new Set());
+          setFetchError(null);
+        },
+        onError: () => {
+          setFetchError("Couldn’t refresh saved words. Showing the last loaded results.");
         },
       });
     },
-    [router, searchParams, run],
+    [router, run],
   );
+
+  const fetchWords = useCallback(
+    (
+      opts: FetchWordsOptions,
+      debounce = false,
+    ) => {
+      fetchWordsQuery(buildWordsQueryString(searchParams.toString(), opts), debounce);
+    },
+    [fetchWordsQuery, searchParams],
+  );
+
+  const retryFetchWords = useCallback(() => {
+    fetchWordsQuery(lastWordsQueryRef.current);
+  }, [fetchWordsQuery]);
 
   const handleSearch = useCallback(
     (value: string) => {
@@ -316,6 +331,19 @@ export default function VocabularyJournal({
       </Toolbar>
 
       {error ? <PanelError message={error} /> : null}
+      {fetchError ? (
+        <div className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] border border-border bg-surface p-[var(--space-3)]">
+          <PanelError message={fetchError} />
+          <p className="m-0 text-[length:var(--text-xs)] text-text-muted">
+            The table below may be stale until retry succeeds.
+          </p>
+          <div>
+            <Button type="button" variant="secondary" size="sm" onClick={retryFetchWords}>
+              Retry
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Words table */}
       {!hasWords ? (
