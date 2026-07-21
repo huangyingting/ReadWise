@@ -15,6 +15,7 @@ const FAILURE_COOLDOWN_MS = 30_000;
 const EXPIRED_COUNTER_SWEEP_PROBABILITY = 0.05;
 
 type CounterClient = {
+  $transaction?: <R>(fn: (tx: CounterClient) => Promise<R>) => Promise<R>;
   rateLimitCounter: {
     upsert: (args: unknown) => Promise<{ count: number }>;
     deleteMany: (args: unknown) => Promise<unknown>;
@@ -34,6 +35,26 @@ export type ConsumeFixedWindowInput = {
   nowMs?: number;
   fallbackWindowAnchor: FallbackWindowAnchor;
 };
+
+export type ConsumeFixedWindowBatchReservation = {
+  key: string;
+  limit: number;
+};
+
+export type ConsumeFixedWindowBatchInput = {
+  reservations: ConsumeFixedWindowBatchReservation[];
+  windowMs: number;
+  nowMs?: number;
+  fallbackWindowAnchor: FallbackWindowAnchor;
+};
+
+export type ConsumeFixedWindowBatchResult =
+  | { allowed: true; counts: Map<string, number> }
+  | {
+      allowed: false;
+      blocked: { key: string; limit: number; count: number };
+      counts: Map<string, number>;
+    };
 
 export type ObserveFixedWindowInput = {
   key: string;
@@ -94,6 +115,23 @@ function incrementMemory(
   return bucket.count;
 }
 
+function nextMemoryCount(
+  key: string,
+  windowMs: number,
+  nowMs: number,
+  anchor: FallbackWindowAnchor,
+): number {
+  const expectedStart =
+    anchor === "epoch" ? epochWindowStart(nowMs, windowMs) : undefined;
+  const bucket = memoryBuckets.get(key);
+  const expired = bucket
+    ? anchor === "epoch"
+      ? bucket.windowStart !== expectedStart
+      : nowMs - bucket.windowStart >= windowMs
+    : true;
+  return !bucket || expired ? 1 : bucket.count + 1;
+}
+
 function sweepExpiredDatabaseCounters(client: CounterClient): void {
   if (Math.random() >= EXPIRED_COUNTER_SWEEP_PROBABILITY) return;
   void client.rateLimitCounter
@@ -109,11 +147,36 @@ function tripDatabaseCircuit(err: unknown): void {
   });
 }
 
+class FixedWindowLimitExceeded extends Error {
+  readonly key: string;
+  readonly limit: number;
+  readonly count: number;
+
+  constructor(key: string, limit: number, count: number) {
+    super("fixed window limit exceeded");
+    this.name = "FixedWindowLimitExceeded";
+    this.key = key;
+    this.limit = limit;
+    this.count = count;
+  }
+}
+
 async function incrementDatabase(
   key: string,
   windowMs: number,
   nowMs: number,
   client: CounterClient = prisma as unknown as CounterClient,
+): Promise<number> {
+  const count = await upsertDatabaseCounter(key, windowMs, nowMs, client);
+  sweepExpiredDatabaseCounters(client);
+  return count;
+}
+
+async function upsertDatabaseCounter(
+  key: string,
+  windowMs: number,
+  nowMs: number,
+  client: CounterClient,
 ): Promise<number> {
   const windowStartMs = epochWindowStart(nowMs, windowMs);
   const windowStart = new Date(windowStartMs);
@@ -125,12 +188,82 @@ async function incrementDatabase(
       update: { count: { increment: 1 } },
       select: { count: true },
     });
-    sweepExpiredDatabaseCounters(client);
     return row.count;
   } catch (err) {
     tripDatabaseCircuit(err);
     throw err;
   }
+}
+
+async function consumeDatabaseBatch(
+  reservations: ConsumeFixedWindowBatchReservation[],
+  windowMs: number,
+  nowMs: number,
+  client: CounterClient = prisma as unknown as CounterClient,
+): Promise<ConsumeFixedWindowBatchResult> {
+  const run = async (tx: CounterClient): Promise<Map<string, number>> => {
+    const counts = new Map<string, number>();
+    for (const reservation of reservations) {
+      const count = await upsertDatabaseCounter(reservation.key, windowMs, nowMs, tx);
+      counts.set(reservation.key, count);
+      if (count > reservation.limit) {
+        throw new FixedWindowLimitExceeded(
+          reservation.key,
+          reservation.limit,
+          count,
+        );
+      }
+    }
+    return counts;
+  };
+
+  try {
+    const counts = client.$transaction ? await client.$transaction(run) : await run(client);
+    sweepExpiredDatabaseCounters(client);
+    return { allowed: true, counts };
+  } catch (err) {
+    if (err instanceof FixedWindowLimitExceeded) {
+      return {
+        allowed: false,
+        blocked: { key: err.key, limit: err.limit, count: err.count },
+        counts: new Map([[err.key, err.count]]),
+      };
+    }
+    tripDatabaseCircuit(err);
+    throw err;
+  }
+}
+
+function consumeMemoryBatch(
+  reservations: ConsumeFixedWindowBatchReservation[],
+  windowMs: number,
+  nowMs: number,
+  anchor: FallbackWindowAnchor,
+): ConsumeFixedWindowBatchResult {
+  if (Math.random() < EXPIRED_COUNTER_SWEEP_PROBABILITY) {
+    purgeStaleMemory(nowMs, windowMs);
+  }
+
+  const counts = new Map<string, number>();
+  for (const reservation of reservations) {
+    const count = nextMemoryCount(reservation.key, windowMs, nowMs, anchor);
+    counts.set(reservation.key, count);
+    if (count > reservation.limit) {
+      return {
+        allowed: false,
+        blocked: { key: reservation.key, limit: reservation.limit, count },
+        counts,
+      };
+    }
+  }
+
+  for (const reservation of reservations) {
+    counts.set(
+      reservation.key,
+      incrementMemory(reservation.key, windowMs, nowMs, anchor),
+    );
+  }
+  return { allowed: true, counts };
 }
 
 /**
@@ -150,6 +283,35 @@ export async function consumeFixedWindow(
   }
   return incrementMemory(
     input.key,
+    input.windowMs,
+    nowMs,
+    input.fallbackWindowAnchor,
+  );
+}
+
+/**
+ * Reserves one count across multiple fixed-window counters all-or-nothing.
+ * Database-backed reservations run inside one transaction so an over-limit
+ * dimension rolls back earlier increments. Memory fallback preflights every
+ * dimension before mutating any bucket.
+ */
+export async function consumeFixedWindowBatch(
+  input: ConsumeFixedWindowBatchInput,
+): Promise<ConsumeFixedWindowBatchResult> {
+  const nowMs = input.nowMs ?? Date.now();
+  if (input.reservations.length === 0) {
+    return { allowed: true, counts: new Map() };
+  }
+
+  if (databaseEnabled(nowMs)) {
+    try {
+      return await consumeDatabaseBatch(input.reservations, input.windowMs, nowMs);
+    } catch {
+      // The database adapter opened the circuit; reserve exactly once in memory.
+    }
+  }
+  return consumeMemoryBatch(
+    input.reservations,
     input.windowMs,
     nowMs,
     input.fallbackWindowAnchor,
