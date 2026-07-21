@@ -24,6 +24,7 @@ export {
   isSensitiveMetadataKey,
   redactSensitiveValue,
   redactSensitiveObject,
+  safeMetadataForLog,
   safeMetadataForPersistence,
 } from "@/lib/security/redaction";
 export * from "@/lib/security/client-ip";
