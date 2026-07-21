@@ -18,6 +18,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { publicListableArticleWhere } from "@/lib/article-library";
+import { COMPLETION_THRESHOLD } from "@/lib/engagement/progress-rules";
 import { listScoredPicksPage } from "@/lib/recommendations/picks";
 import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 import { resolveNextSeriesArticle } from "@/lib/engagement/series";
@@ -40,7 +41,7 @@ import type { TodaySessionPlan, TodaySessionView } from "./types";
 
 /** Resume window: only articles between these progress percents are eligible. */
 export const RESUME_MIN_PERCENT = 15;
-export const RESUME_MAX_PERCENT = 94;
+export const RESUME_MAX_PERCENT = COMPLETION_THRESHOLD - 1;
 
 /** Resume staleness window: progress must have moved within this many days. */
 export const RESUME_RECENT_DAYS = 7;
