@@ -32,6 +32,7 @@ import { franc } from "franc-min";
 import { createLogger } from "@/lib/observability/logger";
 import { scraperQualityClassifier } from "@/lib/runtime-config/scraper";
 import { providerForUrl } from "@/lib/scraper/providers";
+import { redactUrlForLog } from "@/lib/security/redaction";
 
 import { classifyArticleText } from "./quality-classifier";
 
@@ -783,15 +784,16 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
   // Log only non-PII metrics: grade, score, word count, failed check names.
   if (grade !== "ok") {
     const failedChecks = failedQualityChecks({ grade, score, signals });
+    const source = redactUrlForLog(article.sourceUrl);
     log.warn("content quality degraded", {
       grade,
       score,
       wordCount,
       failedChecks,
-      sourceUrl: article.sourceUrl,
+      source,
     });
   } else {
-    log.debug("content quality ok", { score, wordCount, sourceUrl: article.sourceUrl });
+    log.debug("content quality ok", { score, wordCount, source: redactUrlForLog(article.sourceUrl) });
   }
 
   return { grade, score, signals };

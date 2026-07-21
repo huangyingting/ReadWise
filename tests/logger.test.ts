@@ -163,6 +163,59 @@ test("createLogger merges per-call meta on top of base and context", async () =>
   assert.equal(parsed.extra, "value");
 });
 
+test("createLogger redacts URL credentials and query tokens in metadata", async () => {
+  process.env.LOG_LEVEL = "info";
+  const { createLogger } = await import("@/lib/observability/logger");
+  const rawTarget =
+    "https://reader:pw@example.test/article?token=abcdefghijklmnopqrstuvwxyz123456#frag";
+  const lines = await captureConsole(() => {
+    createLogger("privacy").warn("url metadata", { target: rawTarget });
+  });
+
+  const rawLine = lines.at(-1) ?? "";
+  const parsed = parseLastLogLine(lines);
+  assert.equal(parsed.target, "https://example.test/article?[redacted]");
+  assert.equal(rawLine.includes("reader:pw"), false);
+  assert.equal(rawLine.includes("abcdefghijklmnopqrstuvwxyz123456"), false);
+});
+
+test("createLogger scrubs token-like values from Error objects and strings", async () => {
+  process.env.LOG_LEVEL = "info";
+  const { createLogger } = await import("@/lib/observability/logger");
+  const token = "abcdefghijklmnopqrstuvwxyz123456";
+  const lines = await captureConsole(() => {
+    createLogger("privacy").error("error metadata", {
+      error: new Error(`provider rejected bearer ${token}`),
+      detail: `retry used ${token}`,
+    });
+  });
+
+  const rawLine = lines.at(-1) ?? "";
+  const parsed = parseLastLogLine(lines);
+  assert.equal(rawLine.includes(token), false);
+  assert.equal(parsed.error, "provider rejected bearer [token]");
+  assert.equal(parsed.detail, "retry used [token]");
+});
+
+test("createLogger leaves safe metadata unchanged while scrubbing recursively", async () => {
+  process.env.LOG_LEVEL = "info";
+  const { createLogger } = await import("@/lib/observability/logger");
+  const lines = await captureConsole(() => {
+    createLogger("privacy").info("safe metadata", {
+      count: 3,
+      ok: true,
+      status: "queued",
+      nested: { reason: "scheduled", priority: 2 },
+    });
+  });
+
+  const parsed = parseLastLogLine(lines);
+  assert.equal(parsed.count, 3);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.status, "queued");
+  assert.deepEqual(parsed.nested, { reason: "scheduled", priority: 2 });
+});
+
 // ---- LOG_LEVEL filtering -------------------------------------------------
 
 test("LOG_LEVEL=warn drops debug and info lines", async () => {
