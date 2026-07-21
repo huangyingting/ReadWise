@@ -12,13 +12,25 @@ let count = 0;
 before(() => {
   mock.module("@/lib/security/fixed-window-counter", {
     namedExports: {
-      consumeFixedWindow: async (input: {
-        key: string;
+      consumeFixedWindowBatch: async (input: {
+        reservations: Array<{ key: string; limit: number }>;
         fallbackWindowAnchor: string;
       }) => {
-        counterCalls.push(input);
-        count += 1;
-        return count;
+        for (const reservation of input.reservations) {
+          counterCalls.push({
+            key: reservation.key,
+            fallbackWindowAnchor: input.fallbackWindowAnchor,
+          });
+          count += 1;
+          if (count > reservation.limit) {
+            return {
+              allowed: false,
+              blocked: { key: reservation.key, limit: reservation.limit, count },
+              counts: new Map([[reservation.key, count]]),
+            };
+          }
+        }
+        return { allowed: true, counts: new Map() };
       },
       fixedWindowStart: (nowMs: number, windowMs: number) =>
         Math.floor(nowMs / windowMs) * windowMs,

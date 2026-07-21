@@ -39,7 +39,7 @@ import {
   type AiQuotaConfig,
 } from "@/lib/runtime-config/ai";
 import {
-  consumeFixedWindow,
+  consumeFixedWindowBatch,
   fixedWindowStart,
 } from "@/lib/security/fixed-window-counter";
 import { summarizeAiUsage } from "@/lib/ai/usage-summary";
@@ -100,20 +100,6 @@ export function getAiContext(): AiContext | undefined {
 // ---------------------------------------------------------------------------
 
 const BUCKET_PREFIX = "aibudget:";
-
-/**
- * Atomically increment a budget counter for the current window and return the
- * new count. Tries the shared DB store first (consistent across instances),
- * falling back to the in-memory counter when that store is unavailable.
- */
-async function incrementBudget(key: string, windowMs: number, nowMs: number): Promise<number> {
-  return consumeFixedWindow({
-    key: `${BUCKET_PREFIX}${key}`,
-    windowMs,
-    nowMs,
-    fallbackWindowAnchor: "epoch",
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Dimensions
@@ -224,11 +210,19 @@ export async function checkAiBudget(
     return allowedDecision(feature, kind, userId);
   }
 
-  for (const dim of dims) {
-    const count = await incrementBudget(dim.key, cfg.windowMs, now);
-    if (count > dim.limit) {
-      return blockedDecision(feature, kind, userId, dim, count);
-    }
+  const reservation = await consumeFixedWindowBatch({
+    reservations: dims.map((dim) => ({
+      key: `${BUCKET_PREFIX}${dim.key}`,
+      limit: dim.limit,
+    })),
+    windowMs: cfg.windowMs,
+    nowMs: now,
+    fallbackWindowAnchor: "epoch",
+  });
+  if (!reservation.allowed) {
+    const blockedKey = reservation.blocked.key.slice(BUCKET_PREFIX.length);
+    const dim = dims.find((candidate) => candidate.key === blockedKey) ?? dims[0]!;
+    return blockedDecision(feature, kind, userId, dim, reservation.blocked.count);
   }
   return allowedDecision(feature, kind, userId);
 }
