@@ -30,16 +30,20 @@ function completionTimestamp(status: AssignmentStatus): Date | null {
 export async function getStudentAssignmentContext(
   assignmentId: string,
   studentId: string,
-): Promise<{ assignmentId: string; classroomId: string } | null> {
+): Promise<{ assignmentId: string; classroomId: string; classroomArchivedAt: Date | null } | null> {
   const assignment = await prisma.assignment.findFirst({
     where: {
       id: assignmentId,
       classroom: { members: { some: { userId: studentId } } },
     },
-    select: { id: true, classroomId: true },
+    select: { id: true, classroomId: true, classroom: { select: { archivedAt: true } } },
   });
   return assignment
-    ? { assignmentId: assignment.id, classroomId: assignment.classroomId }
+    ? {
+        assignmentId: assignment.id,
+        classroomId: assignment.classroomId,
+        classroomArchivedAt: assignment.classroom.archivedAt,
+      }
     : null;
 }
 
@@ -92,7 +96,7 @@ export async function markAssignmentQuizComplete(input: {
   const assignments = await prisma.assignment.findMany({
     where: {
       articleId,
-      classroom: { members: { some: { userId } } },
+      classroom: { archivedAt: null, members: { some: { userId } } },
     },
     select: { id: true },
   });

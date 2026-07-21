@@ -13,6 +13,12 @@ import assert from "node:assert/strict";
 
 let findManyArgs: unknown = null;
 let findManyResult: Array<{ id: string }> = [];
+let findFirstArgs: unknown = null;
+let findFirstResult: {
+  id: string;
+  classroomId: string;
+  classroom: { archivedAt: Date | null };
+} | null = null;
 const upsertCalls: Array<Record<string, unknown>> = [];
 
 before(() => {
@@ -20,6 +26,10 @@ before(() => {
     namedExports: {
       prisma: {
         assignment: {
+          findFirst: async (args: unknown) => {
+            findFirstArgs = args;
+            return findFirstResult;
+          },
           findMany: async (args: unknown) => {
             findManyArgs = args;
             return findManyResult;
@@ -39,6 +49,8 @@ before(() => {
 beforeEach(() => {
   findManyArgs = null;
   findManyResult = [];
+  findFirstArgs = null;
+  findFirstResult = null;
   upsertCalls.length = 0;
 });
 
@@ -46,14 +58,41 @@ async function load(): Promise<typeof import("@/lib/classroom/completions")> {
   return import("@/lib/classroom/completions");
 }
 
+test("student assignment context exposes archived classroom state for route rejection", async () => {
+  const archivedAt = new Date("2026-07-21T03:00:00.000Z");
+  findFirstResult = {
+    id: "asgn-archived",
+    classroomId: "class-archived",
+    classroom: { archivedAt },
+  };
+  const { getStudentAssignmentContext } = await load();
+  const result = await getStudentAssignmentContext("asgn-archived", "student-1");
+  const args = findFirstArgs as {
+    where: { id: string; classroom: { members: { some: { userId: string } } } };
+    select: { classroom: { select: { archivedAt: boolean } } };
+  };
+  assert.equal(args.where.id, "asgn-archived");
+  assert.deepEqual(args.where.classroom.members.some, { userId: "student-1" });
+  assert.equal(args.select.classroom.select.archivedAt, true);
+  assert.deepEqual(result, {
+    assignmentId: "asgn-archived",
+    classroomId: "class-archived",
+    classroomArchivedAt: archivedAt,
+  });
+});
+
 test("scopes the assignment lookup to classrooms the student is enrolled in", async () => {
   findManyResult = [{ id: "asgn-1" }];
   const { markAssignmentQuizComplete } = await load();
   await markAssignmentQuizComplete({ userId: "student-1", articleId: "article-1", scorePct: 80 });
   const args = findManyArgs as {
-    where: { articleId: string; classroom: { members: { some: { userId: string } } } };
+    where: {
+      articleId: string;
+      classroom: { archivedAt: null; members: { some: { userId: string } } };
+    };
   };
   assert.equal(args.where.articleId, "article-1");
+  assert.equal(args.where.classroom.archivedAt, null);
   assert.deepEqual(args.where.classroom.members.some, { userId: "student-1" });
 });
 

@@ -4,7 +4,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, oneOf, optional, nonEmptyString } from "@/lib/validation";
 import { CLASSROOM_ROLES } from "@/lib/rbac";
 import { addClassroomMember } from "@/lib/classroom";
-import { requireClassroomManageApi } from "@/lib/tenant-api";
+import { requireActiveClassroomManageApi, requireClassroomManageApi } from "@/lib/tenant-api";
 import { getMembership } from "@/lib/org/queries";
 
 const CREATED_RESPONSE_INIT = { status: 201 } as const;
@@ -23,7 +23,7 @@ function classroomRoleOrDefault(role: ClassroomRole | undefined): ClassroomRole 
 }
 
 async function requireClassroomMemberManagement(session: ClassroomSession, classroomId: string) {
-  return requireClassroomManageApi(session, classroomId);
+  return requireActiveClassroomManageApi(session, classroomId);
 }
 
 async function requireTargetOrgMembership(userId: string, orgId: string): Promise<void> {
