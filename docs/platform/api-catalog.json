@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-21T05:58:19.361Z",
+  "generatedAt": "2026-07-21T13:32:31.193Z",
   "routeCount": 136,
   "methodCount": 165,
   "routes": [
@@ -3179,7 +3179,9 @@
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
-          "responseKeys": null,
+          "responseKeys": [
+            "audioUrl"
+          ],
           "queryParamNames": null,
           "bodyFieldNames": null
         }
@@ -3199,7 +3201,7 @@
           "hasQuerySchema": false,
           "responseFormat": "binary",
           "notes": [],
-          "successStatus": 200,
+          "successStatus": 206,
           "responseKeys": null,
           "queryParamNames": null,
           "bodyFieldNames": null
