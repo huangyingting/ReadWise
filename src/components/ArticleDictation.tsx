@@ -17,6 +17,11 @@ import { type ChangeEvent, type FormEvent } from "react";
 import { ChevronLeft, ChevronRight, Headphones, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button, EmptyState, IconButton, Textarea, Tooltip } from "@/components/ui";
+import {
+  PanelEmpty,
+  PanelError,
+  PanelLoading,
+} from "@/components/ui/ReaderToolPanelState";
 import AiBadge from "@/components/AiBadge";
 import {
   useDictationPanel,
@@ -115,7 +120,7 @@ export default function ArticleDictation({
   const panel = useDictationPanel(articleId, plainText, active);
 
   if (panel.phase === "warming") {
-    return <p className="muted">Loading narration…</p>;
+    return <PanelLoading message="Loading narration…" />;
   }
 
   if (panel.phase === "fallback") {
@@ -129,18 +134,15 @@ export default function ArticleDictation({
   }
 
   if (panel.phase === "error") {
-    return (
-      <p className="tts-error" role="alert">
-        {panel.errorMsg ?? "Could not load narration."}
-      </p>
-    );
+    return <PanelError message={panel.errorMsg ?? "Could not load narration."} />;
   }
 
   if (panel.segments.length === 0) {
     return (
-      <p className="muted">
-        No practisable sentences found in this article.
-      </p>
+      <PanelEmpty
+        title="No practisable sentences"
+        description="No practisable sentences found in this article."
+      />
     );
   }
 
