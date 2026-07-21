@@ -15,10 +15,10 @@
  */
 import {
   articleAccessContextForUser,
-  type ArticlePage,
   type ArticleAccessContext,
   type ArticleAccessUser,
-} from "@/lib/article-library";
+} from "@/lib/article-library/policy";
+import type { ArticlePage } from "@/lib/article-library/listings";
 import type { SearchOptions, SearchContext } from "@/lib/search/query";
 import { PrismaArticleSearchProvider } from "./fulltext";
 
