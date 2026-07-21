@@ -61,7 +61,7 @@ let recordEventCalled = false;
 before(() => {
   mock.module("@/lib/article-library/policy", {
     namedExports: {
-      articleAccessContext: (_user: unknown) => ({}),
+      articleAccessContextForUser: async (_user: unknown) => ({}),
       getReadableArticleById: async (_id: unknown, _ctx: unknown) => mockFoundArticle,
     },
   });

@@ -14,9 +14,10 @@
  */
 
 import {
-  articleAccessContext,
+  articleAccessContextForUser,
   getReadableArticleById,
   toListingArticle,
+  type ArticleAccessContext,
   type ArticleCardSource,
   type ListingArticle,
 } from "@/lib/article-library";
@@ -278,7 +279,7 @@ const ARTICLE_CARD_SELECT = {
  */
 async function resolveReadableCard(
   id: string,
-  context: ReturnType<typeof articleAccessContext>,
+  context: ArticleAccessContext,
 ): Promise<ListingArticle | null> {
   const article = await getReadableArticleById(id, context, {
     select: ARTICLE_CARD_SELECT,
@@ -316,7 +317,7 @@ export async function loadTodayViewModel(args: {
   // article or word content.
   await emitTodaySessionViewed(session);
 
-  const context = articleAccessContext({
+  const context = await articleAccessContextForUser({
     id: args.user.id,
     role: args.user.role ?? null,
   });

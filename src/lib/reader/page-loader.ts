@@ -13,7 +13,7 @@ import type { Article, ReadingProgress } from "@prisma/client";
 import { getProgress, getProgressMap } from "@/lib/engagement";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import {
-  articleAccessContext,
+  articleAccessContextForUser,
   getReadableArticleById,
 } from "@/lib/article-library/policy";
 import {
@@ -113,7 +113,7 @@ export async function loadReaderPageData(
   articleId: string,
   session: Session,
 ): Promise<ReaderPageData | null> {
-  const context = articleAccessContext(session.user);
+  const context = await articleAccessContextForUser(session.user);
   const article = await getReadableArticleById(articleId, context);
   if (!article) return null;
 

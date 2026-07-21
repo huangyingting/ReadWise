@@ -13,7 +13,12 @@
  *   2. Call `registerSearchProvider(provider)` during app startup / config.
  *   3. No other modules need editing.
  */
-import type { ArticlePage } from "@/lib/article-library";
+import {
+  articleAccessContextForUser,
+  type ArticlePage,
+  type ArticleAccessContext,
+  type ArticleAccessUser,
+} from "@/lib/article-library";
 import type { SearchOptions, SearchContext } from "@/lib/search/query";
 import { PrismaArticleSearchProvider } from "./fulltext";
 
@@ -25,11 +30,15 @@ export type ArticleSearchProvider = {
 };
 
 const READER_SEARCH_ROLE = "Reader";
+type SearchUser = string | ArticleAccessUser;
 
 let activeProvider: ArticleSearchProvider = new PrismaArticleSearchProvider();
 
-function searchContextForUser(userId?: string): SearchContext | null {
-  return userId ? { userId, role: READER_SEARCH_ROLE } : null;
+async function searchContextForUser(user?: SearchUser): Promise<ArticleAccessContext | null> {
+  if (!user) return null;
+  return typeof user === "string"
+    ? articleAccessContextForUser({ id: user, role: READER_SEARCH_ROLE })
+    : articleAccessContextForUser(user);
 }
 
 /**
@@ -56,10 +65,10 @@ export function resolveSearchProvider(): ArticleSearchProvider {
  * imported articles and their own annotation/vocabulary matches; all results
  * pass through `readableArticleWhere` to preserve Wave 1 visibility rules.
  */
-export function searchReadableArticles(
+export async function searchReadableArticles(
   query: string,
   opts: SearchOptions = {},
-  userId?: string,
+  user?: SearchUser,
 ): Promise<ArticlePage> {
-  return resolveSearchProvider().search(query, opts, searchContextForUser(userId));
+  return resolveSearchProvider().search(query, opts, await searchContextForUser(user));
 }

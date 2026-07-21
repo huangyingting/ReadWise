@@ -1,6 +1,6 @@
 import { requireOnboardedSession } from "@/lib/session";
 import { getFilteredSavedWords, getArticleTitlesForWords, WORDS_PAGE_SIZE } from "@/lib/lexical/saved-words";
-import { articleAccessContext } from "@/lib/article-library";
+import { articleAccessContextForUser } from "@/lib/article-library";
 import Link from "next/link";
 import { PageHeader, PageShell, Toolbar, buttonVariants } from "@/components/ui";
 import VocabularyExportButtons from "@/components/VocabularyExportButtons";
@@ -38,7 +38,7 @@ export default async function StudyWordsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const session = await requireOnboardedSession("/study/words");
-  const context = articleAccessContext(session.user);
+  const context = await articleAccessContextForUser(session.user);
   const params = await searchParams;
 
   const query = params.q ?? "";
