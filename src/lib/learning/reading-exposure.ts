@@ -51,6 +51,7 @@ async function findSavedWordsForExposure(userId: string): Promise<SavedWordForEx
   return prisma.savedWord.findMany({
     where: { userId },
     select: { word: true },
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     take: MAX_SAVED_WORDS,
   });
 }

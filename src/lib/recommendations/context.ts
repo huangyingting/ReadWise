@@ -124,6 +124,7 @@ function fetchWeakWordRows(
   return prisma.wordMastery.findMany({
     where: { userId, familiarity: { lt: WEAK_REEXPOSURE_FAMILIARITY } },
     select: { sourceArticleIds: true },
+    orderBy: [{ familiarity: "asc" }, { id: "asc" }],
     take: WEAK_WORD_ROW_LIMIT,
   });
 }
