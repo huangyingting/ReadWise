@@ -40,6 +40,7 @@ let sendCalls: { endpoint: string; payload: string }[] = [];
 let sendShouldFail: number | false = false;
 
 let savedWordGroups: SavedWordGroup[] = [];
+let savedWordCounts: Record<string, number> = {};
 
 let mockReminderPrefs: ReminderPreference[] = [];
 let mockProfiles: { userId: string; timezone: string | null }[] = [];
@@ -155,6 +156,14 @@ before(() => {
         },
         savedWord: {
           groupBy: async () => savedWordGroups,
+          count: async (args: { where?: { userId?: string } }) => {
+            const userId = args.where?.userId;
+            if (!userId) return 0;
+            if (Object.prototype.hasOwnProperty.call(savedWordCounts, userId)) {
+              return savedWordCounts[userId];
+            }
+            return savedWordGroups.find((row) => row.userId === userId)?._count.id ?? 0;
+          },
         },
         reminderPreference: {
           findMany: async (args: { where?: { userId?: { in?: string[] } } }) => {
@@ -167,6 +176,10 @@ before(() => {
             const ids = args.where?.userId?.in;
             return ids ? mockProfiles.filter((p) => ids.includes(p.userId)) : mockProfiles;
           },
+          findUnique: async (args: { where?: { userId?: string } }) => {
+            const userId = args.where?.userId;
+            return mockProfiles.find((p) => p.userId === userId) ?? null;
+          },
         },
       },
     },
@@ -178,6 +191,7 @@ beforeEach(() => {
   sendCalls = [];
   sendShouldFail = false;
   savedWordGroups = [];
+  savedWordCounts = {};
   mockReminderPrefs = [];
   mockProfiles = [];
   deletedSubIds = [];
@@ -187,6 +201,59 @@ beforeEach(() => {
   process.env.VAPID_PRIVATE_KEY = "FakePrivKey1234567890abcdef";
   process.env.VAPID_SUBJECT = "mailto:test@example.com";
   delete process.env.FEATURE_TODAY_SESSION_ENABLED;
+});
+
+describe("sendPushReminderForUser", () => {
+  test("returns skipped without sending when VAPID is unconfigured", async () => {
+    delete process.env.VAPID_PUBLIC_KEY;
+    delete process.env.VAPID_PRIVATE_KEY;
+    delete process.env.VAPID_SUBJECT;
+    savedWordCounts.u1 = 4;
+    mockSubs = [subscription("s1", "u1")];
+
+    const { sendPushReminderForUser } = await import("@/lib/push/scheduler");
+    const result = await sendPushReminderForUser("u1");
+
+    assert.deepEqual(result, {
+      userId: "u1",
+      dueCount: 0,
+      sent: 0,
+      skipped: true,
+      suppressed: false,
+      reason: "unconfigured",
+    });
+    assert.equal(sendCalls.length, 0);
+  });
+
+  test("sends a due reminder for one user using existing reminder copy", async () => {
+    savedWordCounts.u1 = 3;
+    mockSubs = [subscription("s1", "u1"), subscription("s2", "other")];
+
+    const { sendPushReminderForUser } = await import("@/lib/push/scheduler");
+    const result = await sendPushReminderForUser("u1");
+
+    assert.equal(result.userId, "u1");
+    assert.equal(result.dueCount, 3);
+    assert.equal(result.sent, 1);
+    assert.equal(result.skipped, false);
+    assert.equal(sendCalls.length, 1);
+    assert.equal(sendCalls[0].endpoint, "https://push.example.com/u1");
+    assert.ok(sentPayload().body.includes("3 words"));
+  });
+
+  test("handles dead subscriptions gracefully", async () => {
+    savedWordCounts.u1 = 1;
+    mockSubs = [subscription("dead", "u1")];
+    sendShouldFail = 410;
+
+    const { sendPushReminderForUser } = await import("@/lib/push/scheduler");
+    const result = await sendPushReminderForUser("u1");
+
+    assert.equal(result.userId, "u1");
+    assert.equal(result.dueCount, 1);
+    assert.equal(result.sent, 0);
+    assert.deepEqual(deletedSubIds, [["dead"]]);
+  });
 });
 
 // ---------------------------------------------------------------------------
