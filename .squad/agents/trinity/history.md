@@ -60,3 +60,9 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - Carry-forward patterns: admin member-add client island with focused tests; article-id targeting backfill UI; SLO dashboard surface; fail-closed fetches need explicit error/retry states; admin empty states should include recovery actions; shared `AdminPageHeader` and loading a11y reduce page drift.
 - Coordination lesson: admin UI work should keep business APIs stable while moving recurring page chrome into shared primitives.
 
+
+
+## 2026-07-21T05:57:04+0000 — Cycle 2 global review UI/design-system closure
+
+- Shipped #1211/PR #1233 classroom rename/archive/unarchive/delete/recovery UI plus `GET /api/classrooms?archived` query-schema visibility (`f706d3f1`), #1218 learner error/retry states, and #1219/PR #1235 loading a11y plus token/primitive cleanup (`ad237682`).
+- Reusable pattern: use `createHandler` query schemas for catalog visibility switches and shared ReaderToolPanelState/design-system primitives for reader/study loading, empty, error, and retry states.

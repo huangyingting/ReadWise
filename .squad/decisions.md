@@ -1538,3 +1538,22 @@ PR: targets `main`, closes #1159 (items 1 & 2 already shipped via #1163/#1164 an
 5. Known pre-existing native-runner isolation failure remains out of scope: `tests/server-read-models-runtime.test.ts` can fail under isolated native execution due circular-import/export ordering around `articleAccessContextForUser`, while full suite/CI passes.
 
 **Why:** Provides future agents with the merge, routing, schema, and test-governance constraints established by this global-review implementation wave.
+
+
+### 2026-07-21T05:57:04+0000: Global Review Cycle 2 closure
+
+**Author:** Squad Coordinator  
+**Requester:** huangyingting
+
+**Scope:** Completed a full global review of ReadWise modules/functions across backend/auth/tenant/audit/jobs/classroom (Tank), data/AI/scraper/Prisma/privacy (Mouse), learning-domain/cross-cutting (Morpheus), and UI/design-system (Trinity). Four review lanes produced 22 findings, curated into 15 GitHub issues (#1210–#1224), and all 15 issues were implemented as sequential PRs merged to `main`. Final `main` HEAD: `f03978ff`.
+
+**Outcomes:** #1210, #1211/PR #1233, #1212, #1213, #1214/PR #1227, #1215/PR #1228, #1216/PR #1226, #1217, #1218, #1219/PR #1235, #1220/PR #1234, #1221/PR #1236, #1222/PR #1237, #1223/PR #1238, and #1224/PR #1239 all landed on `main`.
+
+**Key technical decisions:**
+1. Implementation remained sequential on a single shared working tree: one branch/PR at a time, each merged before the next dispatch, to prevent parallel-edit clobbering.
+2. Safe merges used `--squash --admin` only when the sole red gate was the systemic pre-existing `Unit tests + native coverage` failure (~107 DB-route failures plus 98% coverage gate); Build, Fast checks, PostgreSQL migrate/integration, tests, dependency review, and supply-chain hygiene still had to be green.
+3. #1224 established the client-safe enum pattern: mirror the Prisma enum as a pure runtime const leaf module with `import type` plus bidirectional compile-time exhaustiveness assertions, keeping `canonical-conflict-ui.ts` Prisma-runtime-free while enforcing lockstep.
+
+**Decision inbox:** Checked `.squad/decisions/inbox/`; no pending agent decision files were present.
+
+**Verdict:** Cycle 2 global review is complete; all curated P1/P2 issues merged to `main` at `f03978ff`, with sequential orchestration, safe-merge criteria, and client-safe enum mirroring carried forward.

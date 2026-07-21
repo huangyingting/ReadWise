@@ -106,3 +106,9 @@ Review comment: https://github.com/huangyingting/ReadWise/pull/967
 - Carry-forward patterns: placement count guard; progress timezone follows request → profile → UTC; weak-word ratio behavior is centralized but preserves distinct thresholds (`0.4` study-plan vs `0.5` recommendation re-exposure); `lemmaFor` and completion threshold aliases remain for back-compat.
 - Coordination lesson: behavior-preserving refactors should name different domain thresholds separately rather than collapsing them for apparent simplicity.
 
+
+
+## 2026-07-21T05:57:04+0000 — Cycle 2 global review learning-domain/cross-cutting closure
+
+- Shipped #1212 timezone day-boundary consistency, #1213 `progress_complete` analytics dedupe, #1221/PR #1236 `RESUME_MAX_PERCENT = COMPLETION_THRESHOLD - 1` (`310b84a6`), and #1222/PR #1237 deterministic index-backed capped mastery/re-exposure scans (`8905bc93`).
+- Reusable pattern: derive resume windows from the canonical completion threshold and pair capped scans with deterministic indexed `orderBy` clauses to avoid unstable pagination/selection.

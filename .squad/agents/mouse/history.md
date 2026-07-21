@@ -67,3 +67,9 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - Carry-forward patterns: redact URL secrets in import/SSRF failures; keep SQLite/PostgreSQL paired migrations aligned for enums/fulltext indexes; delete orphaned speech blobs while degrading gracefully on persist failure; gate publish on real enrichment; use atomic budget denials; keep claim/reactivation lockstep via shared constants plus tests.
 - Coordination lesson: module-boundary guards and shared constants are preferable to compatibility shims for superseded shapes.
 
+
+
+## 2026-07-21T05:57:04+0000 — Cycle 2 global review data/AI/scraper/Prisma/privacy closure
+
+- Shipped #1214/PR #1227 centralized logger metadata redaction (`a33f5d27`), #1215/PR #1228 sequential Prisma transaction cleanup (`d962120f`), #1217 ingest no-op gating, #1223/PR #1238 standalone read-model runtime import-cycle fix (`1f5d2500`), and #1224/PR #1239 canonical-conflict status single-sourcing (`f03978ff`).
+- Reusable pattern: mirror Prisma enums through a pure client-safe leaf module with `import type` and bidirectional compile-time assertions so UI bundles stay Prisma-runtime-free while preserving enum lockstep.
