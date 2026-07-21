@@ -57,6 +57,8 @@ export interface ListingLoadingShellProps {
    * while still reusing the heading, tab strip, and filter bar scaffolding.
    */
   children?: React.ReactNode;
+  /** Screen-reader announcement for the loading route. */
+  loadingLabel?: string;
 }
 
 export function ListingLoadingShell({
@@ -67,60 +69,66 @@ export function ListingLoadingShell({
   filterBar,
   statCardCount,
   children,
+  loadingLabel = "Loading content",
 }: ListingLoadingShellProps) {
   const tabIndexes = indexRange(tabCount);
   const statCardIndexes = statCardCount ? indexRange(statCardCount) : [];
 
   return (
-    <div className="listing-container" aria-hidden>
-      {/* Page heading placeholder — omitted when headingWidthClass is not set */}
-      {headingWidthClass && (
-        <Skeleton
-          shape="block"
-          className={cn(
-            "h-9",
-            headingWidthClass,
-            subtitle || filterBar ? "mb-[var(--space-2)]" : "mb-[var(--space-6)]",
-          )}
-        />
-      )}
+    <div className="listing-container" aria-busy="true">
+      <span className="sr-only" role="status">
+        {loadingLabel}
+      </span>
+      <div aria-hidden>
+        {/* Page heading placeholder — omitted when headingWidthClass is not set */}
+        {headingWidthClass && (
+          <Skeleton
+            shape="block"
+            className={cn(
+              "h-9",
+              headingWidthClass,
+              subtitle || filterBar ? "mb-[var(--space-2)]" : "mb-[var(--space-6)]",
+            )}
+          />
+        )}
 
-      {subtitle && (
-        <Skeleton shape="text" className="w-1/3 mb-[var(--space-6)]" />
-      )}
+        {subtitle && (
+          <Skeleton shape="text" className="w-1/3 mb-[var(--space-6)]" />
+        )}
 
-      {filterBar && (
-        <div className="mb-[var(--space-6)]">{filterBar}</div>
-      )}
+        {filterBar && (
+          <div className="mb-[var(--space-6)]">{filterBar}</div>
+        )}
 
-      {tabCount > 0 && (
-        <div className="flex gap-[var(--space-2)] mb-[var(--space-6)] overflow-hidden">
-          {tabIndexes.map((i) => (
-            <Skeleton
-              key={i}
-              shape="block"
-              className="h-8 rounded-full flex-shrink-0"
-              style={{ width: getTabSkeletonWidth(i) }}
-            />
-          ))}
-        </div>
-      )}
+        {tabCount > 0 && (
+          <div className="flex gap-[var(--space-2)] mb-[var(--space-6)] overflow-hidden">
+            {tabIndexes.map((i) => (
+              <Skeleton
+                key={i}
+                shape="block"
+                className="h-8 rounded-full flex-shrink-0"
+                style={{ width: getTabSkeletonWidth(i) }}
+              />
+            ))}
+          </div>
+        )}
 
-      {statCardCount && statCardCount > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-4)] mb-[var(--space-6)]">
-          {statCardIndexes.map((i) => (
-            <div
-              key={i}
-              className="bg-surface border border-border rounded-[var(--radius-lg)] p-[var(--space-4)] flex flex-col gap-[var(--space-2)]"
-            >
-              <Skeleton shape="text" className="w-2/3 h-4" />
-              <Skeleton shape="block" className="h-8 w-3/4 rounded-[var(--radius-sm)]" />
-            </div>
-          ))}
-        </div>
-      ) : null}
+        {statCardCount && statCardCount > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-4)] mb-[var(--space-6)]">
+            {statCardIndexes.map((i) => (
+              <div
+                key={i}
+                className="bg-surface border border-border rounded-[var(--radius-lg)] p-[var(--space-4)] flex flex-col gap-[var(--space-2)]"
+              >
+                <Skeleton shape="text" className="w-2/3 h-4" />
+                <Skeleton shape="block" className="h-8 w-3/4 rounded-[var(--radius-sm)]" />
+              </div>
+            ))}
+          </div>
+        ) : null}
 
-      {children ?? <SkeletonCardGrid count={cardCount} />}
+        {children ?? <SkeletonCardGrid count={cardCount} />}
+      </div>
     </div>
   );
 }

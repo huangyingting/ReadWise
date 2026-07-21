@@ -10,7 +10,7 @@ import { StatCard } from "@/components/analytics/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { buttonVariants } from "@/components/ui/Button";
-import { AdminTableWrap } from "@/components/admin";
+import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { formatShortDate } from "@/lib/display-format";
 
 const SECTION_HEADING_CLASS =
@@ -64,17 +64,18 @@ export default async function AdminMemberDetailPage({
 
   return (
     <section className="stack">
-      <div className="flex flex-wrap items-center justify-between gap-[var(--space-2)]">
-        <h1 className="m-0 text-[length:var(--text-2xl)] font-[family-name:var(--font-display)] font-bold text-text">
-          Member support
-        </h1>
-        <Link
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-          href="/admin/members"
-        >
-          ← Back to members
-        </Link>
-      </div>
+      <AdminPageHeader
+        actions={
+          <Link
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+            href="/admin/members"
+          >
+            ← Back to members
+          </Link>
+        }
+      >
+        Member support
+      </AdminPageHeader>
 
       <Card>
         <div className="admin-member-cell">

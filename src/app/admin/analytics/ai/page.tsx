@@ -4,7 +4,7 @@ import { CAPABILITIES } from "@/lib/rbac";
 import { getAiCostOverview, getContentOpsOverview } from "@/lib/processing/admin-ops";
 import { StatCard } from "@/components/analytics/StatCard";
 import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";
-import { AdminTableWrap } from "@/components/admin";
+import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -14,8 +14,6 @@ import { formatUSD } from "@/lib/display-format";
 type SearchParams = { hours?: string };
 
 const DEFAULT_WINDOW_HOURS = 168;
-const PAGE_TITLE_CLASS =
-  "m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text";
 const SECTION_TITLE_CLASS =
   "font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text";
 const SUBSECTION_TITLE_CLASS =
@@ -52,10 +50,9 @@ export default async function AdminAiOpsPage({
 
   return (
     <section className="stack">
-      <div className="flex flex-wrap items-center justify-between gap-[var(--space-2)]">
-        <h1 className={PAGE_TITLE_CLASS}>AI &amp; content ops</h1>
-        <AnalyticsTabs active="ai" />
-      </div>
+      <AdminPageHeader actions={<AnalyticsTabs active="ai" />}>
+        AI &amp; content ops
+      </AdminPageHeader>
 
       <form method="get" className="flex flex-wrap items-end gap-[var(--space-2)]">
         <label className="flex flex-col gap-[var(--space-1)] text-[length:var(--text-sm)]">

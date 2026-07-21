@@ -9,6 +9,7 @@ import { StatCard } from "@/components/analytics/StatCard";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge, type BadgeProps } from "@/components/ui/Badge";
 import { Card, CardTitle } from "@/components/ui/Card";
 import {
@@ -136,6 +137,12 @@ export default async function AdminJobsPage({
   const reason = (sp.reason ?? "").trim();
   const stuck = sp.stuck === "1";
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
+  const hasActiveFilters =
+    status.length > 0 ||
+    type.length > 0 ||
+    articleId.length > 0 ||
+    reason.length > 0 ||
+    stuck;
 
   const [result, dashboard] = await Promise.all([
     listAdminJobs({ status, type, articleId, failureReason: reason, stuck, page }),
@@ -230,6 +237,22 @@ export default async function AdminJobsPage({
       />
 
       {result.jobs.length > 0 && <JobsTable jobs={result.jobs} />}
+
+      {result.jobs.length === 0 && (
+        <EmptyState
+          title={hasActiveFilters ? "No jobs match these filters" : "No jobs yet"}
+          description={
+            hasActiveFilters
+              ? "Clear filters to return to the full job queue."
+              : "Jobs will appear after background processing is enqueued."
+          }
+          action={
+            hasActiveFilters
+              ? { label: "Clear filters", href: "/admin/jobs" }
+              : undefined
+          }
+        />
+      )}
 
       <AdminPagination
         page={result.page}
