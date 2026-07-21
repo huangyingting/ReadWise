@@ -66,3 +66,14 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - Shipped #1211/PR #1233 classroom rename/archive/unarchive/delete/recovery UI plus `GET /api/classrooms?archived` query-schema visibility (`f706d3f1`), #1218 learner error/retry states, and #1219/PR #1235 loading a11y plus token/primitive cleanup (`ad237682`).
 - Reusable pattern: use `createHandler` query schemas for catalog visibility switches and shared ReaderToolPanelState/design-system primitives for reader/study loading, empty, error, and retry states.
+- 2026-07-14T08:15:46.165+00:00 — Completed issue #1054 browser validation lane: loaded actual Reader page with real generated MP3 from dev.db/local media, verified audio playback (319.212s browser duration vs 318.913s timing payload, delta 0.299s, ratio 1.0009 — consistent with Mouse 0.9991 and Tank 0.999), confirmed CSS named highlight at 10%/50%/90% seeks matched expected UTF-16 timing spans, verified play/pause/resume/seek/mini-player/auto-scroll synchronization without console/network errors, tested fallback token alignment coverage. Passed 18 tests/diff-check with no code changes required. Chrome/user/scripts/server cleaned. Ready for Switch E2E verification phase.
+
+## 2026-07-21T14:17:00Z — Assignment lifecycle refactor PR2
+
+- Added `src/lib/assignment-status.ts`: client-safe 3-state helper (ASSIGNED / IN_PROGRESS / COMPLETED) used by banner and chips.
+- New `src/components/reader/AssignmentBanner.tsx`: per-assignment banner showing classroom name, due date, overdue indicator, instructions, status chip, and complete affordance (reuses `CompleteAssignmentButton`); token-driven, `Card`/`Badge` primitives.
+- Extended `src/lib/reader/page-loader.ts` `ReaderPageData` with `assignments: StudentAssignment[]` via `listStudentAssignmentsForArticle(session.user.id, articleId)`.
+- Student `/assignments` page: replaced binary completed badge with 3-state chip (Not started / In progress / Completed[+quiz%]).
+- Teacher classroom page: replaced binary `assignmentSynthesizedStatus` with 3-segment count from `perAssignment.{notStarted,inProgress,completed}`; per-student rows use drilldown status; overdue recomputed from due date + not-fully-complete.
+- 25 new tests; additive/presentation-only — no business logic, route, or API contract changed.
+- **PR #1242** merged to `main` as **`01e46a2b`**.

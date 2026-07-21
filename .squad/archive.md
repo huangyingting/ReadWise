@@ -105,6 +105,73 @@ Verified end-to-end: MEDIA_STORAGE=local → getMediaStorage().kind=filesystem a
 
 ## Archived 2026-07-12T02:41:59.148+00:00
 
+## Archived 2026-07-14T08:28:06.762+00:00
+
+### 2026-07-05 — ReadWise release workflow runs only for versioned release inputs
+
+**Source:** Tank inbox (`decisions/inbox/tank-release-workflow-version-gate.md`)
+
+The main release workflow is named for ReadWise, validates `package.json` against `CHANGELOG.md`, installs dependencies, generates Prisma, and runs `npm test`; it now runs on manual dispatch or pushes touching version/release metadata instead of every main push. This aligns release validation with ReadWise's current test layout/runbook and avoids noisy stale release failures when package metadata is unchanged.
+
+### 2026-07-05 — UI audit Playwright suite is split by semantic subsystems
+
+**Source:** Trinity inbox (`decisions/inbox/trinity-ui-audit-semantic-split.md`)
+
+The legacy numeric `e2e/ui-audit-500.spec.ts` file was replaced by semantic subsystem specs for public/auth, reader learning, classroom, and admin operations. Shared route catalog, artifact, and runner support lives in `e2e/support/ui-audit.ts`; the canonical grep tag is now `@ui-audit` instead of the old numeric `@ui-audit-500` label.
+
+**Validation:** Switch verified discovery/listing at 500 tests across the 4 semantic files, `@ui-audit` grep compatibility, 50 high-risk tests, targeted `admin-ai-ops` passing 10 tests, targeted ESLint for the audit files, and `npm run typecheck -- --pretty false`.
+
+
+### 2026-07-06T04-03-51: Keep DB performance telemetry privacy-safe by default
+**By:** Scribe
+**What:** Keep DB performance telemetry privacy-safe by default
+**References:** Tank, Switch, DB query performance work
+**Why:** Slow-query warnings and DB tracing should report timing/operation metadata without logging SQL text, bind values, prompts, article text, selected text, or raw database error text. Performance observability is needed, but it must preserve the repository privacy rule against logging user-private content or secrets.
+
+### 2026-07-06T04-03-51: Refuse DB benchmarks against remote databases by default
+**By:** Scribe
+**What:** Refuse DB benchmarks against remote databases by default
+**References:** Tank, Switch, DB query performance work
+**Why:** The benchmark command should refuse remote database URLs by default and do so before importing Prisma/runtime database code. Benchmarking should not accidentally exercise production-like or remote databases, and early refusal keeps the safety check lightweight and independent of Prisma initialization.
+
+
+## Feature-Completeness Epic #1008 Scope Decisions (2026-07-11)
+
+### 2026-07-05: Scraper CLI coverage uses explicit test seams
+**By:** Mouse
+**What:** Added `__scrapeProviderTest` and `__readingSourcesTest` seams plus injectable argv/spawn parameters so provider scraping CLI workflows can be covered without network, DB, browser, or child-process side effects.
+**Why:** Native coverage now measures these runtime scripts; meaningful tests need to exercise discovery/resume/status/review/scrape behavior while preserving graceful fallback behavior and avoiding coverage-policy weakening.
+
+### 2026-07-06: Content-free Prisma query timing is the backend performance signal
+**By:** Tank
+**What:** Add app-side Prisma timing through low-cardinality metrics/traces and slow-query warnings using provider/model/operation/outcome labels only, controlled by DB_QUERY_TIMING_ENABLED and DB_SLOW_QUERY_THRESHOLD_MS.
+**Why:** Performance tuning needs DB latency visibility without exposing SQL text, parameters, article content, prompts, selections, user-private content, secrets, or raw ids in logs or metrics.
+
+---
+id: 1bfdfbde-6c21-4559-a35a-13421cae66cb
+class: DECISION
+loadGuidance: [ALWAYS]
+title: "Provider DBs for CEFR/Lexile evaluation"
+author: "Squad"
+createdAt: 2026-07-07T08:03:23.470Z
+metadata: {}
+---
+
+User directive on 2026-07-07T08:02:46.354+00:00: For CEFR/Lexile algorithm evaluation, use smaller databases from prisma/provider-dbs/*, not databases directly under prisma/. Previous use of prisma/e2e.db should be replaced with provider DB evaluation.
+
+---
+id: 16857482-fc68-4e4e-afb2-dbd0adde22e2
+class: DECISION
+loadGuidance: [ALWAYS]
+title: "NC CEFR data legal approval"
+author: "Squad"
+createdAt: 2026-07-09T12:18:42.670Z
+metadata: {}
+---
+
+User stated on 2026-07-09T12:18:22.400+00:00: "I have the legal approval, can we use v2". Treat NC CEFR datasets as approved for this repository's calibration work when explicitly enabled, while still preserving license metadata and no-raw-text handling.
+
+
 ### 2026-07-03T00-59-28: Frontend refactor limited to target component files
 **By:** Trinity
 **What:** Frontend refactor limited to target component files
@@ -2767,3 +2834,307 @@ The legacy numeric `e2e/ui-audit-500.spec.ts` file was replaced by semantic subs
 **What:** Add app-side Prisma timing through low-cardinality metrics/traces and slow-query warnings using provider/model/operation/outcome labels only, controlled by DB_QUERY_TIMING_ENABLED and DB_SLOW_QUERY_THRESHOLD_MS.
 **Why:** Performance tuning needs DB latency visibility without exposing SQL text, parameters, article content, prompts, selections, user-private content, secrets, or raw ids in logs or metrics.
 
+
+## Archived 2026-07-21T14:17:00Z (entries older than 7 days)
+
+### 2026-07-07 — Treat CEFR/Lexile-like difficulty scores as deterministic baselines pending calibration
+
+**References:** Issue #1159 items 1 and 3.
+
+### 2026-07-07 — CEFR calibration v2 remains heuristic pending gold-corpus validation
+
+**Source:** Scribe session synthesis (`log/2026-07-07T09-08-07.205+00-00-difficulty-calibration-v2.md`)
+
+`deterministic-cefr/wordfreq-calibrated-v2` calibrates CEFR thresholds from temporary UniversalCEFR/elg_cefr_en evidence, which is CC BY-NC 4.0. Raw calibration text was not committed, and the calibration source should be treated as temporary/non-commercial evidence rather than a durable product corpus.
+
+Implementation changed thresholds only, bumped `DIFFICULTY_ALGORITHM_VERSION`, and selected rows with stale `difficultyVersion` or missing `lexileApprox` for recomputation. Provider DB evaluation used `prisma/provider-dbs/workinprogress.db` only: baseline v1 A2 2 / B1 208 / B2 7 changed to v2 B2 2 / C1 141 / C2 74, while Lexile-like values stayed min 590, median 870, mean 861.66, max 1050.
+
+Decision/caveat: present CEFR v2 as a heuristic/calibrated deterministic baseline, not authoritative CEFR. There is no committed reproducible calibration harness/snapshot, and the new distribution skews advanced; stronger gold corpus validation is required before raising confidence or product authority claims.
+
+
+### 2026-07-07 — OneStopEnglish v3 calibration accepted with ordinal-anchor caveats
+
+**Source:** Tank inbox (`decisions/inbox/Tank-onestopenglish-calibrated-cefr-threshold-v3.md`) plus Morpheus independent revision and Switch approval.
+
+`deterministic-cefr/onestop-calibrated-v3` is accepted as the current deterministic CEFR threshold calibration. The calibration uses aggregate OneStopEnglish article-level evidence licensed CC BY-SA 4.0; raw OneStopEnglish text was not committed to the repository or Squad state.
+
+**Decision/caveats:** OneStopEnglish labels (`elementary`, `intermediate`, `advanced`) are ordinal calibration anchors, not exact A1-C2 gold labels. CEFR output remains a heuristic/calibrated deterministic estimate rather than authoritative CEFR certification. Lexile output remains Lexile-like and was not changed by the v3 calibration.
+
+**Implementation/review record:** Tank implemented the initial v3 change, but Switch rejected it as not merge-ready because lexical normalization failed on constructor-shadowed maps and caveats were not explicit enough. Reviewer lockout was enforced; Morpheus independently revised the implementation with own-property guarded lookups for contraction/irregular maps and explicit license/mapping caveats in tests/docs. Switch re-reviewed and approved.
+
+**Validation:** `git diff --check` passed; targeted Node tests passed (88); `npm run typecheck` passed; targeted ESLint passed. Provider aggregate validation used 19 `prisma/provider-dbs/*.db` files only, excluded root DBs and sidecars, and covered 286,985 article rows. Final aggregate: A1 23, A2 9,134, B1 60,820, B2 184,428, C1 32,578, C2 2; average score 38.04; average Lexile-like 842.21.
+
+
+### 2026-07-09 — Difficulty calibration harness stays aggregate-only and license-gated
+
+**Source:** Tank inbox (`decisions/inbox/tank-difficulty-eval-harness.md`) plus Mouse methodology, Morpheus independent revision, and Switch approval.
+
+The difficulty calibration harness is accepted as a read-only evaluation path for CEFR/OneStop-style ordinal calibration, provider drift, Lexile-like metrics, and vocabulary audits. It must keep raw calibration datasets, article text, selected text, and other license-restricted or user-private content outside the repository and Squad state; committed fixtures/templates may describe schemas and labels but must not include article text.
+
+**Decision/caveats:**
+1. Harness reports are aggregate-only and live under `.calibration-state/`; human labels are allowed only without article text.
+2. Provider DB scans are restricted to `prisma/provider-dbs/*` and must exclude root Prisma DBs and sidecars.
+3. Dataset source metadata must record license and non-commercial status. Non-commercial datasets require explicit `--enable-nc` opt-in; OneStopEnglish CC BY-SA remains default-allowed, while UniversalCEFR, Cambridge, CEFR-SP, and NC-marked sources require opt-in.
+4. Vocabulary audits must remain MIT-safe, and provider drift thresholds should be treated as calibration guardrails.
+5. Lexile output remains Lexile-like wording only, not official Lexile.
+
+**Implementation/review record:** Tank implemented `scripts/difficulty-eval.ts`, `npm run difficulty:eval`, docs/tests/template/package updates, and the provider smoke, but Switch rejected the first version because it lacked the NC dataset gate. Reviewer lockout was enforced against Tank; Morpheus independently added the explicit `--enable-nc` gate, `datasetSources` license/non-commercial metadata, and docs/tests updates. Switch re-reviewed and approved.
+
+**Validation:** difficulty eval script tests passed 9/9; ESLint passed; typecheck passed; `git diff --check` passed; provider smoke was scoped to `prisma/provider-dbs/*` only and aggregate-only.
+
+
+### 2026-07-09 — Hybrid v4 CEFR calibration uses legal-approved NC data plus OneStopEnglish ordinal anchors
+
+**Source:** Tank inbox (`decisions/inbox/tank-hybrid-calibration-v4.md`) plus Mouse v4 target synthesis and Switch approval.
+
+`deterministic-cefr/hybrid-calibrated-v4` is accepted as the current deterministic CEFR threshold calibration. The implementation is threshold-only with cutoffs `[9,18,27,36,50]`, uses legal-approved UniversalCEFR/elg_cefr_en A1-C2 aggregate evidence only behind the explicit `--enable-nc` gate, and retains OneStopEnglish article labels as ordinal anchors.
+
+**Decision/caveats:** NC evidence is legally approved for this repository's calibration work when explicitly enabled, but raw calibration data remains outside the repository and Squad state. OneStopEnglish labels remain ordinal anchors, not exact A1-C2 gold labels. CEFR output remains a heuristic/calibrated deterministic estimate rather than authoritative CEFR certification. Lexile output remains Lexile-like and was not changed by v4.
+
+**Validation:** NC exact/within-one improved from v3 `.095/.450` to v4 `.308/.798`; OneStopEnglish exact/within-one improved from v3 `.485/.984` to v4 `.499/.995`. Switch approved after diff check, ESLint, typecheck, targeted Node tests (54/54), and provider filter/count/aggregate smoke. Provider aggregate used 19 `prisma/provider-dbs/*.db` files only, covering 286,985 articles: A2 191, B1 8,966, B2 97,611, C1 179,138, C2 1,079; average score 38.042, p50 38; Lexile-like average 842.206, p50 850.
+
+## 2026-07-10 — PR #965 Review (Issue #962)
+**Reviewer:** Morpheus | **Verdict:** REQUEST_CHANGES
+**Blocking:** Six identical `TODAY_ROUTE_FEATURE_GATE` declarations across six routes replaces one duplication pattern with another. Must extract to a single shared Today-domain module (e.g. `src/lib/engagement/today-session/feature-gate.ts`).
+**Green:** Behavior preserved, gate ordering correct, tests adequate, no `any`/casts/new deps/unrelated changes, CI typecheck+lint pass, PG failure pre-existing.
+**Action:** Tank locked out. Switch must revise with exact deltas: extract shared gate, update six route imports.
+
+## 2026-07-10 — PR #965 Cycle 2 Re-Review (Morpheus)
+
+**Verdict:** REQUEST_CHANGES
+**Blocking delta:** CI "Unit tests + native coverage" fails — `reflection/route.ts` at 95.45% < 98% threshold (lines 40-41 uncovered: `!result.ok` error branch). PR adds tests that import the route (making it measured) without covering the error path.
+**Architecture:** APPROVED — single canonical gate, zero duplicates, correct dependency direction, clean export surface.
+**Cycle-3 owner:** Switch (not locked out — cycle 2, not final rejection).
+**Fix required:** One additional test exercising `recordTodayReflection → { ok: false }`.
+**Comment URL:** https://github.com/huangyingting/ReadWise/pull/965
+
+
+### 2026-07-10 — PR #973 Review (Issue #948 partial delivery)
+
+**Reviewer:** Morpheus | **Verdict:** REQUEST_CHANGES (CI gate only)
+**Technical verdict:** APPROVE — all boundary, type-safety, provider, frozen-file, and test gates pass.
+**Blocking:** "Unit tests + native coverage" CI pending at review time. Cannot verify 98% coverage gate.
+**Comment URL:** https://github.com/huangyingting/ReadWise/pull/973#issuecomment-4936920771
+**Findings:**
+1. All removed barrel exports have zero legitimate external consumers (verified via grep).
+2. Flashcard grade cast removal is type-safe (`oneOf(GRADES)` infers exact `Grade` union).
+3. Lazy provider: same singleton identity, improved error semantics (caller-visible vs import-time), no test leakage, no privacy change.
+4. Frozen files untouched, #948 open, #972 exact/deduplicated.
+**Gate:** Merge when "Unit tests + native coverage" CI passes green. If fails, Mouse locked, Switch revises.
+
+
+## Recent Strategic Decisions (Post-Refactor)
+
+### 2026-07-10T05-51-36: Repository-wide refactor program: dev-first staged flow with 6-wave dependency-aware sequencing
+**By:** Morpheus
+**What:** Repository-wide refactor program: dev-first staged flow with 6-wave dependency-aware sequencing
+**References:** #939, #940, #941, #942, #943, #944, #945, #946, #947, #948, #949, #950, #951, #952, #953, #954
+**Why:** ## Decision
+
+Adopted a 6-wave, dependency-aware refactor program (#939) using the git-workflow skill's dev-first model. Remote `dev` must be bootstrapped from `main` (#940) before any subsystem work begins.
+
+## Branch strategy
+- Bootstrap `dev` from current `main` HEAD (one-time, #940)
+- All subsystem PRs target `dev` using `squad/{issue-number}-{slug}` branches
+- PR #937 (Dependabot ESLint) remains targeting `main` independently
+- Final promotion: reviewed PR `dev` → `main` (#954) after all waves complete
+
+## Wave ordering (13 subsystem issues)
+- Wave 1: Foundation — shared primitives/errors (#941), runtime-config/observability (#942)
+- Wave 2: Platform — auth consolidation (#943), API handler/security patterns (#944)
+- Wave 3: Domain services — AI boundaries (#945), scraper/content-pipeline dedup (#946), speech/push/jobs (#947)
+- Wave 4: Product domain — learning/vocabulary (#948), article/reader/difficulty (#949), classroom/org/analytics (#950)
+- Wave 5: UI — primitives/shared (#951), reader state (#952)
+- Wave 6: Cross-cutting — scripts/hooks/test-infra (#953)
+
+## Concurrency rule
+No two agents edit the same shared file concurrently. Shared files (api-handler, prisma.ts, test helpers, runtime-config barrel) are frozen unless coordinated through Morpheus.
+
+## Termination condition
+Program complete when all subsystem issues closed, `dev` passes full CI, and promotion PR merges to `main`.
+
+## Rollback
+Each subsystem PR is independently revertable on `dev`. Main is never force-pushed.
+
+### 2026-07-11T22:31:57: Classroom membership remains teacher-managed
+**By:** Copilot (user directive)
+**What:** For feature-completeness epic #1008, maintain classroom membership as teacher-managed only.
+**Why:** Student self-service joining via invite links or codes is intentionally out-of-scope for the completeness roadmap. Teacher-driven classroom formation and membership management aligns with the deployment model and administrative governance patterns.
+**Implication:** #1008 child issues must not include student self-service joining/invite-code flows; scope those for future roadmap phases.
+
+### 2026-07-11T22:31:57: Defer topology and corpus-dependent automation
+**By:** Copilot (user directive)
+**What:** Do not add repository-owned backup automation without a committed production deployment topology; do not fabricate difficulty gold-corpus results when prisma/provider-dbs/* is absent.
+**Why:** Deployment topology (high-availability, failover, RTO/RPO) is external-facing and requires production operations alignment; corpus-dependent calibration (difficulty gold labels) requires approved provider data and legal review. Both require external input unavailable in the development environment.
+**Implication:** Retain the current provider-neutral backup/restore runbook. Retain the aggregate-only, license-gated difficulty evaluation harness. Defer empirical calibration until approved provider databases are integrated.
+
+### 2026-07-11T22:31:57: Prefer evidence-backed autonomous defaults
+**By:** Copilot (user directive)
+**What:** When decisions would normally require human confirmation, use the safest evidence-backed best guess instead. Escalate only for permissions, safety, destructive impact, or unavailable external input.
+**Why:** Reduces decision latency and team blocking while maintaining safety guardrails. Evidence-backed defaults for API changes, non-breaking refactors, or design choices are preferable to pausing for async confirmation.
+**Implication:** Squad agents use this authority for scope/design questions during Wave 1–5. Morpheus evaluates evidence and owns escalation decisions when the autonomous default is insufficient.
+
+
+## Wave 1 Feature-Completeness Completions (2026-07-12)
+
+### 2026-07-11T22:31:57.145+00:00 — Admin series page intentionally omits article-picker and reorder UI
+**By:** Trinity
+**What:** #1018 /admin/series stays focused on core metadata and status lifecycle; it does not add an articleIds picker or drag-and-drop reorder UI.
+**Why:** The #1015 API already supports articleIds and reorder, but #1018 acceptance criteria only require minimal curation UX. Picker/search and drag-and-drop would add substantial interaction design without changing the approved metadata lifecycle, so they belong in a follow-up issue with dedicated UX work.
+**Implication:** Keep #1018 scoped to create/edit/status/delete flows; treat article selection and reorder as future enhancements.
+
+### 2026-07-12T01:54:08: PR #1020 admin-member-detail browser coverage completion
+**By:** Morpheus (approver), Tank (revised author)
+**What:** Completed issue #1012 — native fixture coverage restored to >=98% on admin/member-detail module alongside comprehensive Chromium E2E scenarios.
+**Why:** Initial PR head rejected due native coverage regression without browser evidence. Tank revised at 520609e with both seedE2eMember unit test restoration and 10/10 E2E scenarios. Morpheus approved; merged to dev as 730bfc8.
+**Implication:** Helper executable code requires native fixture coverage alongside browser coverage; strict reviewer lockout on native debt regressions is correctness enforcement, not gatekeeping.
+
+### 2026-07-12T01:54:08: PR #1021 onboarding wizard E2E completion
+**By:** Morpheus (approver), Trinity (author)
+**What:** Completed issue #1009 — five-step onboarding E2E journey wired into canonical smoke gate with real keyboard activation assertions.
+**Why:** Initial cycle approved with advisory: spec existed but was not in canonical CI (`npm run e2e:smoke`). Coordinator validation required cycle 2 because tabIndex assertions were tautological. Trinity revised at c3e3fd7 wiring spec into canonical smoke and replacing helper checks with real keyboard navigation. Morpheus independently approved; merged to dev as 919da904.
+**Implication:** Executable E2E specs must be wired into canonical CI commands (not standalone decorators); tautological helper assertions must be replaced with real user-interaction verification.
+
+## Inbox Decision Merges 2026-07-12T02:41:59.148+00:00
+
+### 2026-07-10T06-06-37: PR #955 retrospective: Branch protection configuration defects require pre-deployment validation and decision alignment
+**By:** Switch
+**What:** PR #955 retrospective: Branch protection configuration defects require pre-deployment validation and decision alignment
+**References:** PR #955, decision #940, issue #940, tests/db/postgres-jobs.test.ts
+**Why:** ## Retrospective: PR #955 Rejection
+
+**Ceremony Role:** Switch (substitute facilitator, fact synthesis only). Morpheus (original author) is locked out by reviewer protocol. Tank is independent revision owner.
+
+---
+
+## Facts
+
+**PR #955 Status:** OPEN, REQUEST_CHANGES (2026-07-10T06:04:39Z)
+
+**CI Check Outcomes:**
+- ✅ 4 passing checks: Build, Fast checks, Supply-chain hygiene, Dependency review, smoke test
+- ❌ 2 failing checks: PostgreSQL Migrate/Integration, Unit tests + native coverage (E2E skipped, non-blocking)
+
+**Code Review Verdict:** Two critical blocking defects in branch protection configuration (not in code/docs/YAML of PR itself):
+
+1. **BLOCKING-1 — Required Check Name Mismatch**
+   - Configured context: `"Supply-chain hygiene"` (GitHub API exact match)
+   - Actual CI job name: `"Supply-chain hygiene (lockfile + audit)"`
+   - Effect: GitHub will never receive matching status; check permanently shows pending/missing on all `dev` PRs
+   - Fix: Change branch protection context to `"Supply-chain hygiene (lockfile + audit)"`
+
+2. **BLOCKING-2 — Pre-existing PostgreSQL Test Failure**
+   - Test: `tests/db/postgres-jobs.test.ts:27` (worker/processor article state)
+   - Assertion: line 87 (actual includes 'dbit_processor_enriched_...' not in expected)
+   - Consistency: deterministic failure across all 5 recent main-branch runs
+   - Codebase state: pre-existing on `origin/main` HEAD c65355904c3c8c9d8782c5a809b156899a6b9cb6
+   - Scope misalignment: Issue #940 (coverage strategy decision) lists required checks as `typecheck / lint / unit-tests / build` only; PostgreSQL integration not intended
+   - Effect: Making PostgreSQL required on `dev` blocks all future PRs from day one
+   - Fix: Repair test on main first, then add to required checks; or keep as non-required per decision #940
+
+---
+
+## Root Causes
+
+1. **No pre-deployment CI validation:**
+   - Branch protection applied without first verifying all proposed required checks pass on target branch
+   - Required check names not synchronized with actual CI job names
+   - No smoke test or sync step in implementation workflow
+
+2. **Insufficient decision alignment:**
+   - PostgreSQL was added to required checks without consulting decision #940
+   - Test failure pre-existing and known; no pre-implementation check
+
+3. **Lack of separation between feature and infrastructure work:**
+   - Branch protection (high-impact platform-level change) bundled with feature bootstrap
+   - No dedicated review gate or approval step before platform changes went live
+
+---
+
+## Process Changes Required
+
+1. **Mandate pre-deployment validation for branch protection:**
+   - Run CI on target branch; verify all proposed required checks pass
+   - Sync required check names with actual CI job names in workflow definition
+   - Document validation evidence in PR
+
+2. **Enforce decision alignment before implementation:**
+   - Review decision log (e.g., #940) before implementing branch protection or required checks
+   - Escalate and update decision if implementation diverges
+
+3. **Separate branch protection from feature branches:**
+   - Extract infrastructure work (branch protection, required checks) to dedicated PRs
+   - Easier to review, validate, and potentially roll back
+
+4. **Conservative default on required checks:**
+   - Never add a check to required until you have evidence it passes on target or main
+   - If test is long-failing, fix first or explicitly defer as non-required
+
+---
+
+## Action Items
+
+| ID | Action | Owner | Priority |
+|----|--------|-------|----------|
+| A1 | Fix branch protection: change required context from `"Supply-chain hygiene"` to `"Supply-chain hygiene (lockfile + audit)"` | Tank | 🔴 Blocker |
+| A2 | Fix `tests/db/postgres-jobs.test.ts:87` on main OR remove PostgreSQL from required checks until fixed | Tank (primary) | 🔴 Blocker |
+| A3 | Document branch protection validation runbook (pre-deployment CI check, name sync, decision review) | Infrastructure/Tank | 🟠 High |
+| A4 | Confirm branch protection scope with decision #940 author and Tank | Team | 🟠 High |
+| A5 | Extract infrastructure work to separate PRs in future (not bundled with feature bootstrap) | Team (process) | 🟡 Medium |
+
+---
+
+## Decision
+
+All 4 fixes were test-side only. No production source was modified.
+
+## Diagnosis Summary
+
+| Test | Root Cause | Fix |
+|------|-----------|-----|
+| `query-indexes.test.ts:67` | Assertion checked function body for `ownerId: null` but refactor moved value into `PUBLIC_LISTABLE_RULE` const | Check const has `ownerId: null` and function spreads it |
+| `routes-api-fallbacks.test.ts:697` | Multiple `mock.module()` stubs missing exports after refactor; transitive `today-session/actions` (not mocked) pulled in full generator/recommendations/article-library chain | Added missing exports + new mock for `/actions` sub-module |
+| `server-read-models-runtime.test.ts:464` | `@/lib/article-library` mock missing `readableArticleSqlPredicate` needed by `fulltext.ts` | Added `readableArticleSqlPredicate` to mock |
+| `config-runtime-env.test.ts:172` | `ENV_KEYS` list missing provider credential env vars (`AZURE_OPENAI_*`, `GOOGLE_CLIENT_*`, `AZURE_AD_*`, `VAPID_*`); `.env` loaded by test runner sets them globally | Added missing keys to `ENV_KEYS` |
+
+## Key Learnings
+
+1. **`--experimental-test-module-mocks` with barrels**: When a barrel is mocked, ALL exports needed by transitive unmocked imports must be listed — no lazy resolution. One missing export = hard `SyntaxError` at link time.
+
+2. **`today-session/actions` is a fan-out barrel**: It re-exports from 6 sub-modules. Without a dedicated mock, loading it pulls in `set-article.ts` → `generator.ts` → `recommendations/picks.ts` — a deep chain.
+
+3. **env isolation in full-suite runs**: Tests using `--env-file-if-exists=.env` share a process. `beforeEach` must clear ALL env vars that could affect config assertions, not just the ones the test sets itself.
+
+## Tally
+
+- Before: `tests 4557 | pass 4519 | fail 4`
+- After:  `tests 4557 | pass 4523 | fail 0`
+### 2026-07-12: Grammar route test mocks @/lib/reader/route-guard directly
+**By:** Tank
+**What:** `tests/grammar-routes.test.ts` mocks `@/lib/reader/route-guard` at the module level rather than cascading through `@/lib/article-library` + `@/lib/security/rate-limit`.
+**Why:** Mocking the guard directly is the established seam (seen in `routes-api-fallbacks.test.ts`) and keeps the route test focused on the HTTP contract boundary rather than internal guard wiring already covered by `tests/reader-route-guard.test.ts`.
+
+### 2026-07-12: Today nav placed in secondary group / More sheet on mobile
+
+**By:** Switch
+**What:** Today (`/today`) is added to NAV_ITEMS with `group: "secondary"` and `mobileTab: false`. On mobile it appears in the More sheet (overflow), not as a fifth primary tab.
+**Why:** The four primary tabs (Dashboard, Browse, Study, Progress) fill the constrained mobile budget. A fifth tab would crowd smallest viewports. The More sheet is the established overflow channel per issue #1011 acceptance criteria ("choose the most evidence-backed overflow placement"). Feature-gate (`requiresFeature: "todaySession"`) threads through `ShellUser.showTodayNav` derived in the RSC layout — no server runtime config leaks to client modules.
+
+### 2026-07-12T02-44-24: Issue #1015 admin ReadingSeries API contract and lifecycle guardrails
+**By:** Trinity
+**What:** Issue #1015 admin ReadingSeries API contract and lifecycle guardrails
+**References:** #1015, src/lib/engagement/series.ts, src/app/api/admin/series/route.ts, src/app/api/admin/series/[id]/route.ts, src/app/api/admin/series/[id]/reorder/route.ts
+**Why:** Implemented the ReadingSeries curation contract as service-first + capability-gated admin API. Service now owns list/detail/create/update/delete/reorder, slug/title/description normalization, duplicate/not-found handling, one-way lifecycle transitions (draft→active→archived; no regressions), active-enrollment delete conflict, and transactional reorder requiring identical membership. Admin routes are /api/admin/series (GET, POST), /api/admin/series/[id] (GET, PATCH, DELETE), and /api/admin/series/[id]/reorder (POST), all gated by CAPABILITIES.articlesManage and mapped via throwIfFailed/ApiError without direct Prisma in route handlers. Added focused service + route tests and updated route-group normalization for admin series dynamic IDs.
+
+### 2026-07-11T22:31:57.145+00:00 — Epic #1008 final promotion accepted
+55f2dfbb73892eaa574e2d8b087b1265ca50a97d https://github.com/huangyingting/ReadWise/pull/1032 https://github.com/huangyingting/ReadWise/actions/runs/29190298960 https://github.com/huangyingting/ReadWise/actions/runs/29190298930
+### 2026-07-12 — Issue #1035 mobile UI audit reaches GO; main promotion pending
+
+**Source:** Issue #1035 final audit/review trail
+
+Accepted roots: safe-area, viewport-aware popover geometry, reader 100dvh, canonical high-risk wiring, and the semantic auth-boundary anchor. Child mapping is corrected and final: #1036→PR #1039→dev d4adc823; #1037→PR #1040→dev 6928c076 (PR body corrected after issue-number mix-up); #1038→PR #1041→dev 80bfc51; #1042→PR #1043→dev caffbad (v1 rejected; strict lockout preserved; final 79/79 zero-skip approval); #1044→PR #1045→dev d27cc36. Final QA is 520/520, 79/79 zero-skip/only/retry, 5/5 smoke, and 16/16 CTA matrix. Architecture final GO, Rai final GREEN, and Fact Checker final GO. Parent #1035 stays open until dev→main promotion and post-main CI.
+
+### 2026-07-13 — Issue #1035 mobile UI audit closes after main promotion
+**Source:** Promotion PR #1047 and post-main validation.
+**Evidence:** PR https://github.com/huangyingting/ReadWise/pull/1047 merged dev→main at commit https://github.com/huangyingting/ReadWise/commit/a15412fae26d2b2790a6d7161603cd66c60ee951. Post-main CI https://github.com/huangyingting/ReadWise/actions/runs/29227918120 succeeded on that exact SHA; release workflow https://github.com/huangyingting/ReadWise/actions/runs/29227918111 succeeded and skipped tag/release creation by contract because the version already existed.
+**State:** Final product gates remained 5/5 smoke, 79/79 high-risk zero skips, 520/520 full UI audit, and 16/16 CTA matrix. Architecture GO, Rai GREEN, and Fact Checker GO held. Parent #1035 and children #1036/#1037/#1038/#1042/#1044 are closed.

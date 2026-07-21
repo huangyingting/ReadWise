@@ -20,8 +20,6 @@
 
 **Why:** The Admin IA audit fixed backend-supported relationships/attributes where a minimal UI could safely expose them. Tenant administration requires broader authorization/product decisions, while tag chips do not block existing tag configuration.
 
-**References:** Issue #1159 items 1 and 3.
-
 ### 2026-07-20T15:35:35Z: Article moderation visibility is public-library-only
 
 **By:** Scribe (recording Admin IA gap audit decision)
@@ -38,32 +36,8 @@
 **Agent:** Switch (Tester)  
 **PR:** https://github.com/huangyingting/ReadWise/pull/1107  
 **Branch:** squad/fix-baseline-unit-tests
+Corrected findings: CEFR B1 208 (95.9%), B2 7 (3.2%), A2 2 (0.9%); Lexile-like min 590, median 870, mean 861.66, max 1050; confidence high 165, medium 52, low 0. `prisma/e2e.db` should be treated only as a non-representative smoke observation. Provider DB evidence still shows B1 compression and reinforces the need for calibration before treating CEFR or Lexile-like labels as authoritative.
 
-## Decision
-
-All 4 fixes were test-side only. No production source was modified.
-
-## Diagnosis Summary
-
-| Test | Root Cause | Fix |
-|------|-----------|-----|
-| `query-indexes.test.ts:67` | Assertion checked function body for `ownerId: null` but refactor moved value into `PUBLIC_LISTABLE_RULE` const | Check const has `ownerId: null` and function spreads it |
-| `routes-api-fallbacks.test.ts:697` | Multiple `mock.module()` stubs missing exports after refactor; transitive `today-session/actions` (not mocked) pulled in full generator/recommendations/article-library chain | Added missing exports + new mock for `/actions` sub-module |
-| `server-read-models-runtime.test.ts:464` | `@/lib/article-library` mock missing `readableArticleSqlPredicate` needed by `fulltext.ts` | Added `readableArticleSqlPredicate` to mock |
-| `config-runtime-env.test.ts:172` | `ENV_KEYS` list missing provider credential env vars (`AZURE_OPENAI_*`, `GOOGLE_CLIENT_*`, `AZURE_AD_*`, `VAPID_*`); `.env` loaded by test runner sets them globally | Added missing keys to `ENV_KEYS` |
-
-## Key Learnings
-
-1. **`--experimental-test-module-mocks` with barrels**: When a barrel is mocked, ALL exports needed by transitive unmocked imports must be listed — no lazy resolution. One missing export = hard `SyntaxError` at link time.
-
-2. **`today-session/actions` is a fan-out barrel**: It re-exports from 6 sub-modules. Without a dedicated mock, loading it pulls in `set-article.ts` → `generator.ts` → `recommendations/picks.ts` — a deep chain.
-
-3. **env isolation in full-suite runs**: Tests using `--env-file-if-exists=.env` share a process. `beforeEach` must clear ALL env vars that could affect config assertions, not just the ones the test sets itself.
-
-## Tally
-
-- Before: `tests 4557 | pass 4519 | fail 4`
-- After:  `tests 4557 | pass 4523 | fail 0`
 
 # Decision: Discovery ledger schema (#1081)
 
@@ -867,3 +841,166 @@ PR: targets `main`, closes #1159 (items 1 & 2 already shipped via #1163/#1164 an
 **Decision inbox:** Checked `.squad/decisions/inbox/`; no pending agent decision files were present.
 
 **Verdict:** Cycle 2 global review is complete; all curated P1/P2 issues merged to `main` at `f03978ff`, with sequential orchestration, safe-merge criteria, and client-safe enum mirroring carried forward.
+1. `src/lib/difficulty.ts` consolidation — `articleHtmlToReaderText` from `content-pipeline` shape may change under #946.
+2. `src/lib/reader/page-loader.ts` — `sanitizeArticleHtml` + `articleHtmlToReaderText` from `content-pipeline`.
+3. `src/lib/recommendations/scoring.ts` — `scraper/providers` has live uncommitted changes; interface is in flux.
+4. `src/lib/article-library/admin.ts` — structural refactor touching `getArticleProcessingSteps`/`StepRow`.
+5. `src/lib/article-library/collections/tags.ts` — `articleHtmlToReaderText` from `content-pipeline`.
+6. `reader/` merge execution (if decided) — execution carries `page-loader.ts` pipeline coupling into article-library.
+7. Full `difficulty.ts` + `difficulty-version.ts` consolidation into clean module — gated on content-pipeline final boundary.
+
+---
+
+## Deferred-Work Tracking Requirement (non-negotiable)
+
+**The deferred scope MUST NOT be silently dropped.** A dedicated follow-up child issue must be filed under #939 to track these 7 deferred items explicitly. Acceptance criteria from #949 that are not deliverable in the PARTIAL GO pass must be replicated verbatim in the child issue with "Blocked by #946" annotation. This is a condition of PARTIAL GO authorization.
+
+---
+
+## Validation Path for ALLOWED Work
+
+```
+npm run typecheck
+npm test -- tests/article*.test.ts tests/reader*.test.ts tests/recommendations*.test.ts tests/leveling*.test.ts
+```
+
+Note: `tests/difficulty*.test.ts` target remains in scope only for the constants/version file; `difficulty.ts` itself deferred.
+
+---
+
+## Ordering
+
+1. **Start with leveling/** — fully isolated, clean seam, fastest win
+2. **difficulty-version.ts** — constants consolidation decision
+3. **recommendations/ (5 safe files)** — barrel + import-direction audit; document engagement→recommendations direction as intentional
+4. **article-library/ (14 safe files)** — barrel doc pass + any-removal on safe sub-modules
+5. **reader/ (3 safe files)** — scope review + document merge decision (do not execute)
+6. **After #946 merges** → file child issue → execute deferred 7 items in one pass
+
+
+### 2026-07-14: Design Review — Azure batch TTS audio + Reader word-sync (Issue #1054)
+
+**By:** Morpheus (Lead)
+
+**What:** Ratified the implementation/operational contract for generating Azure **Batch** TTS MP3 audio for `prisma/dev.db` articles, persisting V2 word timings, and verifying Reader karaoke highlighting end-to-end. Filed/owns GitHub issue **#1054** (https://github.com/huangyingting/ReadWise/issues/1054).
+
+**Key facts (evidence-backed):**
+- The full pipeline **already exists**: `scripts/batch-synthesis.ts` (npm `speech:batch`, Azure Batch REST `2024-04-01`, `wordBoundaryEnabled`), `src/lib/speech/repository.ts::saveSpeechResult`, `ArticleSpeech` model + **V2 columnar timing format** (`src/lib/speech/timing.ts`), Reader client (`ReaderAudioProvider`, `useActiveWord`, `useTtsProseHighlight`), and analyzer `scripts/analyze-speech-alignment.ts`. This is operate+verify, not green-field.
+- **Gap:** `prisma/dev.db` = 217 articles, **0 `ArticleSpeech` rows** — pipeline never run against dev.
+- **Schema decision:** reuse **V2** timing payload; **no schema change**. Legacy raw arrays remain read-only compat input.
+- **Word boundaries:** Azure Batch returns them directly (`.word.json`); UTF-16 text-span fallback via `buildTokenAlignment` already implemented.
+- **Top risk (verification-critical):** `batchWordFromBoundary` treats `AudioOffset`/`Duration` as **ms**, but the real-time SDK path converts **ticks→ms (÷1e4)**. If batch emits ticks, timings desync ~10,000×. Must be proven vs real MP3 duration before acceptance.
+- **Storage:** `MEDIA_STORAGE=database` now aliases to `local` (warning); needs `local`(`.media`)/`azure`. `.env.example` ~L125 doc is stale (fix in pipeline PR). `unzip` present on PATH.
+
+**Ownership (disjoint files):** Mouse (generation + units: `scripts/batch-synthesis.ts`, `speech/{repository,timing,provider-azure}.ts`) → then Tank (`speech/index.ts` + speech routes) and Trinity (`ReaderAudioProvider`, `useNarrationApi`, `useActiveWord`, `useTtsProseHighlight`, `ReaderListenButton`, `ReaderMiniPlayer`) in parallel → Switch last (`analyze-speech-alignment.ts`, `tests/**`, reader-listen e2e; empirical MP3/timing + browser checks, drive defect iteration).
+
+**Alignment tolerances:** MP3 duration vs `max(endMs)/1000` within 0.75s and ratio ∈ [0.90,1.15]; monotonic timings; boundary coverage ≥0.95 for ≥90% rows, retained rows ≥0.80; text spans in-range + key-match; word count within [0.7,1.3]× tokens.
+
+**Why:** Concurrent agents must not co-edit shared speech files; sequencing (populate → serve/render → verify) prevents building on empty data; explicit unit/coverage tolerances make "looks functional but highlights wrong word" defects catchable with evidence.
+
+**Delivery:** dev-first (`squad/1054-*` branches from `dev`), PRs target `dev`, then a dev→main promotion PR — no direct unreviewed `main` commits.
+
+**Blocker:** Actual generation needs Azure Speech `KEY`+`REGION` and writable media storage at run time; if unavailable it is a permission-only blocker — use `batch-synthesis.test.ts` dependency-injection + analyzer on fixtures for offline verification. Never read `.env`.
+
+**Termination condition:** Close #1054 when every acceptance criterion is met with evidence (populated rows, proven units, coverage thresholds, real-browser word-sync) and the dev→main promotion PR is merged green.
+
+### 2026-07-14: Azure Batch REST API timing units confirmed as milliseconds
+
+**By:** Mouse
+
+**What:** Azure Batch Synthesis REST API 2024-04-01 returns `AudioOffset` and `Duration` in **milliseconds** in `.word.json`. The real-time SDK path (`provider-azure.ts`) returns ticks (100-ns units) requiring ÷1e4. The batch path stores values directly — this was correct all along. Empirically verified: max(endMs)/1000 = 318.91 s vs 319.21 s estimated MP3 duration at 32kbps (δ=0.299 s ≤ 0.75 s, ratio=0.9991).
+
+**Why:** Issue #1054 listed this as a verification-critical risk. Web search results claimed ticks (wrong). The discrepancy is now empirically resolved. Tank and Switch can rely on the timing data already in dev.db.
+
+**Additional finding:** `analyze-speech-alignment.ts::timingWordsFromJson` only handled legacy array format and returned empty for V2 columnar payloads — fixed in PR #1055.
+
+**Generated data in dev.db:** 217/217 ArticleSpeech rows, overall boundary coverage 99.96%, zero rows below 0.80. MP3 files in `.media/speech/` (gitignored, 217 files).
+
+### 2026-07-14: Backend speech delivery contract validated — no defects
+
+**By:** Tank
+
+**What:** Validated backend delivery contract against 217 persisted ArticleSpeech rows and 221 local MP3s.
+
+**Why:** Confirm routes serve exact persisted data without re-synthesis, correct V2 timings/plainText, MIME/format, and graceful fallbacks.
+
+**Evidence (aggregates/booleans only):**
+- 217 ArticleSpeech rows: all storageKey non-null, all `audio/mpeg`, all `words.version=2 / provider=azure-batch`.
+- Sample: 887 words, all have textStart/textEnd spans, max endMs=318913ms (318.913s vs 319.21s MP3 ≈ ratio 0.999 ✓).
+- `getOrCreateArticleSpeech(id, SYSTEM_ARTICLE_CONTEXT)`: `cached=true, fallback=false` — no re-synthesis triggered.
+- plainText length 4994 chars ≤ MAX_TTS_CHARS (5000). Re-derived from current article content per design.
+- `getArticleSpeechAudio`: bytes non-null, byteLength=1,276,848, MPEG sync header (0xFF 0xF3) confirmed.
+- Audio route headers: `Content-Type: audio/mpeg`, `Content-Length` matches byteLength, `Cache-Control: private, max-age=3600`.
+- Both speech routes use same `ArticleSpeech` row (single `findUnique`).
+- Missing article: `null` (correct 404 path).
+- Range/streaming: not supported — existing behavior, no regression.
+- 44/44 targeted tests pass (speech-audio-route, speech-orchestration, speech-index-access, speech-json, speech-repository).
+- Lint clean, diff --check clean, no type errors in owned files.
+
+**Outcome:** No code changes required. PR #1055 backend delivery is correct as-is.
+
+
+### 2026-07-21T13-17-33: Assignment lifecycle refactor — target process + PR plan
+**By:** Morpheus
+**What:** Assignment lifecycle refactor — target process + PR plan
+**References:** Tank, Trinity, Switch, RW-061, #1164
+**Why:** ## Context
+User ask: make the classroom assignment feature *workable* end-to-end between student and teacher. CRUD already exists (#1164) but the PROCESS is disjointed from the act of reading. Three verified gaps: (1) the reader has ZERO assignment awareness; (2) reading an assigned article to 100% does NOT advance the assignment (only a quiz or manual toggle completes it); (3) IN_PROGRESS is a dead state — nothing sets it from reading, so teachers can't distinguish "not started" from "in progress". This is a DESIGN-GATE decision; no feature code written here.
+
+## Locked target process
+
+### Teacher (unchanged flow, clearer board)
+create classroom → enroll students → assign article (due date + instructions) → monitor a 3-state board **Not started / In progress / Completed** per assignment and per student, with inline due date + overdue → review quiz scores. Data for all 3 states ALREADY exists in `aggregateClassroom` (`perAssignment.notStarted/inProgress/completed`) and the drilldown rows carry per-student status; only the UI currently collapses it to binary.
+
+### Student
+see assigned reading (classroom, due, instructions, status) at /assignments → open it → the READER shows an assignment banner (classroom, due date, instructions, status, complete affordance) → the act of reading advances it automatically → may still manually mark/undo a MANUAL completion.
+
+### State-transition rules (monotonic; mirror deriveCompletionState + Today)
+- Absence of an AssignmentCompletion row == ASSIGNED.
+- **ASSIGNED → IN_PROGRESS**: first reading-progress save at/above `ASSIGNMENT_START_PERCENT` (new constant, propose = 1 → "any real progress"). Creates an IN_PROGRESS row. Only when no row exists (never touches an existing COMPLETED/IN_PROGRESS row).
+- **→ COMPLETED (reading-driven)**: reading reaches `COMPLETION_THRESHOLD` (95, reuse `@/lib/engagement/progress-rules`). Upserts COMPLETED, stamps `completedAt` (sticky — never overwrite an existing one), and **must NOT write quizScore** (preserve any existing quiz score).
+- **→ COMPLETED (quiz-driven)**: unchanged `markAssignmentQuizComplete` — any GRADED attempt completes + records score. Quiz score wins over reading completion.
+- **Precedence / no-regression (invariants):** automatic signals are strictly monotonic ASSIGNED(0) < IN_PROGRESS(1) < COMPLETED(2). A reading signal NEVER downgrades COMPLETED→IN_PROGRESS and NEVER clears/overwrites `quizScore`. Quiz completion is never regressed by reading. (Deliberately KEEP #1164 behavior that any graded attempt — pass or fail — completes; do not gate on pass, to avoid regressing that contract.)
+- **Manual undo stays**, MANUAL (quizScore == null) completions only → posts IN_PROGRESS via existing route. Quiz-driven completions remain read-only. Manual "Mark complete" stays (offline/screen-reader path, mirrors markTodayReadingCompleteManual rationale).
+- **Regression is only ever explicit** (student Undo). Teachers do not mutate student status.
+
+### No schema change
+`AssignmentStatus` enum + `AssignmentCompletion.status/quizScore/completedAt` already model the full lifecycle. ASSIGNED = no row; IN_PROGRESS/COMPLETED via existing columns. A `startedAt` timestamp is NOT needed (IN_PROGRESS presence + board counts suffice). Prefer-no-schema-change satisfied.
+
+## PR breakdown (sequential, single shared working tree)
+
+### PR1 — Backend/domain: reading→assignment lifecycle sync (owner: Tank)
+Deep module mirroring `markAssignmentQuizComplete` + `syncTodayReadingFromProgress`.
+- ADD `src/lib/classroom/completions.ts`: `syncAssignmentReadingProgress({ userId, articleId, percent, completed }): Promise<{ startedCount: number; completedCount: number }>`. Short-circuits (no query) when `percent < ASSIGNMENT_START_PERCENT && !completed`. Finds all `assignment.findMany({ where: { articleId, classroom: { archivedAt: null, members: { some: { userId } } } } })` (handles N enrolled classrooms), reads existing completions, then per assignment applies the monotonic rules above (never downgrade, never clobber quizScore, sticky completedAt). Non-tx independent upserts may use Promise.all.
+- ADD `ASSIGNMENT_START_PERCENT` constant (in completions.ts or progress-rules.ts); reuse `COMPLETION_THRESHOLD`/`isCompletePercent`.
+- ADD read query in `src/lib/classroom/student-reads.ts`: `listStudentAssignmentsForArticle(studentId, articleId): Promise<StudentAssignment[]>` — the viewer's own assignments for THIS article across enrolled, non-archived classrooms (for the reader banner). Reuse existing include/map helpers.
+- EXPORT both from `src/lib/classroom/index.ts`.
+- WIRE into `src/app/api/reader/[id]/progress/route.ts`: after `syncTodayReadingProgress`, add `await bestEffortMastery("progress.assignment_completion", () => syncAssignmentReadingProgress({ userId, articleId, percent: progress.percent, completed: progress.completed }))`. Best-effort; never breaks the progress write; never mutates ReadingProgress.
+- TESTS (same PR): new `tests/classroom-assignment-reading-sync.test.ts` (model on `classroom-quiz-completion.test.ts`): ASSIGNED→IN_PROGRESS at start percent; →COMPLETED at threshold; multi-classroom N; monotonic no-downgrade; reading never clobbers a quizScore; archived-classroom excluded; not-enrolled excluded; sticky completedAt.
+- api-catalog: NO route added/renamed and progress response unchanged → no `npm run api-catalog` needed.
+
+### PR2 — Frontend/UI: reader banner + 3-state boards (owner: Trinity) [depends on PR1]
+- Reader banner: extend `ReaderPageData` in `src/lib/reader/page-loader.ts` with `assignments: StudentAssignment[]` via `listStudentAssignmentsForArticle(session.user.id, articleId)` (empty when unassigned). Render a new banner in `ReaderShell.tsx`/`ArticleHeader.tsx` region: per enrolled classroom show classroom name, due date (+overdue), instructions, status chip, and complete affordance (reuse `CompleteAssignmentButton`). Token-driven; use `Card`/`Badge` primitives; no business-logic change.
+- Student `/assignments` page: replace binary completed badge with 3-state chip (Not started / In progress / Completed[+quiz%]) driven by `assignment.status`.
+- Teacher `src/app/(app)/teacher/classrooms/[id]/page.tsx`: replace binary `assignmentSynthesizedStatus` with a 3-segment count from existing `perAssignment.{notStarted,inProgress,completed}`; per-student rows use drilldown status; recompute overdue from due date + not-fully-complete.
+- TESTS (same PR): extend `tests/assignment-edit-ui.test.ts`/`assignment-overdue.test.ts` + a reader-banner render test; light/dark/mobile + keyboard focus smoke per AGENTS.md UI checklist.
+
+### PR3 — Test hardening / regression (owner: Switch) [depends on PR1+PR2]
+- Integration/regression test walking the whole path: assign → sub-threshold read (IN_PROGRESS) → threshold read (COMPLETED) → quiz precedence (score wins, no regress) → manual Undo → re-read re-completes → archived guard (409) → session-derived identity (never body). Update any drift tests. Optional: fold into PR1/PR2 if the team prefers 2 PRs.
+
+## Invariants & risks
+- Security: studentId ALWAYS session-derived (route provides `session.user.id`); enrollment gate via `members.some`; archived-classroom guard (`archivedAt: null`); multi-classroom N handled everywhere.
+- Redaction: only IDs + status/score metadata persisted or logged — never article text, selected text, instructions content in logs, or PII.
+- No-regress-quiz-completion: reading sync never touches quizScore and never downgrades COMPLETED; quiz path unchanged.
+- Prisma parity: no schema change, so no migration/3-schema/fixture work.
+- api-catalog: plan adds no routes; if any PR adds/renames a route or changes a status code, it MUST run `npm run api-catalog` and commit `docs/platform/api-catalog.{json,md}`.
+- Perf: sync fires on every progress save but short-circuits below start percent before any DB read; otherwise one findMany + bounded upserts, all best-effort.
+
+
+### 2026-07-21: DB integration test strategy for reading→assignment lifecycle
+
+**By:** Switch (🧪)
+
+**What:** Created `tests/db/postgres-assignment-reading-sync.test.ts` — 9 PostgreSQL integration tests covering the full reading→assignment lifecycle. Tests are modeled exactly on the sibling `postgres-org-classroom.test.ts` (same imports, guard pattern, and `dbit_` PREFIX hygiene). All 9 tests fail with the benign guard message on SQLite and are verified via the `test:db` baseline (31 guard failures = 31 total failures, zero logic errors).
+
+**Why:** Unit tests in `tests/classroom-assignment-reading-sync.test.ts` (PR1) mock Prisma and cannot prove the actual upsert target (`assignmentId_studentId`), enrollment `where` clause, archived-classroom exclusion filter (`archivedAt: null`), or multi-row fan-out work against a real schema. Integration tests are the only reliable gate for these DB-level invariants. Chosen `completed:true` as an explicit second code path for scenario (c) rather than merging it with the percent path, ensuring both branches of `isCompletePercent(percent) || completed` are covered in isolation.
