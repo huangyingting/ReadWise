@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import type { MembershipRole } from "@prisma/client";
 import { createHandler, ApiError } from "@/lib/api-handler";
+import { throwIfFailed } from "@/lib/result";
 import { idParams, object, oneOf, nonEmptyString } from "@/lib/validation";
 import { MEMBERSHIP_ROLES, CAPABILITIES } from "@/lib/rbac";
-import { addMember, getOrganization, listOrgMembers } from "@/lib/org";
+import {
+  addMember,
+  getMembership,
+  getOrganization,
+  listOrgMembers,
+  updateMemberRole,
+} from "@/lib/org";
 import { requireOrgCapabilityApi } from "@/lib/tenant-api";
 
 const CREATED_RESPONSE_INIT = { status: 201 } as const;
@@ -29,6 +36,10 @@ function memberCreatedResponse(membership: OrgMembership) {
   return NextResponse.json({ ok: true, membership }, CREATED_RESPONSE_INIT);
 }
 
+function memberUpdatedResponse(membership: OrgMembership, role: MembershipRole) {
+  return NextResponse.json({ ok: true, membership: { ...membership, role } });
+}
+
 /**
  * Lists organization members. Requires `org.members.manage`.
  */
@@ -43,13 +54,19 @@ export const GET = createHandler(
 );
 
 /**
- * Adds (or re-roles) a member of an organization (RW-060). Requires the caller
- * to hold `org.members.manage` within the org (OrgAdmin) or be a system admin.
+ * Adds a member of an organization (RW-060). Existing memberships are re-roled
+ * through updateMemberRole so the last-OrgAdmin invariant is enforced.
  */
 export const POST = createHandler(
   { params: idParams, body: addMemberBody },
   async ({ params, body, session }) => {
     await requireMemberManagement(session, params.id);
+    const existingMembership = await getMembership(body.userId, params.id);
+    if (existingMembership) {
+      const result = await updateMemberRole(params.id, body.userId, body.role);
+      throwIfFailed(result);
+      return memberUpdatedResponse(existingMembership, result.role);
+    }
     const membership = await addMember(params.id, body.userId, body.role);
     return memberCreatedResponse(membership);
   },
