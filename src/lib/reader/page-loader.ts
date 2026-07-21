@@ -31,6 +31,10 @@ import {
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { prisma } from "@/lib/prisma";
 import { CEFR_LEVELS, type CefrLevel } from "@/lib/option-registries";
+import {
+  type StudentAssignment,
+  listStudentAssignmentsForArticle,
+} from "@/lib/classroom";
 
 export type ReaderPageData = {
   article: Article;
@@ -53,6 +57,8 @@ export type ReaderPageData = {
    * false when they fell back to same-category articles.
    */
   hadRelated: boolean;
+  /** The student's own assignments for this article across their classrooms (empty for non-students). */
+  studentAssignments: StudentAssignment[];
 };
 
 type DifficultyVote = ReaderPageData["userDifficultyVote"];
@@ -127,8 +133,8 @@ export async function loadReaderPageData(
     properties: { category: article.category, difficulty: article.difficulty },
   });
 
-  // Parallel fetch: all six queries depend only on article.id / userId
-  const [progress, difficulty, tagsResult, relatedArticles, membership, existingFeedback] =
+  // Parallel fetch: all seven queries depend only on article.id / userId
+  const [progress, difficulty, tagsResult, relatedArticles, membership, existingFeedback, studentAssignments] =
     await Promise.all([
       getProgress(session.user.id, article.id),
       getOrCreateArticleDifficulty(article.id, context),
@@ -141,6 +147,8 @@ export async function loadReaderPageData(
         where: { userId_articleId: { userId: session.user.id, articleId: article.id } },
         select: { vote: true },
       }),
+      // Student assignment context for the reader banner (empty for non-students)
+      listStudentAssignmentsForArticle(session.user.id, article.id),
     ]);
 
   // If no related articles, fall back to articles from the same category.
@@ -176,6 +184,7 @@ export async function loadReaderPageData(
     cleanBody,
     articlePlainText,
     hadRelated,
+    studentAssignments,
   };
 }
 
