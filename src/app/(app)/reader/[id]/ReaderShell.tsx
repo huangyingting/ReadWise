@@ -41,6 +41,7 @@ import ArticleDifficultyFeedback from "@/components/ArticleDifficultyFeedback";
 import ReaderReadingBlockTracker from "@/components/reader/ReaderReadingBlockTracker";
 import ReaderTimeTracker from "@/components/reader/ReaderTimeTracker";
 import ArticleHeader from "./ArticleHeader";
+import AssignmentBanner from "./AssignmentBanner";
 import KeepReadingSection from "./KeepReadingSection";
 
 type Props = {
@@ -87,6 +88,7 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
     readingMinutes,
     cleanBody,
     hadRelated,
+    studentAssignments,
   } = data;
 
   return (
@@ -113,6 +115,9 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
           tags={tags}
           setTodayEnabled={setTodayEnabled}
         />
+
+        {/* Assignment banner — shown only when the student has assignments for this article */}
+        <AssignmentBanner assignments={studentAssignments} />
 
         {/* Hero image — graceful 16:9 frame that collapses on error */}
         <ArticleHero src={article.heroImage} alt={article.title} />
