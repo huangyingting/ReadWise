@@ -84,6 +84,7 @@ export function ReadingPlacementCard({
   className,
 }: ReadingPlacementCardProps) {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [passage, setPassage] = useState<PlacementPassageDto | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [answers, setAnswers] = useState<PlacementAnswers>({});
@@ -92,26 +93,32 @@ export function ReadingPlacementCard({
 
   const { busy, error, run } = useMutation("Could not save your placement. Please try again.");
 
+  const loadPlacement = useCallback(async (isCancelled: () => boolean) => {
+    setLoading(true);
+    setLoadError(null);
+    setUnavailable(false);
+    setPassage(null);
+    try {
+      const res = await getJson<PlacementFetch>(placementUrl(seedLevel));
+      if (isCancelled()) return;
+      if (res.available) setPassage(res.passage);
+      else setUnavailable(true);
+    } catch {
+      if (!isCancelled()) {
+        setLoadError("Couldn't load the placement passage.");
+      }
+    } finally {
+      if (!isCancelled()) setLoading(false);
+    }
+  }, [seedLevel]);
+
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setUnavailable(false);
-    getJson<PlacementFetch>(placementUrl(seedLevel))
-      .then((res) => {
-        if (!active) return;
-        if (res.available) setPassage(res.passage);
-        else setUnavailable(true);
-      })
-      .catch(() => {
-        if (active) setUnavailable(true);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    void loadPlacement(() => !active);
     return () => {
       active = false;
     };
-  }, [seedLevel]);
+  }, [loadPlacement]);
 
   const selectAnswer = useCallback((questionId: string, optionIndex: number) => {
     setAnswers((prev) => ({ ...prev, [questionId]: optionIndex }));
@@ -144,9 +151,6 @@ export function ReadingPlacementCard({
     [passage, answers, lookupCount, attempt, run],
   );
 
-  // Nothing to place against — degrade gracefully (never blocks onboarding).
-  if (unavailable) return null;
-
   if (loading) {
     return (
       <Card className={className}>
@@ -158,6 +162,34 @@ export function ReadingPlacementCard({
       </Card>
     );
   }
+
+  if (loadError) {
+    return (
+      <Card className={className} role="alert">
+        <CardHeader>
+          <CardTitle level="h2">Placement couldn&apos;t load</CardTitle>
+          <CardMeta>{loadError}</CardMeta>
+        </CardHeader>
+        <CardFooter>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void loadPlacement(() => false)}
+          >
+            Retry
+          </Button>
+          {onDone ? (
+            <Button variant="ghost" size="sm" onClick={onDone}>
+              Skip for now
+            </Button>
+          ) : null}
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  // Nothing to place against — degrade gracefully (never blocks onboarding).
+  if (unavailable) return null;
 
   if (!passage) return null;
 
