@@ -36,6 +36,7 @@ const articles = new Map<
     content: string;
     visibility: ArticleVisibility;
     ownerId: string | null;
+    organizationId: string | null;
   }
 >();
 let tags: Tag[] = [];
@@ -205,6 +206,7 @@ beforeEach(() => {
     content: "<p>Body about climate.</p>",
     visibility: ArticleVisibility.PUBLIC,
     ownerId: null,
+    organizationId: null,
   });
 });
 
@@ -254,6 +256,7 @@ test("getOrCreateArticleTags scopes private article tags to the owner namespace"
     content: "<p>Personal climate notes.</p>",
     visibility: ArticleVisibility.PRIVATE,
     ownerId: "user-1",
+    organizationId: null,
   });
   aiConfigured = true;
   aiReply = '["Climate Change"]';
@@ -265,6 +268,29 @@ test("getOrCreateArticleTags scopes private article tags to the owner namespace"
   assert.equal(result?.tags[0].scope, TagScope.PRIVATE);
   assert.equal(tags[0].namespace, "user:user-1");
   assert.equal(tags[0].ownerId, "user-1");
+});
+
+test("getOrCreateArticleTags scopes ORG article tags to the org namespace", async () => {
+  articles.set("org-a1", {
+    id: "org-a1",
+    title: "Org",
+    content: "<p>Classroom climate notes.</p>",
+    visibility: ArticleVisibility.ORG,
+    ownerId: null,
+    organizationId: "org-1",
+  });
+  aiConfigured = true;
+  aiReply = '["Climate Change"]';
+  const { getOrCreateArticleTags } = await import("@/lib/article-library");
+
+  const result = await getOrCreateArticleTags("org-a1");
+
+  assert.equal(result?.fallback, false);
+  assert.equal(result?.tags[0].scope, TagScope.ORG);
+  assert.equal(tags[0].scope, TagScope.ORG);
+  assert.equal(tags[0].namespace, "org:org-1");
+  assert.notEqual(tags[0].namespace, PUBLIC_TAG_NAMESPACE);
+  assert.equal(tags[0].ownerId, null);
 });
 
 test("listTagsWithCounts excludes private-only tags from public listings", async () => {
