@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-21T02:52:45.720Z",
+  "generatedAt": "2026-07-21T04:24:32.195Z",
   "routeCount": 136,
   "methodCount": 165,
   "routes": [
@@ -2606,7 +2606,7 @@
           "hasQuerySchema": false,
           "responseFormat": "json",
           "notes": [],
-          "successStatus": 201,
+          "successStatus": 200,
           "responseKeys": [
             "membership",
             "ok"
