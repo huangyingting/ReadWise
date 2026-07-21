@@ -48,8 +48,22 @@ import { createDiscoverySource } from "./support/discovery-fixtures";
 registerIntegrationCleanup();
 
 const createdIdentityKeys = new Set<string>();
+const ORIGINAL_CANDIDATE_INGEST_ENABLED = process.env.CANDIDATE_INGEST_ENABLED;
+
+function enableCandidateIngestForTest(): void {
+  process.env.CANDIDATE_INGEST_ENABLED = "true";
+}
+
+function restoreCandidateIngestFlag(): void {
+  if (ORIGINAL_CANDIDATE_INGEST_ENABLED === undefined) {
+    delete process.env.CANDIDATE_INGEST_ENABLED;
+    return;
+  }
+  process.env.CANDIDATE_INGEST_ENABLED = ORIGINAL_CANDIDATE_INGEST_ENABLED;
+}
 
 afterEach(async () => {
+  restoreCandidateIngestFlag();
   if (!enabled) return;
   const keys = [...createdIdentityKeys];
   if (keys.length > 0) {
@@ -117,7 +131,31 @@ async function ingestJobForUrl(url: string) {
 // ARTICLE_INGEST job, atomically with the candidate + advanced checkpoint.
 // ---------------------------------------------------------------------------
 
+test("eligible ACTIVE commit does not enqueue candidate ingest while CANDIDATE_INGEST_ENABLED is off by default", { skip: !enabled }, async () => {
+  delete process.env.CANDIDATE_INGEST_ENABLED;
+  const source = await activeSource();
+  const url = track(undarkUrl(id("disabled")));
+
+  const result = await commitDiscoveryPage({
+    sourceId: source.id,
+    leaseOwner: LEASE,
+    definitionVersion: source.definitionVersion,
+    windowStart: new Date("2024-01-01T00:00:00.000Z"),
+    page: page([{ url, publishedAt: new Date("2024-07-01T00:00:00.000Z"), dateProvenance: provenance, positionRank: 0 }]),
+    runId: "run-disabled",
+  });
+
+  assert.equal(result.committed, true);
+  if (!result.committed) return;
+  assert.equal(result.outcomes.eligible, 1);
+  assert.equal(result.ingestJobsEnqueued, 0);
+  const candidate = await prisma.crawlCandidate.findFirst({ where: { provisionalKey: deriveProvisionalIdentity(url).key } });
+  assert.ok(candidate, "eligible candidate is still recorded");
+  assert.equal(await ingestJobForUrl(url), null);
+});
+
 test("eligible ACTIVE commit enqueues exactly one candidate-based ingest job (AC1)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const source = await activeSource();
   const url = track(undarkUrl(id("elig")));
 
@@ -161,6 +199,7 @@ test("eligible ACTIVE commit enqueues exactly one candidate-based ingest job (AC
 // ---------------------------------------------------------------------------
 
 test("a fault after the eligible item write rolls back the job AND the checkpoint (AC1)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const source = await activeSource();
   const url = track(undarkUrl(id("fault")));
   const ingestBefore = await prisma.job.count({ where: { type: JobType.ARTICLE_INGEST } });
@@ -194,6 +233,7 @@ test("a fault after the eligible item write rolls back the job AND the checkpoin
 // ---------------------------------------------------------------------------
 
 test("a lost lease at the checkpoint advance rolls back the ingest job (AC1)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const source = await activeSource();
   const url = track(undarkUrl(id("lease")));
   const ingestBefore = await prisma.job.count({ where: { type: JobType.ARTICLE_INGEST } });
@@ -225,6 +265,7 @@ test("a lost lease at the checkpoint advance rolls back the ingest job (AC1)", {
 // ---------------------------------------------------------------------------
 
 test("replaying the same eligible page adds no extra active ingest job (AC2)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const source = await activeSource();
   const url = track(undarkUrl(id("replay")));
   const args = {
@@ -257,6 +298,7 @@ test("replaying the same eligible page adds no extra active ingest job (AC2)", {
 // ---------------------------------------------------------------------------
 
 test("concurrent commits of the same page converge on one ingest job (AC2)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const source = await activeSource();
   const url = track(undarkUrl(id("concurrent")));
   const args = {
@@ -285,6 +327,7 @@ test("concurrent commits of the same page converge on one ingest job (AC2)", { s
 // ---------------------------------------------------------------------------
 
 test("a terminal ingest job is not reset by rediscovery (AC3)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const source = await activeSource();
   const url = track(undarkUrl(id("terminal")));
   const args = {
@@ -321,6 +364,7 @@ test("a terminal ingest job is not reset by rediscovery (AC3)", { skip: !enabled
 // ---------------------------------------------------------------------------
 
 test("shadow-mode commit observes the candidate but enqueues NO ingest job", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const source = await createDiscoverySource({
     lifecycleMode: DiscoverySourceLifecycleMode.SHADOW,
     leaseOwner: LEASE,

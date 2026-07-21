@@ -93,6 +93,7 @@ type EnvName =
   | "SCRAPER_BACKFILL_MAX_ITEMS_CEILING"
   | "SCRAPER_BACKFILL_MAX_WINDOW_DAYS"
   | "SCRAPER_BACKFILL_BATCH_SIZE"
+  | "CANDIDATE_INGEST_ENABLED"
   | "SCRAPER_FORCE_RESCRAPE"
   | "SCRAPER_HOST_CONCURRENCY"
   | "SCRAPER_HOST_MIN_INTERVAL_MS"
@@ -276,6 +277,18 @@ export function scraperIngestPropagationGraceMs(): number {
     DEFAULT_INGEST_PROPAGATION_GRACE_MS,
     0,
   );
+}
+
+/**
+ * Whether candidate-based ARTICLE_INGEST jobs may be enqueued
+ * (`CANDIDATE_INGEST_ENABLED`, default OFF).
+ *
+ * Keep disabled until #1095 wires the production candidate-ingest runner's
+ * prepareDraft seam; otherwise worker-processed candidate ingest jobs complete as
+ * no-ops without creating Articles.
+ */
+export function isCandidateIngestEnabled(): boolean {
+  return process.env.CANDIDATE_INGEST_ENABLED === "true";
 }
 
 /**

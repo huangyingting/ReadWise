@@ -281,7 +281,7 @@ export function makeCandidateIngestHandler(
     if (!deps.runIngestAttempt) {
       // Hand-off boundary: fetch / extract / Article creation lands in #1095. No
       // fetch or Article creation here — only durable resolution + the seam.
-      ctx.logger.info("article ingest resolved candidate; ingestion pipeline lands in #1095", {
+      ctx.logger.warn("article ingest resolved candidate; ingestion pipeline lands in #1095", {
         jobId: job.id,
         candidateId: candidate.id,
         processingVersion: parsed.processingVersion,

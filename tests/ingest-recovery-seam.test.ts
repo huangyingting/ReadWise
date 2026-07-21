@@ -14,6 +14,7 @@ import { CrawlCandidateStatus } from "@prisma/client";
 
 type ApplyCall = Record<string, unknown>;
 let applyCalls: ApplyCall[] = [];
+let loggerCalls: Array<{ level: "info" | "warn" | "error"; message: string }> = [];
 
 before(() => {
   mock.module("@/lib/scraper/incremental/ingest-recovery", {
@@ -28,9 +29,14 @@ before(() => {
 
 beforeEach(() => {
   applyCalls = [];
+  loggerCalls = [];
 });
 
-const logger = { info: () => {}, warn: () => {}, error: () => {} };
+const logger = {
+  info: (message: string) => loggerCalls.push({ level: "info", message }),
+  warn: (message: string) => loggerCalls.push({ level: "warn", message }),
+  error: (message: string) => loggerCalls.push({ level: "error", message }),
+};
 
 function job(payload: unknown): never {
   return { id: "job-1", payload, attempts: 0 } as never;
@@ -100,4 +106,6 @@ test("seam: without a runIngestAttempt the handler stays a #1095 hand-off no-op"
   const handler = makeCandidateIngestHandler(async () => candidateRow());
   await handler(job({ candidateId: "cand-1", processingVersion: 1 }), { logger });
   assert.equal(applyCalls.length, 0);
+  assert.equal(loggerCalls.at(-1)?.level, "warn");
+  assert.match(loggerCalls.at(-1)?.message ?? "", /#1095/);
 });
