@@ -84,6 +84,45 @@ describe("useFilteredFetch hook behavior", () => {
     assert.equal(errorCalls, 0);
   });
 
+  test("reports only the latest non-abort error", async () => {
+    const { useFilteredFetch } = await import("@/hooks/useFilteredFetch");
+    const errors: string[] = [];
+
+    let rejectFirst: (error: Error) => void = () => {};
+    const firstResponse = new Promise<number>((_, reject) => {
+      rejectFirst = reject;
+    });
+
+    beginRender();
+    const hook = useFilteredFetch<number>(0);
+    hook.run({
+      fetcher: async () => firstResponse,
+      onResult: () => {
+        assert.fail("failed request should not deliver results");
+      },
+      onError: (error) => {
+        errors.push(error instanceof Error ? error.message : "unknown");
+      },
+    });
+
+    hook.run({
+      fetcher: async () => {
+        throw new Error("latest failed");
+      },
+      onResult: () => {
+        assert.fail("failed request should not deliver results");
+      },
+      onError: (error) => {
+        errors.push(error instanceof Error ? error.message : "unknown");
+      },
+    });
+
+    rejectFirst(new Error("stale failed"));
+    await flushAsyncWork();
+
+    assert.deepEqual(errors, ["latest failed"]);
+  });
+
   test("cancels pending debounce timers and prevents the fetch from firing", async () => {
     const { useFilteredFetch } = await import("@/hooks/useFilteredFetch");
     const timers = installFakeTimers();

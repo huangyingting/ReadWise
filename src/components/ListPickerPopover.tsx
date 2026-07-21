@@ -18,15 +18,14 @@ import {
   useState,
   useEffect,
   useRef,
-  useId,
+  useCallback,
   type RefObject,
 } from "react";
 import { Plus } from "lucide-react";
 import { deleteJson, getJson, postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
-import { Button } from "@/components/ui";
-import { Spinner } from "@/components/ui/Spinner";
+import { Button, PanelError, PanelFallback, PanelLoading } from "@/components/ui";
 import { ListCreateForm } from "@/components/lists/ListCreateForm";
 
 export type ListMembershipEntry = {
@@ -132,7 +131,8 @@ export default function ListPickerPopover({
 }: ListPickerPopoverProps) {
   const [lists, setLists] = useState<ListMembershipEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   // Inline create state
   const [creating, setCreating] = useState(false);
@@ -141,7 +141,6 @@ export default function ListPickerPopover({
   const firstCheckRef = useRef<HTMLInputElement>(null);
   const createRowRef = useRef<HTMLButtonElement>(null);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const statusId = useId();
   const membershipEndpoint = membershipUrl(articleId);
 
   // Use ref so the callback never causes re-runs of the data-fetch effect
@@ -157,36 +156,41 @@ export default function ListPickerPopover({
   }
 
   function setTransientError(message: string) {
-    setError(message);
+    setMutationError(message);
     if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
-    errorTimerRef.current = setTimeout(() => setError(null), 3000);
+    errorTimerRef.current = setTimeout(() => setMutationError(null), 3000);
   }
 
-  // Load membership on mount
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
+  const loadMembership = useCallback(
+    async (isCancelled: () => boolean = () => false) => {
+      setLoading(true);
+      setLoadError(null);
       try {
         const data = await getJson<MembershipResponse>(
           membershipEndpoint,
         );
-        if (!cancelled) {
-          const loadedLists = data.lists ?? [];
-          setLists(loadedLists);
-          onMembershipLoadedRef.current?.(loadedLists);
-        }
+        if (isCancelled()) return;
+        const loadedLists = data.lists ?? [];
+        setLists(loadedLists);
+        onMembershipLoadedRef.current?.(loadedLists);
       } catch {
-        if (!cancelled) setError("Couldn't load lists");
+        if (!isCancelled()) setLoadError("Couldn’t load lists.");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!isCancelled()) setLoading(false);
       }
-    })();
+    },
+    [membershipEndpoint],
+  );
+
+  // Load membership on mount
+  useEffect(() => {
+    let cancelled = false;
+    void loadMembership(() => cancelled);
 
     return () => {
       cancelled = true;
     };
-  }, [membershipEndpoint]);
+  }, [loadMembership]);
 
   // Clear the pending error-clear timer on unmount
   useEffect(() => {
@@ -292,16 +296,22 @@ export default function ListPickerPopover({
 
       {/* List rows — scrollable */}
       <div
-        className="max-h-60 overflow-y-auto py-[var(--space-1)]"
-        style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}
+        className="max-h-60 overflow-y-auto py-[var(--space-1)] [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]"
       >
         {loading ? (
-          <div className="flex items-center justify-center px-[var(--space-3)] py-[var(--space-3)]">
-            <Spinner size="sm" className="text-text-subtle" />
+          <div className="px-[var(--space-3)] py-[var(--space-3)]">
+            <PanelLoading message="Loading lists…" />
           </div>
-        ) : error && lists.length === 0 ? (
-          <div className="px-[var(--space-3)] py-[var(--space-3)] text-[length:var(--text-sm)] text-danger-text">
-            {error}
+        ) : loadError && lists.length === 0 ? (
+          <div className="flex flex-col gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-3)]">
+            <PanelFallback
+              title="Lists couldn’t load"
+              description="Retry to choose where this article should be saved."
+            />
+            <PanelError message={loadError} />
+            <Button type="button" variant="secondary" size="sm" onClick={() => void loadMembership()}>
+              Retry
+            </Button>
           </div>
         ) : (
           <>
@@ -324,15 +334,10 @@ export default function ListPickerPopover({
       </div>
 
       {/* Error status */}
-      {error && lists.length > 0 ? (
-        <p
-          id={statusId}
-          role="status"
-          aria-live="polite"
-          className="px-[var(--space-3)] py-[var(--space-1)] text-[length:var(--text-xs)] text-danger-text"
-        >
-          {error}
-        </p>
+      {mutationError && lists.length > 0 ? (
+        <div className="px-[var(--space-3)] py-[var(--space-1)]">
+          <PanelError message={mutationError} />
+        </div>
       ) : null}
 
       {/* Inline create */}
