@@ -22,9 +22,11 @@ import { resolve, join } from "node:path";
 
 import {
   ADMIN_ORG_MEMBER_ROLES,
+  addOrganizationMemberBody,
   adminOrganizationEndpoint,
   adminOrganizationsEndpoint,
   createOrganizationBody,
+  orgMembersEndpoint,
   orgMemberEndpoint,
 } from "@/lib/admin/organizations/manage-ui";
 
@@ -81,6 +83,7 @@ test("adminOrganizationEndpoint targets a single org under /admin", () => {
 });
 
 test("orgMemberEndpoint reuses the EXISTING tenant member route (not a duplicate under /admin)", () => {
+  assert.equal(orgMembersEndpoint("org-9"), "/api/orgs/org-9/members");
   assert.equal(orgMemberEndpoint("org-9", "user-3"), "/api/orgs/org-9/members/user-3");
 });
 
@@ -105,6 +108,13 @@ test("ADMIN_ORG_MEMBER_ROLES matches the assignable MembershipRole set", () => {
   assert.deepEqual([...ADMIN_ORG_MEMBER_ROLES], ["OrgAdmin", "Teacher", "Member", "Student"]);
 });
 
+test("addOrganizationMemberBody trims userId and keeps role", () => {
+  assert.deepEqual(
+    addOrganizationMemberBody({ userId: "  user-3  ", role: "Teacher" }),
+    { userId: "user-3", role: "Teacher" },
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Mocked client-fetch — the exact calls the islands make
 // ---------------------------------------------------------------------------
@@ -117,6 +127,16 @@ test("postJson creates via the admin collection endpoint with exactly { name, sl
   assert.equal(postCalls.length, 1);
   assert.equal(postCalls[0]?.url, "/api/admin/organizations");
   assert.deepEqual(postCalls[0]?.body, { name: "Acme", ownerUserId: "user-1" });
+});
+
+test("postJson adds a member via the tenant collection endpoint with exactly { userId, role }", async () => {
+  await clientFetch.postJson(
+    orgMembersEndpoint("org-1"),
+    addOrganizationMemberBody({ userId: "user-3", role: "Teacher" }),
+  );
+  assert.equal(postCalls.length, 1);
+  assert.equal(postCalls[0]?.url, "/api/orgs/org-1/members");
+  assert.deepEqual(postCalls[0]?.body, { userId: "user-3", role: "Teacher" });
 });
 
 test("patchJson changes a member role via the tenant member endpoint with { role }", async () => {
@@ -162,12 +182,28 @@ test("AdminOrgMemberActions is a client island reusing the tenant member routes"
   assert.ok(src.includes("useAdminAction"), "uses the shared admin action hook");
 });
 
+test("AdminOrgAddMemberForm is a client island reusing the tenant add-member route", () => {
+  const src = readSrc("src/components/admin/organizations/AdminOrgAddMemberForm.tsx");
+  assert.ok(src.includes('"use client"'), "must be a client component");
+  assert.ok(src.includes("postJson"), "adds via postJson");
+  assert.ok(src.includes("orgMembersEndpoint"), "builds the tenant collection URL");
+  assert.ok(src.includes("addOrganizationMemberBody"), "builds the exact POST body");
+  assert.ok(src.includes("refreshOnSuccess"), "refreshes the server member list");
+  assert.ok(src.includes("<Field"), "composes from the Field primitive");
+  assert.ok(src.includes("<Input"), "captures the user id with Input");
+  assert.ok(src.includes("<Select"), "captures the role with Select");
+  assert.ok(src.includes("<Button"), "submits with Button");
+  assert.ok(src.includes('role="alert"'), "surfaces error feedback accessibly");
+  assert.ok(src.includes("aria-live"), "announces success feedback");
+});
+
 // ---------------------------------------------------------------------------
 // Token-driven (no raw hex / inline font-size / inline style)
 // ---------------------------------------------------------------------------
 
 for (const rel of [
   "src/components/admin/organizations/AdminOrgCreate.tsx",
+  "src/components/admin/organizations/AdminOrgAddMemberForm.tsx",
   "src/components/admin/organizations/AdminOrgMemberActions.tsx",
 ]) {
   test(`${rel} is token-driven (no raw hex, no inline font-size/style)`, () => {
@@ -192,6 +228,12 @@ test("both admin org pages gate on the organizations.manage capability", () => {
       "gates on the new organizations.manage capability",
     );
   }
+});
+
+test("organization detail page renders the add-member form", () => {
+  const detail = readSrc("src/app/admin/organizations/[id]/page.tsx");
+  assert.ok(detail.includes("AdminOrgAddMemberForm"), "renders the add-member form");
+  assert.ok(detail.includes("orgId={orgId}"), "passes the current organization id");
 });
 
 test("the admin nav exposes an Organizations section", () => {

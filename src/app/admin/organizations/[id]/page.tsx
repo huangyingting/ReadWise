@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { getOrganizationDetail } from "@/lib/admin/organizations";
+import AdminOrgAddMemberForm from "@/components/admin/organizations/AdminOrgAddMemberForm";
 import AdminOrgMemberActions from "@/components/admin/organizations/AdminOrgMemberActions";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -39,6 +40,7 @@ function MembersSection({
   return (
     <section className="stack">
       <SectionHeading>Members ({members.length})</SectionHeading>
+      <AdminOrgAddMemberForm orgId={orgId} />
       {members.length === 0 ? (
         <p className="muted">No members yet.</p>
       ) : (
