@@ -230,7 +230,14 @@ before(() => {
           findFirst: async () => highlightFindFirstRow,
         },
         savedWord: {
-          findMany: async () => annotationSavedWordRows,
+          findMany: async (args?: { select?: Record<string, unknown> }) => {
+            if (args?.select && "word" in args.select) {
+              return Array.from({ length: totalSaved }, (_, i) => ({
+                word: `word${String.fromCharCode(97 + i)}`,
+              }));
+            }
+            return annotationSavedWordRows;
+          },
           findUnique: async () => savedWordExisting,
           create: async () => savedWordCreated,
           count: async (args: { where?: { OR?: unknown } }) =>
@@ -281,6 +288,10 @@ before(() => {
         },
         wordMastery: {
           count: async () => weakWordCount,
+          findMany: async () =>
+            Array.from({ length: weakWordCount }, (_, i) => ({
+              lemma: `word${String.fromCharCode(97 + i)}`,
+            })),
         },
         articleMastery: {
           count: async (args: { where?: { comprehensionScore?: unknown } }) =>

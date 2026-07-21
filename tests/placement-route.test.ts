@@ -136,6 +136,11 @@ for (const { name, body, expectNoUpsert } of [
     body: { ...validBody, correctCount: 9, totalCount: 5 },
     expectNoUpsert: true,
   },
+  {
+    name: "zero questions without skip",
+    body: { ...validBody, correctCount: 0, totalCount: 0 },
+    expectNoUpsert: true,
+  },
 ]) {
   test(`POST 400 on ${name}`, async () => {
     const res = await POST(body);

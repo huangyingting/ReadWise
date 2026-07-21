@@ -41,9 +41,9 @@ let coachRows: Array<{
 let profileRow: Record<string, unknown> | null = null;
 let feedbackRows: Array<{ vote: string; _count: { _all: number } }> = [];
 let quizFindMany: Array<{ scorePct: number }> = [];
-let weakWordCount = 0;
+let savedWordRows: Array<{ word: string }> = [];
+let weakWordMasteryRows: Array<{ lemma: string; sourceArticleIds?: unknown }> = [];
 let dueCount = 0;
-let totalSaved = 0;
 let lowCompCount = 0;
 let assessedCount = 0;
 let quizAgg = { _avg: { scorePct: null as number | null }, _count: { _all: 0 } };
@@ -70,9 +70,9 @@ function resetStudyPlanState(): void {
   profileRow = null;
   feedbackRows = [];
   quizFindMany = [];
-  weakWordCount = 0;
+  savedWordRows = [];
+  weakWordMasteryRows = [];
   dueCount = 0;
-  totalSaved = 0;
   lowCompCount = 0;
   assessedCount = 0;
   quizAgg = { _avg: { scorePct: null }, _count: { _all: 0 } };
@@ -83,6 +83,11 @@ function resetStudyPlanState(): void {
 
 function useB1Profile(userId = LEARNER_ID): void {
   profileRow = { userId, englishLevel: "B1", topics: "[]" };
+}
+
+function setSavedWeakness(words: string[], weakLemmas: string[]): void {
+  savedWordRows = words.map((word) => ({ word }));
+  weakWordMasteryRows = weakLemmas.map((lemma) => ({ lemma }));
 }
 
 function hasWeakArea(plan: { weakAreas: Array<{ kind: string }> }, kind: string): boolean {
@@ -117,13 +122,18 @@ before(() => {
           aggregate: async () => quizAgg,
         },
         wordMastery: {
-          count: async () => weakWordCount,
           aggregate: async () => ({ _avg: { familiarity: null }, _count: { _all: 0 } }),
-          findMany: async () => [],
+          findMany: async (args?: { select?: Record<string, unknown> }) => {
+            if (args?.select && "lemma" in args.select) return weakWordMasteryRows;
+            return weakWordMasteryRows.map((row) => ({
+              sourceArticleIds: row.sourceArticleIds ?? [],
+            }));
+          },
         },
         savedWord: {
           count: async (a: { where?: { OR?: unknown } }) =>
-            a.where && "OR" in a.where ? dueCount : totalSaved,
+            a.where && "OR" in a.where ? dueCount : savedWordRows.length,
+          findMany: async () => savedWordRows,
         },
         articleMastery: {
           count: async (a: { where?: { comprehensionScore?: unknown } }) =>
@@ -305,9 +315,11 @@ test("generateStudyPlan reflects synthetic weak areas and updates with new data"
   useB1Profile();
 
   // Round 1: lots of weak words + low quiz average → vocabulary + comprehension.
-  weakWordCount = 6;
+  setSavedWeakness(
+    ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa"],
+    ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"],
+  );
   dueCount = 4;
-  totalSaved = 10;
   quizAgg = { _avg: { scorePct: 42 }, _count: { _all: 6 } };
   lowCompCount = 2;
   assessedCount = 4;
@@ -318,7 +330,10 @@ test("generateStudyPlan reflects synthetic weak areas and updates with new data"
   assert.ok(before.items.some((i) => i.kind === "vocabulary"));
 
   // Round 2: learner improved — words mastered, quiz up → fewer weak areas.
-  weakWordCount = 0;
+  setSavedWeakness(
+    ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa"],
+    [],
+  );
   dueCount = 0;
   quizAgg = { _avg: { scorePct: 88 }, _count: { _all: 8 } };
   lowCompCount = 0;
@@ -326,12 +341,32 @@ test("generateStudyPlan reflects synthetic weak areas and updates with new data"
   assert.ok(after.weakAreas.length < before.weakAreas.length);
 });
 
+test("generateStudyPlan counts weak vocabulary over saved words, not all tracked mastery rows", async () => {
+  const { gatherStudyDiagnostics } = await loadStudyPlan();
+  useB1Profile();
+  savedWordRows = [{ word: "saved-known" }, { word: "saved-weak" }];
+  weakWordMasteryRows = [
+    { lemma: "saved-weak" },
+    { lemma: "unsaved-weak" },
+  ];
+
+  const diagnostics = await gatherStudyDiagnostics(LEARNER_ID);
+
+  assert.deepEqual(diagnostics.vocab, {
+    weakCount: 1,
+    dueCount: 0,
+    totalSaved: 2,
+  });
+});
+
 test("generateStudyPlan persists one stable weekly snapshot and exposes history", async () => {
   const { generateStudyPlan, getStudyPlanHistory } = await loadStudyPlan();
   useB1Profile();
-  weakWordCount = 5;
+  setSavedWeakness(
+    ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa"],
+    ["alpha", "beta", "gamma", "delta", "epsilon"],
+  );
   dueCount = 3;
-  totalSaved = 10;
 
   const first = await generateStudyPlan(LEARNER_ID, {
     now: new Date("2026-07-01T12:00:00Z"),
@@ -340,7 +375,10 @@ test("generateStudyPlan persists one stable weekly snapshot and exposes history"
   assert.ok(first.weekStart);
   assert.ok(hasWeakArea(first, "vocabulary"));
 
-  weakWordCount = 0;
+  setSavedWeakness(
+    ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa"],
+    [],
+  );
   dueCount = 0;
   const stable = await generateStudyPlan(LEARNER_ID, {
     now: new Date("2026-07-02T12:00:00Z"),
@@ -364,9 +402,11 @@ test("generateStudyPlan persists one stable weekly snapshot and exposes history"
 test("generateStudyPlan surfaces a reading recommendation from the picks engine", async () => {
   const { generateStudyPlan } = await loadStudyPlan();
   useB1Profile();
-  weakWordCount = 5;
+  setSavedWeakness(
+    ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa"],
+    ["alpha", "beta", "gamma", "delta", "epsilon"],
+  );
   dueCount = 0;
-  totalSaved = 10;
   articleRows = [
     { id: "art-7", title: "Rivers", author: "x", source: "s", category: "science", difficulty: "B1", readingMinutes: 5, wordCount: 600, publishedAt: new Date("2026-06-20T00:00:00Z"), heroImage: null },
   ];

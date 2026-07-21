@@ -194,6 +194,7 @@ export async function saveProgress(
   userId: string,
   articleId: string,
   rawPercent: number,
+  opts: { timezone?: string | null } = {},
 ): Promise<ReadingProgress> {
   const incoming = clampPercent(rawPercent);
   const before = await getProgress(userId, articleId);
@@ -202,7 +203,7 @@ export async function saveProgress(
   // Side-effect: record daily activity (errors are logged but never
   // affect the caller's return value or forward-only semantics).
   try {
-    await recordReadingActivity(userId, articleId);
+    await recordReadingActivity(userId, articleId, opts.timezone ?? undefined);
   } catch (err) {
     log.error("activity recording failed", {
       userId,
