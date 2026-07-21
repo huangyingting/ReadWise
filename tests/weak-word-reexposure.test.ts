@@ -96,6 +96,7 @@ type Row = Record<string, unknown>;
 let savedWords: Array<{ word: string }> = [];
 let articleContent: string | null = null;
 let savedWordThrows = false;
+let savedWordFindManyArgs: unknown = null;
 let masteryStore: Map<string, Row>;
 
 const keyOf = (userId: string, lemma: string) => `${userId}::${lemma}`;
@@ -105,7 +106,8 @@ before(() => {
     namedExports: {
       prisma: {
         savedWord: {
-          findMany: async () => {
+          findMany: async (args: unknown) => {
+            savedWordFindManyArgs = args;
             if (savedWordThrows) throw new Error("boom");
             return savedWords;
           },
@@ -149,6 +151,7 @@ beforeEach(() => {
   savedWords = [];
   articleContent = null;
   savedWordThrows = false;
+  savedWordFindManyArgs = null;
   masteryStore = new Map();
 });
 
@@ -253,6 +256,10 @@ test("reading exposure: saved words appearing in the article gain a mastery expo
 
   const recorded = await recordReadingWordExposures(TEST_USER_ID, TEST_ARTICLE_ID);
   assert.equal(recorded, 2, "two saved words were present in the text");
+  assert.deepEqual(
+    (savedWordFindManyArgs as { orderBy?: unknown }).orderBy,
+    [{ createdAt: "desc" }, { id: "asc" }],
+  );
 
   const { estimateFamiliarity } = await import("@/lib/learning/word-mastery");
   assert.ok(

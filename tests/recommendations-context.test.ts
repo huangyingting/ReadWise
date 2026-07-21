@@ -41,6 +41,7 @@ let wordMasteryAgg = {
 let progressRows: Array<{ articleId: string; percent: number; completed: boolean }> = [];
 let masteryRows: Array<{ articleId: string; comprehensionScore: number; lastActivityAt: Date }> = [];
 let weakWordMasteryRows: Array<{ sourceArticleIds: unknown }> = [];
+let wordMasteryFindManyArgs: unknown = null;
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -48,7 +49,10 @@ before(() => {
       prisma: {
         wordMastery: {
           aggregate: async () => wordMasteryAgg,
-          findMany: async () => weakWordMasteryRows,
+          findMany: async (args: unknown) => {
+            wordMasteryFindManyArgs = args;
+            return weakWordMasteryRows;
+          },
         },
         readingProgress: {
           findMany: async () => progressRows,
@@ -95,6 +99,7 @@ beforeEach(() => {
   progressRows = [];
   masteryRows = [];
   weakWordMasteryRows = [];
+  wordMasteryFindManyArgs = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -195,6 +200,10 @@ test("buildRecommendationContext: partial data — progress + mastery assembled 
   // vocab stats
   assert.strictEqual(ctx.vocab.avgFamiliarity, 0.6);
   assert.strictEqual(ctx.vocab.knownCount, 30);
+  assert.deepEqual(
+    (wordMasteryFindManyArgs as { orderBy?: unknown }).orderBy,
+    [{ familiarity: "asc" }, { id: "asc" }],
+  );
 });
 
 test("buildRecommendationContext: profile level used when adaptive is null", async () => {
