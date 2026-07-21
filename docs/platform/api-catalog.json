@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-20T22:22:21.455Z",
+  "generatedAt": "2026-07-21T02:52:45.720Z",
   "routeCount": 136,
-  "methodCount": 163,
+  "methodCount": 165,
   "routes": [
     {
       "path": "/api/account",
@@ -1900,6 +1900,42 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": null
+        },
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "PATCH",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "classroom",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "archived",
+            "name"
+          ]
         }
       ]
     },

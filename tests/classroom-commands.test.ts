@@ -25,6 +25,15 @@ let membershipUpsertArgs: unknown = null;
 let membershipDeleteManyArgs: unknown = null;
 let assignmentDeleteManyArgs: unknown = null;
 let assignmentUpdateArgs: unknown = null;
+let classroomUpdateArgs: unknown = null;
+let classroomFindUniqueArgs: unknown = null;
+let classroomDeleteArgs: unknown = null;
+let assignmentCountResult = 0;
+let membershipCountResult = 0;
+let classroomFindUniqueResult: Record<string, unknown> | null = {
+  id: "c1",
+  teacherId: "t1",
+};
 let assignmentUpdateResult: Record<string, unknown> = {
   id: "asgn-1",
   classroomId: "c1",
@@ -45,6 +54,18 @@ before(() => {
         classroomCreateArgs = args;
         return createdClassroom;
       },
+      update: async (args: unknown) => {
+        classroomUpdateArgs = args;
+        return { ...createdClassroom, ...(args as { data?: Record<string, unknown> }).data };
+      },
+      findUnique: async (args: unknown) => {
+        classroomFindUniqueArgs = args;
+        return classroomFindUniqueResult;
+      },
+      delete: async (args: unknown) => {
+        classroomDeleteArgs = args;
+        return classroomFindUniqueResult;
+      },
     },
     classroomMembership: {
       create: async (args: unknown) => {
@@ -59,12 +80,14 @@ before(() => {
         membershipDeleteManyArgs = args;
         return { count: 1 };
       },
+      count: async () => membershipCountResult,
     },
     assignment: {
       deleteMany: async (args: unknown) => {
         assignmentDeleteManyArgs = args;
         return { count: 1 };
       },
+      count: async () => assignmentCountResult,
       update: async (args: unknown) => {
         assignmentUpdateArgs = args;
         return assignmentUpdateResult;
@@ -92,6 +115,12 @@ beforeEach(() => {
   membershipDeleteManyArgs = null;
   assignmentDeleteManyArgs = null;
   assignmentUpdateArgs = null;
+  classroomUpdateArgs = null;
+  classroomFindUniqueArgs = null;
+  classroomDeleteArgs = null;
+  assignmentCountResult = 0;
+  membershipCountResult = 0;
+  classroomFindUniqueResult = { id: "c1", teacherId: "t1" };
   assignmentUpdateResult = { id: "asgn-1", classroomId: "c1", dueDate: null, instructions: null };
   transactionCalled = false;
 });
@@ -175,6 +204,80 @@ test("addClassroomMember is idempotent — re-roles an existing member via updat
   assert.deepEqual(result, upsertedMembership);
   const args = membershipUpsertArgs as { update: { role: string } };
   assert.equal(args.update.role, "Teacher");
+});
+
+// ---- updateClassroomLifecycle ----------------------------------------------
+
+test("updateClassroomLifecycle renames and archives a classroom", async () => {
+  const { updateClassroomLifecycle } = await loadCommands();
+  const archivedAt = new Date("2026-07-21T03:00:00.000Z");
+  const result = await updateClassroomLifecycle(
+    "c1",
+    { name: "  New Name  ", archived: true },
+    archivedAt,
+  );
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.deepEqual(result.changed, { name: true, archived: true });
+  }
+  const args = classroomUpdateArgs as {
+    where: { id: string };
+    data: { name: string; archivedAt: Date | null };
+  };
+  assert.equal(args.where.id, "c1");
+  assert.equal(args.data.name, "New Name");
+  assert.equal(args.data.archivedAt?.toISOString(), archivedAt.toISOString());
+});
+
+test("updateClassroomLifecycle unarchives without changing the name", async () => {
+  const { updateClassroomLifecycle } = await loadCommands();
+  await updateClassroomLifecycle("c1", { archived: false });
+  const args = classroomUpdateArgs as { data: { name?: string; archivedAt: Date | null } };
+  assert.equal(args.data.name, undefined);
+  assert.equal(args.data.archivedAt, null);
+});
+
+test("updateClassroomLifecycle rejects an empty lifecycle update", async () => {
+  const { updateClassroomLifecycle } = await loadCommands();
+  const result = await updateClassroomLifecycle("c1", {});
+  assert.deepEqual(result, { ok: false, status: 400, reason: "empty_update" });
+  assert.equal(classroomUpdateArgs, null);
+});
+
+// ---- deleteClassroom --------------------------------------------------------
+
+test("deleteClassroom hard-deletes an empty classroom", async () => {
+  const { deleteClassroom } = await loadCommands();
+  const result = await deleteClassroom("c1");
+  assert.equal(transactionCalled, true);
+  assert.deepEqual(result, { ok: true, deleted: true });
+  const findArgs = classroomFindUniqueArgs as { where: { id: string }; select: { teacherId: boolean } };
+  assert.equal(findArgs.where.id, "c1");
+  const deleteArgs = classroomDeleteArgs as { where: { id: string } };
+  assert.equal(deleteArgs.where.id, "c1");
+});
+
+test("deleteClassroom blocks classrooms with assignments or non-teacher members", async () => {
+  const { deleteClassroom } = await loadCommands();
+  assignmentCountResult = 2;
+  membershipCountResult = 1;
+  const result = await deleteClassroom("c1");
+  assert.deepEqual(result, {
+    ok: false,
+    status: 409,
+    reason: "classroom_not_empty",
+    assignmentCount: 2,
+    memberCount: 1,
+  });
+  assert.equal(classroomDeleteArgs, null);
+});
+
+test("deleteClassroom treats a missing classroom as an idempotent no-op", async () => {
+  const { deleteClassroom } = await loadCommands();
+  classroomFindUniqueResult = null;
+  const result = await deleteClassroom("missing");
+  assert.deepEqual(result, { ok: true, deleted: false });
+  assert.equal(classroomDeleteArgs, null);
 });
 
 // ---- removeClassroomMember -------------------------------------------------
