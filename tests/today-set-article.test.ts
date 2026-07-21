@@ -133,6 +133,9 @@ before(() => {
             return hit ? { ...hit } : null;
           },
         },
+        membership: {
+          findMany: async () => [],
+        },
         todaySession: {
           findUnique: async ({
             where,

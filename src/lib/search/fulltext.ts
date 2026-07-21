@@ -17,7 +17,6 @@ import { prisma } from "@/lib/prisma";
 import { isPostgresDatabase } from "@/lib/db-utils";
 import { Prisma, type Article } from "@prisma/client";
 import {
-  articleAccessContext,
   readableArticleWhere,
   readableArticleSqlPredicate,
   type ArticleAccessContext,
@@ -44,11 +43,22 @@ import { userAnnotationArticleIds } from "@/lib/search/annotations";
 import type { ArticleSearchProvider } from "./providers";
 
 function accessContext(context?: SearchContext | null): ArticleAccessContext | null {
-  if (!context?.userId && !context?.role && !context?.orgId) return null;
-  return articleAccessContext({
-    id: context.userId ?? null,
+  if (
+    !context?.userId &&
+    !context?.role &&
+    !context?.orgId &&
+    !context?.tenantId &&
+    !context?.orgIds?.length
+  ) {
+    return null;
+  }
+  return {
+    userId: context.userId ?? null,
     role: context.role ?? null,
-  }, context.orgId);
+    ...(context.orgId ? { orgId: context.orgId } : {}),
+    ...(context.tenantId ? { tenantId: context.tenantId } : {}),
+    ...(context.orgIds?.length ? { orgIds: context.orgIds } : {}),
+  };
 }
 
 function recentArticleOrder() {

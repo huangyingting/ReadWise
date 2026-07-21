@@ -34,6 +34,7 @@ type SavedWordRow = {
 let articleRows: Article[] = [];
 let highlightRows: HighlightRow[] = [];
 let savedWordRows: SavedWordRow[] = [];
+let membershipRows: Array<{ userId: string; orgId: string }> = [];
 let articleFindCalls: FindArgs[] = [];
 let highlightFindCalls: FindArgs[] = [];
 let savedWordFindCalls: FindArgs[] = [];
@@ -42,6 +43,7 @@ function resetSearchState(): void {
   articleRows = [];
   highlightRows = [];
   savedWordRows = [];
+  membershipRows = [];
   articleFindCalls = [];
   highlightFindCalls = [];
   savedWordFindCalls = [];
@@ -140,6 +142,12 @@ before(() => {
             const matched = savedWordRows.filter((row) => matchesWhere(row, args.where));
             return matched.map((row) => ({ articleId: row.articleId }));
           },
+        },
+        membership: {
+          findMany: async (args: { where: { userId: string }; select: { orgId: true } }) =>
+            membershipRows
+              .filter((row) => row.userId === args.where.userId)
+              .map((row) => ({ orgId: row.orgId })),
         },
       },
     },
@@ -314,6 +322,33 @@ test("authenticated search includes the user's own private imports but not anoth
   const result = await searchReadableArticles("import", { limit: 10 }, "user-1");
 
   assert.deepEqual(articleIds(result), ["mine", "public"]);
+});
+
+test("authenticated search includes only same-org ORG articles", async () => {
+  const searchReadableArticles = await loadSearchReadableArticles();
+  membershipRows = [{ userId: "user-1", orgId: "org-1" }];
+  articleRows = [
+    buildArticle({
+      id: "same-org",
+      title: "Tenant climate",
+      visibility: ArticleVisibility.ORG,
+      organizationId: "org-1",
+      status: ArticleStatus.PUBLISHED,
+    }),
+    buildArticle({
+      id: "foreign-org",
+      title: "Tenant climate",
+      visibility: ArticleVisibility.ORG,
+      organizationId: "org-2",
+      status: ArticleStatus.PUBLISHED,
+    }),
+  ];
+
+  const memberResult = await searchReadableArticles("tenant", { limit: 10 }, "user-1");
+  const nonMemberResult = await searchReadableArticles("tenant", { limit: 10 }, "user-2");
+
+  assert.deepEqual(articleIds(memberResult), ["same-org"]);
+  assert.deepEqual(articleIds(nonMemberResult), []);
 });
 
 test("highlight/note matches are scoped to the requesting user and final article readability", async () => {

@@ -144,6 +144,9 @@ before(() => {
             return null;
           },
         },
+        membership: {
+          findMany: async () => [],
+        },
       },
     },
   });

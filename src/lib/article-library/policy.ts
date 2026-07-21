@@ -6,8 +6,8 @@
  * visible in anonymous metadata, public/library feeds, browse, tags, and
  * unauthenticated lookups.
  * Readable: Admin/System can read any article; an authenticated reader can read
- * public-listable articles plus articles they own; anonymous callers can read
- * only public-listable articles.
+ * public-listable articles, articles they own, and ORG articles for their
+ * memberships; anonymous callers can read only public-listable articles.
  * Editable: Admin/System can edit any article; readers can edit only articles
  * they own. Anonymous callers cannot edit.
  * Admin-visible: only Admin/System can see the back-office article universe.
@@ -32,6 +32,7 @@ export type ArticleAccessContext = {
   role?: string | null;
   tenantId?: string | null;
   orgId?: string | null;
+  orgIds?: readonly string[] | null;
 };
 
 export type ArticleAccessUser = {
@@ -55,6 +56,22 @@ export function articleAccessContext(
   };
 }
 
+export async function articleAccessContextForUser(
+  user?: ArticleAccessUser | null,
+): Promise<ArticleAccessContext> {
+  const context = articleAccessContext(user);
+  if (!context.userId || isArticleOperator(context)) return context;
+
+  const memberships = await prisma.membership.findMany({
+    where: { userId: context.userId },
+    select: { orgId: true },
+  });
+  return {
+    ...context,
+    orgIds: [...new Set(memberships.map((membership) => membership.orgId))],
+  };
+}
+
 export function isArticleOperator(context?: ArticleAccessContext | null): boolean {
   return isPlatformSuperuser(context);
 }
@@ -64,7 +81,9 @@ type ArticleVisibilityShape = Pick<
   "status" | "visibility" | "ownerId" | "organizationId"
 >;
 
-type ReadableArticleRule = Readonly<Partial<ArticleVisibilityShape>>;
+type ReadableArticleRule = Readonly<
+  Partial<ArticleVisibilityShape> & { organizationIds?: readonly string[] }
+>;
 
 type ReadableArticlePolicy = {
   unrestricted: boolean;
@@ -82,12 +101,29 @@ function ownedPrivateRule(userId: string): ReadableArticleRule {
   return { visibility: ArticleVisibility.PRIVATE, ownerId: userId };
 }
 
-function organizationReadableRule(orgId: string): ReadableArticleRule {
+function organizationReadableRule(orgIds: readonly string[]): ReadableArticleRule {
+  return {
+    visibility: ArticleVisibility.ORG,
+    status: ArticleStatus.PUBLISHED,
+    organizationIds: orgIds,
+  };
+}
+
+function singleOrganizationReadableRule(orgId: string): ReadableArticleRule {
   return {
     visibility: ArticleVisibility.ORG,
     status: ArticleStatus.PUBLISHED,
     organizationId: orgId,
   };
+}
+
+function contextOrgIds(context?: ArticleAccessContext | null): string[] {
+  const ids = [
+    context?.orgId ?? null,
+    context?.tenantId ?? null,
+    ...(context?.orgIds ?? []),
+  ].filter((id): id is string => typeof id === "string" && id.length > 0);
+  return [...new Set(ids)];
 }
 
 function readableArticlePolicy(
@@ -101,9 +137,9 @@ function readableArticlePolicy(
   if (context?.userId) {
     anyOf.push(ownedPrivateRule(context.userId));
   }
-  const orgId = context?.orgId ?? context?.tenantId ?? null;
-  if (orgId) {
-    anyOf.push(organizationReadableRule(orgId));
+  const orgIds = contextOrgIds(context);
+  if (orgIds.length > 0) {
+    anyOf.push(organizationReadableRule(orgIds));
   }
   return { unrestricted: false, anyOf };
 }
@@ -117,7 +153,9 @@ function matchesReadableArticleRule(
     (rule.visibility === undefined || article.visibility === rule.visibility) &&
     (rule.ownerId === undefined || article.ownerId === rule.ownerId) &&
     (rule.organizationId === undefined ||
-      article.organizationId === rule.organizationId)
+      article.organizationId === rule.organizationId) &&
+    (rule.organizationIds === undefined ||
+      rule.organizationIds.includes(article.organizationId ?? ""))
   );
 }
 
@@ -133,7 +171,7 @@ export function orgScopedArticleWhere(
   orgId: string,
   extra?: Prisma.ArticleWhereInput,
 ): Prisma.ArticleWhereInput {
-  return { ...(extra ?? {}), ...organizationReadableRule(orgId) };
+  return { ...(extra ?? {}), ...singleOrganizationReadableRule(orgId) };
 }
 
 export function isPublicListableArticle(article: ArticleVisibilityShape): boolean {
@@ -186,7 +224,13 @@ function readableArticlePolicyWhere(
   policy: ReadableArticlePolicy,
 ): Prisma.ArticleWhereInput {
   if (policy.unrestricted) return {};
-  const branches = policy.anyOf.map((rule) => ({ ...rule }));
+  const branches = policy.anyOf.map((rule) => {
+    const { organizationIds, ...where } = rule;
+    return {
+      ...where,
+      ...(organizationIds ? { organizationId: { in: [...organizationIds] } } : {}),
+    };
+  });
   return branches.length === 1 ? branches[0] : { OR: branches };
 }
 
@@ -221,6 +265,9 @@ function readableArticleRuleSql(rule: ReadableArticleRule): Prisma.Sql {
         ? Prisma.sql`a."organizationId" IS NULL`
         : Prisma.sql`a."organizationId" = ${rule.organizationId}`,
     );
+  }
+  if (rule.organizationIds !== undefined) {
+    clauses.push(Prisma.sql`a."organizationId" IN (${Prisma.join([...rule.organizationIds])})`);
   }
   if (clauses.length === 0) return Prisma.sql`TRUE`;
   return Prisma.sql`(${Prisma.join(clauses, " AND ")})`;

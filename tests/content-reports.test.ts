@@ -42,6 +42,7 @@ type MockReport = {
 let mockArticle: MockArticle = null;
 let mockReports: MockReport[] = [];
 let mockFindFirst: MockReport | null = null;
+let membershipRows: Array<{ userId: string; orgId: string }> = [];
 
 function article(overrides: Partial<NonNullable<MockArticle>> = {}): NonNullable<MockArticle> {
   return {
@@ -71,7 +72,13 @@ function matchesArticleWhere(
   }
   for (const [key, expected] of Object.entries(clauses)) {
     if (key === "AND" || key === "OR") continue;
-    if (record[key] !== expected) return false;
+    const actual = record[key];
+    if (expected && typeof expected === "object" && "in" in expected) {
+      const values = (expected as { in?: unknown[] }).in ?? [];
+      if (!values.includes(actual)) return false;
+      continue;
+    }
+    if (actual !== expected) return false;
   }
   return true;
 }
@@ -97,6 +104,12 @@ before(() => {
       if (!mockArticle || !matchesArticleWhere(mockArticle, args.where)) return null;
       return args.select ? { id: mockArticle.id } : mockArticle;
     },
+  };
+  const membership = {
+    findMany: async (args: { where: { userId: string }; select: { orgId: true } }) =>
+      membershipRows
+        .filter((row) => row.userId === args.where.userId)
+        .map((row) => ({ orgId: row.orgId })),
   };
 
   const contentReport = {
@@ -149,7 +162,7 @@ before(() => {
 
   mock.module("@/lib/prisma", {
     namedExports: {
-      prisma: { article, contentReport },
+      prisma: { article, contentReport, membership },
     },
   });
 });
@@ -158,6 +171,7 @@ beforeEach(() => {
   mockArticle = article();
   mockReports = [];
   mockFindFirst = null;
+  membershipRows = [];
 });
 
 // ---------------------------------------------------------------------------
@@ -268,6 +282,23 @@ test("createContentReport — allows a reader to report an owned private article
     reporter: { id: "user-1", role: "Reader" },
     articleId: "owned-private",
     reason: ContentReportReason.EXTRACTION_BROKEN,
+  });
+  assert.ok(result.ok);
+  assert.equal(mockReports.length, 1);
+});
+
+test("createContentReport — allows an org member to report an org article", async () => {
+  const { createContentReport } = await import("@/lib/moderation/reports");
+  membershipRows = [{ userId: "user-1", orgId: "org-1" }];
+  mockArticle = article({
+    id: "org-article",
+    visibility: ArticleVisibility.ORG,
+    organizationId: "org-1",
+  });
+  const result = await createContentReport({
+    reporter: { id: "user-1", role: "Reader" },
+    articleId: "org-article",
+    reason: ContentReportReason.CLASSROOM_CONCERN,
   });
   assert.ok(result.ok);
   assert.equal(mockReports.length, 1);

@@ -28,7 +28,7 @@
 
 import { ArticleStatus } from "@prisma/client";
 import {
-  articleAccessContext,
+  articleAccessContextForUser,
   getReadableArticleById,
 } from "@/lib/article-library";
 import { getOrCreateTodaySession } from "./generator";
@@ -70,7 +70,7 @@ async function getPublishedReadableArticle(args: {
   user: { id: string; role?: string | null };
   articleId: string;
 }): Promise<{ id: string; status: ArticleStatus }> {
-  const context = articleAccessContext({
+  const context = await articleAccessContextForUser({
     id: args.user.id,
     role: args.user.role ?? null,
   });

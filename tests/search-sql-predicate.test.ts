@@ -71,12 +71,39 @@ test("organization-only context adds the matching organization branch", () => {
 
   assert.ok(sql.sql.includes("OR"));
   assert.ok(sql.sql.includes('a."organizationId"'));
+  assert.ok(sql.sql.includes(" IN "), "ORG branch must use the same set-membership shape as Prisma");
   assert.deepEqual(sql.values, [
     "published",
     "PUBLIC",
     "published",
     "ORG",
     "org-legacy",
+  ]);
+});
+
+test("multi-org context renders organization IN branch with all memberships", async () => {
+  const { readableArticleWhere } = await import("@/lib/article-library/policy");
+  const context: ArticleAccessContext = {
+    userId: "u-1",
+    role: "Reader",
+    orgIds: ["org-1", "org-2"],
+  };
+
+  const where = readableArticleWhere(context) as { OR?: Array<{ organizationId?: { in?: string[] } }> };
+  const orgBranch = where.OR?.find((branch) => branch.organizationId && typeof branch.organizationId === "object");
+  const sql = readableArticleSqlPredicate(context);
+
+  assert.deepEqual(orgBranch?.organizationId?.in, ["org-1", "org-2"]);
+  assert.ok(sql.sql.includes('a."organizationId" IN'));
+  assert.deepEqual(sql.values, [
+    "published",
+    "PUBLIC",
+    "PRIVATE",
+    "u-1",
+    "published",
+    "ORG",
+    "org-1",
+    "org-2",
   ]);
 });
 

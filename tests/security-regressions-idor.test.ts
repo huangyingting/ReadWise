@@ -43,7 +43,7 @@ before(() => {
 
   mock.module("@/lib/article-library", {
     namedExports: {
-      articleAccessContext: (user: MockUser): MockAccessContext => ({
+      articleAccessContextForUser: async (user: MockUser): Promise<MockAccessContext> => ({
         userId: user?.id ?? null,
         role: user?.role ?? null,
       }),

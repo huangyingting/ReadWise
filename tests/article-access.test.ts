@@ -16,6 +16,7 @@ import { buildArticle } from "./helpers";
 
 let articleRows: Article[] = [];
 let orgRows: Array<{ id: string }> = [];
+let membershipRows: Array<{ userId: string; orgId: string }> = [];
 
 type FindArgs = {
   where?: Prisma.ArticleWhereInput;
@@ -93,6 +94,12 @@ before(() => {
           findMany: async (args: { where: { id: { in: string[] } } }) =>
             orgRows.filter((org) => args.where.id.in.includes(org.id)),
         },
+        membership: {
+          findMany: async (args: { where: { userId: string }; select: { orgId: true } }) =>
+            membershipRows
+              .filter((membership) => membership.userId === args.where.userId)
+              .map((membership) => ({ orgId: membership.orgId })),
+        },
       },
     },
   });
@@ -110,6 +117,7 @@ beforeEach(() => {
     buildArticle({ id: "org-2-article", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.ORG, organizationId: "org-2" }),
   ];
   orgRows = [{ id: "org-1" }, { id: "org-2" }];
+  membershipRows = [];
 });
 
 test("pure readability checks cover anonymous, owner, non-owner, admin, and system", async () => {
@@ -237,6 +245,42 @@ test("org-scoped articles are readable only in the matching tenant context", asy
     reason: "org_reference_mismatch",
   });
   assert.ok("OR" in readableArticleWhere({ userId: "user-1", role: "Reader", orgId: "org-1" }));
+});
+
+test("multi-org readable context includes member org articles and excludes foreign scopes", async () => {
+  const {
+    articleAccessContextForUser,
+    canReadArticle,
+    getReadableArticleById,
+    readableArticleWhere,
+  } = await articleLibrary();
+  membershipRows = [
+    { userId: "user-1", orgId: "org-1" },
+    { userId: "user-1", orgId: "org-2" },
+  ];
+
+  const context = await articleAccessContextForUser({ id: "user-1", role: "Reader" });
+  assert.deepEqual(context.orgIds, ["org-1", "org-2"]);
+  assert.equal(canReadArticle(articleById("org-1-article"), context), true);
+  assert.equal(canReadArticle(articleById("org-2-article"), context), true);
+  assert.equal(canReadArticle(articleById("owner-u2"), context), false);
+  assert.equal((await getReadableArticleById("org-1-article", context))?.id, "org-1-article");
+  assert.equal(await getReadableArticleById("owner-u2", context), null);
+
+  const where = readableArticleWhere(context) as { OR?: Array<{ organizationId?: { in?: string[] } }> };
+  const orgBranch = where.OR?.find((branch) => branch.organizationId && typeof branch.organizationId === "object");
+  assert.deepEqual(orgBranch?.organizationId?.in, ["org-1", "org-2"]);
+});
+
+test("multi-org readable context excludes foreign-org articles", async () => {
+  const { articleAccessContextForUser, canReadArticle, getReadableArticleById } = await articleLibrary();
+  membershipRows = [{ userId: "user-1", orgId: "org-1" }];
+
+  const context = await articleAccessContextForUser({ id: "user-1", role: "Reader" });
+
+  assert.equal(canReadArticle(articleById("org-1-article"), context), true);
+  assert.equal(canReadArticle(articleById("org-2-article"), context), false);
+  assert.equal(await getReadableArticleById("org-2-article", context), null);
 });
 
 test("article organization integrity validates create, update, read, and delete scopes", async () => {

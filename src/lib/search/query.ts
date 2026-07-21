@@ -27,6 +27,8 @@ export type SearchContext = {
   userId?: string | null;
   role?: string | null;
   orgId?: string | null;
+  tenantId?: string | null;
+  orgIds?: readonly string[] | null;
 };
 
 export type StringContainsFilter = { contains: string; mode?: "insensitive" };
