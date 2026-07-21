@@ -8,6 +8,7 @@ process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { Prisma } from "@prisma/client";
+import { COMPLETION_THRESHOLD, isCompletePercent } from "@/lib/engagement/progress-rules";
 
 type Row = {
   id: string;
@@ -72,8 +73,8 @@ before(() => {
                 userId: data.userId,
                 articleId: data.articleId,
                 percent: p,
-                completed: p >= 95,
-                completedAt: p >= 95 ? new Date() : null,
+                completed: isCompletePercent(p),
+                completedAt: isCompletePercent(p) ? new Date() : null,
               });
               throw new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
                 code: "P2002",
@@ -153,16 +154,15 @@ test("saveProgress never lowers the stored percent (forward-only)", async () => 
 
 test("saveProgress marks completed at/above the threshold", async () => {
   const { saveProgress } = await import("@/lib/engagement/progress");
-  const { COMPLETION_THRESHOLD } = await import("@/lib/engagement/progress-rules");
   const result = await saveProgress("u1", "a1", COMPLETION_THRESHOLD);
   assert.equal(result.completed, true);
   assert.equal(result.completedNow, true);
   assert.ok(result.completedAt instanceof Date);
 });
 
-test("saveProgress does NOT mark completed just below the threshold (94%)", async () => {
+test("saveProgress does NOT mark completed just below the threshold", async () => {
   const { saveProgress } = await import("@/lib/engagement/progress");
-  const result = await saveProgress("u1", "a1", 94);
+  const result = await saveProgress("u1", "a1", COMPLETION_THRESHOLD - 1);
   assert.equal(result.completed, false);
   assert.equal(result.completedNow, false);
   assert.equal(result.completedAt, null);
