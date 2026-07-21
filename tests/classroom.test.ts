@@ -60,8 +60,12 @@ test("canCreateClassroom: OrgAdmin and Teacher may, plain Member may not", () =>
   assert.ok(cls.canCreateClassroom({ id: "u", role: "Reader" }, { role: "Teacher" }));
   assert.ok(!cls.canCreateClassroom({ id: "u", role: "Reader" }, { role: "Member" }));
   assert.ok(!cls.canCreateClassroom({ id: "u", role: "Reader" }, null));
+  for (const role of ["Moderator", "ContentEditor", "SupportAgent"]) {
+    assert.ok(!cls.canCreateClassroom({ id: "u", role }, null), `${role} cannot create via global admin.access`);
+  }
   // A system admin can always create.
   assert.ok(cls.canCreateClassroom({ id: "u", role: "Admin" }, null));
+  assert.ok(cls.canCreateClassroom({ id: "u", role: "System" }, null));
 });
 
 test("canManageClassroom: the classroom's teacher, an org admin, or a system admin", () => {
@@ -72,6 +76,10 @@ test("canManageClassroom: the classroom's teacher, an org admin, or a system adm
   assert.ok(cls.canManageClassroom({ id: "z", role: "Reader" }, classroom, { role: "OrgAdmin" }));
   // A system admin.
   assert.ok(cls.canManageClassroom({ id: "z", role: "Admin" }, classroom, null));
+  assert.ok(cls.canManageClassroom({ id: "z", role: "System" }, classroom, null));
+  for (const role of ["Moderator", "ContentEditor", "SupportAgent"]) {
+    assert.ok(!cls.canManageClassroom({ id: "z", role }, classroom, null), `${role} cannot manage via global admin.access`);
+  }
   // A plain teacher-role member who isn't this classroom's teacher cannot.
   assert.ok(!cls.canManageClassroom({ id: "z", role: "Reader" }, classroom, { role: "Teacher" }));
   // No classroom ⇒ never.

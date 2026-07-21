@@ -33,6 +33,8 @@ export const CAPABILITIES = {
   // --- System / back-office capabilities (currently granted to Admin) -------
   /** Enter the `/admin` back-office at all (umbrella for the admin area). */
   adminAccess: "admin.access",
+  /** Act as an unrestricted platform super-user across articles and tenants. */
+  platformSuperuser: "platform.superuser",
   /** Create, edit, rebuild AI for, and delete articles in the back-office. */
   articlesManage: "articles.manage",
   /** Manage the global tag taxonomy. */
@@ -195,6 +197,7 @@ const BASE_READER_CAPABILITIES: readonly Capability[] = [
 /** Back-office privileges granted to a full system administrator today. */
 const ADMIN_BACK_OFFICE_CAPABILITIES: readonly Capability[] = [
   CAPABILITIES.adminAccess,
+  CAPABILITIES.platformSuperuser,
   CAPABILITIES.articlesManage,
   CAPABILITIES.tagsManage,
   CAPABILITIES.membersManage,
@@ -307,6 +310,20 @@ export function roleHasCapability(
   capability: Capability,
 ): boolean {
   return capabilitiesForRole(role).includes(capability);
+}
+
+/** True only for principals that have unrestricted platform super-user access. */
+export function isPlatformSuperuser(
+  principal: CapabilityPrincipal,
+): boolean {
+  return roleHasCapability(principal?.role, CAPABILITIES.platformSuperuser);
+}
+
+/** Role-only variant for guards that have not built a full principal object. */
+export function roleIsPlatformSuperuser(
+  role: string | null | undefined,
+): boolean {
+  return roleHasCapability(role, CAPABILITIES.platformSuperuser);
 }
 
 /**

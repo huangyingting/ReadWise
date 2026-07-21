@@ -112,7 +112,7 @@ beforeEach(() => {
   orgRows = [{ id: "org-1" }, { id: "org-2" }];
 });
 
-test("pure readability checks cover anonymous, owner, non-owner, and admin", async () => {
+test("pure readability checks cover anonymous, owner, non-owner, admin, and system", async () => {
   const { canReadArticle } = await articleLibrary();
   const publicArticle = articleById("public");
   const draftPublic = articleById("draft-public");
@@ -123,6 +123,29 @@ test("pure readability checks cover anonymous, owner, non-owner, and admin", asy
   assert.equal(canReadArticle(ownerArticle, { userId: "user-1", role: "Reader" }), true);
   assert.equal(canReadArticle(ownerArticle, { userId: "user-2", role: "Reader" }), false);
   assert.equal(canReadArticle(draftPublic, { role: "Admin" }), true);
+  assert.equal(canReadArticle(draftPublic, { role: "System" }), true);
+});
+
+test("scoped admin roles do not get unrestricted reader access", async () => {
+  const { canReadArticle, getReadableArticleById, isArticleOperator } = await articleLibrary();
+  const foreignPrivate = articleById("owner-u2");
+  const orgArticle = articleById("org-1-article");
+
+  for (const role of ["Moderator", "ContentEditor", "SupportAgent"]) {
+    const context = { userId: `${role.toLowerCase()}-1`, role };
+    assert.equal(isArticleOperator(context), false, `${role} is not an article operator`);
+    assert.equal(canReadArticle(foreignPrivate, context), false, `${role} cannot read foreign private article`);
+    assert.equal(canReadArticle(orgArticle, context), false, `${role} cannot read org article without tenant context`);
+    assert.equal(await getReadableArticleById("owner-u2", context), null);
+    assert.equal(await getReadableArticleById("org-1-article", context), null);
+  }
+
+  for (const role of ["Admin", "System"]) {
+    const context = { userId: `${role.toLowerCase()}-1`, role };
+    assert.equal(isArticleOperator(context), true, `${role} is an article operator`);
+    assert.equal((await getReadableArticleById("owner-u2", context))?.id, "owner-u2");
+    assert.equal((await getReadableArticleById("org-1-article", context))?.id, "org-1-article");
+  }
 });
 
 test("private articles without an owner are not public after a deleted-user lifecycle", async () => {
@@ -175,6 +198,7 @@ test("getReadableArticleById enforces anonymous, reader, owner, non-owner, and a
   assert.equal((await getReadableArticleById("owner-u1", { userId: "user-1", role: "Reader" }))?.id, "owner-u1");
   assert.equal(await getReadableArticleById("owner-u1", { userId: "user-2", role: "Reader" }), null);
   assert.equal((await getReadableArticleById("draft-public", { role: "Admin" }))?.id, "draft-public");
+  assert.equal((await getReadableArticleById("draft-public", { role: "System" }))?.id, "draft-public");
 });
 
 test("org-scoped articles are readable only in the matching tenant context", async () => {
