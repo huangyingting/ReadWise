@@ -12,6 +12,7 @@ import {
   updateMemberRole,
 } from "@/lib/org";
 import { requireOrgCapabilityApi } from "@/lib/tenant-api";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const CREATED_RESPONSE_INIT = { status: 201 } as const;
 
@@ -59,15 +60,38 @@ export const GET = createHandler(
  */
 export const POST = createHandler(
   { params: idParams, body: addMemberBody },
-  async ({ params, body, session }) => {
+  async ({ req, params, body, session, requestId }) => {
     await requireMemberManagement(session, params.id);
     const existingMembership = await getMembership(body.userId, params.id);
     if (existingMembership) {
       const result = await updateMemberRole(params.id, body.userId, body.role);
       throwIfFailed(result);
+      await recordAuditFromRequest({
+        req,
+        session,
+        requestId,
+        action: AUDIT_ACTIONS.orgMemberRoleUpdate,
+        targetType: "org_membership",
+        targetId: body.userId,
+        metadata: {
+          orgId: params.id,
+          targetUserId: body.userId,
+          role: result.role,
+          previousRole: existingMembership.role,
+        },
+      });
       return memberUpdatedResponse(existingMembership, result.role);
     }
     const membership = await addMember(params.id, body.userId, body.role);
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.orgMemberAdd,
+      targetType: "org_membership",
+      targetId: body.userId,
+      metadata: { orgId: params.id, targetUserId: body.userId, role: body.role },
+    });
     return memberCreatedResponse(membership);
   },
 );

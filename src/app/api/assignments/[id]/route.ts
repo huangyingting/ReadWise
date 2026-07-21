@@ -7,6 +7,7 @@ import {
   updateAssignment,
 } from "@/lib/classroom";
 import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const updateBody = object({
   dueDate: optional(string({ min: 1, max: 40 })),
@@ -15,11 +16,20 @@ const updateBody = object({
 
 export const DELETE = createHandler(
   { params: idParams },
-  async ({ params, session }) => {
+  async ({ req, params, session, requestId }) => {
     const assignment = await getAssignmentClassroom(params.id);
     if (!assignment) throw new ApiError(404, "Assignment not found");
     await requireActiveClassroomManageApi(session, assignment.classroomId);
     await deleteAssignment(params.id);
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.assignmentDelete,
+      targetType: "assignment",
+      targetId: params.id,
+      metadata: { assignmentId: params.id, classroomId: assignment.classroomId },
+    });
     return NextResponse.json({ ok: true });
   },
 );
@@ -31,7 +41,7 @@ export const DELETE = createHandler(
  */
 export const PATCH = createHandler(
   { params: idParams, body: updateBody },
-  async ({ params, body, session }) => {
+  async ({ req, params, body, session, requestId }) => {
     const assignment = await getAssignmentClassroom(params.id);
     if (!assignment) throw new ApiError(404, "Assignment not found");
     await requireActiveClassroomManageApi(session, assignment.classroomId);
@@ -42,6 +52,22 @@ export const PATCH = createHandler(
     if (!result.ok) {
       throw new ApiError(result.status, "Invalid due date");
     }
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.assignmentUpdate,
+      targetType: "assignment",
+      targetId: params.id,
+      metadata: {
+        assignmentId: params.id,
+        classroomId: assignment.classroomId,
+        changed: {
+          dueDate: body.dueDate !== undefined,
+          instructions: body.instructions !== undefined,
+        },
+      },
+    });
     return NextResponse.json({ assignment: result.assignment });
   },
 );
