@@ -47,12 +47,12 @@ function parseQuery(params: URLSearchParams): ParsedSearchQuery {
   };
 }
 
-async function searchResponse(query: SearchQuery, userId: string) {
+async function searchResponse(query: SearchQuery, user: { id: string; role?: string | null }) {
   const { q, offset, limit } = query;
-  const page = await searchReadableArticles(q, { offset, limit }, userId);
+  const page = await searchReadableArticles(q, { offset, limit }, user);
   const articles = page.articles.map(toListingArticle);
 
-  return buildArticleListResponse(userId, articles, {
+  return buildArticleListResponse(user.id, articles, {
     offset,
     hasMore: articles.length > 0 && page.hasMore,
   });
@@ -71,5 +71,5 @@ async function searchResponse(query: SearchQuery, userId: string) {
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
   await enforceRateLimitPolicy(SEARCH_RATE_LIMIT, { session });
 
-  return NextResponse.json(await searchResponse(query, session.user.id));
+  return NextResponse.json(await searchResponse(query, session.user));
 });

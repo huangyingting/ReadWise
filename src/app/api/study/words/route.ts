@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { getFilteredSavedWords, getArticleTitlesForWords, WORDS_PAGE_SIZE } from "@/lib/lexical/saved-words";
-import { articleAccessContext } from "@/lib/article-library";
+import { articleAccessContextForUser } from "@/lib/article-library";
 import { parseWordsQuery } from "@/lib/study/schemas";
 
 type FilteredSavedWords = Awaited<ReturnType<typeof getFilteredSavedWords>>;
@@ -36,7 +36,7 @@ function articleIdsForWords(words: FilteredSavedWords["words"]) {
  */
 export const GET = createHandler({ query: parseWordsQuery }, async ({ session, query }) => {
   const userId = session.user.id;
-  const context = articleAccessContext(session.user);
+  const context = await articleAccessContextForUser(session.user);
   const result = await getFilteredSavedWords(userId, {
     search: query.q || undefined,
     articleId: query.articleId || undefined,

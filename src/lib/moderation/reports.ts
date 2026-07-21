@@ -7,7 +7,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import {
-  articleAccessContext,
+  articleAccessContextForUser,
   readableArticleWhere,
   type ArticleAccessUser,
 } from "@/lib/article-library/policy";
@@ -113,8 +113,9 @@ async function reporterCanReadArticle(
   articleId: string,
   reporter: ArticleAccessUser,
 ): Promise<boolean> {
+  const context = await articleAccessContextForUser(reporter);
   const article = await prisma.article.findFirst({
-    where: readableArticleWhere(articleAccessContext(reporter), { id: articleId }),
+    where: readableArticleWhere(context, { id: articleId }),
     select: { id: true },
   });
   return Boolean(article);

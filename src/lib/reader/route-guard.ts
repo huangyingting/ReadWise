@@ -12,7 +12,7 @@
 import type { Article } from "@prisma/client";
 import { ApiError } from "@/lib/errors/api-error";
 import {
-  articleAccessContext,
+  articleAccessContextForUser,
   getReadableArticleById,
   type ArticleAccessContext,
 } from "@/lib/article-library";
@@ -44,7 +44,7 @@ export async function requireReadableArticle(
   id: string,
   user: ReaderUser,
 ): Promise<ReadableArticleResult> {
-  const context = articleAccessContext(user);
+  const context = await articleAccessContextForUser(user);
   const article = await getReadableArticleById(id, context);
   if (!article) throw articleNotFound();
   return { article, context };

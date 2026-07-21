@@ -130,7 +130,7 @@ before(() => {
   mock.module("@/lib/article-library", {
     namedExports: {
       getBookmarkedArticleIds: async () => ["a1"],
-      articleAccessContext: (user: { id?: string } | null | undefined) => ({
+      articleAccessContextForUser: async (user: { id?: string } | null | undefined) => ({
         userId: user?.id ?? null,
         isAdmin: false,
       }),

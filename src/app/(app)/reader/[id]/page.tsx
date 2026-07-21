@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/config";
 import { safeJsonStringify } from "@/lib/safe-json";
 import { requireSession } from "@/lib/session";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-library";
+import { articleAccessContextForUser, getReadableArticleById } from "@/lib/article-library";
 import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { loadReaderPageData, buildArticleJsonLd } from "@/lib/reader/page-loader";
@@ -55,7 +55,7 @@ export async function generateMetadata({
   // generic fallback title (no redirect/crash). Authenticated owners can then
   // see titles of their private articles in the <title> tag.
   const session = await getServerSession(authOptions);
-  const article = await getReadableArticleById(id, articleAccessContext(session?.user ?? null));
+  const article = await getReadableArticleById(id, await articleAccessContextForUser(session?.user ?? null));
   if (!article) {
     return { title: "Article" };
   }

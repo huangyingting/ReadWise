@@ -6,7 +6,11 @@ import {
   enforceRateLimitPolicy,
   sessionUserRateLimitPolicy,
 } from "@/lib/security/rate-limit/index";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-library";
+import {
+  articleAccessContextForUser,
+  getReadableArticleById,
+  type ArticleAccessUser,
+} from "@/lib/article-library";
 import { recordLearnerEvidence } from "@/lib/learning/learner-evidence";
 
 /**
@@ -30,10 +34,13 @@ const bodySchema = object({
 
 type PronunciationAttemptBody = Parameters<typeof recordPronunciationAttempt>[1];
 
-async function assertReadableArticle(articleId: string | undefined, user: Parameters<typeof articleAccessContext>[0]) {
+async function assertReadableArticle(articleId: string | undefined, user: ArticleAccessUser) {
   if (!articleId) return;
 
-  const article = await getReadableArticleById(articleId, articleAccessContext(user));
+  const article = await getReadableArticleById(
+    articleId,
+    await articleAccessContextForUser(user),
+  );
   if (!article) {
     throw new ApiError(404, "Article not found");
   }
