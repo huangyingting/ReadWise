@@ -46,6 +46,12 @@ let createCalls: Array<Record<string, unknown>> = [];
 let updateCalls: Array<{ id: string; body: Record<string, unknown> }> = [];
 let reorderCalls: Array<{ id: string; articleIds: string[] }> = [];
 let deleteCalls: string[] = [];
+let auditCalls: Array<{
+  action: string;
+  targetType: string;
+  targetId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}> = [];
 
 const COLLECTION_URL = "http://test/api/admin/series";
 const DETAIL_URL = "http://test/api/admin/series/series-1";
@@ -106,10 +112,23 @@ before(() => {
 
   mock.module("@/lib/security/audit", {
     namedExports: {
-      AUDIT_ACTIONS: { securityAdminAccessDenied: "security.admin_access_denied" },
+      AUDIT_ACTIONS: {
+        securityAdminAccessDenied: "security.admin_access_denied",
+        adminSeriesCreate: "admin.series.create",
+        adminSeriesUpdate: "admin.series.update",
+        adminSeriesDelete: "admin.series.delete",
+        adminSeriesReorder: "admin.series.reorder",
+      },
       auditRequestInfo: () => ({ ipAddress: null, userAgent: null }),
       tryRecordAuditLog: async () => {},
-      recordAuditFromRequest: async () => {},
+      recordAuditFromRequest: async (input: {
+        action: string;
+        targetType: string;
+        targetId?: string | null;
+        metadata?: Record<string, unknown> | null;
+      }) => {
+        auditCalls.push(input);
+      },
     },
   });
 
@@ -148,6 +167,7 @@ beforeEach(() => {
   updateCalls = [];
   reorderCalls = [];
   deleteCalls = [];
+  auditCalls = [];
 });
 
 async function loadCollectionHandlers(): Promise<{ GET: RouteHandler; POST: RouteHandler }> {
@@ -224,6 +244,10 @@ test("POST /api/admin/series validates payload and maps success/conflict", async
   assert.equal(body.series.id, "created");
   assert.equal(createCalls.length, 2);
   assert.equal(createCalls.at(-1)?.slug, "tech-daily");
+  assert.equal(auditCalls.at(-1)?.action, "admin.series.create");
+  assert.equal(auditCalls.at(-1)?.targetType, "series");
+  assert.equal(auditCalls.at(-1)?.targetId, "created");
+  assert.equal(auditCalls.at(-1)?.metadata?.articleCount, 2);
 });
 
 test("GET/PATCH/DELETE /api/admin/series/[id] cover not-found, validation, mutation, and conflicts", async () => {
@@ -268,6 +292,9 @@ test("GET/PATCH/DELETE /api/admin/series/[id] cover not-found, validation, mutat
   assert.equal(patchBody.ok, true);
   assert.equal(patchBody.series.status, "active");
   assert.equal(updateCalls.at(-1)?.id, "series-1");
+  assert.equal(auditCalls.at(-1)?.action, "admin.series.update");
+  assert.equal(auditCalls.at(-1)?.targetId, "series-1");
+  assert.deepEqual(auditCalls.at(-1)?.metadata?.fields, ["status", "title"]);
 
   deleteResult = { ok: false, status: 404, error: "Series not found" };
   res = await DELETE(deleteReq(DETAIL_URL), withParams({ id: "series-1" }));
@@ -283,6 +310,8 @@ test("GET/PATCH/DELETE /api/admin/series/[id] cover not-found, validation, mutat
   const deleteBody = await readJson<{ ok: boolean }>(res);
   assert.equal(deleteBody.ok, true);
   assert.equal(deleteCalls.at(-1), "series-1");
+  assert.equal(auditCalls.at(-1)?.action, "admin.series.delete");
+  assert.equal(auditCalls.at(-1)?.targetId, "series-1");
 });
 
 test("POST /api/admin/series/[id]/reorder validates body and maps edge-case errors", async () => {
@@ -326,4 +355,7 @@ test("POST /api/admin/series/[id]/reorder validates body and maps edge-case erro
   assert.equal(body.ok, true);
   assert.deepEqual(body.series.articleIds, ["a2", "a1"]);
   assert.deepEqual(reorderCalls.at(-1), { id: "series-1", articleIds: ["a2", "a1"] });
+  assert.equal(auditCalls.at(-1)?.action, "admin.series.reorder");
+  assert.equal(auditCalls.at(-1)?.targetId, "series-1");
+  assert.equal(auditCalls.at(-1)?.metadata?.articleCount, 2);
 });

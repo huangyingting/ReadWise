@@ -83,6 +83,31 @@ let articleAssignmentFailure: {
   reason: "invalid_due_date" | "article_not_found" | "org_reference_orphaned";
 } | null = null;
 const removeClassroomMemberCalls: Array<{ classroomId: string; userId: string }> = [];
+const updateClassroomLifecycleCalls: Array<{
+  classroomId: string;
+  input: { name?: string; archived?: boolean };
+}> = [];
+let updateClassroomLifecycleResult:
+  | {
+      ok: true;
+      classroom: Record<string, unknown>;
+      changed: { name: boolean; archived: boolean };
+    }
+  | { ok: false; status: 400; reason: "empty_update" } = {
+  ok: true,
+  classroom: { id: "c1", name: "Class 1", orgId: "org-1", teacherId: "teacher-1", archivedAt: null },
+  changed: { name: true, archived: false },
+};
+const deleteClassroomCalls: string[] = [];
+let deleteClassroomResult:
+  | { ok: true; deleted: boolean }
+  | {
+      ok: false;
+      status: 409;
+      reason: "classroom_not_empty";
+      assignmentCount: number;
+      memberCount: number;
+    } = { ok: true, deleted: true };
 const deleteAssignmentCalls: string[] = [];
 const updateAssignmentCalls: Array<{
   assignmentId: string;
@@ -112,6 +137,12 @@ let analyticsDataStub: Record<string, unknown> | null = {
 
 // prisma stubs — assignments route reads articles
 let articleStub: { id: string } | null = { id: "a1" };
+const auditCalls: Array<{
+  action: string;
+  targetType: string;
+  targetId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}> = [];
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -153,6 +184,17 @@ before(() => {
       addClassroomMember: async () => addMemberResult,
       removeClassroomMember: async (classroomId: string, userId: string) => {
         removeClassroomMemberCalls.push({ classroomId, userId });
+      },
+      updateClassroomLifecycle: async (
+        classroomId: string,
+        input: { name?: string; archived?: boolean },
+      ) => {
+        updateClassroomLifecycleCalls.push({ classroomId, input });
+        return updateClassroomLifecycleResult;
+      },
+      deleteClassroom: async (classroomId: string) => {
+        deleteClassroomCalls.push(classroomId);
+        return deleteClassroomResult;
       },
       getAssignmentClassroom: async () => assignmentClassroomResult,
       deleteAssignment: async (assignmentId: string) => {
@@ -257,6 +299,27 @@ before(() => {
       },
     },
   });
+  mock.module("@/lib/security/audit", {
+    namedExports: {
+      AUDIT_ACTIONS: {
+        securityAdminAccessDenied: "security.admin_access_denied",
+        classroomRename: "classroom.rename",
+        classroomArchive: "classroom.archive",
+        classroomUnarchive: "classroom.unarchive",
+        classroomDelete: "classroom.delete",
+      },
+      auditRequestInfo: () => ({ ipAddress: null, userAgent: null }),
+      tryRecordAuditLog: async () => {},
+      recordAuditFromRequest: async (input: {
+        action: string;
+        targetType: string;
+        targetId?: string | null;
+        metadata?: Record<string, unknown> | null;
+      }) => {
+        auditCalls.push(input);
+      },
+    },
+  });
 });
 
 beforeEach(() => {
@@ -278,12 +341,21 @@ beforeEach(() => {
   analyticsDataStub = { classroomId: "c1", completionRate: 0.75, members: [] };
   articleStub = { id: "a1" };
   removeClassroomMemberCalls.length = 0;
+  updateClassroomLifecycleCalls.length = 0;
+  updateClassroomLifecycleResult = {
+    ok: true,
+    classroom: { id: "c1", name: "Class 1", orgId: "org-1", teacherId: "teacher-1", archivedAt: null },
+    changed: { name: true, archived: false },
+  };
+  deleteClassroomCalls.length = 0;
+  deleteClassroomResult = { ok: true, deleted: true };
   deleteAssignmentCalls.length = 0;
   updateAssignmentCalls.length = 0;
   updateAssignmentResult = {
     ok: true,
     assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
   };
+  auditCalls.length = 0;
 });
 
 async function postClassrooms(body: Record<string, unknown>) {
@@ -299,6 +371,18 @@ async function getClassrooms() {
 async function getClassroom(id = "c1") {
   const { GET } = (await import("@/app/api/classrooms/[id]/route")) as { GET: RouteHandler };
   return GET(getReq(`http://test/api/classrooms/${id}`), withParams({ id }));
+}
+
+async function patchClassroom(id: string, body: Record<string, unknown>) {
+  const { PATCH } = (await import("@/app/api/classrooms/[id]/route")) as { PATCH: RouteHandler };
+  return PATCH(jsonPatch(`http://test/api/classrooms/${id}`, body), withParams({ id }));
+}
+
+async function deleteClassroomRoute(id: string) {
+  const { DELETE } = (await import("@/app/api/classrooms/[id]/route")) as {
+    DELETE: RouteHandler;
+  };
+  return DELETE(deleteReq(`http://test/api/classrooms/${id}`), withParams({ id }));
 }
 
 async function getClassroomAnalytics(id = "c1") {
@@ -445,6 +529,107 @@ test("GET /api/classrooms/[id] returns classroom detail on success", async () =>
   assert.equal(res.status, 200);
   const body = await res.json() as { classroom: { id: string } };
   assert.equal(body.classroom.id, "c1");
+});
+
+// ===========================================================================
+// PATCH /api/classrooms/[id]
+// ===========================================================================
+
+test("PATCH /api/classrooms/[id] requires manage access", async () => {
+  currentSession = { user: { id: "learner-1", role: "Reader", name: "L", email: "l@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  const res = await patchClassroom("c1", { name: "Renamed" });
+  assert.equal(res.status, 403);
+  assert.equal(updateClassroomLifecycleCalls.length, 0);
+});
+
+test("PATCH /api/classrooms/[id] renames and audits a classroom", async () => {
+  currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  updateClassroomLifecycleResult = {
+    ok: true,
+    classroom: { id: "c1", name: "Renamed", orgId: "org-1", teacherId: "teacher-1", archivedAt: null },
+    changed: { name: true, archived: false },
+  };
+  const res = await patchClassroom("c1", { name: "Renamed" });
+  assert.equal(res.status, 200);
+  assert.deepEqual(updateClassroomLifecycleCalls, [{ classroomId: "c1", input: { name: "Renamed" } }]);
+  assert.equal(auditCalls.at(-1)?.action, "classroom.rename");
+  assert.equal(auditCalls.at(-1)?.targetId, "c1");
+});
+
+test("PATCH /api/classrooms/[id] archives and unarchives with audit actions", async () => {
+  currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  updateClassroomLifecycleResult = {
+    ok: true,
+    classroom: {
+      id: "c1",
+      name: "Class 1",
+      orgId: "org-1",
+      teacherId: "teacher-1",
+      archivedAt: new Date("2026-07-21T03:00:00.000Z"),
+    },
+    changed: { name: false, archived: true },
+  };
+  let res = await patchClassroom("c1", { archived: true });
+  assert.equal(res.status, 200);
+  assert.equal(auditCalls.at(-1)?.action, "classroom.archive");
+
+  updateClassroomLifecycleResult = {
+    ok: true,
+    classroom: { id: "c1", name: "Class 1", orgId: "org-1", teacherId: "teacher-1", archivedAt: null },
+    changed: { name: false, archived: true },
+  };
+  res = await patchClassroom("c1", { archived: false });
+  assert.equal(res.status, 200);
+  assert.equal(auditCalls.at(-1)?.action, "classroom.unarchive");
+});
+
+test("PATCH /api/classrooms/[id] rejects an empty lifecycle body", async () => {
+  currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  updateClassroomLifecycleResult = { ok: false, status: 400, reason: "empty_update" };
+  const res = await patchClassroom("c1", {});
+  assert.equal(res.status, 400);
+  assert.equal(auditCalls.length, 0);
+});
+
+// ===========================================================================
+// DELETE /api/classrooms/[id]
+// ===========================================================================
+
+test("DELETE /api/classrooms/[id] requires manage access", async () => {
+  currentSession = { user: { id: "learner-1", role: "Reader", name: "L", email: "l@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  const res = await deleteClassroomRoute("c1");
+  assert.equal(res.status, 403);
+  assert.equal(deleteClassroomCalls.length, 0);
+});
+
+test("DELETE /api/classrooms/[id] blocks non-empty classrooms", async () => {
+  currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  deleteClassroomResult = {
+    ok: false,
+    status: 409,
+    reason: "classroom_not_empty",
+    assignmentCount: 1,
+    memberCount: 2,
+  };
+  const res = await deleteClassroomRoute("c1");
+  assert.equal(res.status, 409);
+  assert.equal(auditCalls.length, 0);
+});
+
+test("DELETE /api/classrooms/[id] deletes empty classrooms and audits", async () => {
+  currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  const res = await deleteClassroomRoute("c1");
+  assert.equal(res.status, 200);
+  assert.deepEqual(deleteClassroomCalls, ["c1"]);
+  assert.equal(auditCalls.at(-1)?.action, "classroom.delete");
+  assert.equal(auditCalls.at(-1)?.metadata?.deleted, true);
 });
 
 // ===========================================================================

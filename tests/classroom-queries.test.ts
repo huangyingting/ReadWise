@@ -19,9 +19,9 @@ let assignmentStub: Record<string, unknown> | null = null;
 
 let lastClassroomFindManyWhere: unknown = null;
 
-type OrgWhere = { orgId: string };
-type TeacherWhere = { OR: Array<{ teacherId?: string; members?: unknown }> };
-type StudentWhere = { members: { some: { userId: string } } };
+type OrgWhere = { orgId: string; archivedAt: null };
+type TeacherWhere = { archivedAt: null; OR: Array<{ teacherId?: string; members?: unknown }> };
+type StudentWhere = { archivedAt: null; members: { some: { userId: string } } };
 
 async function classroomQueries() {
   return import("@/lib/classroom/queries");
@@ -106,6 +106,7 @@ test("listClassroomsForOrg returns classrooms scoped to the given org", async ()
   assert.equal(result.length, 2);
   const where = lastWhere<OrgWhere>();
   assert.equal(where.orgId, "o1");
+  assert.equal(where.archivedAt, null);
 });
 
 test("listClassroomsForOrg returns empty array when org has no classrooms", async () => {
@@ -121,6 +122,7 @@ test("listClassroomsForOrg does not return classrooms belonging to a different o
   await listClassroomsForOrg("org-a");
   const where = lastWhere<OrgWhere>();
   assert.equal(where.orgId, "org-a");
+  assert.equal(where.archivedAt, null);
 });
 
 // ---- listClassroomsForTeacher ----------------------------------------------
@@ -131,6 +133,7 @@ test("listClassroomsForTeacher includes classrooms where user is the primary tea
   const result = await listClassroomsForTeacher("t1");
   assert.equal(result.length, 1);
   const where = lastWhere<TeacherWhere>();
+  assert.equal(where.archivedAt, null);
   assert.ok(where.OR.some((clause) => clause.teacherId === "t1"));
 });
 
@@ -140,6 +143,7 @@ test("listClassroomsForTeacher includes classrooms where user is a Teacher membe
   const result = await listClassroomsForTeacher("t2");
   assert.equal(result.length, 1);
   const where = lastWhere<TeacherWhere>();
+  assert.equal(where.archivedAt, null);
   assert.ok(where.OR.some((clause) => clause.members !== undefined));
 });
 
@@ -174,6 +178,7 @@ test("listClassroomsForStudent filters by the student's userId", async () => {
   await listClassroomsForStudent("s1");
   const where = lastWhere<StudentWhere>();
   assert.equal(where.members.some.userId, "s1");
+  assert.equal(where.archivedAt, null);
 });
 
 test("listClassroomsForStudent uses a different userId scope per call", async () => {

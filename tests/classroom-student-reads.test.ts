@@ -22,7 +22,7 @@ let assignmentRowStub: Record<string, unknown>[] = [];
 let lastFindManyArgs: unknown = null;
 
 type StudentScopeFindManyArgs = {
-  where: { classroom: { members: { some: { userId: string } } } };
+  where: { classroom: { archivedAt: null; members: { some: { userId: string } } } };
 };
 
 type CompletionIncludeFindManyArgs = {
@@ -114,6 +114,7 @@ test("listAssignmentsForStudent scopes assignments to the student's classroom me
   await listAssignmentsForStudent("s1");
   const args = lastStudentScopeArgs();
   assert.equal(args.where.classroom.members.some.userId, "s1");
+  assert.equal(args.where.classroom.archivedAt, null);
 });
 
 test("listAssignmentsForStudent uses a different userId scope per call", async () => {
