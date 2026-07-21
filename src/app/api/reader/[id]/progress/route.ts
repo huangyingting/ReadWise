@@ -36,6 +36,7 @@ async function syncTodayReadingProgress(
   userId: string,
   articleId: string,
   progress: ProgressWrite,
+  timezone?: string | null,
 ) {
   await bestEffortMastery("progress.today_reading", () =>
     syncTodayReadingFromProgress({
@@ -43,6 +44,7 @@ async function syncTodayReadingProgress(
       articleId,
       percent: progress.percent,
       completed: progress.completed,
+      requestTimezone: timezone ?? null,
     }),
   );
 }
@@ -51,7 +53,9 @@ export const POST = createHandler(
   { params: idParams, body: progressBody },
   async ({ params, body, session }) => {
     const { article } = await requireReadableArticle(params.id, session.user);
-    const progress = await saveProgress(session.user.id, article.id, body.percent);
+    const progress = await saveProgress(session.user.id, article.id, body.percent, {
+      timezone: body.timezone,
+    });
     // Best-effort mastery side-effects — never break the progress write.
     await recordProgressMastery(session.user.id, article.id, progress.percent);
     // Product analytics (RW-051): emit progress_complete when the article first
@@ -71,7 +75,7 @@ export const POST = createHandler(
     // Best-effort: advance the learner's active Today session reading step when
     // the primary article reaches the completion threshold. Never breaks the
     // progress write and never mutates ReadingProgress.
-    await syncTodayReadingProgress(session.user.id, article.id, progress);
+    await syncTodayReadingProgress(session.user.id, article.id, progress, body.timezone);
     return progressResponse(progress);
   },
 );

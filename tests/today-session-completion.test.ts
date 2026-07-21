@@ -279,6 +279,28 @@ test("reading: auto-completes from progress at/over threshold", async () => {
   assert.equal(view!.status, "active");
 });
 
+test("reading: progress sync uses request timezone for near-midnight local day", async () => {
+  const { syncTodayReadingFromProgress } = await importCompletion();
+  profileTimezone = null;
+  const nearMidnight = new Date("2026-06-27T15:30:00Z"); // 2026-06-28 in Asia/Tokyo
+  sessionRow = makeRow({
+    localDate: "2026-06-28",
+    timezoneSnapshot: "Asia/Tokyo",
+  });
+
+  const view = await syncTodayReadingFromProgress({
+    userId: "u1",
+    articleId: "a1",
+    percent: 96,
+    completed: false,
+    now: nearMidnight,
+    requestTimezone: "Asia/Tokyo",
+  });
+
+  assert.ok(view);
+  assert.equal((view!.readingCompletedAt as Date | null)?.getTime?.(), nearMidnight.getTime());
+});
+
 test("reading: below threshold and not completed is a no-op", async () => {
   const { syncTodayReadingFromProgress } = await importCompletion();
   sessionRow = makeRow();
