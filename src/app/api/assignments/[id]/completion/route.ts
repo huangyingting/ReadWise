@@ -37,6 +37,7 @@ export const POST = createHandler(
   async ({ params, body, session }) => {
     const context = await getStudentAssignmentContext(params.id, session.user.id);
     if (!context) throw new ApiError(404, "Assignment not found");
+    if (context.classroomArchivedAt) throw new ApiError(409, "Classroom is archived");
 
     const completion = await recordAssignmentCompletion(
       params.id,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { boolean, idParams, object, optional, string } from "@/lib/validation";
-import { requireClassroomManageApi } from "@/lib/tenant-api";
+import { assertClassroomActive, requireClassroomManageApi } from "@/lib/tenant-api";
 import { updateClassroomLifecycle, deleteClassroom } from "@/lib/classroom";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
@@ -31,7 +31,10 @@ export const GET = createHandler(
 export const PATCH = createHandler(
   { params: idParams, body: updateClassroomBody },
   async ({ req, params, body, session, requestId }) => {
-    await requireClassroomManageApi(session, params.id);
+    const { classroom } = await requireClassroomManageApi(session, params.id);
+    if (classroom.archivedAt && (body.archived !== false || body.name !== undefined)) {
+      assertClassroomActive(classroom);
+    }
     const result = await updateClassroomLifecycle(params.id, classroomLifecycleInput(body));
     if (!result.ok) {
       throw new ApiError(result.status, "At least one lifecycle field is required");

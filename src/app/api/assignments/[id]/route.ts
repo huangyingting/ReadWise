@@ -6,7 +6,7 @@ import {
   getAssignmentClassroom,
   updateAssignment,
 } from "@/lib/classroom";
-import { requireClassroomManageApi } from "@/lib/tenant-api";
+import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
 
 const updateBody = object({
   dueDate: optional(string({ min: 1, max: 40 })),
@@ -18,7 +18,7 @@ export const DELETE = createHandler(
   async ({ params, session }) => {
     const assignment = await getAssignmentClassroom(params.id);
     if (!assignment) throw new ApiError(404, "Assignment not found");
-    await requireClassroomManageApi(session, assignment.classroomId);
+    await requireActiveClassroomManageApi(session, assignment.classroomId);
     await deleteAssignment(params.id);
     return NextResponse.json({ ok: true });
   },
@@ -34,7 +34,7 @@ export const PATCH = createHandler(
   async ({ params, body, session }) => {
     const assignment = await getAssignmentClassroom(params.id);
     if (!assignment) throw new ApiError(404, "Assignment not found");
-    await requireClassroomManageApi(session, assignment.classroomId);
+    await requireActiveClassroomManageApi(session, assignment.classroomId);
     const result = await updateAssignment(params.id, {
       dueDate: body.dueDate,
       instructions: body.instructions,

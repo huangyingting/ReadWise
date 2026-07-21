@@ -42,7 +42,7 @@ let currentSession: { user: { id: string; role: string; name: string; email: str
 // Classroom stubs (also controls tenant-api behavior via real requireClassroomManageApi)
 // Set teacherId to "user-1" (readerSession.user.id) to allow access,
 // or to "other-teacher" to trigger 403 from canManageClassroom.
-let classroomStub: { id: string; orgId: string; teacherId: string } | null = {
+let classroomStub: { id: string; orgId: string; teacherId: string; archivedAt?: Date | null } | null = {
   id: "c1",
   orgId: "org-1",
   teacherId: "teacher-1",
@@ -73,7 +73,7 @@ let completionResult: Record<string, unknown> = {
   assignmentId: "asgn1",
   status: "COMPLETED",
 };
-let assignmentContext: { id: string } | null = { id: "asgn1" };
+let assignmentContext: { id: string; classroomArchivedAt?: Date | null } | null = { id: "asgn1" };
 let assignmentClassroomResult: { id: string; classroomId: string } | null = {
   id: "asgn1",
   classroomId: "c1",
@@ -112,6 +112,11 @@ const deleteAssignmentCalls: string[] = [];
 const updateAssignmentCalls: Array<{
   assignmentId: string;
   input: { dueDate?: string; instructions?: string | null };
+}> = [];
+const recordAssignmentCompletionCalls: Array<{
+  assignmentId: string;
+  studentId: string;
+  input: { status?: string; quizScore?: number };
 }> = [];
 let updateAssignmentResult:
   | { ok: true; assignment: Record<string, unknown> }
@@ -208,7 +213,14 @@ before(() => {
         return updateAssignmentResult;
       },
       getStudentAssignmentContext: async () => assignmentContext,
-      recordAssignmentCompletion: async () => completionResult,
+      recordAssignmentCompletion: async (
+        assignmentId: string,
+        studentId: string,
+        input: { status?: string; quizScore?: number },
+      ) => {
+        recordAssignmentCompletionCalls.push({ assignmentId, studentId, input });
+        return completionResult;
+      },
     },
   });
   // tenant-api + classroom-access import classroom submodules directly.
@@ -351,6 +363,7 @@ beforeEach(() => {
   deleteClassroomResult = { ok: true, deleted: true };
   deleteAssignmentCalls.length = 0;
   updateAssignmentCalls.length = 0;
+  recordAssignmentCompletionCalls.length = 0;
   updateAssignmentResult = {
     ok: true,
     assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
@@ -558,6 +571,21 @@ test("PATCH /api/classrooms/[id] renames and audits a classroom", async () => {
   assert.equal(auditCalls.at(-1)?.targetId, "c1");
 });
 
+test("PATCH /api/classrooms/[id] rejects renaming an archived classroom", async () => {
+  currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
+  classroomStub = {
+    id: "c1",
+    orgId: "org-1",
+    teacherId: "teacher-1",
+    archivedAt: new Date("2026-07-21T03:00:00.000Z"),
+  };
+  const res = await patchClassroom("c1", { name: "Renamed" });
+  assert.equal(res.status, 409);
+  const body = await res.json() as { error: string };
+  assert.match(body.error, /archived/i);
+  assert.equal(updateClassroomLifecycleCalls.length, 0);
+});
+
 test("PATCH /api/classrooms/[id] archives and unarchives with audit actions", async () => {
   currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
@@ -580,6 +608,12 @@ test("PATCH /api/classrooms/[id] archives and unarchives with audit actions", as
     ok: true,
     classroom: { id: "c1", name: "Class 1", orgId: "org-1", teacherId: "teacher-1", archivedAt: null },
     changed: { name: false, archived: true },
+  };
+  classroomStub = {
+    id: "c1",
+    orgId: "org-1",
+    teacherId: "teacher-1",
+    archivedAt: new Date("2026-07-21T03:00:00.000Z"),
   };
   res = await patchClassroom("c1", { archived: false });
   assert.equal(res.status, 200);
@@ -814,6 +848,19 @@ test("POST /api/classrooms/[id]/members rejects users outside the classroom org"
   assert.equal(res.status, 403);
 });
 
+test("POST /api/classrooms/[id]/members rejects archived classrooms", async () => {
+  classroomStub = {
+    id: "c1",
+    orgId: "org-1",
+    teacherId: "user-1",
+    archivedAt: new Date("2026-07-21T03:00:00.000Z"),
+  };
+  const res = await postClassroomMember("c1", { userId: "u2", role: "Student" });
+  assert.equal(res.status, 409);
+  const body = await res.json() as { error: string };
+  assert.match(body.error, /archived/i);
+});
+
 test("POST /api/classrooms/[id]/members returns 201 and new member on success", async () => {
   // teacherId === user-1 (readerSession) → canManageClassroom = true
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
@@ -856,6 +903,18 @@ test("DELETE /api/classrooms/[id]/members/[userId] returns 403 when caller canno
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
   const res = await deleteClassroomMember("c1", "u2");
   assert.equal(res.status, 403);
+});
+
+test("DELETE /api/classrooms/[id]/members/[userId] rejects archived classrooms", async () => {
+  classroomStub = {
+    id: "c1",
+    orgId: "org-1",
+    teacherId: "user-1",
+    archivedAt: new Date("2026-07-21T03:00:00.000Z"),
+  };
+  const res = await deleteClassroomMember("c1", "u2");
+  assert.equal(res.status, 409);
+  assert.equal(removeClassroomMemberCalls.length, 0);
 });
 
 test("DELETE /api/classrooms/[id]/members/[userId] returns 200 and removes the member on success", async () => {
@@ -914,6 +973,17 @@ test("POST /api/classrooms/[id]/assignments returns 409 for invalid article orga
   assert.match(body.error, /organization scope/i);
 });
 
+test("POST /api/classrooms/[id]/assignments rejects archived classrooms", async () => {
+  classroomStub = {
+    id: "c1",
+    orgId: "org-1",
+    teacherId: "user-1",
+    archivedAt: new Date("2026-07-21T03:00:00.000Z"),
+  };
+  const res = await postClassroomAssignment("c1", { articleId: "a1" });
+  assert.equal(res.status, 409);
+});
+
 test("POST /api/classrooms/[id]/assignments returns 201 with assignment on success", async () => {
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   const res = await postClassroomAssignment("c1", {
@@ -949,6 +1019,19 @@ test("DELETE /api/assignments/[id] enforces tenant isolation with classroom-mana
   assert.equal(res.status, 403);
 });
 
+test("DELETE /api/assignments/[id] rejects archived classrooms", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = {
+    id: "c1",
+    orgId: "org-1",
+    teacherId: "user-1",
+    archivedAt: new Date("2026-07-21T03:00:00.000Z"),
+  };
+  const res = await deleteAssignmentRoute("asgn1");
+  assert.equal(res.status, 409);
+  assert.equal(deleteAssignmentCalls.length, 0);
+});
+
 test("DELETE /api/assignments/[id] returns 200 and deletes assignment on success", async () => {
   assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
@@ -980,6 +1063,19 @@ test("PATCH /api/assignments/[id] enforces tenant isolation with classroom-manag
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
   const res = await patchAssignmentRoute("asgn1", { instructions: "x" });
   assert.equal(res.status, 403);
+  assert.equal(updateAssignmentCalls.length, 0);
+});
+
+test("PATCH /api/assignments/[id] rejects archived classrooms", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = {
+    id: "c1",
+    orgId: "org-1",
+    teacherId: "user-1",
+    archivedAt: new Date("2026-07-21T03:00:00.000Z"),
+  };
+  const res = await patchAssignmentRoute("asgn1", { instructions: "x" });
+  assert.equal(res.status, 409);
   assert.equal(updateAssignmentCalls.length, 0);
 });
 
@@ -1035,6 +1131,16 @@ test("POST /api/assignments/[id]/completion returns 404 when student is not in t
   assignmentContext = null;
   const res = await postAssignmentCompletion("asgn-x", { status: "COMPLETED" });
   assert.equal(res.status, 404);
+});
+
+test("POST /api/assignments/[id]/completion rejects archived classrooms", async () => {
+  assignmentContext = {
+    id: "asgn1",
+    classroomArchivedAt: new Date("2026-07-21T03:00:00.000Z"),
+  };
+  const res = await postAssignmentCompletion("asgn1", { status: "COMPLETED" });
+  assert.equal(res.status, 409);
+  assert.equal(recordAssignmentCompletionCalls.length, 0);
 });
 
 test("POST /api/assignments/[id]/completion returns 201 with completion record on success", async () => {

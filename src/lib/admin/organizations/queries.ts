@@ -13,6 +13,9 @@ export const ADMIN_ORGANIZATIONS_PAGE_SIZE = 20;
 export const ADMIN_ORG_SORT_KEYS = ["createdAt", "name", "members", "classrooms"] as const;
 export type AdminOrgSortKey = (typeof ADMIN_ORG_SORT_KEYS)[number];
 type SortOrder = "asc" | "desc";
+type OrganizationWithMemberCount = Prisma.OrganizationGetPayload<{
+  include: { _count: { select: { memberships: true } } };
+}>;
 
 export type AdminOrganizationRow = {
   id: string;
@@ -77,11 +80,47 @@ function orgOrderBy(
     case "members":
       return [{ memberships: { _count: order } }, { createdAt: "desc" }];
     case "classrooms":
-      return [{ classrooms: { _count: order } }, { createdAt: "desc" }];
+      return [{ createdAt: "desc" }];
     case "createdAt":
     default:
       return [{ createdAt: order }];
   }
+}
+
+async function activeClassroomCountsByOrg(orgIds: string[]): Promise<Map<string, number>> {
+  if (orgIds.length === 0) return new Map();
+  const counts = await prisma.classroom.groupBy({
+    by: ["orgId"],
+    where: { orgId: { in: orgIds }, archivedAt: null },
+    _count: { _all: true },
+  });
+  return new Map(counts.map((row) => [row.orgId, row._count._all]));
+}
+
+function compareByActiveClassrooms(
+  counts: Map<string, number>,
+  order: SortOrder,
+): (a: OrganizationWithMemberCount, b: OrganizationWithMemberCount) => number {
+  const direction = order === "asc" ? 1 : -1;
+  return (a, b) => {
+    const byCount = (counts.get(a.id) ?? 0) - (counts.get(b.id) ?? 0);
+    if (byCount !== 0) return byCount * direction;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  };
+}
+
+function toOrganizationRow(
+  org: OrganizationWithMemberCount,
+  activeClassroomCounts: Map<string, number>,
+): AdminOrganizationRow {
+  return {
+    id: org.id,
+    name: org.name,
+    slug: org.slug,
+    createdAt: org.createdAt,
+    memberCount: org._count.memberships,
+    classroomCount: activeClassroomCounts.get(org.id) ?? 0,
+  };
 }
 
 /**
@@ -100,25 +139,36 @@ export async function listOrganizations(
 
   const where = buildOrgWhere(query);
 
-  const [total, rows] = await Promise.all([
-    prisma.organization.count({ where }),
-    prisma.organization.findMany({
+  let total: number;
+  let rows: OrganizationWithMemberCount[];
+  let activeClassroomCounts: Map<string, number>;
+
+  if (sort === "classrooms") {
+    const allRows = await prisma.organization.findMany({
       where,
       orderBy: orgOrderBy(sort, order),
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      include: { _count: { select: { memberships: true, classrooms: true } } },
-    }),
-  ]);
+      include: { _count: { select: { memberships: true } } },
+    });
+    total = allRows.length;
+    activeClassroomCounts = await activeClassroomCountsByOrg(allRows.map((org) => org.id));
+    rows = [...allRows]
+      .sort(compareByActiveClassrooms(activeClassroomCounts, order))
+      .slice((page - 1) * pageSize, page * pageSize);
+  } else {
+    [total, rows] = await Promise.all([
+      prisma.organization.count({ where }),
+      prisma.organization.findMany({
+        where,
+        orderBy: orgOrderBy(sort, order),
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { _count: { select: { memberships: true } } },
+      }),
+    ]);
+    activeClassroomCounts = await activeClassroomCountsByOrg(rows.map((org) => org.id));
+  }
 
-  const organizations: AdminOrganizationRow[] = rows.map((org) => ({
-    id: org.id,
-    name: org.name,
-    slug: org.slug,
-    createdAt: org.createdAt,
-    memberCount: org._count.memberships,
-    classroomCount: org._count.classrooms,
-  }));
+  const organizations = rows.map((org) => toOrganizationRow(org, activeClassroomCounts));
 
   return {
     organizations,
