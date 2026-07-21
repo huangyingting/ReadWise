@@ -39,7 +39,7 @@ let organizationsById: Map<string, Record<string, unknown>>;
 let organizationsBySlug: Map<string, Record<string, unknown>>;
 let membershipsByKey: Map<string, Record<string, unknown> | null>;
 let membershipFindManyRows: Record<string, unknown>[];
-let membershipUpserts: AnyArgs[];
+let membershipCreates: AnyArgs[];
 let profileById: Map<string, Record<string, unknown> | null>;
 let currentSession: { user: { id: string; role?: string | null } };
 let classroomProgressData: Record<string, any> | null;
@@ -109,7 +109,7 @@ function resetMockState(): void {
   organizationsBySlug = new Map([["readers", organization("org-1", "readers")]]);
   membershipsByKey = new Map();
   membershipFindManyRows = [];
-  membershipUpserts = [];
+  membershipCreates = [];
   profileById = new Map();
   currentSession = { user: { id: "user-1", role: "Reader" } };
   classroomProgressData = null;
@@ -172,9 +172,9 @@ before(() => {
         const { userId, orgId } = args.where.userId_orgId;
         return membershipsByKey.get(membershipKey(userId, orgId)) ?? null;
       },
-      upsert: async (args: AnyArgs) => {
-        membershipUpserts.push(args);
-        return { id: "membership-upserted", ...(args.create as Record<string, unknown>) };
+      create: async (args: AnyArgs) => {
+        membershipCreates.push(args);
+        return { id: "membership-created", ...(args.data as Record<string, unknown>) };
       },
     },
     profile: {
@@ -552,15 +552,13 @@ test("organization queries, slug generation, profiles, and guards use scoped loo
     role: "OrgAdmin",
   });
   assert.deepEqual(await commands.addMember("org-1", "user-2", "Member"), {
-    id: "membership-upserted",
+    id: "membership-created",
     orgId: "org-1",
     userId: "user-2",
     role: "Member",
   });
-  assert.deepEqual(membershipUpserts[0], {
-    where: { userId_orgId: { userId: "user-2", orgId: "org-1" } },
-    update: { role: "Member" },
-    create: { orgId: "org-1", userId: "user-2", role: "Member" },
+  assert.deepEqual(membershipCreates[0], {
+    data: { orgId: "org-1", userId: "user-2", role: "Member" },
   });
   assert.equal((await queries.getMembership("user-1", "org-1"))?.id, "m1");
   membershipFindManyRows = [{ id: "m1", org: { id: "org-1" } }];

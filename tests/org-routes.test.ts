@@ -30,6 +30,7 @@ type AuthState = "ok" | "unauth";
 let authState: AuthState = "ok";
 
 let membershipStub: { role: string } | null = null;
+let targetMembershipStub: Record<string, unknown> | null = null;
 let isOrgAdminStub = false;
 let isSystemAdminStub = false;
 
@@ -50,6 +51,7 @@ let removeMemberResult: { ok: true } | { ok: false; status: number; error: strin
 
 let updateMemberRoleArgs: { orgId: string; memberId: string; role: string } | null = null;
 let removeMemberArgs: { orgId: string; memberId: string } | null = null;
+let addMemberArgs: { orgId: string; userId: string; role: string } | null = null;
 
 const ORG_MEMBERS_MANAGE_CAPABILITY = "org.members.manage";
 
@@ -78,8 +80,13 @@ before(() => {
       }),
       listUserOrganizations: async () => listUserOrganizationsResult,
       getOrganization: async () => getOrganizationResult,
+      getMembership: async (userId: string) =>
+        userId === readerSession.user.id ? membershipStub : targetMembershipStub,
       listOrgMembers: async () => listOrgMembersResult,
-      addMember: async () => addMemberResult,
+      addMember: async (orgId: string, userId: string, role: string) => {
+        addMemberArgs = { orgId, userId, role };
+        return addMemberResult;
+      },
       updateMemberRole: async (orgId: string, memberId: string, role: string) => {
         updateMemberRoleArgs = { orgId, memberId, role };
         return updateMemberRoleResult;
@@ -93,7 +100,8 @@ before(() => {
 
   mock.module("@/lib/org/queries", {
     namedExports: {
-      getMembership: async () => membershipStub,
+      getMembership: async (userId: string) =>
+        userId === readerSession.user.id ? membershipStub : targetMembershipStub,
     },
   });
 
@@ -126,6 +134,7 @@ before(() => {
 beforeEach(() => {
   authState = "ok";
   membershipStub = null;
+  targetMembershipStub = null;
   isOrgAdminStub = false;
   isSystemAdminStub = false;
 
@@ -142,6 +151,7 @@ beforeEach(() => {
   removeMemberResult = { ok: true };
   updateMemberRoleArgs = null;
   removeMemberArgs = null;
+  addMemberArgs = null;
 });
 
 async function getOrgs() {
@@ -293,6 +303,56 @@ test("POST /api/orgs/[id]/members returns 201 with new membership on success", a
   const body = (await res.json()) as { ok: boolean; membership: { id: string } };
   assert.equal(body.ok, true);
   assert.equal(body.membership.id, "mem1");
+  assert.deepEqual(addMemberArgs, { orgId: "org-1", userId: "u2", role: "Member" });
+  assert.equal(updateMemberRoleArgs, null);
+});
+
+test("POST /api/orgs/[id]/members delegates existing membership role changes through the guarded command", async () => {
+  membershipStub = { role: "OrgAdmin" };
+  targetMembershipStub = {
+    id: "existing-mem",
+    orgId: "org-1",
+    userId: "u2",
+    role: "Member",
+  };
+  isOrgAdminStub = true;
+  updateMemberRoleResult = { ok: true, role: "Teacher" };
+
+  const { POST } = (await import("@/app/api/orgs/[id]/members/route")) as { POST: RouteHandler };
+  const res = await POST(
+    jsonPost("http://test/api/orgs/org-1/members", { userId: "u2", role: "Teacher" }),
+    withParams({ id: "org-1" }),
+  );
+
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as { ok: boolean; membership: { id: string; role: string } };
+  assert.equal(body.ok, true);
+  assert.equal(body.membership.id, "existing-mem");
+  assert.equal(body.membership.role, "Teacher");
+  assert.deepEqual(updateMemberRoleArgs, { orgId: "org-1", memberId: "u2", role: "Teacher" });
+  assert.equal(addMemberArgs, null);
+});
+
+test("POST /api/orgs/[id]/members preserves the last-OrgAdmin demotion guard for existing memberships", async () => {
+  membershipStub = { role: "OrgAdmin" };
+  targetMembershipStub = {
+    id: "last-admin-membership",
+    orgId: "org-1",
+    userId: "u2",
+    role: "OrgAdmin",
+  };
+  isOrgAdminStub = true;
+  updateMemberRoleResult = {
+    ok: false,
+    status: 409,
+    error: "Cannot demote the last organization admin",
+  };
+
+  const res = await postOrgMember();
+
+  assert.equal(res.status, 409);
+  assert.deepEqual(updateMemberRoleArgs, { orgId: "org-1", memberId: "u2", role: "Member" });
+  assert.equal(addMemberArgs, null);
 });
 
 // ===========================================================================
