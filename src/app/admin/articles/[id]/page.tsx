@@ -27,7 +27,7 @@ import { scraperForceRescrapeEnabled } from "@/lib/runtime-config/scraper";
 import { Card, CardMeta, CardTitle } from "@/components/ui/Card";
 import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
 import { StatCard } from "@/components/analytics/StatCard";
-import { AdminTableWrap } from "@/components/admin";
+import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { formatDateTime } from "@/lib/display-format";
 
 type BadgeVariant = "success" | "neutral" | "warning" | "danger";
@@ -448,9 +448,7 @@ export default async function AdminArticleDetailPage({
         ← Back to articles
       </Link>
 
-      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
-        {article.title}
-      </h1>
+      <AdminPageHeader>{article.title}</AdminPageHeader>
       <ArticleMeta article={article} minutes={minutes} />
       <SourceLink article={article} />
       <DerivedContentCard articleId={article.id} counts={counts} />

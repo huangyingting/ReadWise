@@ -12,6 +12,7 @@ import AdminArticleIngest from "@/components/AdminArticleIngest";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
 import {
   AdminPageHeader,
@@ -85,6 +86,7 @@ export default async function AdminArticlesPage({
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
   const requestedSort = (sp.sort ?? "").trim();
   const requestedOrder = sp.order === "asc" ? "asc" : "desc";
+  const hasActiveFilters = query.length > 0 || status.length > 0;
 
   const [result, statuses] = await Promise.all([
     searchArticles({
@@ -218,6 +220,22 @@ export default async function AdminArticlesPage({
             ))}
           </tbody>
         </AdminTableWrap>
+      )}
+
+      {result.articles.length === 0 && (
+        <EmptyState
+          title={hasActiveFilters ? "No articles match these filters" : "No articles yet"}
+          description={
+            hasActiveFilters
+              ? "Clear filters to return to the full article queue."
+              : "Ingest or import articles before managing them here."
+          }
+          action={
+            hasActiveFilters
+              ? { label: "Clear filters", href: "/admin/articles" }
+              : undefined
+          }
+        />
       )}
 
       <AdminPagination

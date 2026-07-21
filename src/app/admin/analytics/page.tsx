@@ -10,7 +10,7 @@ import {
   parseAnalyticsQuery,
 } from "@/lib/analytics/queries";
 import { StatCard } from "@/components/analytics/StatCard";
-import { BarChart, BarChartRow, AdminTableWrap } from "@/components/admin";
+import { AdminPageHeader, BarChart, BarChartRow, AdminTableWrap } from "@/components/admin";
 import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";
 import { RetentionTable } from "@/components/admin/RetentionTable";
 import { Card } from "@/components/ui/Card";
@@ -99,12 +99,9 @@ export default async function AdminAnalyticsPage({
 
   return (
     <section className="stack">
-      <div className="flex flex-wrap items-center justify-between gap-[var(--space-2)]">
-        <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
-          Analytics
-        </h1>
-        <AnalyticsTabs active="product" />
-      </div>
+      <AdminPageHeader actions={<AnalyticsTabs active="product" />}>
+        Analytics
+      </AdminPageHeader>
 
       <form method="get" className="flex flex-wrap items-end gap-[var(--space-2)]">
         <label className={FILTER_LABEL_CLASS}>
