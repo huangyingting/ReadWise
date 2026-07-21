@@ -7,8 +7,45 @@
  *   const html = await safeFetchHtml(rawUrl); // validate + fetch in one call
  */
 import dns from "dns";
+import { redactUrlForLog } from "@/lib/security/redaction";
 
 type DnsAddress = { address: string; family: number };
+
+export const SSRF_BLOCK_REASON_CODES = [
+  "invalid_url",
+  "unsupported_protocol",
+  "dns_lookup_failed",
+  "dns_no_addresses",
+  "private_address",
+  "unsafe_url",
+] as const;
+
+export type SsrfBlockReason = (typeof SSRF_BLOCK_REASON_CODES)[number];
+
+export type SsrfFailureDetails = {
+  reason: SsrfBlockReason;
+  target: string;
+};
+
+export class SsrfError extends Error {
+  readonly reason: SsrfBlockReason;
+  readonly target: string;
+
+  constructor(reason: SsrfBlockReason, rawUrl: string) {
+    const target = redactUrlForLog(rawUrl);
+    super(`URL rejected: ${reason} (${target})`);
+    this.name = "SsrfError";
+    this.reason = reason;
+    this.target = target;
+  }
+}
+
+export function ssrfFailureDetails(err: unknown, rawUrl: string): SsrfFailureDetails {
+  if (err instanceof SsrfError) {
+    return { reason: err.reason, target: err.target };
+  }
+  return { reason: "unsafe_url", target: redactUrlForLog(rawUrl) };
+}
 
 // ---------------------------------------------------------------------------
 // Private / reserved CIDR ranges to block
@@ -67,10 +104,10 @@ function parseHttpUrl(rawUrl: string): URL {
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw new Error(`Invalid URL: ${rawUrl}`);
+    throw new SsrfError("invalid_url", rawUrl);
   }
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    throw new Error(`Only http(s) URLs are allowed (got ${parsed.protocol})`);
+    throw new SsrfError("unsupported_protocol", rawUrl);
   }
   return parsed;
 }
@@ -83,16 +120,19 @@ function parseHttpUrl(rawUrl: string): URL {
  * Resolves `hostname` to an IP address and throws if it resolves to a
  * private/reserved range.
  */
-export async function assertSafeHostname(hostname: string): Promise<void> {
+export async function assertSafeHostname(
+  hostname: string,
+  rawUrlForLog = `http://${hostname}/`,
+): Promise<void> {
   let address: string;
   try {
     const result = await dns.promises.lookup(hostname);
     address = result.address;
   } catch {
-    throw new Error(`DNS lookup failed for host: ${hostname}`);
+    throw new SsrfError("dns_lookup_failed", rawUrlForLog);
   }
   if (isPrivateAddress(address)) {
-    throw new Error(`Requests to private/internal addresses are not allowed (${address})`);
+    throw new SsrfError("private_address", rawUrlForLog);
   }
 }
 
@@ -106,7 +146,7 @@ export async function assertSafeHostname(hostname: string): Promise<void> {
  */
 export async function assertSafeUrl(rawUrl: string): Promise<void> {
   const parsed = parseHttpUrl(rawUrl);
-  await assertSafeHostname(parsed.hostname);
+  await assertSafeHostname(parsed.hostname, rawUrl);
 }
 
 /** A validated, pinned address for a host: the exact IP undici must connect to. */
@@ -136,17 +176,17 @@ export async function resolveAndPin(rawUrl: string): Promise<PinnedAddress> {
   try {
     results = await dns.promises.lookup(parsed.hostname, { all: true });
   } catch {
-    throw new Error(`DNS lookup failed for host: ${parsed.hostname}`);
+    throw new SsrfError("dns_lookup_failed", rawUrl);
   }
   if (results.length === 0) {
-    throw new Error(`DNS lookup returned no addresses for host: ${parsed.hostname}`);
+    throw new SsrfError("dns_no_addresses", rawUrl);
   }
 
   // Validate EVERY resolved address — a single private/metadata answer poisons
   // the whole set (the rebinding host could hand back a public + a private IP).
   for (const { address } of results) {
     if (isPrivateAddress(address)) {
-      throw new Error(`Requests to private/internal addresses are not allowed (${address})`);
+      throw new SsrfError("private_address", rawUrl);
     }
   }
 

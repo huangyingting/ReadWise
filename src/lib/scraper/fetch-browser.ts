@@ -1,6 +1,6 @@
 import net from "node:net";
 
-import { assertSafeHostname, assertSafeUrl, isPrivateAddress } from "@/lib/scraper/ssrf";
+import { assertSafeHostname, assertSafeUrl, isPrivateAddress, SsrfError } from "@/lib/scraper/ssrf";
 
 type Browser = {
   newContext(options: BrowserContextOptions): Promise<BrowserContext>;
@@ -93,12 +93,12 @@ function isHttpProtocol(protocol: string): boolean {
 async function assertRouteSafe(rawUrl: string): Promise<void> {
   const parsed = new URL(rawUrl);
   if (!isHttpProtocol(parsed.protocol)) {
-    throw new Error(`Only http(s) URLs are allowed (got ${parsed.protocol})`);
+    throw new SsrfError("unsupported_protocol", rawUrl);
   }
   if (net.isIP(parsed.hostname) && isPrivateAddress(parsed.hostname)) {
-    throw new Error(`Requests to private/internal addresses are not allowed (${parsed.hostname})`);
+    throw new SsrfError("private_address", rawUrl);
   }
-  await assertSafeHostname(parsed.hostname);
+  await assertSafeHostname(parsed.hostname, rawUrl);
 }
 
 async function handleRoute(route: Route): Promise<void> {

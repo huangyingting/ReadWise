@@ -97,7 +97,7 @@ test("resolveAndPin returns a validated address for a public host", async () => 
 test("resolveAndPin rejects a host that resolves to a private IP (rebinding)", async () => {
   const { resolveAndPin } = await import("@/lib/scraper/ssrf");
   lookupResult = [{ address: "169.254.169.254", family: 4 }];
-  await assert.rejects(resolveAndPin("https://rebind.example/"), /private\/internal addresses/);
+  await assert.rejects(resolveAndPin("https://rebind.example/"), /private_address/);
 });
 
 test("resolveAndPin rejects if ANY of multiple addresses is private", async () => {
@@ -106,7 +106,7 @@ test("resolveAndPin rejects if ANY of multiple addresses is private", async () =
     { address: "93.184.216.34", family: 4 },
     { address: "127.0.0.1", family: 4 },
   ];
-  await assert.rejects(resolveAndPin("https://mixed.example/"), /private\/internal addresses/);
+  await assert.rejects(resolveAndPin("https://mixed.example/"), /private_address/);
 });
 
 test("resolveAndPin pins the first validated address when all are public", async () => {
@@ -122,13 +122,13 @@ test("resolveAndPin pins the first validated address when all are public", async
 
 test("resolveAndPin rejects non-http(s) schemes", async () => {
   const { resolveAndPin } = await import("@/lib/scraper/ssrf");
-  await assert.rejects(resolveAndPin("file:///etc/passwd"), /Only http\(s\)/);
+  await assert.rejects(resolveAndPin("file:///etc/passwd"), /unsupported_protocol/);
 });
 
 test("resolveAndPin throws when DNS resolution fails", async () => {
   const { resolveAndPin } = await import("@/lib/scraper/ssrf");
   lookupThrows = true;
-  await assert.rejects(resolveAndPin("https://nxdomain.example/"), /DNS lookup failed/);
+  await assert.rejects(resolveAndPin("https://nxdomain.example/"), /dns_lookup_failed/);
 });
 
 test("assertSafeUrl rejects non-http(s) protocols", async () => {
@@ -139,19 +139,47 @@ test("assertSafeUrl rejects non-http(s) protocols", async () => {
     "gopher://example.com/",
     "data:text/html,<script>alert(1)</script>",
   ]) {
-    await assert.rejects(assertSafeUrl(url), /Only http\(s\)/, `${url} should be rejected`);
+    await assert.rejects(assertSafeUrl(url), /unsupported_protocol/, `${url} should be rejected`);
   }
 });
 
 test("assertSafeUrl rejects a malformed URL", async () => {
   const { assertSafeUrl } = await import("@/lib/scraper/ssrf");
-  await assert.rejects(assertSafeUrl("http://"), /Invalid URL/);
+  await assert.rejects(assertSafeUrl("http://"), /invalid_url/);
 });
 
 test("assertSafeUrl rejects a host resolving to a private/metadata IP", async () => {
   const { assertSafeUrl } = await import("@/lib/scraper/ssrf");
   lookupResult = [{ address: "169.254.169.254", family: 4 }];
-  await assert.rejects(assertSafeUrl("https://rebind.example/"), /private\/internal addresses/);
+  await assert.rejects(assertSafeUrl("https://rebind.example/"), /private_address/);
+});
+
+test("assertSafeUrl errors carry reason codes and redacted targets only", async () => {
+  const { assertSafeUrl, resolveAndPin } = await import("@/lib/scraper/ssrf");
+
+  const malformed = "http://exa mple.test/path?token=shortSecret";
+  await assert.rejects(
+    assertSafeUrl(malformed),
+    (err) => {
+      assert.ok(err instanceof Error);
+      assert.match(err.message, /invalid_url/);
+      assert.match(err.message, /\[unparseable-url\]/);
+      assert.doesNotMatch(err.message, /shortSecret|exa mple/);
+      return true;
+    },
+  );
+
+  lookupResult = [{ address: "169.254.169.254", family: 4 }];
+  await assert.rejects(
+    resolveAndPin("https://user:pass@example.com/article?token=shortSecret#frag"),
+    (err) => {
+      assert.ok(err instanceof Error);
+      assert.match(err.message, /private_address/);
+      assert.match(err.message, /https:\/\/example\.com\/article\?\[redacted\]/);
+      assert.doesNotMatch(err.message, /shortSecret|user:pass|frag/);
+      return true;
+    },
+  );
 });
 
 test("assertSafeUrl resolves a public host without throwing", async () => {
