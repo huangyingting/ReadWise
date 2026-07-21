@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import CompleteAssignmentButton from "@/components/teacher/CompleteAssignmentButton";
 import { isAssignmentOverdue } from "@/lib/classroom/overdue";
 import { formatMediumDate } from "@/lib/display-format";
+import { assignmentStatusDisplay } from "@/lib/assignment-status";
 
 type StudentAssignment = Awaited<ReturnType<typeof listAssignmentsForStudent>>[number];
 
@@ -54,6 +55,7 @@ function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
   const due = formatMediumDate(assignment.dueDate);
   const completed = assignment.status === "COMPLETED";
   const overdue = isAssignmentOverdue(assignment.dueDate, assignment.status, new Date());
+  const { label: statusLabel, variant: statusVariant } = assignmentStatusDisplay(assignment.status);
 
   return (
     <li>
@@ -75,12 +77,19 @@ function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
                 {assignment.instructions}
               </p>
             ) : null}
-            {overdue ? (
-              <Badge variant="danger" className="mt-1 w-fit">
-                Overdue
+            <div className="mt-1 flex flex-wrap gap-[var(--space-2)]">
+              <Badge variant={statusVariant} className="w-fit">
+                {statusLabel}
+                {completed && assignment.quizScore != null
+                  ? ` · quiz ${assignment.quizScore}%`
+                  : ""}
               </Badge>
-            ) : null}
-            {completed ? <CompletionBadge quizScore={assignment.quizScore} /> : null}
+              {overdue ? (
+                <Badge variant="danger" className="w-fit">
+                  Overdue
+                </Badge>
+              ) : null}
+            </div>
           </div>
           <CompleteAssignmentButton
             assignmentId={assignment.assignmentId}
@@ -90,14 +99,5 @@ function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
         </CardBody>
       </Card>
     </li>
-  );
-}
-
-function CompletionBadge({ quizScore }: { quizScore: StudentAssignment["quizScore"] }) {
-  return (
-    <Badge variant="success" className="mt-1 w-fit">
-      Completed
-      {quizScore == null ? "" : ` · quiz ${quizScore}%`}
-    </Badge>
   );
 }

@@ -63,9 +63,10 @@ function assignmentSummary(assignment: ClassroomAnalytics["perAssignment"][numbe
       ? ""
       : ` · quiz ${pct(assignment.averageQuizScore)}`;
 
-  return `${assignment.completed}/${assignment.assigned} done · ${pct(
-    assignment.completionRate,
-  )}${quizSummary}`;
+  return (
+    `${assignment.completed} completed · ${assignment.inProgress} in progress · ` +
+    `${assignment.notStarted} not started · ${pct(assignment.completionRate)}${quizSummary}`
+  );
 }
 
 function studentSummary(student: ClassroomAnalytics["perStudent"][number]) {
