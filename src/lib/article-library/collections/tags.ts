@@ -137,7 +137,7 @@ async function persistGeneratedTags(
 ): Promise<TagView[]> {
   const article = await prisma.article.findUnique({
     where: { id: articleId },
-    select: { visibility: true, ownerId: true },
+    select: { visibility: true, ownerId: true, organizationId: true },
   });
   if (!article) return [];
   const scope = tagScopeForArticle(article);
@@ -208,7 +208,7 @@ export async function setArticleTags(
 ): Promise<TagView[] | null> {
   const article = await prisma.article.findUnique({
     where: { id: articleId },
-    select: { visibility: true, ownerId: true },
+    select: { visibility: true, ownerId: true, organizationId: true },
   });
   if (!article) return null;
 

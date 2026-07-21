@@ -69,6 +69,7 @@ test("tagScopeForArticle: PUBLIC article maps to PUBLIC scope with public namesp
   const info = tagScopeForArticle({
     visibility: ArticleVisibility.PUBLIC,
     ownerId: "u1",
+    organizationId: null,
   });
   assert.equal(info.scope, TagScope.PUBLIC);
   assert.equal(info.namespace, PUBLIC_NAMESPACE);
@@ -79,6 +80,7 @@ test("tagScopeForArticle: PRIVATE article maps to PRIVATE scope with owner names
   const info = tagScopeForArticle({
     visibility: ArticleVisibility.PRIVATE,
     ownerId: "user-7",
+    organizationId: null,
   });
   assert.equal(info.scope, TagScope.PRIVATE);
   assert.equal(info.namespace, "user:user-7");
@@ -89,6 +91,7 @@ test("tagScopeForArticle: PRIVATE article with null ownerId uses 'unknown' names
   const info = tagScopeForArticle({
     visibility: ArticleVisibility.PRIVATE,
     ownerId: null,
+    organizationId: null,
   });
   assert.equal(info.scope, TagScope.PRIVATE);
   assert.equal(info.namespace, "user:unknown");
@@ -96,8 +99,19 @@ test("tagScopeForArticle: PRIVATE article with null ownerId uses 'unknown' names
 });
 
 test("tagScopeForArticle: public and private scopes are distinct (no cross-namespace leakage)", () => {
-  const pub = tagScopeForArticle({ visibility: ArticleVisibility.PUBLIC, ownerId: "u1" });
-  const priv = tagScopeForArticle({ visibility: ArticleVisibility.PRIVATE, ownerId: "u1" });
+  const pub = tagScopeForArticle({ visibility: ArticleVisibility.PUBLIC, ownerId: "u1", organizationId: null });
+  const priv = tagScopeForArticle({ visibility: ArticleVisibility.PRIVATE, ownerId: "u1", organizationId: null });
   assert.notEqual(pub.scope, priv.scope);
   assert.notEqual(pub.namespace, priv.namespace);
+});
+
+test("tagScopeForArticle: ORG article maps to ORG scope with org namespace", () => {
+  const info = tagScopeForArticle({
+    visibility: ArticleVisibility.ORG,
+    ownerId: null,
+    organizationId: "org-1",
+  });
+  assert.equal(info.scope, TagScope.ORG);
+  assert.equal(info.namespace, "org:org-1");
+  assert.equal(info.ownerId, null);
 });
