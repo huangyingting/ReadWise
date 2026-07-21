@@ -1522,3 +1522,19 @@ Replaced the single comma-separated tags `Input` with an add/remove **chip** UI.
 - `npm test` → 5434 pass / 0 fail / 238 skipped
 
 PR: targets `main`, closes #1159 (items 1 & 2 already shipped via #1163/#1164 and #1162).
+
+
+### 2026-07-21T03:45:00Z: Global review cycle — 25 issues closed via 16 sequential PRs
+
+**By:** Scribe
+
+**What:** Captured the completed ReadWise global-review cycle. Phase 1 used four parallel read-only review lanes (Tank, Mouse, Morpheus, Trinity) to surface 35 findings, curated into issues #1169–#1193. Phase 2 implemented all 25 issues through 16 squash-merged PRs (#1194–#1209), one PR at a time on the shared working tree. Trunk `main` advanced to `3f9895fe` and all 25 issues closed.
+
+**Decisions:**
+1. Implementation remained strictly sequential because the working tree was shared; only read-only review was parallelized.
+2. Safe merge pattern: `squash --admin --delete-branch` is acceptable only when the sole non-green gate is the systemic 98% native coverage gate lacking `RUN_DB_INTEGRATION`; all six functional gates must be green.
+3. Issue #1189 preserved distinct weak-word thresholds: study-plan `0.4` and recommendation re-exposure `0.5`.
+4. Issue #1207 archive semantics are additive nullable `Classroom.archivedAt` with paired SQLite/PostgreSQL migrations; DELETE hard-deletes only empty classrooms.
+5. Known pre-existing native-runner isolation failure remains out of scope: `tests/server-read-models-runtime.test.ts` can fail under isolated native execution due circular-import/export ordering around `articleAccessContextForUser`, while full suite/CI passes.
+
+**Why:** Provides future agents with the merge, routing, schema, and test-governance constraints established by this global-review implementation wave.

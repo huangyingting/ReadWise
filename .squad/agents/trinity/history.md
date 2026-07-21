@@ -53,3 +53,10 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - Completed #1159 item 3 via PR #1168: replaced comma-separated admin article tags input with design-system chip editing using Badge, IconButton, Input, Button, and Field.
 - Key carry-forward: backend review contract stayed `tags: string[]`; chips dedupe case-insensitively while preserving first-seen casing; no API/catalog change.
 - Repo trunk is main (not dev). Safe-merge pattern used because only the systemic native coverage 98%-line gate was red while functional gates passed. Required commit trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.
+
+## 2026-07-21T03:45:00Z: Global review wave UI/design-system shipped
+
+- Shipped #1185, #1186, #1187, #1188, and #1193 through PRs #1204, #1205, and #1209.
+- Carry-forward patterns: admin member-add client island with focused tests; article-id targeting backfill UI; SLO dashboard surface; fail-closed fetches need explicit error/retry states; admin empty states should include recovery actions; shared `AdminPageHeader` and loading a11y reduce page drift.
+- Coordination lesson: admin UI work should keep business APIs stable while moving recurring page chrome into shared primitives.
+

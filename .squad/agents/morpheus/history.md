@@ -99,3 +99,10 @@ Review comment: https://github.com/huangyingting/ReadWise/pull/967
 **Verification:** All tests pass; all CI green; clock latency 98% improved; highlight onset 95% improved; span completeness 100%
 
 **Status:** Complete
+
+## 2026-07-21T03:45:00Z: Global review wave learning-domain/cross-cutting shipped
+
+- Shipped #1182, #1183, #1184, and #1189 through PRs #1203 and #1206.
+- Carry-forward patterns: placement count guard; progress timezone follows request → profile → UTC; weak-word ratio behavior is centralized but preserves distinct thresholds (`0.4` study-plan vs `0.5` recommendation re-exposure); `lemmaFor` and completion threshold aliases remain for back-compat.
+- Coordination lesson: behavior-preserving refactors should name different domain thresholds separately rather than collapsing them for apparent simplicity.
+

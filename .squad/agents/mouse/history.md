@@ -60,3 +60,10 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 **Outcome:** Cycle 1 merged to dev (c624e56); Cycle 2 independent fix (Switch) approved and merged to main (c7becda); issue closed; span completeness 100% (151→217 articles); clock latency 98% improved
 
 **Status:** Complete; no active blockers for span recovery or primary rAF fix
+
+## 2026-07-21T03:45:00Z: Global review wave data/AI/Prisma/privacy shipped
+
+- Shipped #1175–#1180 and #1192 through PRs #1198, #1199, #1200, #1201, and #1208.
+- Carry-forward patterns: redact URL secrets in import/SSRF failures; keep SQLite/PostgreSQL paired migrations aligned for enums/fulltext indexes; delete orphaned speech blobs while degrading gracefully on persist failure; gate publish on real enrichment; use atomic budget denials; keep claim/reactivation lockstep via shared constants plus tests.
+- Coordination lesson: module-boundary guards and shared constants are preferable to compatibility shims for superseded shapes.
+

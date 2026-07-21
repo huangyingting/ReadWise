@@ -75,3 +75,10 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - Completed three merged mainline tasks as tank-20: #1163/PR #1165 platform-admin Organizations oversight surface; PR #1166 supply-chain lockfile-only brace-expansion HIGH advisory fix; #1164/PR #1167 assignment sub-system end-to-end.
 - Key carry-forward: reuse existing tenant org/member commands and classroom authorization seams; assignment quiz completion is best-effort and server-derived; no schema change was needed for the assignment work.
 - Repo trunk is main (not dev). Safe-merge pattern used because only the systemic native coverage 98%-line gate was red while functional gates passed. Required commit trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.
+
+## 2026-07-21T03:45:00Z: Global review wave backend/auth/tenant/audit/jobs shipped
+
+- Shipped #1169–#1174, #1181, #1190, and #1191 through PRs #1194, #1195, #1196, #1197, #1202, and #1207.
+- Carry-forward patterns: membership-backed `articleAccessContextForUser` with `orgIds`; readable-scope targets and ORG tag namespace; push reminder worker delivery; audit coverage for org/series; classroom archive uses nullable `Classroom.archivedAt`, with hard DELETE only for empty classrooms.
+- Coordination lesson: large keystone PRs stayed sequential under coordinator review because the shared working tree cannot support parallel implementation safely.
+
