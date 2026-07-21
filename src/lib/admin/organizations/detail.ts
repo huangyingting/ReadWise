@@ -51,7 +51,7 @@ export async function getOrganizationDetail(
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
     include: {
-      _count: { select: { memberships: true, classrooms: true } },
+      _count: { select: { memberships: true } },
       memberships: {
         orderBy: [{ role: "asc" }, { createdAt: "asc" }],
         include: {
@@ -59,6 +59,7 @@ export async function getOrganizationDetail(
         },
       },
       classrooms: {
+        where: { archivedAt: null },
         orderBy: { createdAt: "desc" },
         include: {
           teacher: { select: { name: true, email: true } },
@@ -95,7 +96,7 @@ export async function getOrganizationDetail(
     createdAt: org.createdAt,
     updatedAt: org.updatedAt,
     memberCount: org._count.memberships,
-    classroomCount: org._count.classrooms,
+    classroomCount: classrooms.length,
     members,
     classrooms,
   };

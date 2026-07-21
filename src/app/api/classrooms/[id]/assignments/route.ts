@@ -3,7 +3,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, optional, string, nonEmptyString } from "@/lib/validation";
 import { articleAccessContext } from "@/lib/article-library";
 import { createArticleAssignment } from "@/lib/classroom/article-assignments";
-import { requireClassroomManageApi } from "@/lib/tenant-api";
+import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
 
 const assignBody = object({
   articleId: nonEmptyString(200),
@@ -19,7 +19,7 @@ const assignBody = object({
 export const POST = createHandler(
   { params: idParams, body: assignBody },
   async ({ params, body, session }) => {
-    const { classroom } = await requireClassroomManageApi(session, params.id);
+    const { classroom } = await requireActiveClassroomManageApi(session, params.id);
     const result = await createArticleAssignment({
       classroomId: classroom.id,
       organizationId: classroom.orgId,

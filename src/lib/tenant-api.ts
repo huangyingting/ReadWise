@@ -56,3 +56,18 @@ export async function requireClassroomManageApi(
   }
   return { classroom, membership };
 }
+
+export function assertClassroomActive(classroom: Pick<Classroom, "archivedAt">): void {
+  if (classroom.archivedAt) {
+    throw new ApiError(409, "Classroom is archived");
+  }
+}
+
+export async function requireActiveClassroomManageApi(
+  session: Session,
+  classroomId: string,
+): Promise<{ classroom: Classroom; membership: Membership | null }> {
+  const result = await requireClassroomManageApi(session, classroomId);
+  assertClassroomActive(result.classroom);
+  return result;
+}
