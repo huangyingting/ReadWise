@@ -301,6 +301,28 @@ test("reading: progress sync uses request timezone for near-midnight local day",
   assert.equal((view!.readingCompletedAt as Date | null)?.getTime?.(), nearMidnight.getTime());
 });
 
+test("reading: request timezone wins when profile timezone differs near midnight", async () => {
+  const { syncTodayReadingFromProgress } = await importCompletion();
+  profileTimezone = "America/Los_Angeles";
+  const nearMidnight = new Date("2026-06-27T15:30:00Z"); // 2026-06-28 in Tokyo, 2026-06-27 in LA
+  sessionRow = makeRow({
+    localDate: "2026-06-28",
+    timezoneSnapshot: "Asia/Tokyo",
+  });
+
+  const view = await syncTodayReadingFromProgress({
+    userId: "u1",
+    articleId: "a1",
+    percent: 96,
+    completed: false,
+    now: nearMidnight,
+    requestTimezone: "Asia/Tokyo",
+  });
+
+  assert.ok(view);
+  assert.equal(sessionRow.readingCompletedAt instanceof Date, true);
+});
+
 test("reading: below threshold and not completed is a no-op", async () => {
   const { syncTodayReadingFromProgress } = await importCompletion();
   sessionRow = makeRow();

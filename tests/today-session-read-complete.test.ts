@@ -156,3 +156,8 @@ test("rejects a non-string timezone with 400", async () => {
   const res = await POST({ timezone: 123 });
   assert.equal(res.status, 400);
 });
+
+test("rejects an invalid IANA timezone with 400", async () => {
+  const res = await POST({ timezone: "Bogus/Zone" });
+  assert.equal(res.status, 400);
+});

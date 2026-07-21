@@ -900,13 +900,28 @@ function extractQueryParamNames(
   const getterRe = /\bparams\.get\(\s*["'](\w+)["']/g;
   addRegexCaptures(names, getterRe, handlerWindow);
 
+  addTimezoneQueryHelperNames(names, configWindow);
+  addTimezoneQueryHelperNames(names, handlerWindow);
+
   for (const queryWindow of collectQueryConfigWindows(configWindow, fullSource)) {
     addRegexCaptures(names, helperRe, queryWindow);
     addRegexCaptures(names, getterRe, queryWindow);
+    addTimezoneQueryHelperNames(names, queryWindow);
     addQueryParamsFromForwardedHelperCalls(names, queryWindow, fullSource);
   }
 
   return names.size > 0 ? sortedUnique(names) : null;
+}
+
+function addTimezoneQueryHelperNames(names: Set<string>, source: string): void {
+  if (/\bquery\s*:\s*parseOptionalTimezoneQuery\b/.test(source)) {
+    names.add("timezone");
+  }
+  const timezoneHelperRe = /\bparseOptionalTimezoneQuery\s*\(\s*\w+(?:\s*,\s*["'](\w+)["'])?/g;
+  let match: RegExpExecArray | null;
+  while ((match = timezoneHelperRe.exec(source)) !== null) {
+    names.add(match[1] ?? "timezone");
+  }
 }
 
 function collectQueryConfigWindows(configWindow: string, fullSource: string): string[] {

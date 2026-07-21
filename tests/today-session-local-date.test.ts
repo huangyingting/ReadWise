@@ -1,7 +1,7 @@
 /**
  * Today Session — timezone / local-date resolution (#789).
  *
- * Covers the fallback chain: profile tz → request/browser tz → invalid-tz
+ * Covers the fallback chain: request/browser tz → profile tz → invalid-tz
  * fallback → UTC, plus the YYYY-MM-DD local-day bucketing.
  */
 process.env.LOG_LEVEL = "error";
@@ -37,18 +37,18 @@ test("isValidTimezone distinguishes real IANA zones from junk", async () => {
   assert.equal(isValidTimezone(123), false);
 });
 
-test("resolveTimezone prefers profile, then request, then UTC", async () => {
+test("resolveTimezone prefers request, then profile, then UTC", async () => {
   const { resolveTimezone } = await import(
     "@/lib/engagement/today-session/local-date"
   );
-  // Profile wins when valid.
+  // Request wins when valid.
   assert.equal(
-    resolveTimezone("Europe/Paris", "Asia/Tokyo"),
-    "Europe/Paris",
+    resolveTimezone("Asia/Tokyo", "Europe/Paris"),
+    "Asia/Tokyo",
   );
-  // Request used when profile missing/invalid.
-  assert.equal(resolveTimezone(null, "Asia/Tokyo"), "Asia/Tokyo");
-  assert.equal(resolveTimezone("Bad/Zone", "Asia/Tokyo"), "Asia/Tokyo");
+  // Profile used when request missing/invalid.
+  assert.equal(resolveTimezone("Asia/Tokyo", null), "Asia/Tokyo");
+  assert.equal(resolveTimezone("Bad/Zone", "Europe/Paris"), "Europe/Paris");
   // UTC when neither is valid.
   assert.equal(resolveTimezone(null, "also/bad"), "UTC");
   assert.equal(resolveTimezone(undefined, undefined), "UTC");
@@ -69,7 +69,21 @@ test("resolveLocalDate uses profile timezone for the YYYY-MM-DD bucket", async (
   assert.match(res.localDate, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-test("resolveLocalDate falls back to request timezone then UTC", async () => {
+test("resolveLocalDate uses request timezone over profile near midnight", async () => {
+  const { resolveLocalDate } = await import(
+    "@/lib/engagement/today-session/local-date"
+  );
+  profileTimezone = "America/Los_Angeles";
+  const res = await resolveLocalDate({
+    userId: "u1",
+    requestTimezone: "Asia/Tokyo",
+    now: new Date("2026-06-27T15:30:00Z"),
+  });
+  assert.equal(res.timezone, "Asia/Tokyo");
+  assert.equal(res.localDate, "2026-06-28");
+});
+
+test("resolveLocalDate falls back to profile timezone then UTC", async () => {
   const { resolveLocalDate } = await import(
     "@/lib/engagement/today-session/local-date"
   );

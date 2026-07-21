@@ -32,6 +32,7 @@ export interface ProgressViewModel {
 }
 
 type ProgressData = Omit<ProgressViewModel, "hasAnyData" | "sparkLabel">;
+type ProgressViewModelOptions = { timezone?: string | null };
 
 function hasProgressData(analytics: LearnerAnalytics): boolean {
   const {
@@ -52,11 +53,14 @@ function getQuizSparkLabel(quizScoreTrend: number[]): string {
     : "No quiz attempts yet.";
 }
 
-async function loadProgressData(userId: string): Promise<ProgressData> {
+async function loadProgressData(
+  userId: string,
+  opts: ProgressViewModelOptions = {},
+): Promise<ProgressData> {
   const [analytics, heatmapCells, levelHistory, currentLevel, speedStats, fluencyTrend] =
     await Promise.all([
       getLearnerAnalytics(userId),
-      getActivityHeatmap(userId),
+      getActivityHeatmap(userId, { timezone: opts.timezone }),
       getLevelHistory(userId),
       getCurrentLevel(userId),
       getReadingSpeedStats(userId),
@@ -91,8 +95,11 @@ async function recordFluencyTrendViewed({
   });
 }
 
-export async function loadProgressViewModel(userId: string): Promise<ProgressViewModel> {
-  const data = await loadProgressData(userId);
+export async function loadProgressViewModel(
+  userId: string,
+  opts: ProgressViewModelOptions = {},
+): Promise<ProgressViewModel> {
+  const data = await loadProgressData(userId, opts);
   const { analytics } = data;
 
   await recordFluencyTrendViewed({ fluencyTrend: data.fluencyTrend, userId });
