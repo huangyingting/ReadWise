@@ -6,6 +6,11 @@
  * safe category metadata. Admins can list open reports and update their status.
  */
 import { prisma } from "@/lib/prisma";
+import {
+  articleAccessContext,
+  readableArticleWhere,
+  type ArticleAccessUser,
+} from "@/lib/article-library/policy";
 import { ContentReportReason, ContentReportStatus } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
@@ -83,7 +88,7 @@ export type ContentReportRow = {
 // ---------------------------------------------------------------------------
 
 export type CreateContentReportInput = {
-  reporterUserId: string;
+  reporter: ArticleAccessUser;
   articleId: string;
   reason: ContentReportReason;
   /** Optional short note — must not contain raw article text or selected text. */
@@ -104,9 +109,12 @@ function createReportError(
   return { ok: false, error, status };
 }
 
-async function articleExists(articleId: string): Promise<boolean> {
-  const article = await prisma.article.findUnique({
-    where: { id: articleId },
+async function reporterCanReadArticle(
+  articleId: string,
+  reporter: ArticleAccessUser,
+): Promise<boolean> {
+  const article = await prisma.article.findFirst({
+    where: readableArticleWhere(articleAccessContext(reporter), { id: articleId }),
     select: { id: true },
   });
   return Boolean(article);
@@ -137,7 +145,8 @@ async function hasRecentDuplicateReport(
 export async function createContentReport(
   input: CreateContentReportInput,
 ): Promise<CreateContentReportResult> {
-  const { reporterUserId, articleId, reason, note } = input;
+  const { reporter, articleId, reason, note } = input;
+  const reporterUserId = reporter.id ?? "";
 
   if (!reporterUserId) return createReportError("reporterUserId is required", 400);
   if (!articleId) return createReportError("articleId is required", 400);
@@ -146,8 +155,10 @@ export async function createContentReport(
     return createReportError(`note must be at most ${MAX_NOTE_LENGTH} characters`, 400);
   }
 
-  // Verify the article exists.
-  if (!(await articleExists(articleId))) return createReportError("Article not found", 404);
+  // Use the same response for nonexistent and unreadable articles.
+  if (!(await reporterCanReadArticle(articleId, reporter))) {
+    return createReportError("Article not found", 404);
+  }
 
   // Dedup: reject if the same user already reported the same article with the
   // same reason within the dedup window.

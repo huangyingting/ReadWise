@@ -35,7 +35,7 @@ function reportAuditMetadata(reason: ReportReason) {
  */
 export const POST = createHandler({ body: reportBody }, async ({ req, body, session, requestId }) => {
   const result = await createContentReport({
-    reporterUserId: session.user.id,
+    reporter: { id: session.user.id, role: session.user.role },
     articleId: body.articleId,
     reason: body.reason,
     note: body.note ?? null,

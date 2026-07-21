@@ -151,7 +151,7 @@ test("POST /reports creates report and returns 201 with audit", async () => {
   assert.equal(json.ok, true);
   assert.equal(json.reportId, "rpt-new");
   // Verify service received correct args
-  assert.equal(createCallArgs?.reporterUserId, "user-1");
+  assert.deepEqual(createCallArgs?.reporter, { id: "user-1", role: "Reader" });
   assert.equal(createCallArgs?.articleId, "art-1");
   assert.equal(createCallArgs?.reason, "UNSAFE_CONTENT");
   assert.equal(createCallArgs?.note, "Harmful");

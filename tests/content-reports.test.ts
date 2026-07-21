@@ -7,13 +7,26 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { ContentReportReason, ContentReportStatus } from "@prisma/client";
+import {
+  ArticleStatus,
+  ArticleVisibility,
+  ContentReportReason,
+  ContentReportStatus,
+  type Prisma,
+} from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // Prisma mock
 // ---------------------------------------------------------------------------
 
-type MockArticle = { id: string; title: string } | null;
+type MockArticle = {
+  id: string;
+  title: string;
+  status: ArticleStatus;
+  visibility: ArticleVisibility;
+  ownerId: string | null;
+  organizationId: string | null;
+} | null;
 type MockReport = {
   id: string;
   reporterUserId: string;
@@ -29,6 +42,39 @@ type MockReport = {
 let mockArticle: MockArticle = null;
 let mockReports: MockReport[] = [];
 let mockFindFirst: MockReport | null = null;
+
+function article(overrides: Partial<NonNullable<MockArticle>> = {}): NonNullable<MockArticle> {
+  return {
+    id: "article-1",
+    title: "Test Article",
+    status: ArticleStatus.PUBLISHED,
+    visibility: ArticleVisibility.PUBLIC,
+    ownerId: null,
+    organizationId: null,
+    ...overrides,
+  };
+}
+
+function matchesArticleWhere(
+  articleRow: NonNullable<MockArticle>,
+  where: Prisma.ArticleWhereInput = {},
+): boolean {
+  const record = articleRow as unknown as Record<string, unknown>;
+  const clauses = where as Record<string, unknown>;
+  const and = clauses.AND;
+  if (Array.isArray(and) && !and.every((clause) => matchesArticleWhere(articleRow, clause as Prisma.ArticleWhereInput))) {
+    return false;
+  }
+  const or = clauses.OR;
+  if (Array.isArray(or) && !or.some((clause) => matchesArticleWhere(articleRow, clause as Prisma.ArticleWhereInput))) {
+    return false;
+  }
+  for (const [key, expected] of Object.entries(clauses)) {
+    if (key === "AND" || key === "OR") continue;
+    if (record[key] !== expected) return false;
+  }
+  return true;
+}
 
 function makeReport(overrides: Partial<MockReport> = {}): MockReport {
   return {
@@ -47,8 +93,8 @@ function makeReport(overrides: Partial<MockReport> = {}): MockReport {
 
 before(() => {
   const article = {
-    findUnique: async (args: { where: { id: string }; select?: Record<string, boolean> }) => {
-      if (!mockArticle || mockArticle.id !== args.where.id) return null;
+    findFirst: async (args: { where?: Prisma.ArticleWhereInput; select?: Record<string, boolean> }) => {
+      if (!mockArticle || !matchesArticleWhere(mockArticle, args.where)) return null;
       return args.select ? { id: mockArticle.id } : mockArticle;
     },
   };
@@ -109,7 +155,7 @@ before(() => {
 });
 
 beforeEach(() => {
-  mockArticle = { id: "article-1", title: "Test Article" };
+  mockArticle = article();
   mockReports = [];
   mockFindFirst = null;
 });
@@ -121,7 +167,7 @@ beforeEach(() => {
 test("createContentReport — creates report for a valid article", async () => {
   const { createContentReport } = await import("@/lib/moderation/reports");
   const result = await createContentReport({
-    reporterUserId: "user-1",
+    reporter: { id: "user-1", role: "Reader" },
     articleId: "article-1",
     reason: ContentReportReason.UNSAFE_CONTENT,
     note: null,
@@ -134,7 +180,7 @@ test("createContentReport — creates report for a valid article", async () => {
 test("createContentReport — stores only articleId and reason (no article text)", async () => {
   const { createContentReport } = await import("@/lib/moderation/reports");
   await createContentReport({
-    reporterUserId: "user-1",
+    reporter: { id: "user-1", role: "Reader" },
     articleId: "article-1",
     reason: ContentReportReason.RIGHTS_COPYRIGHT,
     note: null,
@@ -148,7 +194,7 @@ test("createContentReport — stores only articleId and reason (no article text)
 test("createContentReport — accepts optional note under 500 chars", async () => {
   const { createContentReport } = await import("@/lib/moderation/reports");
   const result = await createContentReport({
-    reporterUserId: "user-1",
+    reporter: { id: "user-1", role: "Reader" },
     articleId: "article-1",
     reason: ContentReportReason.OTHER,
     note: "Short note.",
@@ -160,7 +206,7 @@ test("createContentReport — accepts optional note under 500 chars", async () =
 test("createContentReport — rejects note over 500 chars", async () => {
   const { createContentReport } = await import("@/lib/moderation/reports");
   const result = await createContentReport({
-    reporterUserId: "user-1",
+    reporter: { id: "user-1", role: "Reader" },
     articleId: "article-1",
     reason: ContentReportReason.OTHER,
     note: "x".repeat(501),
@@ -176,12 +222,55 @@ test("createContentReport — returns 404 when article not found", async () => {
   const { createContentReport } = await import("@/lib/moderation/reports");
   mockArticle = null;
   const result = await createContentReport({
-    reporterUserId: "user-1",
+    reporter: { id: "user-1", role: "Reader" },
     articleId: "missing-article",
     reason: ContentReportReason.EXTRACTION_BROKEN,
   });
   assert.ok(!result.ok);
   if (!result.ok) assert.equal(result.status, 404);
+});
+
+test("createContentReport — returns uniform 404 for unreadable private and draft articles", async () => {
+  const { createContentReport } = await import("@/lib/moderation/reports");
+  mockArticle = article({
+    id: "private-article",
+    visibility: ArticleVisibility.PRIVATE,
+    ownerId: "other-user",
+  });
+  const privateResult = await createContentReport({
+    reporter: { id: "user-1", role: "Reader" },
+    articleId: "private-article",
+    reason: ContentReportReason.EXTRACTION_BROKEN,
+  });
+  assert.deepEqual(privateResult, { ok: false, error: "Article not found", status: 404 });
+
+  mockArticle = article({
+    id: "draft-article",
+    status: ArticleStatus.DRAFT,
+    visibility: ArticleVisibility.PUBLIC,
+  });
+  const draftResult = await createContentReport({
+    reporter: { id: "user-1", role: "Reader" },
+    articleId: "draft-article",
+    reason: ContentReportReason.EXTRACTION_BROKEN,
+  });
+  assert.deepEqual(draftResult, { ok: false, error: "Article not found", status: 404 });
+});
+
+test("createContentReport — allows a reader to report an owned private article", async () => {
+  const { createContentReport } = await import("@/lib/moderation/reports");
+  mockArticle = article({
+    id: "owned-private",
+    visibility: ArticleVisibility.PRIVATE,
+    ownerId: "user-1",
+  });
+  const result = await createContentReport({
+    reporter: { id: "user-1", role: "Reader" },
+    articleId: "owned-private",
+    reason: ContentReportReason.EXTRACTION_BROKEN,
+  });
+  assert.ok(result.ok);
+  assert.equal(mockReports.length, 1);
 });
 
 test("createContentReport — deduplicates within 1-hour window (returns 429)", async () => {
@@ -191,7 +280,7 @@ test("createContentReport — deduplicates within 1-hour window (returns 429)", 
     reporterUserId: "user-1",
   });
   const result = await createContentReport({
-    reporterUserId: "user-1",
+    reporter: { id: "user-1", role: "Reader" },
     articleId: "article-1",
     reason: ContentReportReason.UNSAFE_CONTENT,
   });
@@ -202,7 +291,7 @@ test("createContentReport — deduplicates within 1-hour window (returns 429)", 
 test("createContentReport — rejects invalid reason", async () => {
   const { createContentReport } = await import("@/lib/moderation/reports");
   const result = await createContentReport({
-    reporterUserId: "user-1",
+    reporter: { id: "user-1", role: "Reader" },
     articleId: "article-1",
     reason: "not_a_real_reason" as ContentReportReason,
   });

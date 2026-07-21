@@ -77,21 +77,33 @@ function publicTagScopeInfo(): TagScopeInfo {
   return { scope: TagScope.PUBLIC, ownerId: null, namespace: PUBLIC_NAMESPACE };
 }
 
+function orgTagScopeInfo(orgId: string | null): TagScopeInfo {
+  return {
+    scope: TagScope.ORG,
+    ownerId: null,
+    namespace: namespaceFor(TagScope.ORG, null, orgId),
+  };
+}
+
 /**
  * Derives the tag scope, owner, and namespace for an article based on its
  * visibility.
  *
  * - PRIVATE article → `PRIVATE` scope, owner-namespaced (`user:<ownerId>`)
- * - All other articles → `PUBLIC` scope, global namespace (`"public"`)
+ * - ORG article → `ORG` scope, org-namespaced (`org:<orgId>`)
+ * - PUBLIC/UNLISTED article → `PUBLIC` scope, global namespace (`"public"`)
  *
  * This mapping determines which tags an article may create and ensures that
  * private-import tags cannot appear in public tag pages or public counts.
  */
 export function tagScopeForArticle(
-  article: Pick<Article, "visibility" | "ownerId">,
+  article: Pick<Article, "visibility" | "ownerId" | "organizationId">,
 ): TagScopeInfo {
   if (article.visibility === ArticleVisibility.PRIVATE) {
     return privateTagScopeInfo(article.ownerId);
+  }
+  if (article.visibility === ArticleVisibility.ORG) {
+    return orgTagScopeInfo(article.organizationId);
   }
   return publicTagScopeInfo();
 }
