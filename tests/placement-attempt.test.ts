@@ -77,6 +77,15 @@ test("rejects invalid counts before checking passage eligibility", async () => {
   assert.deepEqual(events, []);
 });
 
+test("rejects zero-question non-skip attempts before checking passage eligibility", async () => {
+  article = null;
+  const result = await submit({ correctCount: 0, totalCount: 0 });
+
+  assert.deepEqual(result, { ok: false, reason: "invalid-counts" });
+  assert.deepEqual(upserts, []);
+  assert.deepEqual(events, []);
+});
+
 test("rejects an article outside the public library without writing", async () => {
   article = null;
   const result = await submit();
@@ -124,7 +133,12 @@ test("preserves scoring guards and recommendation endpoints", async () => {
 });
 
 test("skip and retake upsert the same learner row with current semantics", async () => {
-  const result = await submit({ skipped: true, attempt: "retake" });
+  const result = await submit({
+    correctCount: 0,
+    totalCount: 0,
+    skipped: true,
+    attempt: "retake",
+  });
 
   assert.deepEqual(result, { ok: true, recommendedLevel: "B1", skipped: true });
   assert.equal(upserts.length, 1);
@@ -136,8 +150,8 @@ test("skip and retake upsert the same learner row with current semantics", async
     passageArticleId: "article-1",
     seedLevel: "B1",
     recommendedLevel: "B1",
-    questionCount: 5,
-    correctCount: 4,
+    questionCount: 0,
+    correctCount: 0,
     lookupCount: 3,
     skipped: true,
     attempt: "retake",

@@ -12,6 +12,7 @@ import { getPublicListableArticleById } from "@/lib/article-library";
 import { ANALYTICS_EVENT_TYPES, recordEvent } from "@/lib/analytics/events";
 import { prisma } from "@/lib/prisma";
 import type { PlacementSeedLevel } from "./placement";
+import { validateCountScore } from "./practice-attempts";
 
 export type PlacementAttemptKind = "initial" | "retake";
 
@@ -67,12 +68,24 @@ function recommendedLevelFor(
   ];
 }
 
+function hasValidPlacementCounts(input: SubmitPlacementAttemptInput): boolean {
+  try {
+    if (input.skipped === true && input.totalCount === 0 && input.correctCount === 0) {
+      return true;
+    }
+    validateCountScore(input.correctCount, input.totalCount);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Submits one initial or retake Placement attempt for a learner. */
 export async function submitPlacementAttempt(
   userId: string,
   input: SubmitPlacementAttemptInput,
 ): Promise<PlacementSubmissionResult> {
-  if (input.correctCount > input.totalCount) {
+  if (!hasValidPlacementCounts(input)) {
     return { ok: false, reason: "invalid-counts" };
   }
 

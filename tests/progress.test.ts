@@ -24,6 +24,7 @@ type Row = {
 let row: Row | null = null;
 /** When set, the next create() throws P2002 after a concurrent writer wins. */
 let concurrentCreatePercent: number | null = null;
+let activityCalls: Array<{ userId: string; articleId: string; timezone?: string }> = [];
 
 function makeRow(data: { userId: string; articleId: string; percent: number; completed: boolean; completedAt: Date | null }): Row {
   const now = new Date();
@@ -32,7 +33,15 @@ function makeRow(data: { userId: string; articleId: string; percent: number; com
 
 before(() => {
   mock.module("@/lib/engagement/activity", {
-    namedExports: { recordReadingActivity: async () => {} },
+    namedExports: {
+      recordReadingActivity: async (
+        userId: string,
+        articleId: string,
+        timezone?: string,
+      ) => {
+        activityCalls.push({ userId, articleId, timezone });
+      },
+    },
   });
   mock.module("@/lib/learning/reading-exposure", {
     namedExports: { recordReadingWordExposures: async () => 0 },
@@ -90,6 +99,7 @@ before(() => {
 beforeEach(() => {
   row = null;
   concurrentCreatePercent = null;
+  activityCalls = [];
 });
 
 // ---- forward-only / sticky semantics ------------------------------------
@@ -100,6 +110,30 @@ test("saveProgress creates a new row on first write", async () => {
   assert.equal(result.percent, 42);
   assert.equal(result.completed, false);
   assert.equal(result.completedAt, null);
+});
+
+test("saveProgress passes an optional request timezone to activity recording", async () => {
+  const { saveProgress } = await import("@/lib/engagement/progress");
+  await saveProgress("u1", "a1", 42, { timezone: "Asia/Tokyo" });
+
+  assert.deepEqual(activityCalls, [
+    { userId: "u1", articleId: "a1", timezone: "Asia/Tokyo" },
+  ]);
+});
+
+test("progress body accepts valid IANA timezone and rejects invalid timezone", async () => {
+  const { progressBody } = await import("@/lib/reader/schemas");
+
+  assert.deepEqual(progressBody({ percent: 25 }), {
+    ok: true,
+    value: { percent: 25, timezone: undefined },
+  });
+  assert.deepEqual(progressBody({ percent: 25, timezone: "America/Los_Angeles" }), {
+    ok: true,
+    value: { percent: 25, timezone: "America/Los_Angeles" },
+  });
+  const invalid = progressBody({ percent: 25, timezone: "Bogus/Zone" });
+  assert.equal(invalid.ok, false);
 });
 
 test("saveProgress never lowers the stored percent (forward-only)", async () => {

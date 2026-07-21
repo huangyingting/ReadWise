@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { clamp01 } from "./primitives";
 import { getSkillProfile } from "./skill-mastery";
 import { coachMemorySkillConfidences } from "./coach-memory";
+import { lemmaFor } from "./word-mastery";
 import { SKILLS, type Skill, type SkillSummary } from "./types";
 import {
   getAdaptiveLevelRecommendation,
@@ -299,9 +300,9 @@ export async function gatherStudyDiagnostics(
     skillProfile,
     coachConfidences,
     level,
-    weakCount,
+    savedWordsForWeakness,
+    weakWordRows,
     dueCount,
-    totalSaved,
     lowCount,
     assessedCount,
     quizAgg,
@@ -310,13 +311,17 @@ export async function gatherStudyDiagnostics(
     getSkillProfile(userId),
     coachMemorySkillConfidences(userId, now),
     getAdaptiveLevelRecommendation(userId),
-    prisma.wordMastery.count({
+    prisma.savedWord.findMany({
+      where: { userId },
+      select: { word: true },
+    }),
+    prisma.wordMastery.findMany({
       where: { userId, familiarity: { lt: WEAK_WORD_FAMILIARITY } },
+      select: { lemma: true },
     }),
     prisma.savedWord.count({
       where: { userId, OR: [{ dueAt: null }, { dueAt: { lte: now } }] },
     }),
-    prisma.savedWord.count({ where: { userId } }),
     prisma.articleMastery.count({
       where: { userId, comprehensionScore: { lt: LOW_COMPREHENSION } },
     }),
@@ -339,6 +344,11 @@ export async function gatherStudyDiagnostics(
   // latest snapshot. When memory is empty (cold start), fall back to
   // SkillMastery so existing behaviour is unchanged.
   const skills = applyCoachMemoryToSkills(skillProfile, coachConfidences);
+  const totalSaved = savedWordsForWeakness.length;
+  const weakCount = countWeakSavedWords(
+    savedWordsForWeakness as SavedWordForWeakness[],
+    weakWordRows as WeakWordMasteryRow[],
+  );
 
   return {
     skills,
@@ -401,6 +411,25 @@ type StudyPlanSnapshotRow = {
   items: unknown;
   sourceVersion: string;
 };
+
+type SavedWordForWeakness = { word: string };
+type WeakWordMasteryRow = { lemma: string };
+
+function countWeakSavedWords(
+  savedWords: SavedWordForWeakness[],
+  weakRows: WeakWordMasteryRow[],
+): number {
+  if (savedWords.length === 0 || weakRows.length === 0) return 0;
+  const weakLemmas = new Set(weakRows.map((row) => row.lemma));
+  let weakCount = 0;
+  for (const savedWord of savedWords) {
+    const lemma = lemmaFor(savedWord.word);
+    if (lemma && weakLemmas.has(lemma)) {
+      weakCount += 1;
+    }
+  }
+  return weakCount;
+}
 
 function snapshotToStudyPlan(row: StudyPlanSnapshotRow): StudyPlanHistoryEntry {
   return {
