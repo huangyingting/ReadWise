@@ -6,6 +6,7 @@ import { CLASSROOM_ROLES } from "@/lib/rbac";
 import { addClassroomMember } from "@/lib/classroom";
 import { requireActiveClassroomManageApi, requireClassroomManageApi } from "@/lib/tenant-api";
 import { getMembership } from "@/lib/org/queries";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const CREATED_RESPONSE_INIT = { status: 201 } as const;
 const DEFAULT_CLASSROOM_ROLE = "Student" satisfies ClassroomRole;
@@ -44,14 +45,24 @@ function classroomMemberCreatedResponse(member: ClassroomMember) {
  */
 export const POST = createHandler(
   { params: idParams, body: addClassroomMemberBody },
-  async ({ params, body, session }) => {
+  async ({ req, params, body, session, requestId }) => {
     const { classroom } = await requireClassroomMemberManagement(session, params.id);
     await requireTargetOrgMembership(body.userId, classroom.orgId);
+    const role = classroomRoleOrDefault(body.role);
     const member = await addClassroomMember(
       params.id,
       body.userId,
-      classroomRoleOrDefault(body.role),
+      role,
     );
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.classroomMemberAdd,
+      targetType: "classroom_member",
+      targetId: body.userId,
+      metadata: { classroomId: params.id, orgId: classroom.orgId, targetUserId: body.userId, role },
+    });
     return classroomMemberCreatedResponse(member);
   },
 );

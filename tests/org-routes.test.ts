@@ -52,6 +52,12 @@ let removeMemberResult: { ok: true } | { ok: false; status: number; error: strin
 let updateMemberRoleArgs: { orgId: string; memberId: string; role: string } | null = null;
 let removeMemberArgs: { orgId: string; memberId: string } | null = null;
 let addMemberArgs: { orgId: string; userId: string; role: string } | null = null;
+let auditCalls: Array<{
+  action: string;
+  targetType: string;
+  targetId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}> = [];
 
 const ORG_MEMBERS_MANAGE_CAPABILITY = "org.members.manage";
 
@@ -129,6 +135,26 @@ before(() => {
       getClassroom: async () => null,
     },
   });
+  mock.module("@/lib/security/audit", {
+    namedExports: {
+      AUDIT_ACTIONS: {
+        securityAdminAccessDenied: "security.admin_access_denied",
+        orgMemberAdd: "org.member.add",
+        orgMemberRoleUpdate: "org.member.role_update",
+        orgMemberRemove: "org.member.remove",
+      },
+      auditRequestInfo: () => ({ ipAddress: null, userAgent: null }),
+      tryRecordAuditLog: async () => {},
+      recordAuditFromRequest: async (input: {
+        action: string;
+        targetType: string;
+        targetId?: string | null;
+        metadata?: Record<string, unknown> | null;
+      }) => {
+        auditCalls.push(input);
+      },
+    },
+  });
 });
 
 beforeEach(() => {
@@ -152,6 +178,7 @@ beforeEach(() => {
   updateMemberRoleArgs = null;
   removeMemberArgs = null;
   addMemberArgs = null;
+  auditCalls = [];
 });
 
 async function getOrgs() {
@@ -305,6 +332,13 @@ test("POST /api/orgs/[id]/members returns 201 with new membership on success", a
   assert.equal(body.membership.id, "mem1");
   assert.deepEqual(addMemberArgs, { orgId: "org-1", userId: "u2", role: "Member" });
   assert.equal(updateMemberRoleArgs, null);
+  assert.equal(auditCalls.at(-1)?.action, "org.member.add");
+  assert.equal(auditCalls.at(-1)?.targetType, "org_membership");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    orgId: "org-1",
+    targetUserId: "u2",
+    role: "Member",
+  });
 });
 
 test("POST /api/orgs/[id]/members delegates existing membership role changes through the guarded command", async () => {
@@ -331,6 +365,13 @@ test("POST /api/orgs/[id]/members delegates existing membership role changes thr
   assert.equal(body.membership.role, "Teacher");
   assert.deepEqual(updateMemberRoleArgs, { orgId: "org-1", memberId: "u2", role: "Teacher" });
   assert.equal(addMemberArgs, null);
+  assert.equal(auditCalls.at(-1)?.action, "org.member.role_update");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    orgId: "org-1",
+    targetUserId: "u2",
+    role: "Teacher",
+    previousRole: "Member",
+  });
 });
 
 test("POST /api/orgs/[id]/members preserves the last-OrgAdmin demotion guard for existing memberships", async () => {
@@ -409,6 +450,12 @@ test("PATCH /api/orgs/[id]/members/[memberId] returns 200 on success", async () 
   assert.equal(body.ok, true);
   assert.equal(body.role, "Teacher");
   assert.deepEqual(updateMemberRoleArgs, { orgId: "org-1", memberId: "u2", role: "Teacher" });
+  assert.equal(auditCalls.at(-1)?.action, "org.member.role_update");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    orgId: "org-1",
+    targetUserId: "u2",
+    role: "Teacher",
+  });
 });
 
 // ===========================================================================
@@ -447,4 +494,9 @@ test("DELETE /api/orgs/[id]/members/[memberId] returns 200 on success", async ()
   const body = (await res.json()) as { ok: boolean };
   assert.equal(body.ok, true);
   assert.deepEqual(removeMemberArgs, { orgId: "org-1", memberId: "u2" });
+  assert.equal(auditCalls.at(-1)?.action, "org.member.remove");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    orgId: "org-1",
+    targetUserId: "u2",
+  });
 });

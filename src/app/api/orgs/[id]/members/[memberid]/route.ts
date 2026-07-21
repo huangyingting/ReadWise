@@ -6,6 +6,7 @@ import { object, oneOf, nonEmptyString } from "@/lib/validation";
 import { CAPABILITIES, MEMBERSHIP_ROLES } from "@/lib/rbac";
 import { removeMember, updateMemberRole } from "@/lib/org";
 import { requireOrgCapabilityApi } from "@/lib/tenant-api";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const memberParams = object({
   id: nonEmptyString(200),
@@ -25,20 +26,38 @@ async function requireMemberManagement(
 
 export const PATCH = createHandler(
   { params: memberParams, body: updateRoleBody },
-  async ({ params, body, session }) => {
+  async ({ req, params, body, session, requestId }) => {
     await requireMemberManagement(session, params.id);
     const result = await updateMemberRole(params.id, params.memberid, body.role);
     throwIfFailed(result);
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.orgMemberRoleUpdate,
+      targetType: "org_membership",
+      targetId: params.memberid,
+      metadata: { orgId: params.id, targetUserId: params.memberid, role: result.role },
+    });
     return NextResponse.json({ ok: true, role: result.role });
   },
 );
 
 export const DELETE = createHandler(
   { params: memberParams },
-  async ({ params, session }) => {
+  async ({ req, params, session, requestId }) => {
     await requireMemberManagement(session, params.id);
     const result = await removeMember(params.id, params.memberid);
     throwIfFailed(result);
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.orgMemberRemove,
+      targetType: "org_membership",
+      targetId: params.memberid,
+      metadata: { orgId: params.id, targetUserId: params.memberid },
+    });
     return NextResponse.json({ ok: true });
   },
 );

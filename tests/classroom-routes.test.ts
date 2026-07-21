@@ -329,6 +329,10 @@ before(() => {
         classroomArchive: "classroom.archive",
         classroomUnarchive: "classroom.unarchive",
         classroomDelete: "classroom.delete",
+        classroomMemberAdd: "classroom.member.add",
+        classroomMemberRemove: "classroom.member.remove",
+        assignmentUpdate: "assignment.update",
+        assignmentDelete: "assignment.delete",
       },
       auditRequestInfo: () => ({ ipAddress: null, userAgent: null }),
       tryRecordAuditLog: async () => {},
@@ -909,6 +913,14 @@ test("POST /api/classrooms/[id]/members returns 201 and new member on success", 
   const body = await res.json() as { ok: boolean; member: { id: string } };
   assert.equal(body.ok, true);
   assert.equal(body.member.id, "mem1");
+  assert.equal(auditCalls.at(-1)?.action, "classroom.member.add");
+  assert.equal(auditCalls.at(-1)?.targetType, "classroom_member");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    classroomId: "c1",
+    orgId: "org-1",
+    targetUserId: "u2",
+    role: "Student",
+  });
 });
 
 // ===========================================================================
@@ -964,6 +976,12 @@ test("DELETE /api/classrooms/[id]/members/[userId] returns 200 and removes the m
   const body = await res.json() as { ok: boolean };
   assert.equal(body.ok, true);
   assert.deepEqual(removeClassroomMemberCalls, [{ classroomId: "c1", userId: "u2" }]);
+  assert.equal(auditCalls.at(-1)?.action, "classroom.member.remove");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    classroomId: "c1",
+    orgId: "org-1",
+    targetUserId: "u2",
+  });
 });
 
 // ===========================================================================
@@ -1080,6 +1098,11 @@ test("DELETE /api/assignments/[id] returns 200 and deletes assignment on success
   const body = await res.json() as { ok: boolean };
   assert.equal(body.ok, true);
   assert.deepEqual(deleteAssignmentCalls, ["asgn1"]);
+  assert.equal(auditCalls.at(-1)?.action, "assignment.delete");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    assignmentId: "asgn1",
+    classroomId: "c1",
+  });
 });
 
 // ===========================================================================
@@ -1147,6 +1170,13 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
       },
     },
   ]);
+  assert.equal(auditCalls.at(-1)?.action, "assignment.update");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    assignmentId: "asgn1",
+    classroomId: "c1",
+    changed: { dueDate: true, instructions: true },
+  });
+  assert.equal(JSON.stringify(auditCalls.at(-1)?.metadata).includes("Focus on the intro"), false);
 });
 
 test("PATCH /api/assignments/[id] returns 400 when the due date is invalid", async () => {
