@@ -16,6 +16,7 @@
  * Public API:
  *   - {@link isSensitiveMetadataKey}     — key-name classifier
  *   - {@link redactSensitiveValue}       — string PII/token scrubber
+ *   - {@link redactUrlForLog}            — URL credential/query scrubber
  *   - {@link redactSensitiveObject}      — flat object redactor (error context, etc.)
  *   - {@link safeMetadataForPersistence} — recursive object sanitizer (audit, ledger, etc.)
  */
@@ -49,6 +50,7 @@ const MAX_SAFE_DEPTH = 3;
 // Global-flag regexes are safe with replace() — lastIndex resets after each call.
 const EMAIL_SCRUB_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
 const TOKEN_SCRUB_RE = /\b[A-Za-z0-9_-]{24,}\b/g;
+const URL_SCRUB_RE = /\bhttps?:\/\/[^\s"'<>]+/gi;
 
 // ── Core classifiers ──────────────────────────────────────────────────────────
 
@@ -58,7 +60,28 @@ export function isSensitiveMetadataKey(key: string): boolean {
 }
 
 /**
- * Scrub a free-text string: mask embedded email addresses as "[email]" and
+ * Renders any URL as a secret-free string safe for logs and error messages:
+ * userinfo, the entire query string, and the fragment are removed. Returns a
+ * fixed placeholder when the input cannot be parsed (so a malformed,
+ * credential-bearing string is never echoed verbatim).
+ */
+export function redactUrlForLog(rawUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return "[unparseable-url]";
+  }
+  url.username = "";
+  url.password = "";
+  url.hash = "";
+  const query = url.search.length > 0 ? "?[redacted]" : "";
+  return `${url.protocol}//${url.host}${url.pathname}${query}`;
+}
+
+/**
+ * Scrub a free-text string: redact embedded http(s) URLs with
+ * {@link redactUrlForLog}, mask embedded email addresses as "[email]", and
  * long token-like strings (API keys, JWT segments, bearer tokens) as "[token]".
  *
  * Does NOT truncate — callers apply their own length limits. Does NOT replace
@@ -67,6 +90,7 @@ export function isSensitiveMetadataKey(key: string): boolean {
  */
 export function redactSensitiveValue(value: string): string {
   return value
+    .replace(URL_SCRUB_RE, (match) => redactUrlForLog(match))
     .replace(EMAIL_SCRUB_RE, EMAIL_REDACTED)
     .replace(TOKEN_SCRUB_RE, TOKEN_REDACTED);
 }

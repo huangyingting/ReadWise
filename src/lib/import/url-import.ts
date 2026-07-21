@@ -2,7 +2,7 @@ import type { Session } from "next-auth";
 import { ApiError } from "@/lib/errors/api-error";
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus, Prisma } from "@prisma/client";
-import { assertSafeUrl } from "@/lib/scraper/ssrf";
+import { assertSafeUrl, ssrfFailureDetails } from "@/lib/scraper/ssrf";
 import { scrapeUrl } from "@/lib/scraper";
 import type { ScrapedArticle } from "@/lib/scraper/types";
 import { heuristicDifficulty } from "@/lib/difficulty";
@@ -144,16 +144,16 @@ export async function importArticleFromUrl(
   try {
     await deps.assertSafeUrl(rawUrl);
   } catch (err) {
-    const message = errorMessage(err);
+    const blocked = ssrfFailureDetails(err, rawUrl);
     deps.recordSecurityEvent({
       type: SECURITY_EVENT_TYPES.importBlocked,
       severity: "high",
       route: "/api/articles/import",
       actorId: userId,
       ip: clientIp(req),
-      meta: { reason: "ssrf_blocked", error: message },
+      meta: { reason: blocked.reason, target: blocked.target },
     });
-    throw new ApiError(422, `Invalid or unsafe URL: ${message}`);
+    throw new ApiError(422, `Invalid or unsafe URL (reason: ${blocked.reason})`);
   }
 
   // De-dupe BEFORE scraping/creating so re-importing never consumes quota.

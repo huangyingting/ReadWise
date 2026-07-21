@@ -132,6 +132,77 @@ test("URL import rethrows non-P2002 transaction failures", async () => {
   );
 });
 
+test("URL import records SSRF reason codes with only redacted URL targets", async () => {
+  const { importArticleFromUrl } = await import("@/lib/import/url-import");
+  const { SsrfError } = await import("@/lib/scraper/ssrf");
+  const rawUrl =
+    "https://user:pass@example.com/private?token=shortSecret&X-Amz-Credential=cred";
+  let securityMeta: Record<string, unknown> | undefined;
+
+  await assert.rejects(
+    () =>
+      importArticleFromUrl({
+        rawUrl,
+        userId: "user-1",
+        req,
+        session,
+        requestId: "request-ssrf",
+        deps: deps({
+          assertSafeUrl: async (url) => {
+            throw new SsrfError("private_address", url);
+          },
+          recordSecurityEvent: (evt) => {
+            securityMeta = evt.meta;
+          },
+        }),
+      }),
+    (err) => {
+      assert.ok(err instanceof Error);
+      assert.equal(err.message, "Invalid or unsafe URL (reason: private_address)");
+      assert.doesNotMatch(err.message, /shortSecret|X-Amz-Credential|user:pass/);
+      return true;
+    },
+  );
+
+  assert.deepEqual(securityMeta, {
+    reason: "private_address",
+    target: "https://example.com/private?[redacted]",
+  });
+  assert.doesNotMatch(JSON.stringify(securityMeta), /shortSecret|X-Amz-Credential|user:pass/);
+});
+
+test("URL import collapses unexpected SSRF failures to a controlled reason", async () => {
+  const { importArticleFromUrl } = await import("@/lib/import/url-import");
+  const rawUrl = "https://example.com/import?token=shortSecret";
+  let securityMeta: Record<string, unknown> | undefined;
+
+  await assert.rejects(
+    () =>
+      importArticleFromUrl({
+        rawUrl,
+        userId: "user-1",
+        req,
+        session,
+        requestId: "request-ssrf-unknown",
+        deps: deps({
+          assertSafeUrl: async () => {
+            throw new Error(`legacy failure: ${rawUrl}`);
+          },
+          recordSecurityEvent: (evt) => {
+            securityMeta = evt.meta;
+          },
+        }),
+      }),
+    /Invalid or unsafe URL \(reason: unsafe_url\)/,
+  );
+
+  assert.deepEqual(securityMeta, {
+    reason: "unsafe_url",
+    target: "https://example.com/import?[redacted]",
+  });
+  assert.doesNotMatch(JSON.stringify(securityMeta), /shortSecret/);
+});
+
 test("URL import succeeds when deterministic difficulty persistence fails", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
 

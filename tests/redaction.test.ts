@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 // Canonical import (Phase 1 — #676 canonical location)
 import {
   isSensitiveMetadataKey,
+  redactUrlForLog,
   redactSensitiveValue,
   redactSensitiveObject,
   safeMetadataForPersistence,
@@ -160,6 +161,22 @@ test("redactSensitiveValue: masks both email and token in a single string", () =
   assert.doesNotMatch(out, /ABCDEF0123456789/);
 });
 
+test("redactUrlForLog: strips userinfo, query strings, and fragments", () => {
+  const out = redactUrlForLog(
+    "https://user:pass@example.com/article/path?token=shortSecret&X-Amz-Credential=cred#section",
+  );
+  assert.equal(out, "https://example.com/article/path?[redacted]");
+  assert.doesNotMatch(out, /user|pass|shortSecret|X-Amz-Credential|section/);
+});
+
+test("redactSensitiveValue: redacts URL-shaped secrets under generic strings", () => {
+  const out = redactSensitiveValue(
+    "Invalid URL: https://user:pass@example.com/import?token=shortSecret",
+  );
+  assert.equal(out, "Invalid URL: https://example.com/import?[redacted]");
+  assert.doesNotMatch(out, /user:pass|shortSecret/);
+});
+
 // ── SENSITIVE_KEY_RE (exported for analytics consumers) ──────────────────────
 
 test("SENSITIVE_KEY_RE is a single canonical regex for all three paths", () => {
@@ -227,6 +244,19 @@ test("errors: scrubContext now redacts email, url, key, pass, pwd keys", async (
   assert.equal(out?.pwd, "[redacted]", "pwd key must be redacted in errors");
   assert.equal(out?.count, 3);
   assert.equal(out?.action, "translate");
+});
+
+test("errors: scrubContext redacts raw URLs even under non-sensitive error keys", async () => {
+  const { scrubContext } = await import("@/lib/observability/errors");
+
+  const out = scrubContext({
+    error: "Invalid URL: https://user:pass@example.com/import?token=shortSecret",
+    reason: "invalid_url",
+  });
+
+  assert.equal(out?.error, "Invalid URL: https://example.com/import?[redacted]");
+  assert.equal(out?.reason, "invalid_url");
+  assert.doesNotMatch(JSON.stringify(out), /user:pass|shortSecret/);
 });
 
 // ── Cross-path regression: analytics path coverage (superset preserved)
