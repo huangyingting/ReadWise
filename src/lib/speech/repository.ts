@@ -43,18 +43,18 @@ export function parseStoredSpeechWords(
   return parseStoredSpeechTimingPayload(raw)?.words ?? null;
 }
 
-/**
- * Resolves playback metadata and a `data:` URL from the canonical MediaAsset.
- * Metadata remains available when the storage object itself cannot be read.
- */
-export async function resolveStoredSpeechMedia(row: {
+/** Resolves playback metadata without loading audio bytes from storage. */
+export async function resolveStoredSpeechMediaMetadata(row: {
   mediaAssetId: string | null;
-}): Promise<{ audio: string | null; mimeType: string; voice: string | null } | null> {
+}): Promise<{
+  available: boolean;
+  mimeType: string;
+  voice: string | null;
+} | null> {
   const asset = await findStoredMediaAsset(row.mediaAssetId);
   if (!asset) return null;
-  const bytes = await readStorageAudioBytes(asset);
   return {
-    audio: bytes ? `data:${asset.mimeType};base64,${bytes.toString("base64")}` : null,
+    available: Boolean(asset.storageKey && getMediaStorage()),
     mimeType: asset.mimeType,
     voice: asset.voice,
   };

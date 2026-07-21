@@ -54,6 +54,7 @@ before(() => {
   mock.module("@/lib/article-library", {
     namedExports: {
       articleAccessContext: (user: unknown) => ({ userId: (user as { id?: string })?.id ?? null, role: (user as { role?: string })?.role ?? null }),
+      articleAccessContextForUser: async (user: unknown) => ({ userId: (user as { id?: string })?.id ?? null, role: (user as { role?: string })?.role ?? null }),
       getReadableArticleById: async () =>
         articleReadable ? { id: "a1", title: "T" } : null,
       SYSTEM_ARTICLE_CONTEXT: { role: "System" },
@@ -86,9 +87,11 @@ beforeEach(() => {
   storageConfigured = false;
 });
 
-async function callGet(id: string) {
+async function callGet(id: string, range?: string) {
   const { GET } = await import("@/app/api/reader/[id]/speech/audio/route");
-  return GET(getReq(`http://test/api/reader/${id}/speech/audio`), withParams({ id }));
+  const request = getReq(`http://test/api/reader/${id}/speech/audio`);
+  if (range) request.headers.set("Range", range);
+  return GET(request, withParams({ id }));
 }
 
 function storeSpeechAudio(storageKey: string | null, bytes: Buffer | null = null) {
@@ -130,8 +133,46 @@ test("GET /speech/audio serves bytes from MediaStorage when storageKey is set", 
   const res = await callGet("a1");
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("Content-Type"), "audio/mpeg");
+  assert.equal(res.headers.get("Accept-Ranges"), "bytes");
   const body = Buffer.from(await res.arrayBuffer());
   assert.deepEqual(body, audioData);
+});
+
+test("GET /speech/audio serves byte ranges for browser seeking", async () => {
+  storeSpeechAudio("speech/seek.mp3", Buffer.from("0123456789"));
+
+  const res = await callGet("a1", "bytes=3-6");
+
+  assert.equal(res.status, 206);
+  assert.equal(res.headers.get("Accept-Ranges"), "bytes");
+  assert.equal(res.headers.get("Content-Range"), "bytes 3-6/10");
+  assert.equal(res.headers.get("Content-Length"), "4");
+  assert.equal(await res.text(), "3456");
+});
+
+test("GET /speech/audio supports open-ended and suffix byte ranges", async () => {
+  storeSpeechAudio("speech/seek.mp3", Buffer.from("0123456789"));
+
+  const openEnded = await callGet("a1", "bytes=7-");
+  assert.equal(openEnded.status, 206);
+  assert.equal(openEnded.headers.get("Content-Range"), "bytes 7-9/10");
+  assert.equal(await openEnded.text(), "789");
+
+  const suffix = await callGet("a1", "bytes=-3");
+  assert.equal(suffix.status, 206);
+  assert.equal(suffix.headers.get("Content-Range"), "bytes 7-9/10");
+  assert.equal(await suffix.text(), "789");
+});
+
+test("GET /speech/audio returns 416 for unsatisfiable byte ranges", async () => {
+  storeSpeechAudio("speech/seek.mp3", Buffer.from("0123456789"));
+
+  const res = await callGet("a1", "bytes=10-");
+
+  assert.equal(res.status, 416);
+  assert.equal(res.headers.get("Accept-Ranges"), "bytes");
+  assert.equal(res.headers.get("Content-Range"), "bytes */10");
+  assert.equal(res.headers.get("Content-Length"), "0");
 });
 
 test("GET /speech/audio returns 404 when storageKey is set but storage is unavailable", async () => {

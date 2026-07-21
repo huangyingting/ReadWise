@@ -57,7 +57,7 @@ before(() => {
     namedExports: {
       parseStoredSpeechTimingPayload: () => null,
       parseStoredSpeechWords: () => [],
-      resolveStoredSpeechMedia: async () => null,
+      resolveStoredSpeechMediaMetadata: async () => null,
       saveSpeechResult: async () => null,
       getArticleSpeechAudio: async () => null,
     },

@@ -13,5 +13,8 @@ export const POST = createHandler({ params: idParams }, async ({ params, session
   if (!result) {
     throw new ApiError(404, "Article not found");
   }
-  return NextResponse.json(result);
+  return NextResponse.json({
+    ...result,
+    audioUrl: result.fallback ? null : `/api/reader/${encodeURIComponent(articleId)}/speech/audio`,
+  });
 });

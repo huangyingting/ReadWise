@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-07-21"
 description: "Documents ReaderAudioProvider, mini-player, narration transport, word highlighting, and access-checked playback initiation. Captures current playback controls, speed/loop behavior, audio-range playback, TTS integration, storage fallback, and UI state rules."
 ---
 
@@ -23,7 +23,7 @@ and storage, see [`../media/assets.md`](../media/assets.md) and
 ```mermaid
 flowchart TD
     n0["Reader requests narration"] --> n1["Warm or fetch speech"]
-    n1["Warm or fetch speech"] --> n2["Create managed Blob URL"]
+  n1["Warm or fetch speech"] --> n2["Resolve authenticated audio URL"]
     n2["Create managed Blob URL"] --> n3["ReaderAudioProvider state"]
     n3["ReaderAudioProvider state"] --> n4["Mini-player transport"]
     n4["Mini-player transport"] --> n5["Highlight words and loop sentences"]
@@ -31,14 +31,13 @@ flowchart TD
 ## Ownership boundary
 
 **Reader owns** the mini-player transport UI, word-highlighting UI, playback
-speed controls, sentence-loop UX, the single shared `<audio>` element, Blob URL
-lifecycle, and the narration-fetch adapter (`useNarrationApi`).
+speed controls, sentence-loop UX, the single shared `<audio>` element, and the
+narration-fetch adapter (`useNarrationApi`).
 
 **Reader does not own** storage lifecycle policy (owned by Media), TTS provider
 or synthesis (owned by Speech), or job retry scheduling (owned by Operations).
-Storage backend decisions — whether audio comes from base64 or object storage —
-are resolved server-side before reaching the Reader; the Reader UI receives a
-`data:` or Blob URL and is unaware of the storage path.
+Storage backend decisions are resolved server-side. The Reader receives a
+same-origin, access-checked audio URL and remains unaware of the storage path.
 
 ## Architecture: single audio element
 
@@ -50,7 +49,7 @@ audio elements.
 ```
 ReaderAudioProvider
   ├── <audio ref={audioRef} …>   — single audio element for the page
-  ├── useNarrationApi            — POST /speech fetch + Blob URL lifecycle
+  ├── useNarrationApi            — POST /speech metadata + audio URL
   ├── useActiveWord              — binary-search active-word index
   └── useLoopSegment             — sentence-loop capture + seek
 ```
@@ -64,7 +63,7 @@ Components consume context via `useReaderAudio()`.
 | `ReaderAudioProvider` | `src/components/ReaderAudioProvider.tsx` | Context + single `<audio>` element. |
 | `ReaderMiniPlayer` | `src/components/ReaderMiniPlayer.tsx` | Docked fixed-bottom transport bar. |
 | `ReaderListenButton` | `src/components/ReaderListenButton.tsx` | Sticky toolbar Listen affordance. |
-| `useNarrationApi` | `src/components/reader/useNarrationApi.ts` | Narration API fetch + Blob URL lifecycle. |
+| `useNarrationApi` | `src/components/reader/useNarrationApi.ts` | Narration metadata fetch + audio URL handoff. |
 | `useActiveWord` | `src/components/reader/useActiveWord.ts` | Binary-search word-highlight index. |
 | `useLoopSegment` | `src/components/reader/useLoopSegment.ts` | Sentence-loop capture and seek. |
 | `useAudioRangePlayback` | `src/components/reader/useAudioRangePlayback.ts` | Bounded-range playback for dictation/practice. |
@@ -76,15 +75,14 @@ Narration is fetched lazily on first Listen-tab activation or Listen-button clic
 1. `warmNarration(articleId)` (from `useNarrationApi`) posts to
    `POST /api/reader/[id]/speech`.
 2. The route calls `getOrCreateArticleSpeech(articleId, context)` which
-   enforces article-access policy before returning audio. Unauthenticated or
-   unauthorized requests receive `null` from the route and the Reader shows no
-   audio.
-3. If the API returns `fallback: true` (speech unconfigured) or no audio, the
-   Reader marks fallback — the mini-player never appears and the Listen button is
-   disabled.
-4. On success, the base64 or data-URI audio is converted to a Blob URL via
-   `base64ToBlobUrl` (`src/lib/media-blob.ts`) and loaded into the `<audio>`
-   element.
+  enforces article-access policy before returning narration metadata.
+  Unauthenticated or unauthorized requests receive `null` from the route and
+  the Reader shows no audio.
+3. If the API returns `fallback: true` or no `audioUrl`, the Reader marks
+  fallback — the mini-player never appears and the Listen button is disabled.
+4. On success, the same-origin `audioUrl` is loaded directly into the shared
+  `<audio>` element. The browser then requests the authenticated audio GET
+  route; media-load failures enter the same fallback state.
 
 `warmNarration` is idempotent: the first successful call caches the result and
 subsequent calls are no-ops. A failed call may be retried.
@@ -103,6 +101,10 @@ Controls provided:
 | Skip +10 s | Seeks `currentTime += 10`. |
 | Seek bar | `<input type="range">` with teal gradient fill; scrubs `currentTime`. |
 | Time readout | Displays `currentTime / duration` in `m:ss` format. |
+
+The authenticated audio endpoint supports HTTP byte ranges, so skip and scrub
+controls can seek beyond the portion of Narration already buffered by the
+browser.
 | Speed select | Cycles through `[0.5, 0.75, 1, 1.25, 1.5]`; sets `audioRef.current.playbackRate`. |
 | Loop toggle | Activates sentence-loop mode (see below). |
 | Close (×) | Dismisses the player for the current session (per-page state). |
@@ -150,18 +152,18 @@ sentence-loop UX:
 Speech reconstructs `plainText` from the persisted Narration text basis so a
 capped Narration and its word timings share the same Reader text scope.
 
-## Blob URL lifecycle
+## Audio URL delivery
 
-`useNarrationApi` owns the Blob URL lifecycle:
+`useNarrationApi` separates narration provisioning from audio delivery:
 
-- Creates a Blob URL via `base64ToBlobUrl(body.audio, body.mimeType)` on a
-  successful fetch.
-- Revokes the previous Blob URL before replacing it (`revokeBlobUrl(blobUrlRef.current)`).
-- Revokes the current Blob URL on hook unmount to avoid memory leaks.
+- `POST /api/reader/{id}/speech` generates or resolves narration and returns
+  timing metadata plus an authenticated `audioUrl`.
+- The shared `<audio>` element uses that same-origin URL directly, so the
+  browser fetches media bytes from `GET /api/reader/{id}/speech/audio`.
+- A media-load failure enters the same graceful fallback state as an
+  unavailable narration provider.
 
-The Reader never receives raw storage keys or base64 audio beyond this adapter.
-The conversion from base64/data-URI to Blob URL is the only media-format concern
-the Reader UI owns.
+The Reader never receives raw storage keys or base64 narration audio.
 
 ## Bounded-range playback
 

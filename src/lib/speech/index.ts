@@ -15,7 +15,7 @@ import {
 import { synthesize, resolveMimeType } from "./provider-azure";
 import {
   parseStoredSpeechTimingPayload,
-  resolveStoredSpeechMedia,
+  resolveStoredSpeechMediaMetadata,
   saveSpeechResult,
 } from "./repository";
 import {
@@ -32,7 +32,6 @@ const log = createLogger("speech");
 export { getArticleSpeechAudio } from "./repository";
 
 export type SpeechResult = {
-  audio: string | null;
   mimeType: string | null;
   plainText: string;
   words: SpeechWord[];
@@ -62,7 +61,6 @@ function fallbackResult(
   fallbackReason: NonNullable<SpeechResult["fallbackReason"]>,
 ): SpeechResult {
   return {
-    audio: null,
     mimeType: null,
     plainText: "",
     words: [],
@@ -134,21 +132,20 @@ async function cachedSpeechResult(
       allowedArticle,
       resolveStoredNarrationTextBasis(timing.textBasis, timing.provider),
     ),
-    resolveStoredSpeechMedia(cached),
+    resolveStoredSpeechMediaMetadata(cached),
   ]);
   if (plainText === null) {
     return null;
   }
-  const audio = media?.audio ?? null;
+  const audioAvailable = media?.available ?? false;
   return {
-    audio,
     mimeType: media?.mimeType ?? null,
     plainText,
     words: timing.words,
     voice: media?.voice ?? DEFAULT_SPEECH_VOICE,
     cached: true,
-    fallback: !audio,
-    ...(!audio ? { fallbackReason: "cache_audio_missing" as const } : {}),
+    fallback: !audioAvailable,
+    ...(!audioAvailable ? { fallbackReason: "cache_audio_missing" as const } : {}),
   };
 }
 
@@ -213,7 +210,6 @@ async function synthesizeArticleSpeech(
   });
 
   return {
-    audio: `data:${mimeType};base64,${output.audio.toString("base64")}`,
     mimeType,
     plainText,
     words: output.words,

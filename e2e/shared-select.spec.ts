@@ -1,6 +1,26 @@
 import { test, expect, TEST_ARTICLE_ID } from "./support/fixtures";
 
-const MOCK_AUDIO_BASE64 = "SUQzBAAAAAAA";
+function createSilentWav(durationSeconds: number): Buffer {
+  const sampleRate = 8_000;
+  const dataSize = sampleRate * durationSeconds;
+  const wav = Buffer.alloc(44 + dataSize);
+  wav.write("RIFF", 0);
+  wav.writeUInt32LE(36 + dataSize, 4);
+  wav.write("WAVEfmt ", 8);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(sampleRate, 24);
+  wav.writeUInt32LE(sampleRate, 28);
+  wav.writeUInt16LE(1, 32);
+  wav.writeUInt16LE(8, 34);
+  wav.write("data", 36);
+  wav.writeUInt32LE(dataSize, 40);
+  wav.fill(128, 44);
+  return wav;
+}
+
+const MOCK_AUDIO = createSilentWav(30);
 
 test("shared dropdown preserves keyboard navigation and GET form submission", async ({
   readerPage: page,
@@ -28,7 +48,7 @@ test("shared dropdown preserves keyboard navigation and GET form submission", as
   ).toHaveAttribute("data-value", "C2");
 });
 
-test("playback speed uses the compact shared dropdown on mobile dark mode", async ({
+test("reader audio controls support seeking on mobile dark mode", async ({
   readerPage: page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -50,7 +70,7 @@ test("playback speed uses the compact shared dropdown on mobile dark mode", asyn
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        audio: MOCK_AUDIO_BASE64,
+        audioUrl: `/api/reader/${TEST_ARTICLE_ID}/speech/audio`,
         mimeType: "audio/mpeg",
         plainText: "Test narration.",
         words: [],
@@ -58,6 +78,39 @@ test("playback speed uses the compact shared dropdown on mobile dark mode", asyn
         cached: false,
         fallback: false,
       }),
+    });
+  });
+  await page.route(/\/api\/reader\/[^/]+\/speech\/audio$/, async (route) => {
+    const rangeHeader = route.request().headers().range;
+    const match = rangeHeader?.match(/^bytes=(\d*)-(\d*)$/);
+    if (match) {
+      const [, startText, endText] = match;
+      const start = startText
+        ? Number(startText)
+        : Math.max(MOCK_AUDIO.byteLength - Number(endText), 0);
+      const end = endText ? Number(endText) : MOCK_AUDIO.byteLength - 1;
+      const bytes = MOCK_AUDIO.subarray(start, Math.min(end + 1, MOCK_AUDIO.byteLength));
+      await route.fulfill({
+        status: 206,
+        contentType: "audio/wav",
+        headers: {
+          "Accept-Ranges": "bytes",
+          "Content-Length": String(bytes.byteLength),
+          "Content-Range": `bytes ${start}-${start + bytes.byteLength - 1}/${MOCK_AUDIO.byteLength}`,
+        },
+        body: bytes,
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "audio/wav",
+      headers: {
+        "Accept-Ranges": "bytes",
+        "Content-Length": String(MOCK_AUDIO.byteLength),
+      },
+      body: MOCK_AUDIO,
     });
   });
 
@@ -70,6 +123,13 @@ test("playback speed uses the compact shared dropdown on mobile dark mode", asyn
     .click();
 
   await expect(page.getByRole("region", { name: "Audio player" })).toBeVisible();
+  const seek = page.getByRole("slider", { name: "Seek" });
+  await expect(seek).toHaveAttribute("aria-valuetext", "0:00 / 0:30");
+  await seek.fill("50");
+  await expect(seek).toHaveAttribute("aria-valuetext", "0:15 / 0:30");
+  await page.getByRole("button", { name: "Skip forward 10 seconds" }).click();
+  await expect(seek).toHaveAttribute("aria-valuetext", "0:25 / 0:30");
+
   const speedSelect = page.getByRole("combobox", { name: "Playback speed" });
   await expect(speedSelect).toHaveAttribute("data-value", "1");
   await speedSelect.click();

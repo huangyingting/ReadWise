@@ -16,7 +16,7 @@ let progressSummaries: Record<string, { percent: number; completed: boolean }> =
 let translationResult: unknown = { lang: "es", content: "Hola", cached: false, fallback: false };
 let supportedLang = true;
 let vocabularyResult: unknown = { articleId: "a1", items: [], fallback: false };
-let speechResult: unknown = { audio: "data:audio/mpeg;base64,AAAA", words: [] };
+let speechResult: unknown = { fallback: false, words: [] };
 let quizResult: unknown = { articleId: "a1", questions: [], fallback: false };
 let dictionaryResult: unknown = { word: "run", found: true, meanings: [] };
 let searchArticlesResult: unknown = { articles: [], total: 0, page: 1 };
@@ -45,6 +45,7 @@ function resetRouteState(): void {
   lastSavedWord = null;
   lastErasedContextWord = null;
   deleteArticleResult = true;
+  speechResult = { fallback: false, words: [] };
   auditCalls = [];
   eventCalls = [];
   resetMetrics();
@@ -271,11 +272,17 @@ test("POST vocabulary returns 404 when null", async () => {
   vocabularyResult = { articleId: "a1", items: [], fallback: false };
 });
 
-test("POST speech returns audio payload", async () => {
+test("POST speech returns metadata and an authenticated audio URL", async () => {
   const { POST } = (await import("@/app/api/reader/[id]/speech/route")) as { POST: RouteHandler };
   const res = await POST(jsonReq({}), ctx());
   assert.equal(res.status, 200);
-  assert.equal((await res.json()).audio, "data:audio/mpeg;base64,AAAA");
+  const body = await res.json();
+  assert.equal(body.audioUrl, "/api/reader/a1/speech/audio");
+  assert.equal("audio" in body, false);
+
+  speechResult = { fallback: true, words: [] };
+  const fallbackRes = await POST(jsonReq({}), ctx());
+  assert.equal((await fallbackRes.json()).audioUrl, null);
 });
 
 test("POST quiz returns questions", async () => {
