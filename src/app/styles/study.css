@@ -404,10 +404,10 @@
   border-radius: var(--radius-full);
   transition: width var(--duration-slow) var(--ease-standard);
 }
-.rw-dictate-score-fill--good { background: var(--success, #16a34a); }
-.rw-dictate-score-fill--fair { background: var(--warning, #ca8a04); }
-.rw-dictate-score-fill--poor { background: var(--danger, #dc2626); opacity: 0.8; }
-.rw-dictate-score-fill--bad  { background: var(--pron-bad, var(--danger, #b91c1c)); }
+.rw-dictate-score-fill--good { background: var(--success); }
+.rw-dictate-score-fill--fair { background: var(--warning); }
+.rw-dictate-score-fill--poor { background: var(--danger); opacity: 0.8; }
+.rw-dictate-score-fill--bad  { background: var(--pron-bad, var(--danger)); }
 
 .rw-dictate-score-label {
   font-size: var(--text-sm);
@@ -425,7 +425,7 @@
 }
 
 .rw-dictate-diff-hint {
-  font-size: var(--text-xs, 0.75rem);
+  font-size: var(--text-xs);
   margin: 0;
 }
 
@@ -446,35 +446,34 @@
 }
 
 .rw-dictate-word--correct {
-  color: var(--success-text, #15803d);
+  color: var(--success-text);
   background: var(--success-bg);
   text-decoration: underline;
-  text-decoration-color: var(--success-text, #15803d);
+  text-decoration-color: var(--success-text);
   text-underline-offset: 2px;
 }
 
 .rw-dictate-word--wrong {
-  color: var(--danger-text, #b91c1c);
+  color: var(--danger-text);
   background: var(--danger-bg);
 }
 
 .rw-dictate-word--missing {
   color: var(--text-subtle);
   text-decoration: line-through;
-  text-decoration-color: var(--danger, #dc2626);
+  text-decoration-color: var(--danger);
   background: var(--danger-bg);
 }
 
 .rw-dictate-word--extra {
-  color: var(--warning-text, #92400e);
+  color: var(--warning-text);
   background: var(--warning-bg);
-  text-decoration: underline wavy var(--warning, #ca8a04);
+  text-decoration: underline wavy var(--warning);
   text-underline-offset: 3px;
 }
 
 .rw-dictate-correction {
-  font-size: var(--text-xs, 0.75rem);
-  color: var(--success-text, #15803d);
+  font-size: var(--text-xs);
+  color: var(--success-text);
   margin-left: 2px;
 }
-

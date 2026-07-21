@@ -10,7 +10,8 @@ const ARTICLE_PARAGRAPH_LINE_COUNTS = [4, 4, 2, 4, 4] as const;
  */
 export default function ReaderLoading() {
   return (
-    <div className="reader-layout">
+    <div className="reader-layout" aria-busy="true">
+      <span className="sr-only" role="status">Loading article…</span>
       <div className="reader-column">
         {/* ── Sticky toolbar skeleton: Back · Listen · Aa · Tools ── */}
         <div className="reader-controls" aria-hidden>
