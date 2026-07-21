@@ -25,12 +25,15 @@ import {
   capabilitiesForRole,
   roleHasCapability,
   hasCapability,
+  isPlatformSuperuser,
+  roleIsPlatformSuperuser,
   isKnownRole,
 } from "@/lib/rbac";
 import { makeSession } from "./support/auth-mock";
 
 const ADMIN_ONLY_CAPS = [
   CAPABILITIES.adminAccess,
+  CAPABILITIES.platformSuperuser,
   CAPABILITIES.articlesManage,
   CAPABILITIES.tagsManage,
   CAPABILITIES.membersManage,
@@ -86,9 +89,11 @@ test("Reader resolves to base capabilities and NO admin capabilities", () => {
 
 test("hasCapability denies anonymous / unknown / malformed principals", () => {
   assert.ok(!hasCapability(null, CAPABILITIES.adminAccess));
+  assert.ok(!hasCapability(null, CAPABILITIES.platformSuperuser));
   assert.ok(!hasCapability(undefined, CAPABILITIES.articlesRead));
   assert.ok(!hasCapability({ role: null }, CAPABILITIES.articlesRead));
   assert.ok(!hasCapability({ role: "Nonsense" }, CAPABILITIES.adminAccess));
+  assert.ok(!hasCapability({ role: "Nonsense" }, CAPABILITIES.platformSuperuser));
   assert.deepEqual(capabilitiesForRole("Nonsense"), []);
 });
 
@@ -126,16 +131,32 @@ test("scoped admin roles are active and grant their intended capabilities", () =
   assert.ok(ACTIVE_ROLES.includes("Moderator"));
   assert.ok(roleHasCapability("Moderator", CAPABILITIES.contentModerate));
   assert.ok(roleHasCapability("Moderator", CAPABILITIES.adminAccess));
+  assert.ok(!roleHasCapability("Moderator", CAPABILITIES.platformSuperuser));
   assert.ok(!roleHasCapability("Moderator", CAPABILITIES.membersManage));
 
   assert.ok(ACTIVE_ROLES.includes("ContentEditor"));
   assert.ok(roleHasCapability("ContentEditor", CAPABILITIES.articlesManage));
   assert.ok(roleHasCapability("ContentEditor", CAPABILITIES.tagsManage));
+  assert.ok(!roleHasCapability("ContentEditor", CAPABILITIES.platformSuperuser));
   assert.ok(!roleHasCapability("ContentEditor", CAPABILITIES.membersManage));
 
   assert.ok(ACTIVE_ROLES.includes("SupportAgent"));
   assert.ok(roleHasCapability("SupportAgent", CAPABILITIES.supportAssist));
+  assert.ok(roleHasCapability("SupportAgent", CAPABILITIES.adminAccess));
+  assert.ok(!roleHasCapability("SupportAgent", CAPABILITIES.platformSuperuser));
   assert.ok(!roleHasCapability("SupportAgent", CAPABILITIES.membersManage));
+});
+
+test("platform super-user is narrower than admin UI access", () => {
+  assert.ok(isPlatformSuperuser({ role: "Admin" }));
+  assert.ok(isPlatformSuperuser({ role: SYSTEM_ROLE }));
+  assert.ok(roleIsPlatformSuperuser("Admin"));
+  assert.ok(roleIsPlatformSuperuser(SYSTEM_ROLE));
+
+  for (const role of ["Moderator", "ContentEditor", "SupportAgent", "Reader", "OrgAdmin"]) {
+    assert.ok(!isPlatformSuperuser({ role }), `${role} must not be a platform super-user`);
+    assert.ok(!roleIsPlatformSuperuser(role), `${role} must not be a platform super-user`);
+  }
 });
 
 test("tenant roles are separate from system admin access", () => {
