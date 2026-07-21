@@ -7,7 +7,7 @@
  *     empty, and the many malformed shapes that map to a null/corrupt result).
  *   - resolveStoredSpeechMedia — canonical media metadata and storage read-back.
  *   - saveSpeechResult — storage-unconfigured skip, successful storage write,
- *     and storage-failure skip.
+ *     storage-failure skip, and blob cleanup after DB persistence failure.
  *
  * Mocks: @/lib/prisma and @/lib/storage. No real DB, network, or Azure SDK.
  */
@@ -27,12 +27,14 @@ let storageImpl: MediaStorage | null = null;
 let mediaAssetFindRow: { storageKey: string; mimeType: string; voice: string | null } | null = null;
 let mediaAssetUpsertArgs: UpsertArgs | null = null;
 let articleSpeechUpsertArgs: UpsertArgs | null = null;
+let transactionThrows: Error | null = null;
 
 function resetState(): void {
   storageImpl = null;
   mediaAssetFindRow = null;
   mediaAssetUpsertArgs = null;
   articleSpeechUpsertArgs = null;
+  transactionThrows = null;
 }
 
 before(() => {
@@ -53,8 +55,9 @@ before(() => {
             mediaAsset: { upsert: (args: UpsertArgs) => Promise<{ id: string }> };
             articleSpeech: { upsert: (args: UpsertArgs) => Promise<{ articleId: string }> };
           }) => Promise<unknown>,
-        ) =>
-          callback({
+        ) => {
+          if (transactionThrows) throw transactionThrows;
+          return callback({
             mediaAsset: {
               upsert: async (args: UpsertArgs) => {
                 mediaAssetUpsertArgs = args;
@@ -67,7 +70,8 @@ before(() => {
                 return { articleId: (args.where as { articleId: string }).articleId };
               },
             },
-          }),
+          });
+        },
       },
     },
   });
@@ -91,6 +95,7 @@ function assertParseRejects<Raw>(parseStoredSpeechWords: (value: Raw) => unknown
 function makeStorage(opts: {
   put?: (input: PutMediaInput) => Promise<PutMediaResult>;
   get?: (key: string) => Promise<Buffer | null>;
+  delete?: (key: string) => Promise<void>;
 }): MediaStorage {
   return {
     kind: "local",
@@ -98,7 +103,7 @@ function makeStorage(opts: {
       opts.put ??
       (async () => ({ storageKey: "speech/abc", sizeBytes: 3, checksum: "deadbeef" })),
     get: opts.get ?? (async () => null),
-    delete: async () => {},
+    delete: opts.delete ?? (async () => {}),
   };
 }
 
@@ -351,4 +356,23 @@ test("saveSpeechResult skips persistence when the storage write throws", async (
   assert.equal(saved, false);
   assert.equal(mediaAssetUpsertArgs, null, "media asset upsert is never reached after a put failure");
   assert.equal(articleSpeechUpsertArgs, null, "speech row upsert is skipped after a put failure");
+});
+
+test("saveSpeechResult deletes the uploaded blob and returns false when the DB transaction fails", async () => {
+  const { saveSpeechResult } = await loadRepo();
+  const deletedKeys: string[] = [];
+  transactionThrows = new Error("transaction unavailable");
+  storageImpl = makeStorage({
+    put: async () => ({ storageKey: "speech/orphaned", sizeBytes: 5, checksum: "cafef00d" }),
+    delete: async (key) => {
+      deletedKeys.push(key);
+    },
+  });
+
+  const saved = await saveSpeechResult(SAVE_PARAMS);
+
+  assert.equal(saved, false);
+  assert.deepEqual(deletedKeys, ["speech/orphaned"]);
+  assert.equal(mediaAssetUpsertArgs, null, "media asset upsert should not commit after tx failure");
+  assert.equal(articleSpeechUpsertArgs, null, "speech row upsert should not commit after tx failure");
 });
