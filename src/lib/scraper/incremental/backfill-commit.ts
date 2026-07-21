@@ -36,7 +36,7 @@ import {
   type BackfillLifecycleNoopReason,
   type EffectiveBackfillBounds,
 } from "./backfill-policy";
-import { eligibleBackfillCandidateWhere } from "./backfill-query";
+import { BACKFILL_REACTIVATION_STATUS_FILTERS, eligibleBackfillCandidateWhere } from "./backfill-query";
 
 const RS = BackfillRunStatus;
 
@@ -222,11 +222,7 @@ export async function advanceBackfillRun(input: {
             id: candidate.id,
             articleId: null,
             articleDeletedAt: null,
-            OR: [
-              { status: CrawlCandidateStatus.BASELINE },
-              { status: CrawlCandidateStatus.DISCOVERED, observedInBaseline: false },
-              { status: CrawlCandidateStatus.SKIPPED_OUTSIDE_WINDOW },
-            ],
+            OR: [...BACKFILL_REACTIVATION_STATUS_FILTERS],
           },
           data: {
             status: CrawlCandidateStatus.QUEUED,

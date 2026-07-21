@@ -48,6 +48,17 @@ export type BackfillScanScope = {
 };
 
 /**
+ * Status/flag branches a backfill may reactivate. Both the dry-run query and the
+ * guarded commit update derive from this list so a newly eligible state cannot be
+ * counted without also being flipped to QUEUED.
+ */
+export const BACKFILL_REACTIVATION_STATUS_FILTERS = [
+  { status: CrawlCandidateStatus.BASELINE },
+  { status: CrawlCandidateStatus.DISCOVERED, observedInBaseline: false },
+  { status: CrawlCandidateStatus.SKIPPED_OUTSIDE_WINDOW },
+] as const satisfies readonly Prisma.CrawlCandidateWhereInput[];
+
+/**
  * The shared Prisma predicate for a reactivation-eligible historical identity
  * within the effective window. The commit spreads this and adds the checkpoint
  * cursor; the query counts it for the dry-run. Keeping it in ONE place means the
@@ -63,11 +74,7 @@ export function eligibleBackfillCandidateWhere(
     articleId: null,
     articleDeletedAt: null,
     trustedPublishedAt: { gte: bounds.windowStart, lte: bounds.windowEnd },
-    OR: [
-      { status: CrawlCandidateStatus.BASELINE },
-      { status: CrawlCandidateStatus.DISCOVERED, observedInBaseline: false },
-      { status: CrawlCandidateStatus.SKIPPED_OUTSIDE_WINDOW },
-    ],
+    OR: [...BACKFILL_REACTIVATION_STATUS_FILTERS],
   };
 }
 

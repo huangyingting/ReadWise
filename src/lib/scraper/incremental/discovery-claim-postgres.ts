@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
 
 import type { ClaimedDiscoverySource } from "./discovery-claim";
+import { AUTO_CLAIM_POLICIES, CLAIMABLE_LIFECYCLE_MODES } from "./schedule";
 
 const log = createLogger("scraper");
 
@@ -22,10 +23,30 @@ type ClaimedSourceRow = {
   wasStale: boolean;
 };
 
+function enumSqlLiterals(values: readonly string[], enumType: string): readonly string[] {
+  return values.map((value) => `'${value.replaceAll("'", "''")}'::"${enumType}"`);
+}
+
+export const POSTGRES_CLAIMABLE_LIFECYCLE_MODE_LITERALS = enumSqlLiterals(
+  CLAIMABLE_LIFECYCLE_MODES,
+  "DiscoverySourceLifecycleMode",
+);
+export const POSTGRES_AUTO_CLAIM_POLICY_LITERALS = enumSqlLiterals(
+  AUTO_CLAIM_POLICIES,
+  "DiscoveryAutomationPolicy",
+);
+
+const CLAIMABLE_LIFECYCLE_MODES_SQL = Prisma.join(
+  POSTGRES_CLAIMABLE_LIFECYCLE_MODE_LITERALS.map((literal) => Prisma.raw(literal)),
+);
+const AUTO_CLAIM_POLICIES_SQL = Prisma.join(
+  POSTGRES_AUTO_CLAIM_POLICY_LITERALS.map((literal) => Prisma.raw(literal)),
+);
+
 /**
  * Claims one due discovery source on PostgreSQL. Enum labels are inlined as
- * string literals (constants, not user input) so PostgreSQL resolves them to the
- * native enum type; dynamic values (`workerId`, timestamps) are bound.
+ * scheduler constants and cast to the native enum type, so the PostgreSQL claim
+ * predicate cannot drift from the generic Prisma predicate.
  */
 export async function claimDueDiscoverySourcePostgres(
   workerId: string,
@@ -42,15 +63,8 @@ export async function claimDueDiscoverySourcePostgres(
       SELECT "id", "leaseOwner", "leaseExpiresAt"
       FROM "DiscoverySource"
       WHERE "nextRunAt" <= ${now}
-        AND "lifecycleMode" IN (
-          'SHADOW'::"DiscoverySourceLifecycleMode",
-          'BASELINE'::"DiscoverySourceLifecycleMode",
-          'ACTIVE'::"DiscoverySourceLifecycleMode"
-        )
-        AND "automationPolicy" IN (
-          'SCHEDULED'::"DiscoveryAutomationPolicy",
-          'CONTINUOUS'::"DiscoveryAutomationPolicy"
-        )
+        AND "lifecycleMode" IN (${CLAIMABLE_LIFECYCLE_MODES_SQL})
+        AND "automationPolicy" IN (${AUTO_CLAIM_POLICIES_SQL})
         AND ("leaseOwner" IS NULL OR "leaseExpiresAt" < ${now})
         AND ("backoffUntil" IS NULL OR "backoffUntil" <= ${now})
       ORDER BY "nextRunAt" ASC, "createdAt" ASC
