@@ -10,11 +10,8 @@ import {
   oneOf,
   optional,
   string,
-  type Schema,
 } from "@/lib/validation";
 import { SERIES_STATUSES, type SeriesStatus } from "@/lib/engagement/series";
-
-type InferSchema<S extends Schema<unknown>> = S extends Schema<infer T> ? T : never;
 
 const optionalDescription = optional(string({ max: 2000 }));
 const optionalTopic = optional(string({ max: 120 }));
@@ -34,8 +31,6 @@ export const createSeriesBody = object({
   status: optionalStatus,
 });
 
-export type CreateSeriesBody = InferSchema<typeof createSeriesBody>;
-
 export const updateSeriesBody = object({
   slug: optional(nonEmptyString(120)),
   title: optional(nonEmptyString(200)),
@@ -48,10 +43,6 @@ export const updateSeriesBody = object({
   status: optionalStatus,
 });
 
-export type UpdateSeriesBody = InferSchema<typeof updateSeriesBody>;
-
 export const reorderSeriesBody = object({
   articleIds: array(nonEmptyString(200), { max: 500 }),
 });
-
-export type ReorderSeriesBody = InferSchema<typeof reorderSeriesBody>;
