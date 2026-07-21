@@ -7,7 +7,15 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 type ModuleBoundaryConfig = {
-  name: "learning" | "engagement" | "lexical";
+  name:
+    | "learning"
+    | "engagement"
+    | "lexical"
+    | "recommendations"
+    | "leveling"
+    | "difficulty"
+    | "profile"
+    | "vocabulary";
   alias: string;
   dir: string;
   disallowedInternalImportPrefixes?: string[];
@@ -38,6 +46,31 @@ const MODULES: ModuleBoundaryConfig[] = [
       "@/lib/content-pipeline",
       "@/lib/processing/processor",
     ],
+  },
+  {
+    name: "recommendations",
+    alias: "@/lib/recommendations",
+    dir: resolve(ROOT_DIR, "src/lib/recommendations"),
+  },
+  {
+    name: "leveling",
+    alias: "@/lib/leveling",
+    dir: resolve(ROOT_DIR, "src/lib/leveling"),
+  },
+  {
+    name: "difficulty",
+    alias: "@/lib/difficulty",
+    dir: resolve(ROOT_DIR, "src/lib/difficulty"),
+  },
+  {
+    name: "profile",
+    alias: "@/lib/profile",
+    dir: resolve(ROOT_DIR, "src/lib/profile"),
+  },
+  {
+    name: "vocabulary",
+    alias: "@/lib/vocabulary",
+    dir: resolve(ROOT_DIR, "src/lib/vocabulary"),
   },
 ];
 

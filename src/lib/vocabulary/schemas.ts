@@ -43,8 +43,6 @@ export type SaveWordBody = InferSchema<typeof saveWordBody>;
 
 export const unsaveWordBody = object({ word: nonEmptyString(200) });
 
-export type UnsaveWordBody = InferSchema<typeof unsaveWordBody>;
-
 // ---------------------------------------------------------------------------
 // POST /api/vocabulary/unsave-batch
 // ---------------------------------------------------------------------------
@@ -53,15 +51,11 @@ export const unsaveBatchBody = object({
   words: array(nonEmptyString(WORD_MAX_LENGTH), { max: BATCH_WORD_LIMIT }),
 });
 
-export type UnsaveBatchBody = InferSchema<typeof unsaveBatchBody>;
-
 // ---------------------------------------------------------------------------
 // POST /api/vocabulary/erase-context
 // ---------------------------------------------------------------------------
 
 export const eraseSavedWordContextBody = object({ word: nonEmptyString(WORD_MAX_LENGTH) });
-
-export type EraseSavedWordContextBody = InferSchema<typeof eraseSavedWordContextBody>;
 
 // ---------------------------------------------------------------------------
 // GET /api/vocabulary/export
