@@ -32,6 +32,9 @@ let updateCalls: Array<Record<string, unknown>> = [];
 let revalidateCalls = 0;
 let speechFails = false;
 let quizFails = false;
+let tagsFallback = false;
+let vocabularyFallback = false;
+let quizFallback = false;
 
 // >= 50 words of benign prose so the body-quality + content-safety checks pass.
 const SAFE_BODY =
@@ -93,23 +96,38 @@ before(() => {
   });
   mock.module("@/lib/difficulty", {
     namedExports: {
-      getOrCreateArticleDifficulty: async () => ({ level: "B1", source: "deterministic" }),
+      getOrCreateArticleDifficulty: async () => {
+        article.difficulty = "B1";
+        article.lexileApprox = 760;
+        article.difficultyVersion = DIFFICULTY_ALGORITHM_VERSION;
+        return { level: "B1", source: "deterministic" };
+      },
     },
   });
   mock.module("@/lib/article-library/collections/tags", {
     namedExports: {
-      getOrCreateArticleTags: async () => ({ tags: [{ id: "t1" }], fallback: false }),
+      getOrCreateArticleTags: async () => {
+        if (tagsFallback) return { tags: [], fallback: true, fallbackReason: "provider_unconfigured" };
+        article._count.tags = 1;
+        return { tags: [{ id: "t1" }], fallback: false };
+      },
     },
   });
   mock.module("@/lib/vocabulary/service", {
     namedExports: {
-      getOrCreateArticleVocabulary: async () => ({ items: [{ word: "seed" }], fallback: false }),
+      getOrCreateArticleVocabulary: async () => {
+        if (vocabularyFallback) return { items: [], fallback: true, fallbackReason: "provider_unconfigured" };
+        article._count.vocabulary = 1;
+        return { items: [{ word: "seed" }], fallback: false };
+      },
     },
   });
   mock.module("@/lib/quiz", {
     namedExports: {
       getOrCreateArticleQuiz: async () => {
         if (quizFails) throw new Error("quiz failed");
+        if (quizFallback) return { questions: [], fallback: true, fallbackReason: "provider_unconfigured" };
+        article._count.quizQuestions = 1;
         return { questions: [{ question: "Q?" }], fallback: false };
       },
     },
@@ -138,6 +156,9 @@ beforeEach(() => {
   revalidateCalls = 0;
   speechFails = false;
   quizFails = false;
+  tagsFallback = false;
+  vocabularyFallback = false;
+  quizFallback = false;
 });
 
 function publishStep(steps: Array<{ step: string; status: string; detail?: string }>) {
@@ -220,6 +241,21 @@ test("failed REQUIRED enrichment (quiz) keeps a trusted draft in review", async 
   assert.equal(result?.published, false);
   assert.equal(updateCalls.length, 0);
   assert.equal(publishStep(result!.steps)?.detail, "required-enrichment-incomplete");
+});
+
+test("empty fallback REQUIRED enrichment keeps a trusted draft in review", async () => {
+  tagsFallback = true;
+  vocabularyFallback = true;
+  quizFallback = true;
+  const { processArticle } = await import("@/lib/processing/processor");
+  const result = await processArticle("article-gate-1");
+
+  assert.equal(result?.published, false);
+  assert.equal(updateCalls.length, 0);
+  assert.equal(publishStep(result!.steps)?.detail, "required-enrichment-incomplete");
+  assert.equal(result?.steps.find((s) => s.step === "tags")?.status, "fallback");
+  assert.equal(result?.steps.find((s) => s.step === "vocabulary")?.status, "fallback");
+  assert.equal(result?.steps.find((s) => s.step === "quiz")?.status, "fallback");
 });
 
 test("trusted draft with unsafe body content stays in review (content-safety check)", async () => {

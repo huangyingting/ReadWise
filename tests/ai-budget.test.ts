@@ -153,6 +153,68 @@ test("global interactive quota blocks across users", async () => {
   assert.equal(blocked.scope, "global");
 });
 
+test("allowed AI budget calls reserve every configured dimension", async () => {
+  process.env.AI_QUOTA_USER_DAILY = "1";
+  process.env.AI_QUOTA_FEATURE_DEFAULT_DAILY = "1";
+  process.env.AI_QUOTA_GLOBAL_DAILY = "1";
+  const { checkAiBudget } = await import("@/lib/ai/budget");
+  const feature = uid("feature");
+  const userId = uid("user");
+
+  assert.equal((await checkAiBudget({ feature, userId, kind: "interactive" })).allowed, true);
+  const userBlocked = await checkAiBudget({
+    feature: uid("other-feature"),
+    userId,
+    kind: "interactive",
+  });
+  assert.equal(userBlocked.allowed, false);
+  assert.equal(userBlocked.scope, "user");
+
+  const featureBlocked = await checkAiBudget({
+    feature,
+    userId: uid("other-user"),
+    kind: "interactive",
+  });
+  assert.equal(featureBlocked.allowed, false);
+  assert.equal(featureBlocked.scope, "feature");
+
+  const globalBlocked = await checkAiBudget({
+    feature: uid("third-feature"),
+    userId: uid("third-user"),
+    kind: "interactive",
+  });
+  assert.equal(globalBlocked.allowed, false);
+  assert.equal(globalBlocked.scope, "global");
+});
+
+test("AI budget denial by a later dimension spends zero earlier counters", async () => {
+  process.env.AI_QUOTA_USER_DAILY = "2";
+  process.env.AI_QUOTA_FEATURE_DEFAULT_DAILY = "2";
+  process.env.AI_QUOTA_GLOBAL_DAILY = "1";
+  const { checkAiBudget } = await import("@/lib/ai/budget");
+  const feature = uid("atomic-feature");
+  const userId = uid("atomic-user");
+
+  assert.equal(
+    (await checkAiBudget({
+      feature: uid("global-filler"),
+      userId: uid("global-user"),
+      kind: "interactive",
+    })).allowed,
+    true,
+  );
+  const denied = await checkAiBudget({ feature, userId, kind: "interactive" });
+  assert.equal(denied.allowed, false);
+  assert.equal(denied.scope, "global");
+
+  process.env.AI_QUOTA_GLOBAL_DAILY = "10";
+  assert.equal((await checkAiBudget({ feature, userId, kind: "interactive" })).allowed, true);
+  assert.equal((await checkAiBudget({ feature, userId, kind: "interactive" })).allowed, true);
+  const userOrFeatureBlocked = await checkAiBudget({ feature, userId, kind: "interactive" });
+  assert.equal(userOrFeatureBlocked.allowed, false);
+  assert.ok(["user", "feature"].includes(userOrFeatureBlocked.scope ?? ""));
+});
+
 test("background quota uses the global-background budget", async () => {
   process.env.AI_QUOTA_BACKGROUND_DAILY = "1";
   process.env.AI_QUOTA_GLOBAL_DAILY = "100"; // interactive budget must not affect bg

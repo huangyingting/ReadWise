@@ -333,9 +333,9 @@ const REQUIRED_STEP_NAMES: ReadonlySet<StepName> = new Set(
 );
 
 /**
- * Whether every REQUIRED enrichment step completed (present and not `failed`).
- * A `skipped`/`generated`/`fallback` required step counts as complete; only a
- * missing or `failed` required step blocks publication.
+ * Whether every REQUIRED enrichment step completed in this run (present and not
+ * `failed`). Fallback steps only mean the helper degraded gracefully; the publish
+ * gate separately verifies durable derived data before auto-publication.
  */
 function isRequiredEnrichmentComplete(steps: StepResult[]): boolean {
   const byName = new Map(steps.map((s) => [s.step, s.status] as const));
@@ -344,6 +344,17 @@ function isRequiredEnrichmentComplete(steps: StepResult[]): boolean {
     if (status === undefined || status === "failed") return false;
   }
   return true;
+}
+
+async function loadDurableRequiredEnrichment(articleId: string): Promise<ArticleState | null> {
+  return loadArticleState(articleId);
+}
+
+function hasDurableRequiredEnrichment(state: ArticleState | null): boolean {
+  if (!state) return false;
+  return FEATURE_REGISTRY
+    .filter((f) => f.isRequired)
+    .every((feature) => isAlreadyDone(feature, state));
 }
 
 /**
@@ -483,7 +494,9 @@ async function processArticleInner(
   }
 
   const ok = !steps.some((s) => s.status === "failed");
-  const requiredEnrichmentComplete = isRequiredEnrichmentComplete(steps);
+  const requiredEnrichmentComplete =
+    isRequiredEnrichmentComplete(steps) &&
+    hasDurableRequiredEnrichment(await loadDurableRequiredEnrichment(articleId));
   const publish = await publishDraftIfReady(before, requiredEnrichmentComplete, ok);
   if (publish.publishStep) {
     steps.push(publish.publishStep);
