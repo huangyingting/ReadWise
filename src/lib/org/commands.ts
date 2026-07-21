@@ -44,20 +44,13 @@ export async function createOrganization(
   });
 }
 
-/**
- * Adds (or re-roles) a user in an org. Idempotent via the `userId_orgId` unique
- * key: an existing membership is updated to `role`, otherwise one is created.
- */
+/** Adds a new user membership in an org. Existing memberships must be re-roled through updateMemberRole. */
 export async function addMember(
   orgId: string,
   userId: string,
   role: MembershipRole = "Member",
 ): Promise<Membership> {
-  return prisma.membership.upsert({
-    where: { userId_orgId: { userId, orgId } },
-    update: { role },
-    create: { orgId, userId, role },
-  });
+  return prisma.membership.create({ data: { orgId, userId, role } });
 }
 
 /** Count of OrgAdmins in an org — used to enforce the last-admin rule. */
