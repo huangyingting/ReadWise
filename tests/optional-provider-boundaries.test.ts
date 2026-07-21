@@ -31,7 +31,7 @@ const MODULES: ModuleConfig[] = [
       "getOrCreateArticleSpeech",
       "isSpeechConfigured",
     ],
-    forbiddenExports: ["synthesize", "resolveMimeType", "saveSpeechResult", "resolveStoredSpeechMedia"],
+    forbiddenExports: ["synthesize", "resolveMimeType", "saveSpeechResult", "resolveStoredSpeechMediaMetadata"],
     privateInternalImports: ["@/lib/speech/provider-azure", "@/lib/speech/repository"],
   },
   {

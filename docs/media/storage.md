@@ -110,12 +110,12 @@ To add another backend, implement `MediaStorage` and register it behind a new
   A `MediaAsset` row records the canonical `storageKey`, `mimeType`, `voice`, and
   `articleId`; `ArticleSpeech.mediaAssetId` identifies the object matching its
   word timings. Superseded objects retain their own rows for lifecycle cleanup.
-- **Storage unavailable/write failure** — the synthesis result may still be
-  returned to the current caller, but no database audio fallback is written and
-  no cache row is created.
-- **Cached-read path** — `resolveStoredSpeechMedia` loads the linked current
-  `MediaAsset`, then reads bytes from storage by its `storageKey`. If the object
-  is unavailable, the client treats the response as a graceful no-audio fallback.
+- **Storage unavailable/write failure** — the request returns a graceful
+  `storage_unavailable` fallback because no authenticated audio URL can serve
+  transient bytes. No database audio fallback or cache row is created.
+- **Cached-read path** — `resolveStoredSpeechMediaMetadata` loads the linked
+  current `MediaAsset` without reading its bytes. The authenticated audio route
+  is the only request that reads the object from storage.
 
 ## Streaming audio endpoint
 
@@ -127,9 +127,13 @@ To add another backend, implement `MediaStorage` and register it behind a new
 - **Cache headers** — `Cache-Control: private, max-age=3600` prevents shared
   caches from serving one user's audio to another.
 - **Content-Length** — included when bytes are known, enabling progress bars.
+- **Seeking** — advertises `Accept-Ranges: bytes`; valid single byte ranges
+  return `206 Partial Content` with `Content-Range`, while unsatisfiable ranges
+  return `416` with the complete object length.
 
-This endpoint supports `<audio src="/api/reader/{id}/speech/audio">` and avoids
-embedding large data URIs in the initial page payload.
+The speech POST returns this URL with narration timing metadata. The Reader uses
+it directly as `<audio src>`, avoiding base64 encoding and duplicate audio-byte
+reads during the metadata request.
 
 ## Readiness probe
 

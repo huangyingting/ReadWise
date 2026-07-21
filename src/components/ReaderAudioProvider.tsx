@@ -13,7 +13,7 @@
  *  - ReaderMiniPlayer reads `audioRef` to drive transport controls.
  *  - Both components read `activeIndex` for highlight / time display.
  *  - Internals are split into focused sub-modules (REF-030):
- *      useNarrationApi   — POST /speech fetch + Blob URL lifecycle
+ *      useNarrationApi   — POST /speech metadata + authenticated audio URL
  *      useActiveWord     — binary-search active-word index
  *      useLoopSegment    — sentence-loop capture + seek
  */
@@ -190,6 +190,11 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     cancelLoop();
   }, [cancelClock, cancelLoop, clearActiveWord]);
 
+  const handleAudioError = useCallback(() => {
+    cancelClock();
+    markFallback();
+  }, [cancelClock, markFallback]);
+
   const contextValue = useMemo<AudioContextValue>(
     () => ({
       audioRef,
@@ -246,7 +251,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
           onTimeUpdate={(e) => handleTimeUpdate(e.currentTarget.currentTime)}
           onSeeked={(e) => updateActiveWord(e.currentTarget.currentTime)}
           onEnded={handleEnded}
-          onError={cancelClock}
+          onError={handleAudioError}
         />
       ) : (
         // Keep ref stable even when no audio yet.

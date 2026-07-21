@@ -36,7 +36,7 @@ flowchart TD
 building, voice and output-format selection and fallback, word-boundary
 collection and timing enrichment, Azure SDK and Batch REST isolation,
 `ArticleSpeech` cache creation and invalidation, and the `saveSpeechResult` /
-`resolveStoredSpeechMedia` repository functions.
+`resolveStoredSpeechMediaMetadata` repository functions.
 
 **Speech does not own** storage backend selection or migration (owned by Media),
 reader playback UX (owned by Reader), or job retry scheduling (owned by
@@ -312,17 +312,18 @@ rerunning TTS jobs after fixing storage.
 
 If media storage is unavailable or the write fails, `saveSpeechResult` returns
 `false`, skips cache persistence, and does not store audio in the database. The
-caller may still return the just-generated audio to the current request, but it
-must not report the result as durably cached.
+speech result reports a graceful `storage_unavailable` fallback because no
+authenticated audio URL can serve the transient bytes.
 
-## Repository: resolveStoredSpeechMedia
+## Repository: resolveStoredSpeechMediaMetadata
 
-`resolveStoredSpeechMedia(row)` resolves playback metadata from the linked
-current speech asset:
+`resolveStoredSpeechMediaMetadata(row)` resolves playback metadata from the
+linked current speech asset without reading the audio object:
 
 1. Loads `storageKey`, `mimeType`, and `voice` from `MediaAsset`.
-2. Reads bytes via `storage.get(asset.storageKey)`.
-3. Returns metadata with `audio: null` if storage cannot return the object.
+2. Reports availability when a storage backend and object key are configured.
+3. Leaves byte delivery and missing-object handling to the authenticated audio
+  GET route.
 
 ## Cache invalidation and rebuild
 

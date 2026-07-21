@@ -536,7 +536,7 @@ beforeEach(() => {
   learnerEvidenceCalls = [];
   quizResult = { articleId: "a1", questions: [] };
   tagsResult = { articleId: "a1", tags: [] };
-  speechResult = { articleId: "a1", audio: null };
+  speechResult = { articleId: "a1", fallback: true };
   offlineArticle = {
     id: "a1",
     title: "Offline",

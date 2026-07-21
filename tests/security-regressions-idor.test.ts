@@ -142,7 +142,7 @@ before(() => {
     namedExports: {
       getOrCreateArticleSpeech: async () => {
         helperCalls.push("speech");
-        return { audio: "data:audio/mpeg;base64,AAAA", mimeType: "audio/mpeg", words: [] };
+        return { fallback: false, mimeType: "audio/mpeg", words: [] };
       },
     },
   });

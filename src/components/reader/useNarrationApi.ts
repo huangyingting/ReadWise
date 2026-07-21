@@ -5,24 +5,20 @@
  *
  * Extracted from ReaderAudioProvider.  Handles:
  *  - POST /api/reader/[id]/speech → narration data fetch
- *  - base64 → Blob URL conversion via {@link base64ToBlobUrl}
- *  - Blob URL lifecycle: revoke on replacement and on unmount
+ *  - authenticated audio URL handoff to the shared browser player
  *
  * Idempotent: once a successful fetch completes, subsequent calls to
  * `warmNarration` are no-ops.  A failed call may be retried.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { postJson } from "@/lib/client-fetch";
-import { base64ToBlobUrl, revokeBlobUrl } from "@/lib/media-blob";
 import type { SpeechWord } from "@/lib/speech/timing";
 
-const DEFAULT_AUDIO_MIME_TYPE = "audio/mpeg";
-
 interface UseNarrationApiOptions {
-  /** Called with the resolved Blob URL and metadata when narration loads. */
+  /** Called with the authenticated audio URL and metadata when narration loads. */
   onLoaded: (
-    blobUrl: string,
+    audioUrl: string,
     words: SpeechWord[],
     voice: string,
     cached: boolean,
@@ -42,8 +38,7 @@ export interface NarrationApiState {
 }
 
 interface SpeechResponse {
-  audio: string | null;
-  mimeType: string | null;
+  audioUrl: string | null;
   plainText: string;
   words: SpeechWord[];
   voice: string;
@@ -66,7 +61,6 @@ export function useNarrationApi({
   const [isWarming, setIsWarming] = useState(false);
   const [warmError, setWarmError] = useState<string | null>(null);
   const hasWarmedRef = useRef(false);
-  const blobUrlRef = useRef<string | null>(null);
 
   const warmNarration = useCallback(
     async (articleId: string): Promise<void> => {
@@ -76,17 +70,10 @@ export function useNarrationApi({
       setWarmError(null);
       try {
         const body = await postJson<SpeechResponse>(speechEndpoint(articleId), {});
-        if (body.fallback || !body.audio) {
+        if (body.fallback || !body.audioUrl) {
           onFallback();
         } else {
-          const blobUrl = base64ToBlobUrl(
-            body.audio,
-            body.mimeType ?? DEFAULT_AUDIO_MIME_TYPE,
-          );
-          // Revoke previous Blob URL before replacing.
-          revokeBlobUrl(blobUrlRef.current);
-          blobUrlRef.current = blobUrl;
-          onLoaded(blobUrl, body.words, body.voice, body.cached, body.plainText);
+          onLoaded(body.audioUrl, body.words, body.voice, body.cached, body.plainText);
         }
       } catch (err) {
         // Allow a retry on failure.
@@ -97,15 +84,6 @@ export function useNarrationApi({
       }
     },
     [onLoaded, onFallback],
-  );
-
-  // Revoke the Blob URL when the hook unmounts to avoid memory leaks.
-  useEffect(
-    () => () => {
-      revokeBlobUrl(blobUrlRef.current);
-      blobUrlRef.current = null;
-    },
-    [],
   );
 
   return { isWarming, warmError, warmNarration };

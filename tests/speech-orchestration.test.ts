@@ -178,10 +178,6 @@ function synthesizeSuccess(audio = "AUDIO"): void {
   synthesizeResult = { audio: Buffer.from(audio), provider: "azure", words: VALID_WORDS };
 }
 
-function audioDataUrl(audio: string): string {
-  return `data:audio/mpeg;base64,${Buffer.from(audio).toString("base64")}`;
-}
-
 // ---------------------------------------------------------------------------
 // isSpeechConfigured
 // ---------------------------------------------------------------------------
@@ -223,7 +219,7 @@ test("getOrCreateArticleSpeech returns cached speech without calling the provide
   assert.equal(result!.cached, true);
   assert.equal(result!.fallback, false);
   assert.equal(result!.voice, "en-US-Cached");
-  assert.equal(result!.audio, "data:audio/mpeg;base64,QUJD");
+  assert.equal("audio" in result!, false);
   assert.equal(result!.plainText, "Hello world from the article.");
   assert.deepEqual(result!.words, VALID_WORDS);
   assert.equal(synthesizeCalls.length, 0, "provider must not be called on a cache hit");
@@ -345,7 +341,7 @@ test("getOrCreateArticleSpeech synthesizes and persists fresh audio on a cache m
   assert.equal(result!.fallback, false);
   assert.equal(result!.mimeType, "audio/mpeg");
   assert.equal(result!.voice, "en-US-TestNeural");
-  assert.equal(result!.audio, audioDataUrl("AUDIO"));
+  assert.equal("audio" in result!, false);
   assert.deepEqual(result!.words, VALID_WORDS);
   assert.deepEqual(
     (persistedTimingPayload as { textBasis?: unknown }).textBasis,
@@ -366,7 +362,7 @@ test("getOrCreateArticleSpeech reports storage persistence failure as recoverabl
   assert.equal(result!.cached, false);
   assert.equal(result!.fallback, true);
   assert.equal(result!.fallbackReason, "storage_unavailable");
-  assert.equal(result!.audio, audioDataUrl("RECOVERABLE"));
+  assert.equal("audio" in result!, false);
 });
 
 // ---------------------------------------------------------------------------
@@ -383,7 +379,7 @@ test("getOrCreateArticleSpeech returns a graceful fallback when the TTS feature 
   assert.ok(result);
   assert.equal(result!.fallback, true);
   assert.equal(result!.fallbackReason, "tts_unconfigured");
-  assert.equal(result!.audio, null);
+  assert.equal("audio" in result!, false);
   assert.equal(result!.voice, DEFAULT_SPEECH_VOICE);
   assert.equal(synthesizeCalls.length, 0, "synthesis must not run when TTS is disabled");
 });
@@ -434,6 +430,6 @@ test("getOrCreateArticleSpeech returns a fallback when synthesis yields no outpu
   assert.equal(synthesizeCalls.length, 1, "synthesis is attempted");
   assert.ok(result);
   assert.equal(result!.fallback, true);
-  assert.equal(result!.audio, null);
+  assert.equal("audio" in result!, false);
   assert.equal(result!.voice, "en-US-TestNeural");
 });
