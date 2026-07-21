@@ -1,6 +1,7 @@
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { StatCard } from "@/components/analytics/StatCard";
+import { AdminPageHeader } from "@/components/admin";
 import AdminSloDashboardPanel from "@/components/admin/security/AdminSloDashboardPanel";
 import AdminSecurityEventsPanel from "@/components/admin/security/AdminSecurityEventsPanel";
 import AdminAuditLogPanel from "@/components/admin/security/AdminAuditLogPanel";
@@ -35,9 +36,7 @@ export default async function AdminSecurityPage() {
 
   return (
     <section className="stack">
-      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
-        Security
-      </h1>
+      <AdminPageHeader>Security</AdminPageHeader>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
         <StatCard

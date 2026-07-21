@@ -5,6 +5,7 @@ import { listAdminTags } from "@/lib/admin/tags";
 import AdminTagActions from "@/components/AdminTagActions";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import {
   AdminPageHeader,
   AdminFilterBar,
@@ -48,13 +49,14 @@ export default async function AdminTagsPage({
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const page = parsePage(sp.page);
+  const hasActiveFilters = query.length > 0;
 
   const result = await listAdminTags({ query, page });
 
   return (
     <section className="stack">
       <AdminPageHeader>Global tags</AdminPageHeader>
-      <p className="muted" style={{ margin: 0 }}>
+      <p className="muted m-0">
         This tool manages public-library tags only. Private import tags stay scoped
         to their owner and are not listed here.
       </p>
@@ -114,6 +116,22 @@ export default async function AdminTagsPage({
             ))}
           </tbody>
         </AdminTableWrap>
+      )}
+
+      {result.tags.length === 0 && (
+        <EmptyState
+          title={hasActiveFilters ? "No tags match these filters" : "No tags yet"}
+          description={
+            hasActiveFilters
+              ? "Clear filters to return to the full tag list."
+              : "Tags will appear after public-library articles are tagged."
+          }
+          action={
+            hasActiveFilters
+              ? { label: "Clear filters", href: ADMIN_TAGS_PATH }
+              : undefined
+          }
+        />
       )}
 
       <AdminPagination
