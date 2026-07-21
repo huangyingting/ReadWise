@@ -2,7 +2,7 @@
 
 /** Client-side IndexedDB implementation for the authenticated Offline Library. */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { WifiOff, Trash2, ExternalLink } from "lucide-react";
 import {
@@ -10,6 +10,7 @@ import {
   EmptyState,
   PageHeader,
   PageShell,
+  SkeletonText,
   Stack,
   buttonVariants,
 } from "@/components/ui";
@@ -21,6 +22,11 @@ import {
 
 const OFFLINE_RETENTION_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+type OfflineLibraryState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; articles: OfflineArticle[] };
 
 function daysUntilExpiry(savedAt: string): number {
   const savedDate = new Date(savedAt);
@@ -79,29 +85,62 @@ function OfflineArticleItem({
 }
 
 export default function OfflineLibraryClient() {
-  const [articles, setArticles] = useState<OfflineArticle[] | null>(null);
+  const [libraryState, setLibraryState] = useState<OfflineLibraryState>({
+    status: "loading",
+  });
   const [removing, setRemoving] = useState<string | null>(null);
   const [supported, setSupported] = useState(true);
 
-  useEffect(() => {
+  const loadOfflineArticles = useCallback(async (isCancelled: () => boolean) => {
     if (typeof indexedDB === "undefined") {
       setSupported(false);
-      setArticles([]);
+      setLibraryState({ status: "ready", articles: [] });
       return;
     }
-    getAllOfflineArticles()
-      .then(setArticles)
-      .catch(() => setArticles([]));
+    setSupported(true);
+    setLibraryState({ status: "loading" });
+    try {
+      const nextArticles = await getAllOfflineArticles();
+      if (!isCancelled()) {
+        setLibraryState({ status: "ready", articles: nextArticles });
+      }
+    } catch {
+      if (!isCancelled()) {
+        setLibraryState({
+          status: "error",
+          message: "Couldn't load your offline library.",
+        });
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadOfflineArticles(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [loadOfflineArticles]);
 
   async function handleRemove(id: string) {
     setRemoving(id);
     try {
       await removeOfflineArticle(id);
-      setArticles((prev) => prev?.filter((a) => a.id !== id) ?? []);
+      setLibraryState((prev) =>
+        prev.status === "ready"
+          ? {
+              status: "ready",
+              articles: prev.articles.filter((article) => article.id !== id),
+            }
+          : prev,
+      );
     } finally {
       setRemoving(null);
     }
+  }
+
+  function retryLoad() {
+    void loadOfflineArticles(() => false);
   }
 
   return (
@@ -124,13 +163,30 @@ export default function OfflineLibraryClient() {
         </p>
       )}
 
-      {articles === null && (
-        <p className="text-text-muted" aria-live="polite">
-          Loading…
-        </p>
+      {libraryState.status === "loading" && (
+        <div aria-busy="true">
+          <span className="sr-only" role="status">
+            Loading offline library
+          </span>
+          <SkeletonText lines={3} className="w-full" />
+        </div>
       )}
 
-      {articles !== null && articles.length === 0 && (
+      {libraryState.status === "error" && (
+        <EmptyState
+          icon={WifiOff}
+          title="Offline library couldn't load"
+          description={libraryState.message}
+          role="alert"
+          action={
+            <Button type="button" variant="outline" size="sm" onClick={retryLoad}>
+              Retry
+            </Button>
+          }
+        />
+      )}
+
+      {libraryState.status === "ready" && supported && libraryState.articles.length === 0 && (
         <EmptyState
           icon={WifiOff}
           title="No articles saved offline yet"
@@ -138,9 +194,9 @@ export default function OfflineLibraryClient() {
         />
       )}
 
-      {articles !== null && articles.length > 0 && (
+      {libraryState.status === "ready" && libraryState.articles.length > 0 && (
         <ul className="offline-library-list" aria-label="Offline articles">
-          {articles.map((article) => (
+          {libraryState.articles.map((article) => (
             <OfflineArticleItem
               key={article.id}
               article={article}
