@@ -365,13 +365,11 @@ async function clearArticleAiDerivatives(
   tx: RebuildTransaction,
   articleId: string,
 ): Promise<AdminArticleAiCounts> {
-  const [translations, vocabulary, quizQuestions, tags, speech] = await Promise.all([
-    tx.translation.deleteMany({ where: { articleId } }),
-    tx.vocabularyItem.deleteMany({ where: { articleId } }),
-    tx.quizQuestion.deleteMany({ where: { articleId } }),
-    tx.articleTag.deleteMany({ where: { articleId } }),
-    tx.articleSpeech.deleteMany({ where: { articleId } }),
-  ]);
+  const translations = await tx.translation.deleteMany({ where: { articleId } });
+  const vocabulary = await tx.vocabularyItem.deleteMany({ where: { articleId } });
+  const quizQuestions = await tx.quizQuestion.deleteMany({ where: { articleId } });
+  const tags = await tx.articleTag.deleteMany({ where: { articleId } });
+  const speech = await tx.articleSpeech.deleteMany({ where: { articleId } });
 
   await deleteArticleMediaAssetRecords(tx, { articleId, kind: "speech" });
 
