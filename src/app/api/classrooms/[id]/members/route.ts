@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import type { ClassroomRole } from "@prisma/client";
-import { createHandler } from "@/lib/api-handler";
+import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, oneOf, optional, nonEmptyString } from "@/lib/validation";
 import { CLASSROOM_ROLES } from "@/lib/rbac";
 import { addClassroomMember } from "@/lib/classroom";
 import { requireClassroomManageApi } from "@/lib/tenant-api";
+import { getMembership } from "@/lib/org/queries";
 
 const CREATED_RESPONSE_INIT = { status: 201 } as const;
 const DEFAULT_CLASSROOM_ROLE = "Student" satisfies ClassroomRole;
@@ -22,7 +23,14 @@ function classroomRoleOrDefault(role: ClassroomRole | undefined): ClassroomRole 
 }
 
 async function requireClassroomMemberManagement(session: ClassroomSession, classroomId: string) {
-  await requireClassroomManageApi(session, classroomId);
+  return requireClassroomManageApi(session, classroomId);
+}
+
+async function requireTargetOrgMembership(userId: string, orgId: string): Promise<void> {
+  const membership = await getMembership(userId, orgId);
+  if (!membership) {
+    throw new ApiError(403, "Forbidden");
+  }
 }
 
 function classroomMemberCreatedResponse(member: ClassroomMember) {
@@ -37,7 +45,8 @@ function classroomMemberCreatedResponse(member: ClassroomMember) {
 export const POST = createHandler(
   { params: idParams, body: addClassroomMemberBody },
   async ({ params, body, session }) => {
-    await requireClassroomMemberManagement(session, params.id);
+    const { classroom } = await requireClassroomMemberManagement(session, params.id);
+    await requireTargetOrgMembership(body.userId, classroom.orgId);
     const member = await addClassroomMember(
       params.id,
       body.userId,

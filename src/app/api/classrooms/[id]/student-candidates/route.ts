@@ -12,8 +12,8 @@ const pickerQuery = (params: URLSearchParams) => ({
 export const GET = createHandler(
   { params: idParams, query: pickerQuery },
   async ({ params, query, session }) => {
-    await requireClassroomManageApi(session, params.id);
-    const candidates = await searchClassroomStudentCandidates(params.id, query.q);
+    const { classroom } = await requireClassroomManageApi(session, params.id);
+    const candidates = await searchClassroomStudentCandidates(params.id, classroom.orgId, query.q);
     return NextResponse.json({ candidates });
   },
 );

@@ -1,16 +1,26 @@
 /** Classroom article-assignment invariant over authorized classroom context. */
 
-import type { Assignment } from "@prisma/client";
+import {
+  ArticleStatus,
+  ArticleVisibility,
+  type Assignment,
+  type Prisma,
+} from "@prisma/client";
 import {
   getOrganizationAssignableArticle,
   type ArticleOrganizationIntegrityReason,
 } from "@/lib/article-library/tenant-integrity";
+import {
+  readableArticleWhere,
+  type ArticleAccessContext,
+} from "@/lib/article-library/policy";
 import { prisma } from "@/lib/prisma";
 
 export type CreateArticleAssignmentInput = {
   classroomId: string;
   organizationId: string;
   articleId: string;
+  accessContext: ArticleAccessContext;
   dueDate?: string;
   instructions?: string | null;
 };
@@ -38,9 +48,43 @@ export function trimOrNull(value: string | null | undefined): string | null {
   return value?.trim() || null;
 }
 
+function assignableArticleWhere(input: {
+  articleId: string;
+  organizationId: string;
+  accessContext: ArticleAccessContext;
+}): Prisma.ArticleWhereInput {
+  return readableArticleWhere(input.accessContext, {
+    id: input.articleId,
+    status: ArticleStatus.PUBLISHED,
+    OR: [
+      {
+        visibility: { in: [ArticleVisibility.PUBLIC, ArticleVisibility.UNLISTED] },
+        ownerId: null,
+        organizationId: null,
+      },
+      {
+        visibility: ArticleVisibility.ORG,
+        organizationId: input.organizationId,
+      },
+    ],
+  });
+}
+
+async function canAssignReadableArticle(input: {
+  articleId: string;
+  organizationId: string;
+  accessContext: ArticleAccessContext;
+}): Promise<boolean> {
+  const article = await prisma.article.findFirst({
+    where: assignableArticleWhere(input),
+    select: { id: true },
+  });
+  return Boolean(article);
+}
+
 /**
  * Creates an assignment only after Article Library confirms that the article
- * is assignable to the authorized classroom's organization.
+ * is readable/assignable to the authorized classroom's organization.
  */
 export async function createArticleAssignment(
   input: CreateArticleAssignmentInput,
@@ -50,6 +94,9 @@ export async function createArticleAssignment(
     input.organizationId,
   );
   if (!article.ok) return article;
+  if (!(await canAssignReadableArticle(input))) {
+    return { ok: false, status: 404, reason: "article_not_found" };
+  }
 
   const dueDate = parseOptionalDueDate(input.dueDate);
   if (input.dueDate && !dueDate) {

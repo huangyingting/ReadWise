@@ -146,9 +146,11 @@ export async function listClassroomMembers(
 
 function buildStudentCandidateWhere(
   classroomId: string,
+  orgId: string,
   query: string,
 ): Prisma.UserWhereInput {
   return {
+    memberships: { some: { orgId } },
     classroomMemberships: { none: { classroomId } },
     ...(query
       ? {
@@ -163,12 +165,13 @@ function buildStudentCandidateWhere(
 
 export function searchClassroomStudentCandidates(
   classroomId: string,
+  orgId: string,
   query = "",
   limit = STUDENT_PICKER_LIMIT,
 ): Promise<ClassroomStudentCandidateRow[]> {
   const trimmedQuery = query.trim();
   return prisma.user.findMany({
-    where: buildStudentCandidateWhere(classroomId, trimmedQuery),
+    where: buildStudentCandidateWhere(classroomId, orgId, trimmedQuery),
     select: USER_PROFILE_SELECT,
     orderBy: [{ name: "asc" }, { email: "asc" }],
     take: Math.max(1, Math.min(limit, STUDENT_PICKER_LIMIT)),
