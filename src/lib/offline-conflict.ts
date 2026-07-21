@@ -19,6 +19,8 @@
  *     {@link mergeNoteConflict}.
  */
 
+import { COMPLETION_THRESHOLD } from "@/lib/engagement/progress-rules";
+
 // ---------------------------------------------------------------------------
 // Reading progress — forward-only
 // ---------------------------------------------------------------------------
@@ -31,7 +33,7 @@
 export function resolveProgress(
   server: { percent: number; completed: boolean },
   client: { percent: number; completed: boolean },
-  completionThreshold = 95,
+  completionThreshold = COMPLETION_THRESHOLD,
 ): { percent: number; completed: boolean } {
   const percent = Math.max(server.percent, client.percent);
   const completed =

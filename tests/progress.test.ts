@@ -144,7 +144,8 @@ test("saveProgress never lowers the stored percent (forward-only)", async () => 
 });
 
 test("saveProgress marks completed at/above the threshold", async () => {
-  const { saveProgress, COMPLETION_THRESHOLD } = await import("@/lib/engagement/progress");
+  const { saveProgress } = await import("@/lib/engagement/progress");
+  const { COMPLETION_THRESHOLD } = await import("@/lib/engagement/progress-rules");
   const result = await saveProgress("u1", "a1", COMPLETION_THRESHOLD);
   assert.equal(result.completed, true);
   assert.ok(result.completedAt instanceof Date);
