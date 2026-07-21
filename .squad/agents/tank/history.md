@@ -82,3 +82,9 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - Carry-forward patterns: membership-backed `articleAccessContextForUser` with `orgIds`; readable-scope targets and ORG tag namespace; push reminder worker delivery; audit coverage for org/series; classroom archive uses nullable `Classroom.archivedAt`, with hard DELETE only for empty classrooms.
 - Coordination lesson: large keystone PRs stayed sequential under coordinator review because the shared working tree cannot support parallel implementation safely.
 
+
+
+## 2026-07-21T05:57:04+0000 — Cycle 2 global review backend/auth/tenant/audit/jobs/classroom closure
+
+- Shipped #1210 archived-classroom mutation/completion enforcement and admin active-count exclusion; #1216/PR #1226 last-admin guard on org member POST (`ae7707bc`); and #1220/PR #1234 no-PII audit trails for org/classroom membership and assignment mutations (`fc5f8112`).
+- Reusable pattern: apply `recordAuditFromRequest` at mutation boundaries with no PII metadata, and enforce last-admin/archived-state guards consistently before writes.
