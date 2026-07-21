@@ -88,3 +88,14 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - Shipped #1210 archived-classroom mutation/completion enforcement and admin active-count exclusion; #1216/PR #1226 last-admin guard on org member POST (`ae7707bc`); and #1220/PR #1234 no-PII audit trails for org/classroom membership and assignment mutations (`fc5f8112`).
 - Reusable pattern: apply `recordAuditFromRequest` at mutation boundaries with no PII metadata, and enforce last-admin/archived-state guards consistently before writes.
+- 2026-07-14T08:15:46.165+00:00 — Completed issue #1054 backend validation lane: validated PR #1055 branch data layer against 217 ArticleSpeech V2 rows in dev.db without code changes. Verified all rows cached (no re-synthesis), sample MP3 integrity (1,276,848 bytes, MPEG header, audio/mpeg, content-length match), V2 timing/plainText delivery, timing/audio ratio 0.999 (consistent with Mouse 0.9991), cache-control private, endpoint routing (/audio and /timing use same row), 217/217 storage key resolution, auth 401/404/degradation paths tested (cache_audio_missing, storage_unavailable, tts_unconfigured), range requests not implemented (no regression). Passed 44 tests/lint/diff-check with clean owned-file diagnostics. Ready for Trinity parallel phase.
+
+## 2026-07-21T14:17:00Z — Assignment lifecycle refactor PR1
+
+- Implemented `syncAssignmentReadingProgress` in `src/lib/classroom/completions.ts`: monotonic state-transition (ASSIGNED→IN_PROGRESS at `ASSIGNMENT_START_PERCENT`; →COMPLETED at `COMPLETION_THRESHOLD`); never downgrades COMPLETED; never clobbers `quizScore`; sticky `completedAt`; multi-classroom fan-out via `findMany`; archived-classroom guard (`archivedAt: null`).
+- Added `ASSIGNMENT_START_PERCENT` constant; reused `COMPLETION_THRESHOLD`/`isCompletePercent` from `progress-rules.ts`.
+- Added `listStudentAssignmentsForArticle(studentId, articleId)` in `student-reads.ts` for reader banner data.
+- Exported both from `src/lib/classroom/index.ts`.
+- Wired `syncAssignmentReadingProgress` best-effort into `src/app/api/reader/[id]/progress/route.ts` via `bestEffortMastery`.
+- 15 new unit tests in `tests/classroom-assignment-reading-sync.test.ts`.
+- **PR #1240** merged to `main` as **`7d73171c`**.
