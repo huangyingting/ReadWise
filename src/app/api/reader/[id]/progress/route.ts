@@ -14,6 +14,7 @@ import { syncTodayReadingFromProgress } from "@/lib/engagement/today-session/int
 type ProgressWrite = {
   percent: number;
   completed: boolean;
+  completedNow: boolean;
 };
 
 function progressResponse(progress: ProgressWrite) {
@@ -58,10 +59,9 @@ export const POST = createHandler(
     });
     // Best-effort mastery side-effects — never break the progress write.
     await recordProgressMastery(session.user.id, article.id, progress.percent);
-    // Product analytics (RW-051): emit progress_complete when the article first
-    // reaches completion. saveProgress is forward-only + sticky, so this fires
-    // around the completion transition. Metadata only.
-    if (progress.completed) {
+    // Product analytics (RW-051): emit progress_complete only on the first
+    // completion transition. Metadata only.
+    if (progress.completedNow) {
       await recordEvent({
         type: ANALYTICS_EVENT_TYPES.progressComplete,
         userId: session.user.id,
@@ -69,7 +69,7 @@ export const POST = createHandler(
         properties: { percent: progress.percent, category: article.category },
       });
       // Completed articles are hard-excluded from the personalised feed — bust
-      // the user's feed cache so the next request reflects the completion.
+      // the user's feed cache once when the exclusion first becomes true.
       revalidateUserCache(session.user.id);
     }
     // Best-effort: advance the learner's active Today session reading step when

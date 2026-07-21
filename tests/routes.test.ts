@@ -11,7 +11,7 @@ const session = { user: { id: "user-1", role: "Admin", name: "T", email: "t@e.co
 
 // ---- mutable lib return values -----------------------------------------
 let articleExists = true;
-let saveProgressResult = { percent: 50, completed: false };
+let saveProgressResult = { percent: 50, completed: false, completedNow: false };
 let progressSummaries: Record<string, { percent: number; completed: boolean }> = {};
 let translationResult: unknown = { lang: "es", content: "Hola", cached: false, fallback: false };
 let supportedLang = true;
@@ -22,9 +22,11 @@ let dictionaryResult: unknown = { word: "run", found: true, meanings: [] };
 let searchArticlesResult: unknown = { articles: [], total: 0, page: 1 };
 let deleteArticleResult = true;
 let revalidateCalls = 0;
+let userCacheRevalidateCalls = 0;
 let lastSavedWord: unknown = null;
 let lastErasedContextWord: string | null = null;
 let auditCalls: unknown[] = [];
+let eventCalls: unknown[] = [];
 
 const AUDIT_ACTIONS = {
   adminArticleDelete: "admin.article.delete",
@@ -35,14 +37,16 @@ const AUDIT_ACTIONS = {
 function resetRouteState(): void {
   authState = "ok";
   articleExists = true;
-  saveProgressResult = { percent: 50, completed: false };
+  saveProgressResult = { percent: 50, completed: false, completedNow: false };
   progressSummaries = {};
   supportedLang = true;
   revalidateCalls = 0;
+  userCacheRevalidateCalls = 0;
   lastSavedWord = null;
   lastErasedContextWord = null;
   deleteArticleResult = true;
   auditCalls = [];
+  eventCalls = [];
   resetMetrics();
 }
 
@@ -109,7 +113,8 @@ before(() => {
       REVIEW_STATES: ["pending", "approved", "rejected"],
       TAKEDOWN_STATES: ["none", "requested", "removed"],
       articleAccessContext: () => ({ kind: "user", userId: session.user.id, role: session.user.role }),
-      getReadableArticleById: async () => (articleExists ? { id: "a1", status: "published" } : null),
+      articleAccessContextForUser: async () => ({ kind: "user", userId: session.user.id, role: session.user.role }),
+      getReadableArticleById: async () => (articleExists ? { id: "a1", status: "published", category: "tech" } : null),
       searchArticles: async () => searchArticlesResult,
       deleteArticle: async (_id: string, _ctx: unknown, audit?: unknown) => {
         if (!deleteArticleResult) return false;
@@ -125,13 +130,25 @@ before(() => {
         revalidateCalls++;
       },
       revalidateArticlesCache: () => {},
-      revalidateUserCache: () => {},
+      revalidateUserCache: () => {
+        userCacheRevalidateCalls++;
+      },
       createCachedListing:
         <T extends unknown[], R>(fn: (...args: T) => Promise<R>) =>
         (...args: T) =>
           fn(...args),
       ARTICLES_CACHE_TAG: "articles",
       TAGS_CACHE_TAG: "tags",
+    },
+  });
+  mock.module("@/lib/analytics/events", {
+    namedExports: {
+      ANALYTICS_EVENT_TYPES: {
+        progressComplete: "progress_complete",
+      },
+      recordEvent: async (input: unknown) => {
+        eventCalls.push(input);
+      },
     },
   });
   mock.module("@/lib/security/audit", {
@@ -168,12 +185,30 @@ function assertHasRequestId(res: Response): void {
 
 // ---- progress -----------------------------------------------------------
 test("POST progress saves and returns percent/completed", async () => {
-  saveProgressResult = { percent: 80, completed: false };
+  saveProgressResult = { percent: 80, completed: false, completedNow: false };
   const { POST } = (await import("@/app/api/reader/[id]/progress/route")) as { POST: RouteHandler };
   const res = await POST(jsonReq({ percent: 80 }), ctx());
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { percent: 80, completed: false });
   assertHasRequestId(res);
+});
+
+test("POST progress emits completion analytics and busts user cache only on first completion", async () => {
+  const { POST } = (await import("@/app/api/reader/[id]/progress/route")) as { POST: RouteHandler };
+
+  saveProgressResult = { percent: 96, completed: true, completedNow: true };
+  const first = await POST(jsonReq({ percent: 96 }), ctx());
+  assert.equal(first.status, 200);
+  assert.deepEqual(await first.json(), { percent: 96, completed: true });
+  assert.equal(eventCalls.length, 1);
+  assert.equal(userCacheRevalidateCalls, 1);
+
+  saveProgressResult = { percent: 100, completed: true, completedNow: false };
+  const repeat = await POST(jsonReq({ percent: 100 }), ctx());
+  assert.equal(repeat.status, 200);
+  assert.deepEqual(await repeat.json(), { percent: 100, completed: true });
+  assert.equal(eventCalls.length, 1);
+  assert.equal(userCacheRevalidateCalls, 1);
 });
 
 test("POST progress returns 404 for a missing article", async () => {

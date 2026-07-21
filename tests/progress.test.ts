@@ -25,6 +25,7 @@ let row: Row | null = null;
 /** When set, the next create() throws P2002 after a concurrent writer wins. */
 let concurrentCreatePercent: number | null = null;
 let activityCalls: Array<{ userId: string; articleId: string; timezone?: string }> = [];
+let readingExposureCalls = 0;
 
 function makeRow(data: { userId: string; articleId: string; percent: number; completed: boolean; completedAt: Date | null }): Row {
   const now = new Date();
@@ -44,7 +45,12 @@ before(() => {
     },
   });
   mock.module("@/lib/learning/reading-exposure", {
-    namedExports: { recordReadingWordExposures: async () => 0 },
+    namedExports: {
+      recordReadingWordExposures: async () => {
+        readingExposureCalls++;
+        return 0;
+      },
+    },
   });
   mock.module("@/lib/article-library", {
     namedExports: {
@@ -100,6 +106,7 @@ beforeEach(() => {
   row = null;
   concurrentCreatePercent = null;
   activityCalls = [];
+  readingExposureCalls = 0;
 });
 
 // ---- forward-only / sticky semantics ------------------------------------
@@ -109,6 +116,7 @@ test("saveProgress creates a new row on first write", async () => {
   const result = await saveProgress("u1", "a1", 42);
   assert.equal(result.percent, 42);
   assert.equal(result.completed, false);
+  assert.equal(result.completedNow, false);
   assert.equal(result.completedAt, null);
 });
 
@@ -148,6 +156,7 @@ test("saveProgress marks completed at/above the threshold", async () => {
   const { COMPLETION_THRESHOLD } = await import("@/lib/engagement/progress-rules");
   const result = await saveProgress("u1", "a1", COMPLETION_THRESHOLD);
   assert.equal(result.completed, true);
+  assert.equal(result.completedNow, true);
   assert.ok(result.completedAt instanceof Date);
 });
 
@@ -155,18 +164,27 @@ test("saveProgress does NOT mark completed just below the threshold (94%)", asyn
   const { saveProgress } = await import("@/lib/engagement/progress");
   const result = await saveProgress("u1", "a1", 94);
   assert.equal(result.completed, false);
+  assert.equal(result.completedNow, false);
   assert.equal(result.completedAt, null);
 });
 
-test("completion is sticky and percent is not lowered after completing", async () => {
+test("completedNow is true exactly once on the completion transition", async () => {
   const { saveProgress } = await import("@/lib/engagement/progress");
+  const started = await saveProgress("u1", "a1", 40);
+  assert.equal(started.completed, false);
+  assert.equal(started.completedNow, false);
+
   const done = await saveProgress("u1", "a1", 98);
   assert.equal(done.completed, true);
+  assert.equal(done.completedNow, true);
   const completedAt = done.completedAt;
+
   const later = await saveProgress("u1", "a1", 5);
   assert.equal(later.completed, true);
+  assert.equal(later.completedNow, false);
   assert.equal(later.percent, 98);
   assert.deepEqual(later.completedAt, completedAt);
+  assert.equal(readingExposureCalls, 1);
 });
 
 // ---- race safety ---------------------------------------------------------
