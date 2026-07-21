@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { TrendingUp, TrendingDown, X, ChevronRight } from "lucide-react";
-import { Button, IconButton } from "@/components/ui";
+import { Button, IconButton, PanelError } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 type Suggestion = "up" | "down" | "hold";
@@ -54,21 +55,29 @@ export default function LevelRecommendationBanner({
   const [dismissing, setDismissing] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
+
+  const loadRecommendation = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const res = await fetch("/api/level-recommendation");
+      if (!res.ok) throw new Error("recommendation failed");
+      const data = (await res.json()) as Recommendation | null;
+      setRec(shouldShowRecommendation(data) ? data : null);
+    } catch {
+      setRec(null);
+      setLoadError("Level recommendation couldn’t load.");
+    }
+  }, []);
 
   useEffect(() => {
     if (sessionStorage.getItem(DISMISS_KEY)) {
       setDismissed(true);
       return;
     }
-    fetch("/api/level-recommendation")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: Recommendation | null) => {
-        if (shouldShowRecommendation(data)) {
-          setRec(data);
-        }
-      })
-      .catch(() => null);
-  }, []);
+    void loadRecommendation();
+  }, [loadRecommendation]);
 
   function dismiss() {
     setDismissing(true);
@@ -84,6 +93,7 @@ export default function LevelRecommendationBanner({
   async function accept() {
     if (!rec?.targetLevel || applying) return;
     setApplying(true);
+    setApplyError(null);
     try {
       const res = await fetch("/api/profile", {
         method: "PUT",
@@ -97,16 +107,45 @@ export default function LevelRecommendationBanner({
       setApplied(true);
       sessionStorage.setItem(DISMISS_KEY, "1");
     } catch {
+      setApplyError("Couldn’t update your level. Please retry.");
       setApplying(false);
     }
   }
 
-  if (dismissed || !rec) return null;
+  if (dismissed) return null;
+
+  if (loadError) {
+    return (
+      <div className="rw-fade-up flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] border border-border bg-surface p-[var(--space-4)] mb-[var(--space-6)]">
+        <PanelError message={loadError} />
+        <div className="flex flex-wrap items-center gap-[var(--space-2)]">
+          <Button type="button" variant="secondary" size="sm" onClick={() => void loadRecommendation()}>
+            Retry
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              sessionStorage.setItem(DISMISS_KEY, "1");
+              setDismissed(true);
+            }}
+          >
+            Dismiss
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!rec) return null;
 
   const isUp = rec.suggestion === "up";
   const Icon = isUp ? TrendingUp : TrendingDown;
-  const accentColor = isUp ? "var(--success)" : "var(--warning)";
-  const accentText = isUp ? "var(--success-text)" : "var(--warning-text)";
+  const accentIconClass = isUp ? "text-success" : "text-warning";
+  const accentBadgeClass = isUp
+    ? "bg-[var(--success-bg)] text-success-text"
+    : "bg-[var(--warning-bg)] text-warning-text";
 
   if (applied) {
     return (
@@ -114,7 +153,7 @@ export default function LevelRecommendationBanner({
         role="status"
         className="rw-fade-up flex items-center gap-[var(--space-3)] p-[var(--space-4)] rounded-[var(--radius-lg)] border border-border bg-surface mb-[var(--space-6)]"
       >
-        <Icon size={20} aria-hidden style={{ color: accentColor, flexShrink: 0 }} />
+        <Icon size={20} aria-hidden className={cn("shrink-0", accentIconClass)} />
         <p className="text-[length:var(--text-sm)] text-text m-0">
           Level updated to <strong>{rec.targetLevel}</strong>! Your feed and Picks will reflect your new level.
         </p>
@@ -130,11 +169,10 @@ export default function LevelRecommendationBanner({
       className={`${dismissing ? "rw-dismiss-out" : "rw-fade-up"} flex items-start gap-[var(--space-3)] p-[var(--space-4)] rounded-[var(--radius-lg)] border border-border bg-surface mb-[var(--space-6)]`}
     >
       <div
-        className="shrink-0 flex items-center justify-center w-9 h-9 rounded-full"
-        style={{
-          background: `color-mix(in srgb, ${accentColor} 15%, transparent)`,
-          color: accentText,
-        }}
+        className={cn(
+          "shrink-0 flex items-center justify-center w-9 h-9 rounded-full",
+          accentBadgeClass,
+        )}
         aria-hidden
       >
         <Icon size={18} />
@@ -161,6 +199,16 @@ export default function LevelRecommendationBanner({
             Dismiss
           </Button>
         </div>
+        {applyError ? (
+          <div className="mt-[var(--space-3)] flex flex-col gap-[var(--space-2)]">
+            <PanelError message={applyError} />
+            <div>
+              <Button type="button" variant="secondary" size="sm" onClick={() => void accept()}>
+                Retry update
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <IconButton
