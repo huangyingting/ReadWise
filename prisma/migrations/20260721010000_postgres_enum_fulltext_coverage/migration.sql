@@ -1,0 +1,7 @@
+-- SQLite no-op migration for PostgreSQL enum/full-text coverage (#1176, #1177).
+--
+-- SQLite stores Prisma enum values as TEXT, so the CrawlCandidateStatus labels
+-- (QUARANTINED, SKIPPED_REVIEW, SKIPPED_OUTSIDE_WINDOW) require no schema
+-- mutation here. SQLite also cannot use the PostgreSQL to_tsvector GIN
+-- expression index; portable query indexes remain in the Prisma schema and
+-- prior SQLite migrations.

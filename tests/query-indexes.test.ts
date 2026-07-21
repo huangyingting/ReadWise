@@ -59,10 +59,39 @@ test("PostgreSQL migrations create the same production query indexes", () => {
   assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_public_category_feed_idx"/);
   assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_public_level_feed_idx"/);
   assert.match(migration, /CREATE INDEX(?: IF NOT EXISTS)? "Article_level_feed_idx"/);
+  assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_search_vector_idx"/);
   assert.match(migration, /CREATE INDEX(?: IF NOT EXISTS)? "Highlight_user_created_idx"/);
   assert.match(migration, /CREATE INDEX(?: IF NOT EXISTS)? "SavedWord_user_created_idx"/);
   assert.match(migration, /CREATE INDEX(?: IF NOT EXISTS)? "ReadingProgress_user_completedAt_idx"/);
 });
+
+test("PostgreSQL migrations forward-cover CrawlCandidate enum labels", () => {
+  const migration = readAllMigrations("prisma/postgresql/migrations");
+
+  for (const label of ["QUARANTINED", "SKIPPED_REVIEW", "SKIPPED_OUTSIDE_WINDOW"]) {
+    assert.match(
+      migration,
+      new RegExp(`ALTER TYPE "CrawlCandidateStatus" ADD VALUE IF NOT EXISTS '${label}'`),
+      `${label} missing idempotent PostgreSQL enum coverage`,
+    );
+  }
+});
+
+test("PostgreSQL full-text index matches the runtime FTS vector expression", () => {
+  const migration = readAllMigrations("prisma/postgresql/migrations");
+  const fulltext = read("src/lib/search/fulltext.ts");
+  const runtimeExpression =
+    "to_tsvector('english', coalesce(a.title, '') || ' ' || coalesce(a.excerpt, '') || ' ' || coalesce(a.content, ''))";
+  const indexExpression =
+    "to_tsvector('english', coalesce(\"title\", '') || ' ' || coalesce(\"excerpt\", '') || ' ' || coalesce(\"content\", ''))";
+
+  assert.match(fulltext, new RegExp(escapeRegExp(runtimeExpression)));
+  assert.match(migration, new RegExp(escapeRegExp(indexExpression)));
+});
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 test("public feed predicate matches ownerless partial-index contract", () => {
   // The implementation lives in article-library/policy.ts.
