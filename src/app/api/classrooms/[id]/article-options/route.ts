@@ -13,9 +13,9 @@ const pickerQuery = (params: URLSearchParams) => ({
 export const GET = createHandler(
   { params: idParams, query: pickerQuery },
   async ({ params, query, session }) => {
-    await requireClassroomManageApi(session, params.id);
+    const { classroom } = await requireClassroomManageApi(session, params.id);
     const articles = await searchAssignableArticleOptions(
-      articleAccessContext(session.user),
+      articleAccessContext(session.user, classroom.orgId),
       query.q,
     );
     return NextResponse.json({ articles });

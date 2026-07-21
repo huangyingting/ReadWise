@@ -35,12 +35,14 @@ beforeEach(() => {
 test("student picker searches by name or email while excluding current roster", async () => {
   const { searchClassroomStudentCandidates } = await import("@/lib/classroom/queries");
 
-  await searchClassroomStudentCandidates("class-1", " ada ");
+  await searchClassroomStudentCandidates("class-1", "org-1", " ada ");
 
   const where = lastUserFindManyArgs?.where as {
+    memberships?: { some?: { orgId?: string } };
     classroomMemberships?: { none?: { classroomId?: string } };
     OR?: Array<Record<string, unknown>>;
   };
+  assert.equal(where.memberships?.some?.orgId, "org-1");
   assert.equal(where.classroomMemberships?.none?.classroomId, "class-1");
   assert.deepEqual(where.OR, [
     { name: { contains: "ada" } },

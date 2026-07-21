@@ -448,8 +448,8 @@ export default async function ClassroomDetailPage({
   const students = members.filter((m) => m.role === "Student");
   const [studentCandidates, articleOptions] = canManage
     ? await Promise.all([
-        searchClassroomStudentCandidates(id),
-        searchAssignableArticleOptions(articleAccessContext(session.user)),
+        searchClassroomStudentCandidates(id, classroom.orgId),
+        searchAssignableArticleOptions(articleAccessContext(session.user, classroom.orgId)),
       ])
     : [[], []];
 
