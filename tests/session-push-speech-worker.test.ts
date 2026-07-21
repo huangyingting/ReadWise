@@ -26,6 +26,14 @@ let failSpeechUpdateIds: Set<string>;
 let workerMetrics: unknown[];
 let capturedWorkerErrors: unknown[];
 let loggerErrors: unknown[];
+let pushReminderCalls: string[];
+let pushReminderResult: {
+  dueCount: number;
+  sent: number;
+  skipped: boolean;
+  suppressed: boolean;
+  reason?: string;
+};
 
 class MockJobError extends Error {
   readonly kind?: string;
@@ -155,6 +163,14 @@ before(() => {
       },
     },
   });
+  mock.module("@/lib/push/scheduler", {
+    namedExports: {
+      sendPushReminderForUser: async (userId: string) => {
+        pushReminderCalls.push(userId);
+        return { userId, ...pushReminderResult };
+      },
+    },
+  });
   mock.module("@/lib/jobs", {
     namedExports: {
       claimNextJob: async () => null,
@@ -188,6 +204,13 @@ beforeEach(() => {
   workerMetrics = [];
   capturedWorkerErrors = [];
   loggerErrors = [];
+  pushReminderCalls = [];
+  pushReminderResult = {
+    dueCount: 3,
+    sent: 1,
+    skipped: false,
+    suppressed: false,
+  };
 });
 
 test("session guards redirect unauthenticated, not-onboarded, and unauthorized users", async () => {
@@ -268,11 +291,12 @@ test("push delivery skips unconfigured providers and sends to loaded subscriptio
   assert.deepEqual(healthCalls.success, ["success"]);
 });
 
-test("worker registry handlers validate payloads, processor results, and no-op push jobs", async () => {
+test("worker registry handlers validate payloads, processor results, and push reminder jobs", async () => {
   const {
     JobHandlerRegistry,
     createDefaultRegistry,
     makeArticleHandler,
+    makePushReminderHandler,
   } = await import("@/lib/worker/registry");
   const { JobType } = await import("@/lib/jobs");
   const logs: unknown[] = [];
@@ -318,8 +342,32 @@ test("worker registry handlers validate payloads, processor results, and no-op p
   );
 
   const defaults = createDefaultRegistry(async () => ({ articleId: "a1", title: "A1", ok: true, published: false, steps: [] }));
-  await defaults.get(JobType.PUSH_REMINDER)?.({ id: "push-job" } as never, { logger: workerLogger });
+  await defaults.get(JobType.PUSH_REMINDER)?.(
+    { id: "push-job", payload: { userId: "user-1" } } as never,
+    { logger: workerLogger },
+  );
+  assert.deepEqual(pushReminderCalls, ["user-1"]);
   assert.ok(logs.some((entry) => JSON.stringify(entry).includes("push-job")));
+
+  pushReminderResult = {
+    dueCount: 0,
+    sent: 0,
+    skipped: true,
+    suppressed: false,
+    reason: "unconfigured",
+  };
+  await defaults.get(JobType.PUSH_REMINDER)?.(
+    { id: "push-unconfigured", payload: { userId: "user-2" } } as never,
+    { logger: workerLogger },
+  );
+  assert.deepEqual(pushReminderCalls, ["user-1", "user-2"]);
+  assert.ok(JSON.stringify(logs).includes("unconfigured"));
+
+  const pushReminderHandler = makePushReminderHandler();
+  await assert.rejects(
+    () => pushReminderHandler({ id: "push-invalid", payload: {} } as never, { logger: workerLogger }),
+    /missing userId/,
+  );
 });
 
 test("worker loop handles aborts, missing handlers, retry/dead-letter accounting, and crashes", async () => {

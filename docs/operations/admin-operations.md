@@ -193,9 +193,8 @@ point. Internally it is split into four modules:
 2. It creates the default `JobHandlerRegistry`:
    - `ARTICLE_INGEST`, `ARTICLE_PROCESS`, `AI_REBUILD`, `TTS_GENERATE` → all
      use `makeArticleHandler(processArticle)`.
-   - `PUSH_REMINDER` → no-op acknowledgement handler (push reminders have their
-     own dedicated pipeline; this prevents dead-lettering on unconfigured
-     deployments).
+   - `PUSH_REMINDER` → single-user reminder dispatch via the push scheduler
+     helper; unconfigured deployments complete as graceful no-ops.
 3. Optional `options.handlers` overrides are merged after the defaults.
 4. `createClaimedJobExecutor` binds the handlers and Job lifecycle adapters.
 5. `runWorkerLoop` starts with that executor as its execution interface.
@@ -926,4 +925,3 @@ dashboard. This table unifies them for operator reference:
 > `DEAD_LETTER` on the corresponding `Job` row). Unifying these into a
 > `dead_letter` step status is tracked as a future follow-up; do not change
 > this mapping without aligned schema, code, and dashboard updates.
-

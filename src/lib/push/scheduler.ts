@@ -37,6 +37,15 @@ export interface ReminderResult {
   suppressed: number;
 }
 
+export type PushReminderUserResult = {
+  userId: string;
+  dueCount: number;
+  sent: number;
+  skipped: boolean;
+  suppressed: boolean;
+  reason?: "unconfigured" | "no_due_cards" | "no_subscription" | string;
+};
+
 /**
  * Sends due-card reminder push notifications to all eligible subscribers.
  * Returns all-zeros when VAPID is unconfigured.
@@ -138,8 +147,88 @@ export async function sendDueReminders(): Promise<ReminderResult> {
   return result;
 }
 
+/**
+ * Sends the due-card reminder for a single user. Used by durable PUSH_REMINDER
+ * jobs, while {@link sendDueReminders} remains the batch scheduler entry point.
+ */
+export async function sendPushReminderForUser(userId: string): Promise<PushReminderUserResult> {
+  if (!isPushConfigured()) {
+    log.info("sendPushReminderForUser: VAPID unconfigured — no-op", { userId });
+    return skippedUserReminder(userId, "unconfigured");
+  }
+
+  const now = new Date();
+  const dueCount = await prisma.savedWord.count({
+    where: {
+      userId,
+      OR: [{ dueAt: null }, { dueAt: { lte: now } }],
+    },
+  });
+  if (dueCount === 0) {
+    return skippedUserReminder(userId, "no_due_cards");
+  }
+
+  const subs = await prisma.pushSubscription.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      userId: true,
+      endpoint: true,
+      p256dh: true,
+      auth: true,
+      failureCount: true,
+    },
+  });
+  if (subs.length === 0) {
+    return skippedUserReminder(userId, "no_subscription", dueCount);
+  }
+
+  const [prefMap, profile] = await Promise.all([
+    getReminderPreferenceMap([userId]),
+    prisma.profile.findUnique({
+      where: { userId },
+      select: { timezone: true },
+    }),
+  ]);
+  const pref: ReminderPreference = prefMap.get(userId) ?? {
+    ...DEFAULT_REMINDER_PREFERENCE,
+  };
+  const localHour = localHourInTimeZone(now, pref.timezone ?? profile?.timezone ?? null);
+  const decision = shouldSendNow(pref, localHour);
+  if (!decision.send) {
+    log.info("reminder suppressed by preference", {
+      userId,
+      reason: decision.reason,
+      localHour,
+    });
+    return {
+      userId,
+      dueCount,
+      sent: 0,
+      skipped: false,
+      suppressed: true,
+      reason: decision.reason,
+    };
+  }
+
+  const payload = buildReminderPayload(
+    getReminderContent(isTodaySessionFeatureEnabled()),
+    dueCount,
+  );
+  const sent = await sendToSubs(subs, JSON.stringify(payload));
+  return { userId, dueCount, sent, skipped: false, suppressed: false };
+}
+
 function emptyReminderResult(): ReminderResult {
   return { usersWithDue: 0, sent: 0, skipped: 0, suppressed: 0 };
+}
+
+function skippedUserReminder(
+  userId: string,
+  reason: PushReminderUserResult["reason"],
+  dueCount = 0,
+): PushReminderUserResult {
+  return { userId, dueCount, sent: 0, skipped: true, suppressed: false, reason };
 }
 
 type UserSubscription = SubRow & { userId: string };
