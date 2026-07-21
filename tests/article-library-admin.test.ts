@@ -42,6 +42,8 @@ let processingStepsResult: unknown[] = [];
 let deletedIds: string[] = [];
 let deleteManyCalls: Record<string, { where: Record<string, unknown> }[]> = {};
 let deleteManyCounts: Record<string, number> = {};
+let activeDeleteManyCalls = 0;
+let maxConcurrentDeleteManyCalls = 0;
 let auditCalls: { action: string }[] = [];
 let mediaAssetRows: Array<{ storageKey: string }> = [];
 let storageDeletes: string[] = [];
@@ -76,7 +78,11 @@ function resetDeleteMany() {
 
 function recordDeleteMany(model: string) {
   return async (args: { where: Record<string, unknown> }) => {
+    activeDeleteManyCalls += 1;
+    maxConcurrentDeleteManyCalls = Math.max(maxConcurrentDeleteManyCalls, activeDeleteManyCalls);
     deleteManyCalls[model].push(args);
+    await Promise.resolve();
+    activeDeleteManyCalls -= 1;
     return { count: deleteManyCounts[model] ?? 0 };
   };
 }
@@ -194,6 +200,8 @@ beforeEach(() => {
   processingStepsResult = [];
   deletedIds = [];
   deleteManyCounts = {};
+  activeDeleteManyCalls = 0;
+  maxConcurrentDeleteManyCalls = 0;
   auditCalls = [];
   mediaAssetRows = [];
   storageDeletes = [];
@@ -535,6 +543,7 @@ test("rebuildArticleAi clears derived AI content and reports cleared counts", as
   assertDeleteManyCalledOnce("quizQuestion");
   assertDeleteManyCalledOnce("articleTag");
   assertDeleteManyCalledOnce("articleSpeech");
+  assert.equal(maxConcurrentDeleteManyCalls, 1);
 });
 
 test("rebuildArticleAi drops only speech-kind media assets for the article", async () => {
