@@ -190,7 +190,7 @@ Alert conditions:
 - `ARTICLE_INGEST` + `ARTICLE_PROCESS` combined: ~5–30 s per article (scrape +
   AI enrichment).
 - `TTS_GENERATE`: ~10–60 s per article (Azure Speech API latency + storage write).
-- `PUSH_REMINDER`: < 1 s per user batch.
+- `PUSH_REMINDER`: < 1 s per single-user reminder job.
 - A single worker process can drain ~2–10 articles per minute depending on AI
   and TTS latency.
 
@@ -693,4 +693,3 @@ beyond a single-tenant pilot.
 
 Update this document with real measurements in the same PR that adds each signal.
 Label all values with whether they are **measured** or **estimated**.
-

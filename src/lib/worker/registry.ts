@@ -1,5 +1,6 @@
 import { type processArticle, type ProcessOptions } from "@/lib/processing/processor";
 import { JobError, JobType, parseCandidateIngestPayload, isCandidateIngestPayload, type Job } from "@/lib/jobs";
+import { sendPushReminderForUser } from "@/lib/push/scheduler";
 import { retryPolicyFor } from "@/lib/jobs/retry-policy";
 import { CrawlCandidateStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +19,10 @@ type ArticleJobPayload = {
   translateLangs?: string[];
 };
 
+type PushReminderJobPayload = {
+  userId?: string;
+};
+
 function isPayloadRecord(payload: unknown): payload is Record<string, unknown> {
   return payload !== null && typeof payload === "object" && !Array.isArray(payload);
 }
@@ -34,6 +39,13 @@ function articlePayload(job: Job): ArticleJobPayload {
   const tts = typeof payload.tts === "boolean" ? payload.tts : undefined;
   const translateLangs = payloadStringArray(payload.translateLangs);
   return { articleId, tts, translateLangs };
+}
+
+function pushReminderPayload(job: Job): PushReminderJobPayload {
+  const payload = isPayloadRecord(job.payload) ? job.payload : {};
+  return {
+    userId: typeof payload.userId === "string" ? payload.userId : undefined,
+  };
 }
 
 function failedStepSummary(
@@ -84,6 +96,7 @@ export function makeArticleHandler(processFn: typeof processArticle): JobHandler
     if (!articleId) {
       throw new JobError("job payload missing articleId", { kind: "validation" });
     }
+
     const result = await processFn(articleId, {
       tts: payload.tts ?? ctx.process?.tts,
       translateLangs: payload.translateLangs ?? ctx.process?.translateLangs,
@@ -99,6 +112,27 @@ export function makeArticleHandler(processFn: typeof processArticle): JobHandler
       jobId: job.id,
       articleId,
       published: result.published,
+    });
+  };
+}
+
+export function makePushReminderHandler(
+  sendReminder: typeof sendPushReminderForUser = sendPushReminderForUser,
+): JobHandler {
+  return async (job: Job, ctx: { logger: WorkerLogger }) => {
+    const payload = pushReminderPayload(job);
+    if (!payload.userId) {
+      throw new JobError("job payload missing userId", { kind: "validation" });
+    }
+
+    const result = await sendReminder(payload.userId);
+    ctx.logger.info("push reminder job processed", {
+      jobId: job.id,
+      userId: payload.userId,
+      sent: result.sent,
+      skipped: result.skipped,
+      suppressed: result.suppressed,
+      reason: result.reason ?? null,
     });
   };
 }
@@ -311,9 +345,8 @@ export function makeCandidateIngestHandler(
  *   The legacy url/articleId ArticleIngest payload delegates to the processor.
  * - ARTICLE_PROCESS, AI_REBUILD, TTS_GENERATE all delegate to the article
  *   processing adapter.
- * - PUSH_REMINDER is a no-op: it has its own dedicated pipeline
- *   (scripts/push-reminders.ts). This prevents unconfigured deployments from
- *   dead-lettering PUSH_REMINDER jobs.
+ * - PUSH_REMINDER dispatches a single-user reminder through the same push
+ *   scheduler/delivery helpers as scripts/push-reminders.ts.
  */
 export function createDefaultRegistry(
   processFn: typeof processArticle,
@@ -322,6 +355,7 @@ export function createDefaultRegistry(
 ): JobHandlerRegistry {
   const articleHandler = makeArticleHandler(processFn);
   const candidateIngestHandler = makeCandidateIngestHandler(loadCandidate, candidateIngestDeps);
+  const pushReminderHandler = makePushReminderHandler();
   return new JobHandlerRegistry({
     [JobType.ARTICLE_INGEST]: async (job, ctx) => {
       // Candidate-based incremental ingest (#1091) vs. legacy url/articleId path.
@@ -331,8 +365,6 @@ export function createDefaultRegistry(
     [JobType.ARTICLE_PROCESS]: articleHandler,
     [JobType.AI_REBUILD]: articleHandler,
     [JobType.TTS_GENERATE]: articleHandler,
-    [JobType.PUSH_REMINDER]: async (job, ctx) => {
-      ctx.logger.info("push reminder job acknowledged (no-op handler)", { jobId: job.id });
-    },
+    [JobType.PUSH_REMINDER]: pushReminderHandler,
   });
 }
