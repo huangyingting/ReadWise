@@ -35,6 +35,12 @@ let detailCalls: string[] = [];
 let createOrgCalls: Array<{ input: { name: string; slug?: string }; userId: string }> = [];
 let addMemberCalls: Array<{ orgId: string; userId: string; role: string }> = [];
 let userFindCalls: string[] = [];
+let auditCalls: Array<{
+  action: string;
+  targetType: string;
+  targetId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}> = [];
 
 const COLLECTION_URL = "http://test/api/admin/organizations";
 const DETAIL_URL = "http://test/api/admin/organizations/org-1";
@@ -85,6 +91,25 @@ before(() => {
       },
     },
   });
+
+  mock.module("@/lib/security/audit", {
+    namedExports: {
+      AUDIT_ACTIONS: {
+        securityAdminAccessDenied: "security.admin_access_denied",
+        adminOrganizationCreate: "admin.organization.create",
+      },
+      auditRequestInfo: () => ({ ipAddress: null, userAgent: null }),
+      tryRecordAuditLog: async () => {},
+      recordAuditFromRequest: async (input: {
+        action: string;
+        targetType: string;
+        targetId?: string | null;
+        metadata?: Record<string, unknown> | null;
+      }) => {
+        auditCalls.push(input);
+      },
+    },
+  });
 });
 
 beforeEach(() => {
@@ -119,6 +144,7 @@ beforeEach(() => {
   createOrgCalls = [];
   addMemberCalls = [];
   userFindCalls = [];
+  auditCalls = [];
 });
 
 async function getList(url = COLLECTION_URL) {
@@ -209,6 +235,10 @@ test("POST create seeds the owner as the first OrgAdmin and returns 201", async 
   assert.equal(body.organization.id, "org-created");
   assert.deepEqual(createOrgCalls[0], { input: { name: "Acme", slug: "acme" }, userId: "user-9" });
   assert.deepEqual(addMemberCalls[0], { orgId: "org-created", userId: "user-9", role: "OrgAdmin" });
+  assert.equal(auditCalls.at(-1)?.action, "admin.organization.create");
+  assert.equal(auditCalls.at(-1)?.targetType, "organization");
+  assert.equal(auditCalls.at(-1)?.targetId, "org-created");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, { ownerUserId: "user-9", slug: "acme" });
 });
 
 // ===========================================================================

@@ -46,6 +46,7 @@ export type ClassroomAssignmentMetaRow = {
 };
 
 const NEWEST_FIRST = { createdAt: "desc" } as const;
+const ACTIVE_CLASSROOM_WHERE = { archivedAt: null } as const;
 const USER_PROFILE_SELECT = {
   id: true,
   name: true,
@@ -95,7 +96,7 @@ export async function listClassroomAssignmentMeta(
 /** Classrooms in an org, newest first. */
 export function listClassroomsForOrg(orgId: string): Promise<Classroom[]> {
   return prisma.classroom.findMany({
-    where: { orgId },
+    where: { orgId, ...ACTIVE_CLASSROOM_WHERE },
     orderBy: NEWEST_FIRST,
   });
 }
@@ -109,6 +110,7 @@ export async function listClassroomsForTeacher(
 ): Promise<Classroom[]> {
   return prisma.classroom.findMany({
     where: {
+      ...ACTIVE_CLASSROOM_WHERE,
       OR: [
         { teacherId },
         classroomMembership(teacherId, "Teacher"),
@@ -121,7 +123,7 @@ export async function listClassroomsForTeacher(
 /** A student's classrooms (any role membership). */
 export function listClassroomsForStudent(userId: string): Promise<Classroom[]> {
   return prisma.classroom.findMany({
-    where: classroomMembership(userId),
+    where: { ...classroomMembership(userId), ...ACTIVE_CLASSROOM_WHERE },
     orderBy: NEWEST_FIRST,
   });
 }

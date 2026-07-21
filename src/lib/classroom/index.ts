@@ -42,10 +42,15 @@ export {
 } from "./queries";
 export {
   type CreateClassroomInput,
+  type UpdateClassroomLifecycleInput,
+  type UpdateClassroomLifecycleResult,
+  type DeleteClassroomResult,
   type UpdateAssignmentInput,
   type UpdateAssignmentResult,
   createClassroom,
   addClassroomMember,
+  updateClassroomLifecycle,
+  deleteClassroom,
   removeClassroomMember,
   deleteAssignment,
   updateAssignment,

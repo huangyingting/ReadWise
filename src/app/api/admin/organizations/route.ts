@@ -5,6 +5,7 @@ import { object, string, optional, queryInt, queryString } from "@/lib/validatio
 import { prisma } from "@/lib/prisma";
 import { addMember, createOrganization } from "@/lib/org";
 import { listOrganizations } from "@/lib/admin/organizations";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 /**
  * Platform-admin organization list + create (#1163).
@@ -50,7 +51,7 @@ export const GET = createCapabilityHandler(
 export const POST = createCapabilityHandler(
   CAPABILITIES.organizationsManage,
   { body: createOrgBody },
-  async ({ body }) => {
+  async ({ req, body, session, requestId }) => {
     const owner = await prisma.user.findUnique({
       where: { id: body.ownerUserId },
       select: { id: true },
@@ -63,6 +64,15 @@ export const POST = createCapabilityHandler(
       owner.id,
     );
     const membership = await addMember(organization.id, owner.id, "OrgAdmin");
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.adminOrganizationCreate,
+      targetType: "organization",
+      targetId: organization.id,
+      metadata: { ownerUserId: owner.id, slug: organization.slug },
+    });
     return NextResponse.json({ ok: true, organization, membership }, { status: 201 });
   },
 );

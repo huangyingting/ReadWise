@@ -74,7 +74,7 @@ export async function listAssignmentsForStudent(
   studentId: string,
 ): Promise<StudentAssignment[]> {
   const rows = (await prisma.assignment.findMany({
-    where: { classroom: { members: { some: { userId: studentId } } } },
+    where: { classroom: { archivedAt: null, members: { some: { userId: studentId } } } },
     include: assignmentIncludeForStudent(studentId),
     orderBy: [{ createdAt: "desc" }],
   })) as AssignmentWithStudentCompletion[];
