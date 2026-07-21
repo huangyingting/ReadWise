@@ -55,6 +55,15 @@ let createClassroomResult: Record<string, unknown> = {
 let classroomListResult: Array<Record<string, unknown>> = [
   { id: "c1", orgId: "org-1", teacherId: "teacher-1", name: "Class 1" },
 ];
+let archivedClassroomListResult: Array<Record<string, unknown>> = [
+  {
+    id: "archived-1",
+    orgId: "org-1",
+    teacherId: "teacher-1",
+    name: "Archived Class",
+    archivedAt: "2026-07-21T03:00:00.000Z",
+  },
+];
 let addMemberResult: Record<string, unknown> = {
   id: "mem1",
   userId: "u2",
@@ -185,6 +194,7 @@ before(() => {
       },
       getClassroom: async () => classroomStub,
       listClassroomsForTeacher: async () => classroomListResult,
+      listArchivedClassroomsForTeacher: async () => archivedClassroomListResult,
       createClassroom: async () => createClassroomResult,
       addClassroomMember: async () => addMemberResult,
       removeClassroomMember: async (classroomId: string, userId: string) => {
@@ -340,6 +350,15 @@ beforeEach(() => {
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
   createClassroomResult = { id: "c1", name: "Class 1", orgId: "org-1" };
   classroomListResult = [{ id: "c1", orgId: "org-1", teacherId: "teacher-1", name: "Class 1" }];
+  archivedClassroomListResult = [
+    {
+      id: "archived-1",
+      orgId: "org-1",
+      teacherId: "teacher-1",
+      name: "Archived Class",
+      archivedAt: "2026-07-21T03:00:00.000Z",
+    },
+  ];
   addMemberResult = { id: "mem1", userId: "u2", classroomId: "c1", role: "Student" };
   assignArticleResult = { id: "asgn1", classroomId: "c1", articleId: "a1", dueDate: null };
   completionResult = { id: "comp1", userId: "user-1", assignmentId: "asgn1", status: "COMPLETED" };
@@ -376,9 +395,9 @@ async function postClassrooms(body: Record<string, unknown>) {
   return POST(jsonPost("http://test/api/classrooms", body));
 }
 
-async function getClassrooms() {
+async function getClassrooms(query = "") {
   const { GET } = (await import("@/app/api/classrooms/route")) as { GET: RouteHandler };
-  return GET(getReq("http://test/api/classrooms"));
+  return GET(getReq(`http://test/api/classrooms${query}`));
 }
 
 async function getClassroom(id = "c1") {
@@ -480,6 +499,27 @@ test("GET /api/classrooms returns teacher-managed classrooms", async () => {
   const body = await res.json() as { classrooms: Array<{ id: string }> };
   assert.equal(body.classrooms.length, 2);
   assert.equal(body.classrooms[0].id, "c1");
+});
+
+test("GET /api/classrooms?archived=true returns archived teacher-managed classrooms", async () => {
+  classroomListResult = [
+    { id: "active-1", orgId: "org-1", teacherId: "teacher-1", name: "Active Class" },
+  ];
+  archivedClassroomListResult = [
+    {
+      id: "archived-1",
+      orgId: "org-1",
+      teacherId: "teacher-1",
+      name: "Archived Class",
+      archivedAt: "2026-07-21T03:00:00.000Z",
+    },
+  ];
+  const res = await getClassrooms("?archived=true");
+  assert.equal(res.status, 200);
+  const body = await res.json() as { classrooms: Array<{ id: string; archivedAt: string | null }> };
+  assert.equal(body.classrooms.length, 1);
+  assert.equal(body.classrooms[0].id, "archived-1");
+  assert.ok(body.classrooms[0].archivedAt);
 });
 
 // ===========================================================================

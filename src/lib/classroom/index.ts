@@ -35,6 +35,7 @@ export {
   listClassroomAssignmentMeta,
   listClassroomsForOrg,
   listClassroomsForTeacher,
+  listArchivedClassroomsForTeacher,
   listClassroomsForStudent,
   listClassroomMembers,
   searchClassroomStudentCandidates,

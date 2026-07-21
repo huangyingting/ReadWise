@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-21T04:24:32.195Z",
+  "generatedAt": "2026-07-21T05:58:19.361Z",
   "routeCount": 136,
   "methodCount": 165,
   "routes": [
@@ -1849,14 +1849,16 @@
           "capability": null,
           "hasBodySchema": false,
           "hasParamsSchema": false,
-          "hasQuerySchema": false,
+          "hasQuerySchema": true,
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
           "responseKeys": [
             "classrooms"
           ],
-          "queryParamNames": null,
+          "queryParamNames": [
+            "archived"
+          ],
           "bodyFieldNames": null
         },
         {
