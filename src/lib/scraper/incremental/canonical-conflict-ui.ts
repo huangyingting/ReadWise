@@ -25,6 +25,11 @@ import type {
   ConflictKind,
   TypeBCanonicalChoice,
 } from "@/lib/scraper/incremental/canonical-conflict-policy";
+import {
+  CANONICAL_CONFLICT_STATUSES,
+  isCanonicalConflictStatus,
+  type CanonicalConflictStatusValue,
+} from "./canonical-conflict-status";
 
 // Re-exported so the client components share one import surface for the sanitized
 // dependent-data count shape (single source of truth: the backend query module).
@@ -75,16 +80,14 @@ export type CanonicalConflictPage = {
 // ---------------------------------------------------------------------------
 
 /** The three conflict statuses the queue filters on (default OPEN). */
-export const CONFLICT_STATUSES = ["OPEN", "RESOLVED", "DISMISSED"] as const;
-export type ConflictStatus = (typeof CONFLICT_STATUSES)[number];
+export const CONFLICT_STATUSES = CANONICAL_CONFLICT_STATUSES;
+export type ConflictStatus = CanonicalConflictStatusValue;
 
 /** Default page size, matching the API default/cap (1–200, default 50). */
 export const DEFAULT_CONFLICT_LIMIT = 50;
 export const MAX_CONFLICT_LIMIT = 200;
 
-export function isConflictStatus(value: string): value is ConflictStatus {
-  return (CONFLICT_STATUSES as readonly string[]).includes(value);
-}
+export const isConflictStatus = isCanonicalConflictStatus;
 
 /** Clamp helper shared by the page's searchParams parsing + the tests. PURE. */
 export function parseBoundedInt(
