@@ -359,6 +359,20 @@ test("generateStudyPlan counts weak vocabulary over saved words, not all tracked
   });
 });
 
+test("weak-word familiarity thresholds document study-plan vs re-exposure semantics", async () => {
+  const {
+    WEAK_SAVED_WORD_FAMILIARITY,
+    WEAK_REEXPOSURE_FAMILIARITY,
+    isWeakSavedWordFamiliarity,
+    isWeakReexposureFamiliarity,
+  } = await import("@/lib/learning/primitives");
+
+  assert.equal(WEAK_SAVED_WORD_FAMILIARITY, 0.4);
+  assert.equal(WEAK_REEXPOSURE_FAMILIARITY, 0.5);
+  assert.equal(isWeakSavedWordFamiliarity(0.45), false);
+  assert.equal(isWeakReexposureFamiliarity(0.45), true);
+});
+
 test("generateStudyPlan persists one stable weekly snapshot and exposes history", async () => {
   const { generateStudyPlan, getStudyPlanHistory } = await loadStudyPlan();
   useB1Profile();

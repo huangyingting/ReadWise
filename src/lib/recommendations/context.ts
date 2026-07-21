@@ -17,9 +17,11 @@ import { parseTopics } from "@/lib/profile";
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
 import { getSkillProfile } from "@/lib/learning/skill-mastery";
 import { isGoalPath } from "@/lib/learning/goal-path";
-import { parseStringArray } from "@/lib/learning/primitives";
+import {
+  parseStringArray,
+  WEAK_REEXPOSURE_FAMILIARITY,
+} from "@/lib/learning/primitives";
 import type { RecommendationContext } from "./types";
-import { WEAK_WORD_FAMILIARITY_MAX } from "./types";
 
 /** Cap on weak-word mastery rows scanned when building the re-exposure map. */
 const WEAK_WORD_ROW_LIMIT = 500;
@@ -120,7 +122,7 @@ function fetchWeakWordRows(
 ): Promise<WeakWordRow[]> {
   if (candidateIds.length === 0) return Promise.resolve([]);
   return prisma.wordMastery.findMany({
-    where: { userId, familiarity: { lt: WEAK_WORD_FAMILIARITY_MAX } },
+    where: { userId, familiarity: { lt: WEAK_REEXPOSURE_FAMILIARITY } },
     select: { sourceArticleIds: true },
     take: WEAK_WORD_ROW_LIMIT,
   });

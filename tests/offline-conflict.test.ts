@@ -15,6 +15,7 @@ import {
   mergeNoteConflict,
   NOTE_CONFLICT_SEPARATOR,
 } from "@/lib/offline-conflict";
+import { COMPLETION_THRESHOLD } from "@/lib/engagement/progress-rules";
 
 // ---------------------------------------------------------------------------
 // resolveProgress — forward-only
@@ -41,7 +42,7 @@ test("resolveProgress marks completed when the merged percent crosses the thresh
   const r = resolveProgress(
     { percent: 50, completed: false },
     { percent: 96, completed: false },
-    95,
+    COMPLETION_THRESHOLD,
   );
   assert.equal(r.percent, 96);
   assert.equal(r.completed, true);
