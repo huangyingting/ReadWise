@@ -31,6 +31,7 @@ import { buttonVariants } from "@/components/ui/Button";
 import { StatCard } from "@/components/analytics/StatCard";
 import AddStudentForm from "@/components/teacher/AddStudentForm";
 import AssignArticleForm from "@/components/teacher/AssignArticleForm";
+import ClassroomSettingsCard from "@/components/teacher/ClassroomSettingsCard";
 import DeleteAssignmentButton from "@/components/teacher/DeleteAssignmentButton";
 import EditAssignmentForm from "@/components/teacher/EditAssignmentForm";
 import RemoveStudentButton from "@/components/teacher/RemoveStudentButton";
@@ -338,18 +339,31 @@ function StudentProgressCard({
 function TeacherSidebar({
   classroomId,
   canManage,
+  canManageLifecycle,
+  classroomName,
+  archivedAt,
   students,
   studentCandidates,
   articleOptions,
 }: {
   classroomId: string;
   canManage: boolean;
+  canManageLifecycle: boolean;
+  classroomName: string;
+  archivedAt: string | null;
   students: ClassroomMember[];
   studentCandidates: StudentCandidate[];
   articleOptions: AssignableArticle[];
 }) {
   return (
     <aside className="flex flex-col gap-[var(--space-6)]">
+      {canManageLifecycle ? (
+        <ClassroomSettingsCard
+          classroomId={classroomId}
+          classroomName={classroomName}
+          archivedAt={archivedAt}
+        />
+      ) : null}
       {canManage ? (
         <>
           <Card>
@@ -444,9 +458,11 @@ export default async function ClassroomDetailPage({
     assignmentMetaRows.map((row) => [row.assignmentId, row]),
   );
 
+  const isArchived = classroom.archivedAt != null;
   const canManage = isTeacher || isOrgAdmin || isSystemAdmin(session.user.role);
+  const canManageActiveClassroom = canManage && !isArchived;
   const students = members.filter((m) => m.role === "Student");
-  const [studentCandidates, articleOptions] = canManage
+  const [studentCandidates, articleOptions] = canManageActiveClassroom
     ? await Promise.all([
         searchClassroomStudentCandidates(id, classroom.orgId),
         searchAssignableArticleOptions(articleAccessContext(session.user, classroom.orgId)),
@@ -459,9 +475,12 @@ export default async function ClassroomDetailPage({
         title={classroom.name}
         description="Class roster, assignments, and progress."
         actions={
-          <Badge variant={role === "orgAdmin" ? "warning" : "primary"}>
-            {role === "orgAdmin" ? "Aggregate view" : "Teacher view"}
-          </Badge>
+         <div className="flex flex-wrap items-center gap-[var(--space-2)]">
+           {isArchived ? <Badge variant="neutral">Archived</Badge> : null}
+           <Badge variant={role === "orgAdmin" ? "warning" : "primary"}>
+             {role === "orgAdmin" ? "Aggregate view" : "Teacher view"}
+           </Badge>
+         </div>
         }
       />
 
@@ -478,7 +497,7 @@ export default async function ClassroomDetailPage({
           <AssignmentsCard
             analytics={analytics}
             assignmentMeta={assignmentMeta}
-            canManage={canManage}
+            canManage={canManageActiveClassroom}
           />
           <DrilldownCard analytics={analytics} />
           <StudentProgressCard analytics={analytics} />
@@ -486,7 +505,10 @@ export default async function ClassroomDetailPage({
 
         <TeacherSidebar
           classroomId={id}
-          canManage={canManage}
+          canManage={canManageActiveClassroom}
+          canManageLifecycle={canManage}
+          classroomName={classroom.name}
+          archivedAt={classroom.archivedAt?.toISOString() ?? null}
           students={students}
           studentCandidates={studentCandidates}
           articleOptions={articleOptions}

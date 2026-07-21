@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object, string, nonEmptyString } from "@/lib/validation";
 import { CAPABILITIES } from "@/lib/rbac";
-import { createClassroom, listClassroomsForTeacher } from "@/lib/classroom";
+import {
+  createClassroom,
+  listArchivedClassroomsForTeacher,
+  listClassroomsForTeacher,
+} from "@/lib/classroom";
 import { requireOrgCapabilityApi } from "@/lib/tenant-api";
 
 const createClassroomBody = object({
@@ -20,13 +24,19 @@ function classroomCreateInput(body: { orgId: string; name: string }, teacherId: 
   };
 }
 
+function shouldListArchived(req: Request): boolean {
+  return new URL(req.url).searchParams.get("archived") === "true";
+}
+
 /**
  * Lists classrooms the caller teaches/manages (RW-061).
  */
 export const GET = createHandler(
   {},
-  async ({ session }) => {
-    const classrooms = await listClassroomsForTeacher(session.user.id);
+  async ({ req, session }) => {
+    const classrooms = shouldListArchived(req)
+      ? await listArchivedClassroomsForTeacher(session.user.id)
+      : await listClassroomsForTeacher(session.user.id);
     return NextResponse.json({ classrooms });
   },
 );

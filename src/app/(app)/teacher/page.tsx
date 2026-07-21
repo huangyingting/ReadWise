@@ -21,6 +21,7 @@ import {
 } from "@/components/ui";
 import CreateOrgForm from "@/components/teacher/CreateOrgForm";
 import CreateClassroomForm from "@/components/teacher/CreateClassroomForm";
+import ArchivedClassroomsSection from "@/components/teacher/ArchivedClassroomsSection";
 import OrgMembersCard from "@/components/teacher/OrgMembersCard";
 
 type OrganizationMembership = Awaited<
@@ -165,6 +166,13 @@ export default async function TeacherPage() {
             ) : (
               <ClassroomList classrooms={classrooms} orgNameById={orgNameById} />
             )}
+          </Section>
+
+          <Section
+            title="Archived classrooms"
+            description="Restore classrooms that were hidden from your active teaching list."
+          >
+            <ArchivedClassroomsSection />
           </Section>
 
           {manageableOrganizations.length > 0 ? (

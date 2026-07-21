@@ -47,6 +47,7 @@ export type ClassroomAssignmentMetaRow = {
 
 const NEWEST_FIRST = { createdAt: "desc" } as const;
 const ACTIVE_CLASSROOM_WHERE = { archivedAt: null } as const;
+const ARCHIVED_CLASSROOM_WHERE = { archivedAt: { not: null } } as const;
 const USER_PROFILE_SELECT = {
   id: true,
   name: true,
@@ -111,6 +112,25 @@ export async function listClassroomsForTeacher(
   return prisma.classroom.findMany({
     where: {
       ...ACTIVE_CLASSROOM_WHERE,
+      OR: [
+        { teacherId },
+        classroomMembership(teacherId, "Teacher"),
+      ],
+    },
+    orderBy: NEWEST_FIRST,
+  });
+}
+
+/**
+ * Archived classrooms a teacher leads — same teacher scoping as
+ * listClassroomsForTeacher, but restricted to archived rows for recovery UI.
+ */
+export function listArchivedClassroomsForTeacher(
+  teacherId: string,
+): Promise<Classroom[]> {
+  return prisma.classroom.findMany({
+    where: {
+      ...ARCHIVED_CLASSROOM_WHERE,
       OR: [
         { teacherId },
         classroomMembership(teacherId, "Teacher"),

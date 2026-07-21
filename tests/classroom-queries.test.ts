@@ -18,9 +18,14 @@ let membershipListStub: Record<string, unknown>[] = [];
 let assignmentStub: Record<string, unknown> | null = null;
 
 let lastClassroomFindManyWhere: unknown = null;
+let lastClassroomFindManyOrderBy: unknown = null;
 
 type OrgWhere = { orgId: string; archivedAt: null };
 type TeacherWhere = { archivedAt: null; OR: Array<{ teacherId?: string; members?: unknown }> };
+type ArchivedTeacherWhere = {
+  archivedAt: { not: null };
+  OR: Array<{ teacherId?: string; members?: unknown }>;
+};
 type StudentWhere = { archivedAt: null; members: { some: { userId: string } } };
 
 async function classroomQueries() {
@@ -32,6 +37,11 @@ function lastWhere<T>(): T {
   return lastClassroomFindManyWhere as T;
 }
 
+function lastOrderBy<T>(): T {
+  assert.ok(lastClassroomFindManyOrderBy, "classroom.findMany should include orderBy");
+  return lastClassroomFindManyOrderBy as T;
+}
+
 // ---- mock setup ------------------------------------------------------------
 
 before(() => {
@@ -40,8 +50,9 @@ before(() => {
       prisma: {
         classroom: {
           findUnique: async () => classroomStub,
-          findMany: async (args: { where?: unknown }) => {
+          findMany: async (args: { where?: unknown; orderBy?: unknown }) => {
             lastClassroomFindManyWhere = args?.where;
+            lastClassroomFindManyOrderBy = args?.orderBy;
             return classroomListStub;
           },
         },
@@ -62,6 +73,7 @@ beforeEach(() => {
   membershipListStub = [];
   assignmentStub = null;
   lastClassroomFindManyWhere = null;
+  lastClassroomFindManyOrderBy = null;
 });
 
 // ---- getClassroom ----------------------------------------------------------
@@ -161,6 +173,22 @@ test("listClassroomsForTeacher returns empty array when teacher has no classroom
   const { listClassroomsForTeacher } = await classroomQueries();
   const result = await listClassroomsForTeacher("no-classes");
   assert.deepEqual(result, []);
+});
+
+test("listArchivedClassroomsForTeacher scopes to archived classrooms for the teacher, newest first", async () => {
+  classroomListStub = [
+    { id: "archived-new", teacherId: "t1", archivedAt: new Date("2026-07-21T04:00:00.000Z") },
+    { id: "archived-old", teacherId: "t1", archivedAt: new Date("2026-07-21T03:00:00.000Z") },
+  ];
+  const { listArchivedClassroomsForTeacher } = await classroomQueries();
+  const result = await listArchivedClassroomsForTeacher("t1");
+  assert.deepEqual(result.map((classroom) => classroom.id), ["archived-new", "archived-old"]);
+
+  const where = lastWhere<ArchivedTeacherWhere>();
+  assert.deepEqual(where.archivedAt, { not: null });
+  assert.ok(where.OR.some((clause) => clause.teacherId === "t1"));
+  assert.ok(where.OR.some((clause) => clause.members !== undefined));
+  assert.deepEqual(lastOrderBy<{ createdAt: "desc" }>(), { createdAt: "desc" });
 });
 
 // ---- listClassroomsForStudent ----------------------------------------------
