@@ -18,6 +18,7 @@
  *   - {@link redactSensitiveValue}       — string PII/token scrubber
  *   - {@link redactUrlForLog}            — URL credential/query scrubber
  *   - {@link redactSensitiveObject}      — flat object redactor (error context, etc.)
+ *   - {@link safeMetadataForLog}         — recursive structured-log sanitizer
  *   - {@link safeMetadataForPersistence} — recursive object sanitizer (audit, ledger, etc.)
  */
 
@@ -155,6 +156,45 @@ function sanitizeDeep(value: unknown, depth: number): unknown {
 
 function redactAndLimitString(value: string): string {
   return redactSensitiveValue(value).slice(0, MAX_SAFE_STRING_LEN);
+}
+
+function sanitizeLogValue(value: unknown, depth: number): unknown {
+  if (depth > MAX_SAFE_DEPTH) return TRUNCATED;
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "bigint") return value.toString();
+  if (typeof value === "string") return redactSensitiveValue(value);
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Error) return redactSensitiveValue(value.message);
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeLogValue(item, depth + 1));
+  }
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = isSensitiveMetadataKey(k) ? REDACTED : sanitizeLogValue(v, depth + 1);
+    }
+    return out;
+  }
+  return undefined;
+}
+
+/**
+ * Sanitize structured log metadata while preserving the logger's JSON-object
+ * contract: safe primitives pass through, strings are scrubbed in place, and
+ * nested objects/arrays are recursively sanitized with bounded depth.
+ */
+export function safeMetadataForLog(
+  input: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | undefined {
+  if (!input) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    out[key] = isSensitiveMetadataKey(key) ? REDACTED : sanitizeLogValue(value, 0);
+  }
+  return out;
 }
 
 /**

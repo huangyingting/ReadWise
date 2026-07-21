@@ -13,6 +13,7 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { logLevel, type LogLevel } from "@/lib/runtime-config/observability";
+import { safeMetadataForLog } from "@/lib/security/redaction";
 
 export type { LogLevel };
 
@@ -89,7 +90,7 @@ function buildLogLine(
     message,
     ...(includeRequestContext ? getRequestContext() : undefined),
     ...base,
-    ...meta,
+    ...safeMetadataForLog(meta),
   };
 }
 
@@ -111,11 +112,15 @@ export function createLogger(
 ): StructuredLogger {
   const threshold = order[minLevel()];
   const includeRequestContext = options.includeRequestContext ?? true;
+  const safeBase = safeMetadataForLog(base) ?? {};
   const emit =
     (level: LogLevel) =>
     (message: string, meta?: Record<string, unknown>) => {
       if (!shouldEmit(level, threshold)) return;
-      writeLogLine(level, JSON.stringify(buildLogLine(scope, level, message, base, includeRequestContext, meta)));
+      writeLogLine(
+        level,
+        JSON.stringify(buildLogLine(scope, level, message, safeBase, includeRequestContext, meta)),
+      );
     };
   return {
     debug: emit("debug"),
