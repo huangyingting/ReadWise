@@ -10,6 +10,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import { CAPABILITIES } from "@/lib/rbac";
 
 type Org = typeof import("@/lib/org");
 let org: Org;
@@ -91,8 +92,39 @@ test("isSystemAdmin recognizes the global super-user roles only", () => {
   assert.ok(org.isSystemAdmin("Admin"));
   assert.ok(org.isSystemAdmin("System"));
   assert.ok(!org.isSystemAdmin("Reader"));
+  assert.ok(!org.isSystemAdmin("Moderator"));
+  assert.ok(!org.isSystemAdmin("ContentEditor"));
+  assert.ok(!org.isSystemAdmin("SupportAgent"));
   assert.ok(!org.isSystemAdmin("OrgAdmin"));
   assert.ok(!org.isSystemAdmin(null));
+});
+
+test("requireOrgCapabilityApi denies scoped admin roles without org membership", async () => {
+  const { requireOrgCapabilityApi } = await import("@/lib/tenant-api");
+
+  for (const role of ["Moderator", "ContentEditor", "SupportAgent"]) {
+    await assert.rejects(
+      () =>
+        requireOrgCapabilityApi(
+          { user: { id: `${role.toLowerCase()}-1`, role } } as never,
+          "org-1",
+          CAPABILITIES.orgMembersManage,
+        ),
+      (err: { status?: number }) => {
+        assert.equal(err.status, 403);
+        return true;
+      },
+    );
+  }
+
+  for (const role of ["Admin", "System"]) {
+    const membership = await requireOrgCapabilityApi(
+      { user: { id: `${role.toLowerCase()}-1`, role } } as never,
+      "org-1",
+      CAPABILITIES.orgMembersManage,
+    );
+    assert.equal(membership, null);
+  }
 });
 
 test("hasOrgCapability resolves membership-role capabilities", () => {
