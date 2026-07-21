@@ -11,7 +11,7 @@
  * Shown beneath {@link PushReminderToggle} in the Settings → Notifications card.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getJson, putJson } from "@/lib/client-fetch";
 import { Switch } from "@/components/ui/Switch";
 import { Select } from "@/components/ui/Select";
@@ -26,6 +26,11 @@ interface Preference {
   quietHoursEnd: number | null;
   timezone: string | null;
 }
+
+type PreferenceLoadState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; preference: Preference };
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const DEFAULT_QUIET_HOURS = {
@@ -77,35 +82,49 @@ function buildPreferencePayload(pref: Preference) {
 }
 
 export default function ReminderPreferencesForm() {
-  const [pref, setPref] = useState<Preference | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadState, setLoadState] = useState<PreferenceLoadState>({
+    status: "loading",
+  });
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
 
+  const loadPreferences = useCallback(async (isCancelled: () => boolean) => {
+    setLoadState({ status: "loading" });
+    try {
+      const data = await getJson<{ preference: Preference }>("/api/push/preferences");
+      if (!isCancelled()) {
+        setLoadState({ status: "ready", preference: data.preference });
+      }
+    } catch {
+      if (!isCancelled()) {
+        setLoadState({
+          status: "error",
+          message: "Couldn't load reminder preferences.",
+        });
+      }
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      try {
-        const data = await getJson<{ preference: Preference }>("/api/push/preferences");
-        if (!cancelled) setPref(data.preference);
-      } catch {
-        if (!cancelled) setPref(null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    void loadPreferences(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadPreferences]);
 
   function update(patch: Partial<Preference>) {
-    setPref((prev) => (prev ? { ...prev, ...patch } : prev));
+    setLoadState((prev) =>
+      prev.status === "ready"
+        ? { status: "ready", preference: { ...prev.preference, ...patch } }
+        : prev,
+    );
     setStatus("idle");
   }
 
   async function save() {
-    if (!pref) return;
+    if (loadState.status !== "ready") return;
+    const pref = loadState.preference;
     setSaving(true);
     setStatus("idle");
     try {
@@ -113,7 +132,7 @@ export default function ReminderPreferencesForm() {
         "/api/push/preferences",
         buildPreferencePayload(pref),
       );
-      setPref(data.preference);
+      setLoadState({ status: "ready", preference: data.preference });
       setStatus("saved");
     } catch {
       setStatus("error");
@@ -122,12 +141,29 @@ export default function ReminderPreferencesForm() {
     }
   }
 
-  if (loading) {
+  function retryLoad() {
+    void loadPreferences(() => false);
+  }
+
+  if (loadState.status === "loading") {
     return <SkeletonText lines={2} className="w-full" />;
   }
-  if (!pref) {
-    return null;
+  if (loadState.status === "error") {
+    return (
+      <div className="mt-[var(--space-4)] border-t border-border pt-[var(--space-4)]">
+        <div className="flex flex-wrap items-center gap-[var(--space-3)]" role="alert">
+          <p className="m-0 text-danger-text text-[length:var(--text-sm)]">
+            {loadState.message}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={retryLoad}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
   }
+
+  const pref = loadState.preference;
 
   // Quiet hours are a paired window — toggling on seeds sensible defaults.
   const quietEnabled = pref.quietHoursStart != null && pref.quietHoursEnd != null;
