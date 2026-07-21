@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { object, string, nonEmptyString } from "@/lib/validation";
+import { object, queryString, string, nonEmptyString } from "@/lib/validation";
 import { CAPABILITIES } from "@/lib/rbac";
 import {
   createClassroom,
@@ -16,6 +16,11 @@ const createClassroomBody = object({
 
 const CREATED_STATUS = 201;
 
+const listQuery = (params: URLSearchParams) => ({
+  ok: true as const,
+  value: { archived: queryString(params, "archived") === "true" },
+});
+
 function classroomCreateInput(body: { orgId: string; name: string }, teacherId: string) {
   return {
     orgId: body.orgId,
@@ -24,17 +29,13 @@ function classroomCreateInput(body: { orgId: string; name: string }, teacherId: 
   };
 }
 
-function shouldListArchived(req: Request): boolean {
-  return new URL(req.url).searchParams.get("archived") === "true";
-}
-
 /**
  * Lists classrooms the caller teaches/manages (RW-061).
  */
 export const GET = createHandler(
-  {},
-  async ({ req, session }) => {
-    const classrooms = shouldListArchived(req)
+  { query: listQuery },
+  async ({ query, session }) => {
+    const classrooms = query.archived
       ? await listArchivedClassroomsForTeacher(session.user.id)
       : await listClassroomsForTeacher(session.user.id);
     return NextResponse.json({ classrooms });
