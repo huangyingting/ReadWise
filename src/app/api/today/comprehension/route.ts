@@ -7,9 +7,9 @@ import {
   oneOf,
   clampedInt,
   boolean,
-  queryString,
   type Schema,
 } from "@/lib/validation";
+import { optionalTimezoneString, parseOptionalTimezoneQuery } from "@/lib/timezone";
 import {
   COMPREHENSION_SELF_RATINGS,
   COMPREHENSION_SKILL_TAGS,
@@ -17,10 +17,6 @@ import {
   submitTodayComprehension,
 } from "@/lib/engagement/today-session/actions";
 import { loadTodayComprehensionCheck } from "@/lib/engagement/today-session";
-
-function parseTimezone(params: URLSearchParams): string | null {
-  return queryString(params, "timezone").trim() || null;
-}
 
 /**
  * Today comprehension self-check & remediation (#807).
@@ -47,12 +43,7 @@ function parseTimezone(params: URLSearchParams): string | null {
  * never article text, question text, answer/option text, or prompts.
  */
 export const GET = createHandler(
-  {
-    query: (params) => ({
-      ok: true as const,
-      value: { timezone: parseTimezone(params) },
-    }),
-  },
+  { query: parseOptionalTimezoneQuery },
   async ({ query, session }) => {
     enforceTodayGate();
     const check = await loadTodayComprehensionCheck({
@@ -69,7 +60,7 @@ const comprehensionBody = object({
   selectedIndex: optional(clampedInt(0, 50)),
   skillTag: optional(oneOf(COMPREHENSION_SKILL_TAGS)),
   remediationViewed: optional(boolean()),
-  timezone: optional(string({ max: 100 })),
+  timezone: optionalTimezoneString,
 });
 
 type ComprehensionBody = typeof comprehensionBody extends Schema<infer T> ? T : never;

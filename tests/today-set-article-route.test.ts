@@ -140,6 +140,7 @@ before(() => {
     namedExports: {
       prisma: {
         profile: { findUnique: async () => ({ timezone: "UTC" }) },
+        membership: { findMany: async () => [] },
         placementResult: { findUnique: async () => null },
         seriesEnrollment: {
           findFirst: async () => null,

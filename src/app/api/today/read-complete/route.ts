@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { object, optional, string } from "@/lib/validation";
+import { object } from "@/lib/validation";
+import { optionalTimezoneString } from "@/lib/timezone";
 import {
   enforceTodayGate,
   markTodayReadingCompleteManual,
@@ -20,7 +21,7 @@ import {
  * 404s when the feature is disabled, mirroring the other Today routes.
  */
 const readCompleteBody = object({
-  timezone: optional(string({ max: 100 })),
+  timezone: optionalTimezoneString,
 });
 
 type ManualCompletionView = NonNullable<

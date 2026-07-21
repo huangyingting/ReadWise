@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { object, oneOf, optional, string } from "@/lib/validation";
+import { object, oneOf } from "@/lib/validation";
+import { optionalTimezoneString } from "@/lib/timezone";
 import {
   enforceTodayGate,
   skipTodaySession,
@@ -23,7 +24,7 @@ import {
  */
 const skipBody = object({
   skipReason: oneOf(TODAY_SKIP_REASONS),
-  timezone: optional(string({ max: 100 })),
+  timezone: optionalTimezoneString,
 });
 
 type SkipTodayResult = Awaited<ReturnType<typeof skipTodaySession>>;

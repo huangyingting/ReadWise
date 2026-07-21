@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { object, nonEmptyString, optional, string } from "@/lib/validation";
+import { object, nonEmptyString } from "@/lib/validation";
+import { optionalTimezoneString } from "@/lib/timezone";
 import {
   enforceTodayGate,
   setTodayPrimaryArticle,
@@ -27,7 +28,7 @@ import { loadTodayViewModel } from "@/lib/engagement/today-session";
  */
 const setArticleBody = object({
   articleId: nonEmptyString(200),
-  timezone: optional(string({ max: 100 })),
+  timezone: optionalTimezoneString,
 });
 
 type SetArticleRequestBody = {

@@ -14,6 +14,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { resolveTimezone } from "@/lib/timezone";
 import { dateKey, localDayStart } from "./time";
 import { SHIELD_EARN_STREAK, MAX_SHIELDS } from "./streak";
 
@@ -124,7 +125,7 @@ export async function recordReadingActivity(
     select: { timezone: true, streakShields: true },
   });
 
-  const tz = timezone ?? profile?.timezone ?? "UTC";
+  const tz = resolveTimezone(timezone, profile?.timezone);
   let currentShields = profile?.streakShields ?? 0;
 
   const todayDate = localDayStart(now, tz);

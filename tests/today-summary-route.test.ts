@@ -62,6 +62,7 @@ before(() => {
     namedExports: {
       prisma: {
         profile: { findUnique: async () => ({ timezone: "UTC" }) },
+        membership: { findMany: async () => [] },
         placementResult: { findUnique: async () => null },
         seriesEnrollment: {
           findFirst: async () => null,
@@ -169,5 +170,10 @@ test("scopes the session lookup to the authenticated session id (not a body id)"
 test("ignores an over-long timezone query with 400", async () => {
   const longTz = "x".repeat(101);
   const res = await GET(`http://localhost/api/today?timezone=${longTz}`);
+  assert.equal(res.status, 400);
+});
+
+test("rejects an invalid IANA timezone query with 400", async () => {
+  const res = await GET("http://localhost/api/today?timezone=Bogus/Zone");
   assert.equal(res.status, 400);
 });

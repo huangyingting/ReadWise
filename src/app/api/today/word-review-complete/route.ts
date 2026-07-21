@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object, optional, string } from "@/lib/validation";
+import { optionalTimezoneString } from "@/lib/timezone";
 import {
   enforceTodayGate,
   markTodayWordReviewComplete,
@@ -29,7 +30,7 @@ import {
  * response carries IDS / ENUMS / BOOLEANS ONLY — never any learning content.
  */
 const wordReviewCompleteBody = object({
-  timezone: optional(string({ max: 100 })),
+  timezone: optionalTimezoneString,
   localDate: optional(string({ max: 10 })),
 });
 
