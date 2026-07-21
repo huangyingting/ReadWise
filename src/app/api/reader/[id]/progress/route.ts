@@ -10,6 +10,7 @@ import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { progressBody } from "@/lib/reader/schemas";
 import { revalidateUserCache } from "@/lib/cache";
 import { syncTodayReadingFromProgress } from "@/lib/engagement/today-session/integrations";
+import { syncAssignmentReadingProgress } from "@/lib/classroom";
 
 type ProgressWrite = {
   percent: number;
@@ -76,6 +77,17 @@ export const POST = createHandler(
     // the primary article reaches the completion threshold. Never breaks the
     // progress write and never mutates ReadingProgress.
     await syncTodayReadingProgress(session.user.id, article.id, progress, body.timezone);
+    // Best-effort: advance any classroom assignments for this article based on
+    // reading progress. Uses the cumulative completed flag so a re-read at
+    // ≥threshold still reconciles an assignment that wasn't yet synced.
+    await bestEffortMastery("progress.assignment_completion", () =>
+      syncAssignmentReadingProgress({
+        userId: session.user.id,
+        articleId: article.id,
+        percent: progress.percent,
+        completed: progress.completed,
+      }),
+    );
     return progressResponse(progress);
   },
 );
