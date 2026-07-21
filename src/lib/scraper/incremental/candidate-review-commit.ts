@@ -11,11 +11,13 @@
  *
  * Approval routes the candidate into the NORMAL candidate ingest pipeline by
  * enqueuing the same idempotent `article-ingest:candidate:<id>:v<version>` Job the
- * discovery loop uses, INSIDE the transaction. Because the guarded update matches
- * only a NEEDS_REVIEW row and the enqueue is an upsert on the dedupe key,
- * approving the same candidate twice creates EXACTLY ONE active Job (AC1): the
- * second call re-reads a QUEUED/INGESTING/INGESTED candidate and the pure policy
- * returns an idempotent no-op that enqueues nothing. Rejection records
+ * discovery loop uses, INSIDE the transaction — but only while
+ * `CANDIDATE_INGEST_ENABLED=true` (#1217; default-off until #1095 wires the
+ * production prepareDraft seam). Because the guarded update matches only a
+ * NEEDS_REVIEW row and the enqueue is an upsert on the dedupe key, approving the
+ * same candidate twice creates at most ONE active Job (AC1): the second call
+ * re-reads a QUEUED/INGESTING/INGESTED candidate and the pure policy returns an
+ * idempotent no-op that enqueues nothing. Rejection records
  * SKIPPED_REVIEW (terminal, never rediscovered); reactivation is a separate
  * audited SKIPPED_REVIEW→NEEDS_REVIEW action.
  */
@@ -23,6 +25,7 @@ import { CrawlCandidateStatus, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { enqueueCandidateIngestInTx } from "@/lib/jobs/enqueue";
+import { isCandidateIngestEnabled } from "@/lib/runtime-config/scraper";
 
 import {
   decideCandidateReview,
@@ -157,7 +160,8 @@ export async function applyCandidateReview(input: {
     return { ok: true, kind: "noop", action, candidateId, reason: decision.reason, status: decision.status };
   }
 
-  const { fromStatus, toStatus, enqueueIngest } = decision;
+  const { fromStatus, toStatus } = decision;
+  const enqueueIngest = decision.enqueueIngest && isCandidateIngestEnabled();
   try {
     await prisma.$transaction(async (tx) => {
       const updated = await tx.crawlCandidate.updateMany({

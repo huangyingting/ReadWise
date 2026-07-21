@@ -51,8 +51,22 @@ registerIntegrationCleanup();
 // Identity keys produced by this suite. Commit writes them under the real
 // provider key, so the shared PREFIX sweep cannot remove the candidates/aliases.
 const createdIdentityKeys = new Set<string>();
+const ORIGINAL_CANDIDATE_INGEST_ENABLED = process.env.CANDIDATE_INGEST_ENABLED;
+
+function enableCandidateIngestForTest(): void {
+  process.env.CANDIDATE_INGEST_ENABLED = "true";
+}
+
+function restoreCandidateIngestFlag(): void {
+  if (ORIGINAL_CANDIDATE_INGEST_ENABLED === undefined) {
+    delete process.env.CANDIDATE_INGEST_ENABLED;
+    return;
+  }
+  process.env.CANDIDATE_INGEST_ENABLED = ORIGINAL_CANDIDATE_INGEST_ENABLED;
+}
 
 afterEach(async () => {
+  restoreCandidateIngestFlag();
   if (!enabled) return;
   const keys = [...createdIdentityKeys];
   if (keys.length > 0) {
@@ -116,10 +130,11 @@ async function countCandidate(url: string): Promise<number> {
 
 // ---------------------------------------------------------------------------
 // Happy path: eligible commit writes candidate + alias + observation + advances
-// the checkpoint, and creates NO Article / ingest job.
+// the checkpoint, and creates NO Article.
 // ---------------------------------------------------------------------------
 
 test("eligible page commit persists candidate, alias, observation, and checkpoint", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const source = await activeSource();
   const url = track(undarkUrl(id("elig")));
   const identity = deriveProvisionalIdentity(url);
@@ -166,9 +181,9 @@ test("eligible page commit persists candidate, alias, observation, and checkpoin
   assert.equal(advanced?.checkpointCursor, "next-cursor");
   assert.equal(advanced?.checkpointPage, 2);
 
-  // Phase 2.1 (#1091): an ELIGIBLE ACTIVE commit enqueues exactly one
-  // candidate-based ingest job — but still creates NO Article and does NO body
-  // fetch here (fetch/extract/Article creation is #1095).
+  // Phase 2.1 (#1091): with CANDIDATE_INGEST_ENABLED=true, an ELIGIBLE ACTIVE
+  // commit enqueues exactly one candidate-based ingest job — but still creates
+  // NO Article and does NO body fetch here (fetch/extract/Article creation is #1095).
   assert.equal(result.ingestJobsEnqueued, 1);
   assert.equal(await prisma.article.count({ where: { sourceUrl: url } }), 0);
   const ingestDedupeKey = candidateIngestDedupeKey(candidate.id, CANDIDATE_INGEST_PROCESSING_VERSION);

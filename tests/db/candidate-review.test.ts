@@ -41,13 +41,27 @@ registerIntegrationCleanup();
 const { ACTIVE } = DiscoverySourceLifecycleMode;
 const { NEEDS_REVIEW, SKIPPED_REVIEW, QUEUED, INGESTED } = CrawlCandidateStatus;
 const LEASE = "worker-review-1";
+const ORIGINAL_CANDIDATE_INGEST_ENABLED = process.env.CANDIDATE_INGEST_ENABLED;
 
 /** candidate ids whose ingest Jobs must be swept (dedupe key is not PREFIX-scoped). */
 const approvedCandidateIds = new Set<string>();
 /** real-provider candidate ids (providerKey "undark") created for rediscovery. */
 const realProviderCandidateIds = new Set<string>();
 
+function enableCandidateIngestForTest(): void {
+  process.env.CANDIDATE_INGEST_ENABLED = "true";
+}
+
+function restoreCandidateIngestFlag(): void {
+  if (ORIGINAL_CANDIDATE_INGEST_ENABLED === undefined) {
+    delete process.env.CANDIDATE_INGEST_ENABLED;
+    return;
+  }
+  process.env.CANDIDATE_INGEST_ENABLED = ORIGINAL_CANDIDATE_INGEST_ENABLED;
+}
+
 afterEach(async () => {
+  restoreCandidateIngestFlag();
   if (!enabled) return;
   const dedupeKeys = [...approvedCandidateIds].map((cid) => candidateIngestDedupeKey(cid, CANDIDATE_INGEST_PROCESSING_VERSION));
   if (dedupeKeys.length > 0) {
@@ -72,7 +86,23 @@ async function activeIngestJobCount(candidateId: string): Promise<number> {
 // AC1: approving the same candidate twice creates ONE active ingest Job.
 // ---------------------------------------------------------------------------
 
+test("approve does not enqueue an ingest job while CANDIDATE_INGEST_ENABLED is off by default", { skip: !enabled }, async () => {
+  delete process.env.CANDIDATE_INGEST_ENABLED;
+  const source = await createDiscoverySource({ lifecycleMode: ACTIVE });
+  const candidate = await createCrawlCandidate({ discoverySourceId: source.id, status: NEEDS_REVIEW });
+  approvedCandidateIds.add(candidate.id);
+
+  const outcome = await applyCandidateReview({ candidateId: candidate.id, action: "approve" });
+
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.ok && outcome.kind, "applied");
+  assert.equal(outcome.ok && outcome.kind === "applied" && outcome.toStatus, QUEUED);
+  assert.equal(outcome.ok && outcome.kind === "applied" && outcome.enqueued, false);
+  assert.equal(await activeIngestJobCount(candidate.id), 0);
+});
+
 test("approve transitions NEEDS_REVIEW → QUEUED and enqueues ONE ingest job", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const source = await createDiscoverySource({ lifecycleMode: ACTIVE });
   const candidate = await createCrawlCandidate({ discoverySourceId: source.id, status: NEEDS_REVIEW });
   approvedCandidateIds.add(candidate.id);
@@ -89,6 +119,7 @@ test("approve transitions NEEDS_REVIEW → QUEUED and enqueues ONE ingest job", 
 });
 
 test("approving twice is idempotent — the second approve is a no-op and adds NO job (AC1)", { skip: !enabled }, async () => {
+  enableCandidateIngestForTest();
   const source = await createDiscoverySource({ lifecycleMode: ACTIVE });
   const candidate = await createCrawlCandidate({ discoverySourceId: source.id, status: NEEDS_REVIEW });
   approvedCandidateIds.add(candidate.id);
