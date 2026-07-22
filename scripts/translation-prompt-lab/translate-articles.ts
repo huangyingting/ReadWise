@@ -169,44 +169,63 @@ export async function runTranslateArticles(options: RunOptions): Promise<RunStat
         }
         const started = Date.now();
         const prompt = recommendedPromptForCategory(row.category);
-        try {
-          const [titleTranslated, bodyResult] = await Promise.all([
-            translateTitle(row.title, prompt.systemPrompt, DEFAULT_TEMPERATURE),
-            translateArticleBlocks(row.content, prompt.systemPrompt, {
-              temperature: DEFAULT_TEMPERATURE,
-            }),
-          ]);
-          const flags = qaFlags(bodyResult.content, row.content.length, bodyResult.sourceBlockCount);
-          if (bodyResult.suspiciousBlockCount > 0) flags.push("suspicious-untranslated-block");
-          if (flags.length > 0) stats.flagged++;
-          if (bodyResult.repairedChunkCount > 0) stats.repairedChunks += bodyResult.repairedChunkCount;
-          upsertTranslation(store!, {
-            providerDb: options.providerDb,
-            articleId: row.id,
-            targetLang: options.lang,
-            titleTranslated,
-            contentTranslated: bodyResult.content,
-            sourceBlockCount: bodyResult.sourceBlockCount,
-            chunkCount: bodyResult.chunkCount,
-            repairedChunkCount: bodyResult.repairedChunkCount,
-            contentHash: hash,
-            model: process.env.VLLM_MODEL ?? "Qwen/Qwen3.6-27B-FP8",
-            promptVariantId: prompt.id,
-            qaFlags: flags,
-            durationMs: Date.now() - started,
-          });
-          stats.translated++;
-        } catch (err) {
-          stats.errors++;
-          recordError(store!, options.providerDb, row.id, options.lang, err instanceof Error ? err.message : String(err));
-        } finally {
-          done++;
-          if (done % 25 === 0 || done === limited.length) {
-            console.log(
-              `[${done}/${limited.length}] translated=${stats.translated} skipped=${stats.skippedUnchanged} ` +
-                `errors=${stats.errors} flagged=${stats.flagged} repairedChunks=${stats.repairedChunks}`,
-            );
+        // Under sustained high concurrency the local vLLM server occasionally
+        // times out or transiently truncates a response for a specific
+        // article (confirmed directly: an article that failed at
+        // concurrency 32 succeeded immediately, unchanged, at concurrency 1
+        // — i.e. GPU-load contention, not a genuine content/prompt problem).
+        // Retrying the whole article a bounded number of times, with a short
+        // backoff, resolves this class of failure automatically instead of
+        // requiring a manual `--article-id --force` re-run after every batch.
+        const maxArticleAttempts = 2;
+        let lastErr: unknown;
+        for (let attempt = 1; attempt <= maxArticleAttempts; attempt++) {
+          try {
+            const [titleTranslated, bodyResult] = await Promise.all([
+              translateTitle(row.title, prompt.systemPrompt, DEFAULT_TEMPERATURE),
+              translateArticleBlocks(row.content, prompt.systemPrompt, {
+                temperature: DEFAULT_TEMPERATURE,
+              }),
+            ]);
+            const flags = qaFlags(bodyResult.content, row.content.length, bodyResult.sourceBlockCount);
+            if (bodyResult.suspiciousBlockCount > 0) flags.push("suspicious-untranslated-block");
+            if (flags.length > 0) stats.flagged++;
+            if (bodyResult.repairedChunkCount > 0) stats.repairedChunks += bodyResult.repairedChunkCount;
+            upsertTranslation(store!, {
+              providerDb: options.providerDb,
+              articleId: row.id,
+              targetLang: options.lang,
+              titleTranslated,
+              contentTranslated: bodyResult.content,
+              sourceBlockCount: bodyResult.sourceBlockCount,
+              chunkCount: bodyResult.chunkCount,
+              repairedChunkCount: bodyResult.repairedChunkCount,
+              contentHash: hash,
+              model: process.env.VLLM_MODEL ?? "Qwen/Qwen3.6-27B-FP8",
+              promptVariantId: prompt.id,
+              qaFlags: flags,
+              durationMs: Date.now() - started,
+            });
+            stats.translated++;
+            lastErr = undefined;
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (attempt < maxArticleAttempts) {
+              await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+            }
           }
+        }
+        if (lastErr) {
+          stats.errors++;
+          recordError(store!, options.providerDb, row.id, options.lang, lastErr instanceof Error ? lastErr.message : String(lastErr));
+        }
+        done++;
+        if (done % 25 === 0 || done === limited.length) {
+          console.log(
+            `[${done}/${limited.length}] translated=${stats.translated} skipped=${stats.skippedUnchanged} ` +
+              `errors=${stats.errors} flagged=${stats.flagged} repairedChunks=${stats.repairedChunks}`,
+          );
         }
       },
     );

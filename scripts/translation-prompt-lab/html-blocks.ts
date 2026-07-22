@@ -229,15 +229,31 @@ async function translateSingleBlock(
   temperature: number,
 ): Promise<{ text: string; suspicious: boolean }> {
   if (!block.text) return { text: "", suspicious: false };
-  const result = await chatCompleteWithRetry(
+  const baseBudget = outputTokenBudget(block.text.length, 1);
+  // A single retry with a doubled budget before giving up: hitting the
+  // token cap here is usually transient sampling behavior (temperature 0.2
+  // is not fully deterministic — the same block has been observed to
+  // truncate on one attempt and translate cleanly in ~100 tokens on a
+  // direct retry), not a genuinely undersized budget. Only abort the
+  // article if it truncates twice in a row.
+  let result = await chatCompleteWithRetry(
     [
       { role: "system", content: systemPrompt + " " + CONTENT_ISOLATION_NOTICE },
       { role: "user", content: wrapUntrustedContent(block.text, "article", 200_000) },
     ],
-    { temperature, maxTokens: outputTokenBudget(block.text.length, 1) },
+    { temperature, maxTokens: baseBudget },
   );
   if (result.finishReason === "length") {
-    throw new Error(`block ${block.index} hit the output token cap (finish_reason: length)`);
+    result = await chatCompleteWithRetry(
+      [
+        { role: "system", content: systemPrompt + " " + CONTENT_ISOLATION_NOTICE },
+        { role: "user", content: wrapUntrustedContent(block.text, "article", 200_000) },
+      ],
+      { temperature, maxTokens: baseBudget * 2 },
+    );
+  }
+  if (result.finishReason === "length") {
+    throw new Error(`block ${block.index} hit the output token cap twice (finish_reason: length)`);
   }
   const text = result.text.trim();
   // Only worth flagging for genuinely long blocks — short blocks are where
