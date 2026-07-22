@@ -16,9 +16,11 @@ let classroomStub: Record<string, unknown> | null = null;
 let classroomListStub: Record<string, unknown>[] = [];
 let membershipListStub: Record<string, unknown>[] = [];
 let assignmentStub: Record<string, unknown> | null = null;
+let assignmentCountStub = 0;
 
 let lastClassroomFindManyWhere: unknown = null;
 let lastClassroomFindManyOrderBy: unknown = null;
+let lastAssignmentCountWhere: unknown = null;
 
 type OrgWhere = { orgId: string; archivedAt: null };
 type TeacherWhere = { archivedAt: null; OR: Array<{ teacherId?: string; members?: unknown }> };
@@ -61,6 +63,10 @@ before(() => {
         },
         assignment: {
           findUnique: async () => assignmentStub,
+          count: async (args: { where?: unknown }) => {
+            lastAssignmentCountWhere = args?.where;
+            return assignmentCountStub;
+          },
         },
       },
     },
@@ -72,8 +78,10 @@ beforeEach(() => {
   classroomListStub = [];
   membershipListStub = [];
   assignmentStub = null;
+  assignmentCountStub = 0;
   lastClassroomFindManyWhere = null;
   lastClassroomFindManyOrderBy = null;
+  lastAssignmentCountWhere = null;
 });
 
 // ---- getClassroom ----------------------------------------------------------
@@ -300,4 +308,44 @@ test("listClassroomMembers preserves all rows without filtering", async () => {
   assert.equal(result[0].userId, "t1");
   assert.equal(result[1].userId, "s1");
   assert.equal(result[2].userId, "s2");
+});
+
+// ---- countPendingAssignmentsForStudent -------------------------------------
+
+type PendingCountWhere = {
+  classroom: { archivedAt: null; members: { some: { userId: string } } };
+  NOT: { completions: { some: { studentId: string; status: string } } };
+};
+
+test("countPendingAssignmentsForStudent returns the prisma.assignment.count result", async () => {
+  assignmentCountStub = 3;
+  const { countPendingAssignmentsForStudent } = await classroomQueries();
+  const result = await countPendingAssignmentsForStudent("s1");
+  assert.equal(result, 3);
+});
+
+test("countPendingAssignmentsForStudent passes classroom archivedAt:null and member userId filter", async () => {
+  assignmentCountStub = 1;
+  const { countPendingAssignmentsForStudent } = await classroomQueries();
+  await countPendingAssignmentsForStudent("student-42");
+  assert.ok(lastAssignmentCountWhere, "assignment.count should have been called");
+  const where = lastAssignmentCountWhere as PendingCountWhere;
+  assert.equal(where.classroom.archivedAt, null, "must exclude archived classrooms");
+  assert.equal(where.classroom.members.some.userId, "student-42", "must scope to the student");
+});
+
+test("countPendingAssignmentsForStudent uses NOT completions COMPLETED filter", async () => {
+  assignmentCountStub = 2;
+  const { countPendingAssignmentsForStudent } = await classroomQueries();
+  await countPendingAssignmentsForStudent("student-99");
+  const where = lastAssignmentCountWhere as PendingCountWhere;
+  assert.equal(where.NOT.completions.some.studentId, "student-99", "completions filter must use same studentId");
+  assert.equal(where.NOT.completions.some.status, "COMPLETED", "completions filter must exclude COMPLETED status");
+});
+
+test("countPendingAssignmentsForStudent returns 0 when no pending assignments", async () => {
+  assignmentCountStub = 0;
+  const { countPendingAssignmentsForStudent } = await classroomQueries();
+  const result = await countPendingAssignmentsForStudent("all-done-student");
+  assert.equal(result, 0);
 });
