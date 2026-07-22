@@ -31,7 +31,7 @@ import {
 import { buttonVariants } from "@/components/ui/Button";
 import { StatCard } from "@/components/analytics/StatCard";
 import AddStudentForm from "@/components/teacher/AddStudentForm";
-import AssignArticleForm from "@/components/teacher/AssignArticleForm";
+import AssignReadingSheet from "@/components/teacher/AssignReadingSheet";
 import AssignmentFeedbackForm from "@/components/teacher/AssignmentFeedbackForm";
 import ClassroomSettingsCard from "@/components/teacher/ClassroomSettingsCard";
 import DeleteAssignmentButton from "@/components/teacher/DeleteAssignmentButton";
@@ -469,7 +469,6 @@ function TeacherSidebar({
   archivedAt,
   students,
   studentCandidates,
-  articleOptions,
 }: {
   classroomId: string;
   canManage: boolean;
@@ -478,13 +477,7 @@ function TeacherSidebar({
   archivedAt: string | null;
   students: ClassroomMember[];
   studentCandidates: StudentCandidate[];
-  articleOptions: AssignableArticle[];
 }) {
-  const assignmentTargetStudents = students.map((student) => ({
-    id: student.userId,
-    label: memberLabel(student),
-  }));
-
   return (
     <aside className="flex flex-col gap-[var(--space-6)]">
       {canManageLifecycle ? (
@@ -495,50 +488,36 @@ function TeacherSidebar({
         />
       ) : null}
       {canManage ? (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle>Assign a reading</CardTitle>
-            </CardHeader>
-            <CardBody>
-              <AssignArticleForm
-                classroomId={classroomId}
-                initialArticles={articleOptions}
-                students={assignmentTargetStudents}
-              />
-            </CardBody>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Roster ({students.length})</CardTitle>
-            </CardHeader>
-            <CardBody className="flex flex-col gap-[var(--space-4)]">
-              <AddStudentForm
-                classroomId={classroomId}
-                initialCandidates={studentCandidates}
-              />
-              {students.length > 0 ? (
-                <ul className="flex flex-col gap-[var(--space-1)]">
-                  {students.map((student) => (
-                    <li
-                      key={student.userId}
-                      className="flex items-center justify-between gap-[var(--space-3)]"
-                    >
-                      <span className="text-[length:var(--text-sm)] text-text-muted">
-                        {memberLabel(student)}
-                      </span>
-                      <RemoveStudentButton
-                        classroomId={classroomId}
-                        studentId={student.userId}
-                        studentLabel={memberLabel(student)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </CardBody>
-          </Card>
-        </>
+        <Card>
+          <CardHeader>
+            <CardTitle>Roster ({students.length})</CardTitle>
+          </CardHeader>
+          <CardBody className="flex flex-col gap-[var(--space-4)]">
+            <AddStudentForm
+              classroomId={classroomId}
+              initialCandidates={studentCandidates}
+            />
+            {students.length > 0 ? (
+              <ul className="flex flex-col gap-[var(--space-1)]">
+                {students.map((student) => (
+                  <li
+                    key={student.userId}
+                    className="flex items-center justify-between gap-[var(--space-3)]"
+                  >
+                    <span className="text-[length:var(--text-sm)] text-text-muted">
+                      {memberLabel(student)}
+                    </span>
+                    <RemoveStudentButton
+                      classroomId={classroomId}
+                      studentId={student.userId}
+                      studentLabel={memberLabel(student)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </CardBody>
+        </Card>
       ) : null}
     </aside>
   );
@@ -611,6 +590,13 @@ export default async function ClassroomDetailPage({
         description="Class roster, assignments, and progress."
         actions={
          <div className="flex flex-wrap items-center gap-[var(--space-2)]">
+           {canManageActiveClassroom ? (
+             <AssignReadingSheet
+               classroomId={id}
+               initialArticles={articleOptions}
+               students={assignmentTargetStudents}
+             />
+           ) : null}
            {isArchived ? <Badge variant="neutral">Archived</Badge> : null}
            <Badge variant={role === "orgAdmin" ? "warning" : "primary"}>
              {role === "orgAdmin" ? "Aggregate view" : "Teacher view"}
@@ -648,7 +634,6 @@ export default async function ClassroomDetailPage({
           archivedAt={classroom.archivedAt?.toISOString() ?? null}
           students={students}
           studentCandidates={studentCandidates}
-          articleOptions={articleOptions}
         />
       </div>
     </PageShell>

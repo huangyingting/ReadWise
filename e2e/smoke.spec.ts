@@ -174,10 +174,14 @@ test("assignment lifecycle round trip updates student and teacher progress", asy
           body: JSON.stringify({ error: "Search temporarily unavailable" }),
         });
       },
-      { times: 1 },
+      { times: 2 },
     );
     await teacherPage.goto(`/teacher/classrooms/${classroom.id}`);
     await expect(teacherPage.getByRole("heading", { name: "E2E Reading Group" })).toBeVisible();
+    await teacherPage.getByRole("button", { name: "Assign reading" }).click();
+    await expect(
+      teacherPage.getByRole("dialog", { name: "Assign a reading" }),
+    ).toBeVisible();
     const articleSearchError = teacherPage.getByText(
       "Could not refresh article results. Showing recent matches.",
     );
@@ -215,7 +219,7 @@ test("assignment lifecycle round trip updates student and teacher progress", asy
     const teacherPendingRow = teacherPage
       .locator("li")
       .filter({ hasText: "E2E Critical Reading Smoke Article" })
-      .filter({ hasText: /0\/1 done/ })
+      .filter({ hasText: /1 not started/ })
       .first();
     await expect(teacherPendingRow).toBeVisible({ timeout: 60_000 });
 
@@ -285,7 +289,7 @@ test("assignment lifecycle round trip updates student and teacher progress", asy
     const teacherCompleteRow = teacherPage
       .locator("li")
       .filter({ hasText: "E2E Critical Reading Smoke Article" })
-      .filter({ hasText: /1\/1 done/ })
+      .filter({ hasText: /1 completed/ })
       .first();
     await expect(teacherCompleteRow).toBeVisible({ timeout: 60_000 });
 

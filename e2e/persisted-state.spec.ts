@@ -29,6 +29,13 @@ async function signInSeededTeacher(context: BrowserContext) {
   return seeded;
 }
 
+async function openAssignmentSheet(page: Page) {
+  await page.getByRole("button", { name: "Assign reading" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Assign a reading" }),
+  ).toBeVisible();
+}
+
 async function prewarmJsonRoute(page: Page, method: "get" | "post", url: string, data?: unknown) {
   if (method === "get") {
     await page.request.get(url, { timeout: 120_000 });
@@ -111,6 +118,7 @@ test("teacher assignment created from the classroom UI persists after reload", a
   await expect(page.getByRole("heading", { name: "E2E Reading Group" })).toBeVisible();
   await expect(page.getByText("No assignments yet.")).toBeVisible();
 
+  await openAssignmentSheet(page);
   await page
     .getByRole("button", { name: /E2E Critical Reading Smoke Article/ })
     .click();
@@ -119,7 +127,7 @@ test("teacher assignment created from the classroom UI persists after reload", a
   const assignmentRow = page
     .locator("li")
     .filter({ hasText: "E2E Critical Reading Smoke Article" })
-    .filter({ hasText: /0\/1 done/ })
+    .filter({ hasText: /1 not started/ })
     .first();
   await expect(assignmentRow).toBeVisible({ timeout: 60_000 });
 
@@ -250,6 +258,7 @@ test("teacher assignment deletion requires confirmation and persists after reloa
   await expect(page.getByRole("heading", { name: "E2E Reading Group" })).toBeVisible();
   await expect(page.getByText("No assignments yet.")).toBeVisible();
 
+  await openAssignmentSheet(page);
   await page
     .getByRole("button", { name: /E2E Critical Reading Smoke Article/ })
     .click();

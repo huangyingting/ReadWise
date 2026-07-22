@@ -437,24 +437,33 @@ body {
   align-items: center;
 }
 
-/* Secondary admin sub-nav: a horizontal tab strip that scrolls (never wraps or
-   clips) below the available width, keeping the active tab reachable on mobile. */
+/* Secondary admin sub-nav: use a compact picker on mobile and wrapping tabs
+   when there is enough room to scan the section labels. */
 .admin-subnav {
   margin-bottom: var(--space-6);
   border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
+}
+
+.admin-subnav-mobile {
+  padding-bottom: var(--space-3);
 }
 
 .admin-subnav-track {
-  display: flex;
+  display: none;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
   padding-bottom: var(--space-3);
+}
+
+@media (min-width: 768px) {
+  .admin-subnav-mobile {
+    display: none;
+  }
+
+  .admin-subnav-track {
+    display: flex;
+  }
 }
 
 .admin-table-wrap {

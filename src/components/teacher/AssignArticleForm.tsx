@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Check } from "lucide-react";
 import { getJson, postJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -25,6 +26,7 @@ interface AssignArticleFormProps {
   classroomId: string;
   initialArticles: ArticleOption[];
   students: { id: string; label: string }[];
+  onAssigned?: () => void;
 }
 
 type ArticleOptionsResponse = {
@@ -95,6 +97,7 @@ export default function AssignArticleForm({
   classroomId,
   initialArticles,
   students,
+  onAssigned,
 }: AssignArticleFormProps) {
   const [form, setForm] = useState(EMPTY_ASSIGNMENT_FORM);
   const [query, setQuery] = useState("");
@@ -172,7 +175,7 @@ export default function AssignArticleForm({
     if (selected.length === 0) return;
     if (audience === "students" && targetIds.length === 0) return;
 
-    await run(async () => {
+    const assigned = await run(async () => {
       setStatus(null);
       if (selected.length === 1) {
         const studentIds =
@@ -212,7 +215,9 @@ export default function AssignArticleForm({
         }
       }
       resetForm();
+      return true;
     }, { refreshOnSuccess: true });
+    if (assigned) onAssigned?.();
   }
 
   const submitLabel = selected.length > 1
@@ -268,15 +273,23 @@ export default function AssignArticleForm({
                 className="h-auto w-full justify-start whitespace-normal py-[var(--space-2)] text-left"
                 onClick={() => toggleArticle(article)}
               >
-                <span className="flex flex-col items-start gap-[var(--space-1)]">
-                  <span>{article.title}</span>
-                  <span className="font-normal text-text-muted">
-                    {meta || "Unknown source"}
-                    {article.difficulty ? (
-                      <Badge variant="neutral" className="ml-[var(--space-1)]">
-                        {article.difficulty}
-                      </Badge>
-                    ) : null}
+                <span className="flex w-full items-start gap-[var(--space-2)]">
+                  <span
+                    aria-hidden
+                    className="mt-px flex size-4 shrink-0 items-center justify-center rounded-[var(--radius-xs)] border border-border-strong"
+                  >
+                    {isSelected ? <Check size={12} strokeWidth={3} /> : null}
+                  </span>
+                  <span className="flex min-w-0 flex-col items-start gap-[var(--space-1)]">
+                    <span>{article.title}</span>
+                    <span className="font-normal text-text-muted">
+                      {meta || "Unknown source"}
+                      {article.difficulty ? (
+                        <Badge variant="neutral" className="ml-[var(--space-1)]">
+                          {article.difficulty}
+                        </Badge>
+                      ) : null}
+                    </span>
                   </span>
                 </span>
               </Button>

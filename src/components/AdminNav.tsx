@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { Select } from "@/components/ui";
 import { adminNavLinkVariants } from "./admin/adminNavLinkVariants";
 
 interface AdminSection {
@@ -34,15 +35,32 @@ function isSectionActive(pathname: string, sectionHref: string) {
 }
 
 /**
- * Admin secondary sub-nav — a horizontal tab strip rendered inside the unified
- * shell, above the admin page content. Scrolls horizontally below the available
- * width (never clips items) and marks the active section with `aria-current`.
+ * Admin secondary sub-nav — a compact section picker on mobile and wrapping
+ * tabs at wider viewports. The active desktop tab is marked with `aria-current`.
  */
 export default function AdminNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const activeSection = SECTIONS.find((section) =>
+    isSectionActive(pathname, section.href),
+  );
 
   return (
     <nav className="admin-subnav" aria-label="Admin sections">
+      <div className="admin-subnav-mobile">
+        <Select
+          aria-label="Admin section"
+          value={activeSection?.href ?? SECTIONS[0].href}
+          onChange={(event) => router.push(event.currentTarget.value)}
+        >
+          {SECTIONS.map((section) => (
+            <option key={section.href} value={section.href}>
+              {section.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+
       <div className="admin-subnav-track">
         {SECTIONS.map((section) => {
           const isActive = isSectionActive(pathname, section.href);
