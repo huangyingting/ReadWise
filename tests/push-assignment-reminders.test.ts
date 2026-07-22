@@ -30,6 +30,8 @@ type MockAssignment = {
   };
   completions: { studentId: string }[];
   targets?: { studentId: string }[];
+  publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  publishAt?: Date | null;
 };
 
 type MockAssignmentCount = {
@@ -37,7 +39,7 @@ type MockAssignmentCount = {
     dueDate?: { not?: null; lte?: Date };
     classroom?: { archivedAt?: null; members?: { some?: { userId?: string; role?: string } } };
     completions?: { none?: { studentId?: string; status?: string } };
-    OR?: Array<{ targets: { none?: Record<string, never>; some?: { studentId: string } } }>;
+    AND?: Array<{ OR?: unknown[] }>;
   };
 };
 
@@ -45,6 +47,7 @@ type MockAssignmentFindMany = {
   where?: {
     dueDate?: { not?: null; lte?: Date };
     classroom?: { archivedAt?: null };
+    OR?: Array<{ publishState?: string; publishAt?: { lte?: Date } }>;
   };
 };
 
@@ -64,6 +67,8 @@ let mockAssignments: MockAssignment[] = [];
 let mockAssignmentCount: number = 0;
 let mockAssignmentFindUniqueResult: {
   id: string;
+  publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  publishAt?: Date | null;
   classroom: { members: { userId: string }[] };
   completions: { studentId: string }[];
   targets?: { studentId: string }[];
@@ -168,6 +173,16 @@ before(() => {
             if (args.where?.classroom?.archivedAt === null) {
               rows = rows.filter((a) => a.classroom.archivedAt === null || a.classroom.archivedAt === undefined);
             }
+            if (args.where?.OR) {
+              const liveAt = args.where.OR.find((clause) => clause.publishAt)?.publishAt?.lte;
+              rows = rows.filter((a) =>
+                (a.publishState ?? "PUBLISHED") === "PUBLISHED" ||
+                ((a.publishState ?? "PUBLISHED") === "SCHEDULED" &&
+                  a.publishAt != null &&
+                  liveAt != null &&
+                  a.publishAt <= liveAt),
+              );
+            }
             return rows.map((a) => ({ ...a, targets: a.targets ?? [] }));
           },
           count: async (args: MockAssignmentCount) => {
@@ -176,8 +191,13 @@ before(() => {
           },
           findUnique: async () =>
             mockAssignmentFindUniqueResult
-              ? { ...mockAssignmentFindUniqueResult, targets: mockAssignmentFindUniqueResult.targets ?? [] }
-              : null,
+             ? {
+                 publishState: "PUBLISHED",
+                 publishAt: null,
+                 ...mockAssignmentFindUniqueResult,
+                 targets: mockAssignmentFindUniqueResult.targets ?? [],
+               }
+             : null,
         },
         reminderPreference: {
           findMany: async (args: { where?: { userId?: { in?: string[] } } }) => {
@@ -328,10 +348,48 @@ describe("sendDueAssignmentReminders", () => {
     const result = await sendDueAssignmentReminders();
 
     assert.equal(lastAssignmentFindManyArgs?.where?.classroom?.archivedAt, null);
+    assert.deepEqual(lastAssignmentFindManyArgs?.where?.OR?.[0], { publishState: "PUBLISHED" });
     assert.equal(result.studentsWithDue, 1);
     assert.equal(result.sent, 1);
     assert.equal(sendCalls.length, 1);
     assert.ok(sendCalls[0].endpoint.endsWith("/s1"));
+  });
+
+  test("draft and future-scheduled assignments are excluded from due reminder batches", async () => {
+    const pastDate = new Date(Date.now() - 60_000);
+    mockAssignments = [
+      {
+        id: "draft",
+        dueDate: pastDate,
+        publishState: "DRAFT",
+        classroom: { members: [{ userId: "s1" }] },
+        completions: [],
+      },
+      {
+        id: "future",
+        dueDate: pastDate,
+        publishState: "SCHEDULED",
+        publishAt: new Date(Date.now() + 86_400_000),
+        classroom: { members: [{ userId: "s2" }] },
+        completions: [],
+      },
+      {
+        id: "published",
+        dueDate: pastDate,
+        publishState: "PUBLISHED",
+        classroom: { members: [{ userId: "s3" }] },
+        completions: [],
+      },
+    ];
+    mockSubs = [subscription("sub3", "s3")];
+    mockReminderPrefs = [reminderPreference("s3")];
+
+    const { sendDueAssignmentReminders } = await import("@/lib/push/assignment-reminders");
+    const result = await sendDueAssignmentReminders();
+
+    assert.equal(result.studentsWithDue, 1);
+    assert.equal(sendCalls.length, 1);
+    assert.ok(sendCalls[0].endpoint.endsWith("/s3"));
   });
 
   test("assignment with FUTURE dueDate => excluded", async () => {
@@ -493,10 +551,11 @@ describe("sendAssignmentReminderToStudent", () => {
     assert.equal(sendCalls.length, 1);
     const payload = sentPayload();
     assert.ok(payload.body.includes("2 assignments"), `expected '2 assignments' in '${payload.body}'`);
-    assert.deepEqual(lastAssignmentCountArgs?.where?.OR, [
+    assert.deepEqual(lastAssignmentCountArgs?.where?.AND?.[0].OR, [
       { targets: { none: {} } },
       { targets: { some: { studentId: "s1" } } },
     ]);
+    assert.deepEqual(lastAssignmentCountArgs?.where?.AND?.[1].OR?.[0], { publishState: "PUBLISHED" });
     assert.equal(lastAssignmentCountArgs?.where?.classroom?.archivedAt, null);
     assert.deepEqual(lastAssignmentCountArgs?.where?.classroom?.members?.some, {
       userId: "s1",
@@ -593,6 +652,43 @@ describe("remindAssignmentStudents", () => {
     assert.equal(result.notified, 1);
     assert.equal(result.skipped, 0);
     assert.equal(result.suppressed, 0);
+  });
+
+  test("draft assignment nudge sends zero notifications", async () => {
+    mockAssignmentFindUniqueResult = {
+      id: "a1",
+      publishState: "DRAFT",
+      classroom: { members: [{ userId: "s1" }] },
+      completions: [],
+    };
+    mockAssignmentCount = 1;
+    mockSubs = [subscription("sub1", "s1")];
+    mockReminderPrefs = [reminderPreference("s1")];
+
+    const { remindAssignmentStudents } = await import("@/lib/push/assignment-reminders");
+    const result = await remindAssignmentStudents("a1");
+
+    assert.deepEqual(result, { total: 0, notified: 0, skipped: 0, suppressed: 0 });
+    assert.equal(sendCalls.length, 0);
+  });
+
+  test("future-scheduled assignment nudge sends zero notifications", async () => {
+    mockAssignmentFindUniqueResult = {
+      id: "a1",
+      publishState: "SCHEDULED",
+      publishAt: new Date(Date.now() + 86_400_000),
+      classroom: { members: [{ userId: "s1" }] },
+      completions: [],
+    };
+    mockAssignmentCount = 1;
+    mockSubs = [subscription("sub1", "s1")];
+    mockReminderPrefs = [reminderPreference("s1")];
+
+    const { remindAssignmentStudents } = await import("@/lib/push/assignment-reminders");
+    const result = await remindAssignmentStudents("a1");
+
+    assert.deepEqual(result, { total: 0, notified: 0, skipped: 0, suppressed: 0 });
+    assert.equal(sendCalls.length, 0);
   });
 
   test("targeted assignment nudge only targets audience members", async () => {

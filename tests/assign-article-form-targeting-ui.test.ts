@@ -69,7 +69,7 @@ test("AssignArticleForm sends studentIds for single and bulk specific-students s
     "single assignment computes studentIds from the specific-students audience",
   );
   assert.ok(
-    normalized.includes("buildAssignmentPayload( selected[0].id, form.dueDate, form.instructions, form.title, form.points, studentIds, )"),
+    normalized.includes("buildAssignmentPayload( selected[0].id, form.dueDate, form.instructions, form.title, form.points, publishState, form.publishAt, studentIds, )"),
     "single assignment passes studentIds into the payload builder",
   );
   assert.ok(
@@ -77,6 +77,31 @@ test("AssignArticleForm sends studentIds for single and bulk specific-students s
       normalized.includes('studentIds: audience === "students" && targetIds.length > 0 ? targetIds : undefined'),
     "bulk assignment payload includes specific-students targets when selected",
   );
+});
+
+test("AssignArticleForm renders visibility controls and sends publishState", () => {
+  const src = readSrc("src/components/teacher/AssignArticleForm.tsx");
+  const normalized = src.replace(/\s+/g, " ");
+
+  assert.ok(normalized.includes('<Field label="Visibility"> <Select'), "renders visibility field");
+  assert.ok(src.includes("Publish now"), "offers immediate publish");
+  assert.ok(src.includes("Schedule for later"), "offers scheduled publish");
+  assert.ok(src.includes("Save as draft"), "offers draft save");
+  assert.ok(src.includes('type="datetime-local"'), "shows a datetime-local control for scheduled publish");
+  assert.ok(src.includes("publishState,"), "includes publishState in request payloads");
+  assert.ok(src.includes('publishAt: publishState === "SCHEDULED"'), "only sends publishAt when scheduled");
+  assert.ok(
+    normalized.includes('!(publishState === "SCHEDULED" && !form.publishAt)'),
+    "prevents scheduled assignments without a publish time",
+  );
+});
+
+test("PublishAssignmentButton PATCHes publishState=PUBLISHED", () => {
+  const src = readSrc("src/components/teacher/PublishAssignmentButton.tsx");
+
+  assert.ok(src.includes("patchJson"), "uses PATCH helper");
+  assert.ok(src.includes('publishState: "PUBLISHED"'), "publishes via publishState=PUBLISHED");
+  assert.ok(src.includes("refreshOnSuccess: true"), "refreshes teacher view after publishing");
 });
 
 test("AssignArticleForm sends raw date-only due dates for server EOD normalization", () => {

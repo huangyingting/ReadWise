@@ -90,7 +90,12 @@ let assignmentClassroomResult: { id: string; classroomId: string; points?: numbe
 };
 let articleAssignmentFailure: {
   status: 400 | 404 | 409;
-  reason: "invalid_due_date" | "invalid_target_students" | "article_not_found" | "org_reference_orphaned";
+  reason:
+    | "invalid_due_date"
+    | "invalid_target_students"
+    | "invalid_publish_at"
+    | "article_not_found"
+    | "org_reference_orphaned";
 } | null = null;
 let remindResult: { total: number; notified: number; skipped: number; suppressed: number } | null = {
   total: 3,
@@ -134,6 +139,8 @@ const updateAssignmentCalls: Array<{
     title?: string | null;
     points?: number | null;
     studentIds?: string[];
+    publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+    publishAt?: string | null;
   };
 }> = [];
 const createArticleAssignmentCalls: Array<{
@@ -143,11 +150,18 @@ const createArticleAssignmentCalls: Array<{
   dueDate?: string;
   instructions?: string | null;
   studentIds?: string[];
+  publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  publishAt?: string | null;
 }> = [];
 const reopenAssignmentCalls: string[] = [];
 const articleAssignmentFailuresById = new Map<string, {
   status: 400 | 404 | 409;
-  reason: "invalid_due_date" | "invalid_target_students" | "article_not_found" | "org_reference_orphaned";
+  reason:
+    | "invalid_due_date"
+    | "invalid_target_students"
+    | "invalid_publish_at"
+    | "article_not_found"
+    | "org_reference_orphaned";
 }>();
 const recordAssignmentCompletionCalls: Array<{
   assignmentId: string;
@@ -161,7 +175,15 @@ const reviewAssignmentCompletionCalls: Array<{
 }> = [];
 let updateAssignmentResult:
   | { ok: true; assignment: Record<string, unknown> }
-  | { ok: false; status: 400 | 409; reason: "invalid_due_date" | "invalid_target_students" | "points_below_awarded" } = {
+  | {
+      ok: false;
+      status: 400 | 409;
+      reason:
+        | "invalid_due_date"
+        | "invalid_target_students"
+        | "points_below_awarded"
+        | "invalid_publish_at";
+    } = {
   ok: true,
   assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
 };
@@ -261,6 +283,8 @@ before(() => {
           title?: string | null;
           points?: number | null;
           studentIds?: string[];
+          publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+          publishAt?: string | null;
         },
       ) => {
         updateAssignmentCalls.push({ assignmentId, input });
@@ -311,6 +335,8 @@ before(() => {
         title?: string | null;
         points?: number | null;
         studentIds?: string[];
+        publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+        publishAt?: string | null;
       }) => {
         createArticleAssignmentCalls.push(input);
         if (input.articleId && articleAssignmentFailuresById.has(input.articleId)) {
@@ -325,6 +351,9 @@ before(() => {
         if (input.dueDate && Number.isNaN(new Date(input.dueDate).getTime())) {
           return { ok: false, status: 400, reason: "invalid_due_date" };
         }
+        if (input.publishState === "SCHEDULED" && (!input.publishAt || Number.isNaN(new Date(input.publishAt).getTime()))) {
+          return { ok: false, status: 400, reason: "invalid_publish_at" };
+        }
         return { ok: true, assignment: { ...assignArticleResult, title: input.title ?? null, points: input.points ?? null } };
       },
       bulkCreateArticleAssignments: async (input: {
@@ -333,6 +362,8 @@ before(() => {
         instructions?: string | null;
         points?: number | null;
         studentIds?: string[];
+        publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+        publishAt?: string | null;
       }) => {
         const created: Array<Record<string, unknown>> = [];
         const failed: Array<{ articleId: string; reason: string }> = [];
@@ -344,6 +375,8 @@ before(() => {
             points: input.points,
             title: null,
             studentIds: input.studentIds,
+            publishState: input.publishState,
+            publishAt: input.publishAt,
           });
           const perArticleFailure = articleAssignmentFailuresById.get(articleId);
           if (perArticleFailure) {
@@ -1224,7 +1257,41 @@ test("POST /api/classrooms/[id]/assignments returns 201 with assignment on succe
     assignmentId: "asgn1",
     articleId: "a1",
     targeted: 0,
+    publishState: "PUBLISHED",
+    scheduled: false,
   });
+});
+
+test("POST /api/classrooms/[id]/assignments accepts publishState and publishAt", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  const publishAt = "2999-01-01T00:00:00.000Z";
+
+  const res = await postClassroomAssignment("c1", {
+    articleId: "a1",
+    publishState: "SCHEDULED",
+    publishAt,
+  });
+
+  assert.equal(res.status, 201);
+  assert.equal(createArticleAssignmentCalls.at(-1)?.publishState, "SCHEDULED");
+  assert.equal(createArticleAssignmentCalls.at(-1)?.publishAt, publishAt);
+  assert.equal(auditCalls.at(-1)?.metadata?.publishState, "SCHEDULED");
+  assert.equal(auditCalls.at(-1)?.metadata?.scheduled, true);
+});
+
+test("POST /api/classrooms/[id]/assignments maps invalid publishAt to 400", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  articleAssignmentFailure = { status: 400, reason: "invalid_publish_at" };
+
+  const res = await postClassroomAssignment("c1", {
+    articleId: "a1",
+    publishState: "SCHEDULED",
+    publishAt: "bad",
+  });
+
+  assert.equal(res.status, 400);
+  const body = await res.json() as { error: string };
+  assert.match(body.error, /publish/i);
 });
 
 test("POST /api/classrooms/[id]/assignments forwards target studentIds", async () => {
@@ -1245,6 +1312,8 @@ test("POST /api/classrooms/[id]/assignments forwards target studentIds", async (
     assignmentId: "asgn1",
     articleId: "a1",
     targeted: 2,
+    publishState: "PUBLISHED",
+    scheduled: false,
   });
 });
 
@@ -1305,6 +1374,8 @@ test("POST /api/classrooms/[id]/assignments/bulk returns 201 with created and fa
     created: 2,
     failed: 1,
     targeted: false,
+    publishState: "PUBLISHED",
+    scheduled: false,
   });
 });
 
@@ -1316,7 +1387,6 @@ test("POST /api/classrooms/[id]/assignments/bulk forwards target studentIds and 
     articleIds: ["a1", "a2"],
     studentIds: ["student-1", "student-2"],
   });
-
   assert.equal(res.status, 201);
   assert.deepEqual(
     createArticleAssignmentCalls.map((call) => call.studentIds),
@@ -1328,7 +1398,24 @@ test("POST /api/classrooms/[id]/assignments/bulk forwards target studentIds and 
     created: 2,
     failed: 0,
     targeted: true,
+    publishState: "PUBLISHED",
+    scheduled: false,
   });
+});
+
+test("POST /api/classrooms/[id]/assignments/bulk rejects invalid scheduled publish time before creating", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await postBulkClassroomAssignments("c1", {
+    articleIds: ["a1", "a2"],
+    publishState: "SCHEDULED",
+    publishAt: "bad",
+  });
+
+  assert.equal(res.status, 400);
+  const body = await res.json() as { error: string };
+  assert.match(body.error, /Scheduled publish time/i);
+  assert.equal(createArticleAssignmentCalls.length, 0);
 });
 
 test("POST /api/classrooms/[id]/assignments/bulk returns 400 for an empty array", async () => {
@@ -1478,6 +1565,8 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
         title: "Unit 2",
         points: 30,
         studentIds: ["s1", "s2"],
+        publishState: undefined,
+        publishAt: undefined,
       },
     },
   ]);
@@ -1485,7 +1574,17 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
   assert.deepEqual(auditCalls.at(-1)?.metadata, {
     assignmentId: "asgn1",
     classroomId: "c1",
-    changed: { dueDate: true, instructions: true, title: true, points: true, targets: true },
+    changed: {
+      dueDate: true,
+      instructions: true,
+      title: true,
+      points: true,
+      targets: true,
+      publishState: false,
+      publishAt: false,
+    },
+    publishState: undefined,
+    scheduled: false,
   });
   assert.equal(JSON.stringify(auditCalls.at(-1)?.metadata).includes("Focus on the intro"), false);
   assert.equal(JSON.stringify(auditCalls.at(-1)?.metadata).includes("Unit 2"), false);
@@ -1510,13 +1609,65 @@ test("PATCH /api/assignments/[id] forwards clearable dueDate, points, and whole-
       title: "",
       points: null,
       studentIds: [],
+      publishState: undefined,
+      publishAt: undefined,
     },
   });
   assert.deepEqual(auditCalls.at(-1)?.metadata, {
     assignmentId: "asgn1",
     classroomId: "c1",
-    changed: { dueDate: true, instructions: true, title: true, points: true, targets: true },
+    changed: {
+      dueDate: true,
+      instructions: true,
+      title: true,
+      points: true,
+      targets: true,
+      publishState: false,
+      publishAt: false,
+    },
+    publishState: undefined,
+    scheduled: false,
   });
+});
+
+test("PATCH /api/assignments/[id] forwards publish lifecycle fields", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  const publishAt = "2999-01-01T00:00:00.000Z";
+
+  const res = await patchAssignmentRoute("asgn1", {
+    publishState: "SCHEDULED",
+    publishAt,
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(updateAssignmentCalls.at(-1), {
+    assignmentId: "asgn1",
+    input: {
+      dueDate: undefined,
+      instructions: undefined,
+      title: undefined,
+      points: undefined,
+      studentIds: undefined,
+      publishState: "SCHEDULED",
+      publishAt,
+    },
+  });
+  assert.equal(auditCalls.at(-1)?.metadata?.publishState, "SCHEDULED");
+  assert.equal(auditCalls.at(-1)?.metadata?.scheduled, true);
+});
+
+test("PATCH /api/assignments/[id] rejects publishAt without publishState", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await patchAssignmentRoute("asgn1", {
+    publishAt: "2999-01-01T00:00:00.000Z",
+  });
+
+  assert.equal(res.status, 400);
+  const body = (await res.json()) as { error: string };
+  assert.equal(body.error, "publishAt requires publishState");
+  assert.equal(updateAssignmentCalls.length, 0);
 });
 
 test("PATCH /api/assignments/[id] rejects out-of-range points", async () => {
@@ -1533,6 +1684,19 @@ test("PATCH /api/assignments/[id] returns 400 when the due date is invalid", asy
   updateAssignmentResult = { ok: false, status: 400, reason: "invalid_due_date" };
   const res = await patchAssignmentRoute("asgn1", { dueDate: "not-a-date" });
   assert.equal(res.status, 400);
+});
+
+test("PATCH /api/assignments/[id] maps invalid publishAt to 400", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  updateAssignmentResult = { ok: false, status: 400, reason: "invalid_publish_at" };
+  const res = await patchAssignmentRoute("asgn1", {
+    publishState: "SCHEDULED",
+    publishAt: "bad",
+  });
+  assert.equal(res.status, 400);
+  const body = (await res.json()) as { error: string };
+  assert.match(body.error, /publish/i);
 });
 
 test("PATCH /api/assignments/[id] maps invalid target students to 400", async () => {

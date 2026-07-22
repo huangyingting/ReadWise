@@ -9,7 +9,7 @@
 import { AssignmentCompletionSource, AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isCompletePercent } from "@/lib/engagement/progress-rules";
-import { assignmentVisibleToStudentWhere } from "./targeting";
+import { assignmentLiveWhere, assignmentVisibleToStudentWhere } from "./targeting";
 
 /** Minimum reading percent (inclusive) at/above which an assignment advances from ASSIGNED to IN_PROGRESS. */
 export const ASSIGNMENT_START_PERCENT = 1;
@@ -46,7 +46,7 @@ export async function getStudentAssignmentContext(
     where: {
       id: assignmentId,
       classroom: { members: { some: { userId: studentId } } },
-      ...assignmentVisibleToStudentWhere(studentId),
+      AND: [assignmentVisibleToStudentWhere(studentId), assignmentLiveWhere(new Date())],
     },
     select: { id: true, classroomId: true, classroom: { select: { archivedAt: true } } },
   });
@@ -109,11 +109,12 @@ export async function markAssignmentQuizComplete(input: {
   scorePct: number;
 }): Promise<{ completedCount: number }> {
   const { userId, articleId, scorePct } = input;
+  const now = new Date();
   const assignments = await prisma.assignment.findMany({
     where: {
       articleId,
       classroom: { archivedAt: null, members: { some: { userId } } },
-      ...assignmentVisibleToStudentWhere(userId),
+      AND: [assignmentVisibleToStudentWhere(userId), assignmentLiveWhere(now)],
     },
     select: { id: true },
   });
@@ -198,11 +199,12 @@ export async function syncAssignmentReadingProgress(input: {
   if (percent < ASSIGNMENT_START_PERCENT && !completed) {
     return { updatedCount: 0 };
   }
+  const liveNow = new Date();
   const assignments = await prisma.assignment.findMany({
     where: {
       articleId,
       classroom: { archivedAt: null, members: { some: { userId } } },
-      ...assignmentVisibleToStudentWhere(userId),
+      AND: [assignmentVisibleToStudentWhere(userId), assignmentLiveWhere(liveNow)],
     },
     select: { id: true },
   });

@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { AssignmentPublishState, type Prisma } from "@prisma/client";
 
 /**
  * Prisma where-fragment: an assignment is visible to `studentId` when it has NO
@@ -7,6 +7,21 @@ import type { Prisma } from "@prisma/client";
  */
 export function assignmentVisibleToStudentWhere(studentId: string): Prisma.AssignmentWhereInput {
   return { OR: [{ targets: { none: {} } }, { targets: { some: { studentId } } }] };
+}
+
+/**
+ * Prisma where-fragment: an assignment is "live" (visible to students / eligible
+ * for reminders + analytics) when PUBLISHED, or SCHEDULED with publishAt already
+ * reached. DRAFT and future-SCHEDULED are hidden. Compose via AND with
+ * assignmentVisibleToStudentWhere (both use `OR` — never spread as siblings).
+ */
+export function assignmentLiveWhere(now: Date): Prisma.AssignmentWhereInput {
+  return {
+    OR: [
+      { publishState: AssignmentPublishState.PUBLISHED },
+      { publishState: AssignmentPublishState.SCHEDULED, publishAt: { lte: now } },
+    ],
+  };
 }
 
 /**

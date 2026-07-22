@@ -168,6 +168,8 @@ async function create(overrides: Partial<{
   title: string | null;
   points: number | null;
   studentIds: string[];
+  publishState: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  publishAt: string | null;
 }> = {}) {
   const { createArticleAssignment } = await import(
     "@/lib/classroom/article-assignments"
@@ -279,6 +281,8 @@ test("normalizes optional fields and creates the assignment", async () => {
     instructions: "  Read carefully  ",
     title: "  Week 1 reading  ",
     points: 25,
+    publishState: "PUBLISHED",
+    publishAt: null,
   });
 
   assert.equal(result.ok, true);
@@ -290,6 +294,8 @@ test("normalizes optional fields and creates the assignment", async () => {
     instructions: "Read carefully",
     title: "Week 1 reading",
     points: 25,
+    publishState: "PUBLISHED",
+    publishAt: null,
   });
 });
 
@@ -303,6 +309,38 @@ test("stores null for absent due date and blank metadata", async () => {
     instructions: null,
     title: null,
     points: null,
+    publishState: "PUBLISHED",
+    publishAt: null,
+  });
+});
+
+test("creates assignments with DRAFT, SCHEDULED, and PUBLISHED publish fields", async () => {
+  await create({ publishState: "DRAFT" });
+  assert.equal(createCalls.at(-1)?.data.publishState, "DRAFT");
+  assert.equal(createCalls.at(-1)?.data.publishAt, null);
+
+  await create({ publishState: "PUBLISHED", publishAt: "2027-01-01T00:00:00.000Z" });
+  assert.equal(createCalls.at(-1)?.data.publishState, "PUBLISHED");
+  assert.equal(createCalls.at(-1)?.data.publishAt, null);
+
+  await create({ publishState: "SCHEDULED", publishAt: "2999-01-01T00:00:00.000Z" });
+  assert.equal(createCalls.at(-1)?.data.publishState, "SCHEDULED");
+  assert.equal(
+    (createCalls.at(-1)?.data.publishAt as Date).toISOString(),
+    "2999-01-01T00:00:00.000Z",
+  );
+});
+
+test("rejects scheduled assignments without a future publishAt", async () => {
+  assert.deepEqual(await create({ publishState: "SCHEDULED", publishAt: "not-a-date" }), {
+    ok: false,
+    status: 400,
+    reason: "invalid_publish_at",
+  });
+  assert.deepEqual(await create({ publishState: "SCHEDULED", publishAt: "2000-01-01T00:00:00.000Z" }), {
+    ok: false,
+    status: 400,
+    reason: "invalid_publish_at",
   });
 });
 

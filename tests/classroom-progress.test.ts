@@ -24,6 +24,7 @@ let classroomStub: Record<string, unknown> | null = null;
 let memberRowStub: Record<string, unknown>[] = [];
 let assignmentRowStub: Record<string, unknown>[] = [];
 let completionRowStub: Record<string, unknown>[] = [];
+let lastAssignmentFindManyArgs: unknown = null;
 
 function defaultClassroom(overrides: Record<string, unknown> = {}) {
   return { id: "c1", name: "Math", orgId: "o1", teacherId: "t1", ...overrides };
@@ -50,11 +51,20 @@ before(() => {
           findMany: async () => memberRowStub,
         },
         assignment: {
-          findMany: async () =>
-            assignmentRowStub.map((assignment) => ({
+          findMany: async (args: { where?: { OR?: Array<{ publishState?: string; publishAt?: { lte?: Date } }> } }) => {
+            lastAssignmentFindManyArgs = args;
+            const liveAt = args.where?.OR?.find((clause) => clause.publishAt)?.publishAt?.lte;
+            return assignmentRowStub.filter((assignment) =>
+              (assignment.publishState ?? "PUBLISHED") === "PUBLISHED" ||
+              ((assignment.publishState ?? "PUBLISHED") === "SCHEDULED" &&
+                assignment.publishAt instanceof Date &&
+                liveAt instanceof Date &&
+                assignment.publishAt <= liveAt),
+            ).map((assignment) => ({
               ...assignment,
               targets: (assignment.targets as unknown[]) ?? [],
-            })),
+            }));
+          },
         },
         assignmentCompletion: {
           findMany: async () => completionRowStub,
@@ -69,6 +79,7 @@ beforeEach(() => {
   memberRowStub = [];
   assignmentRowStub = [];
   completionRowStub = [];
+  lastAssignmentFindManyArgs = null;
 });
 
 // ---- getClassroomProgressData — null classroom ----------------------------
@@ -119,6 +130,41 @@ test("getClassroomProgressData returns empty arrays for an empty classroom", asy
   assert.deepEqual(result.students, []);
   assert.deepEqual(result.assignments, []);
   assert.deepEqual(result.completions, []);
+});
+
+test("getClassroomProgressData gates assignments to published or reached scheduled lifecycle", async () => {
+  assignmentRowStub = [
+    {
+      id: "draft",
+      articleId: "art-draft",
+      article: { title: "Draft" },
+      dueDate: null,
+      createdAt: new Date("2026-01-01"),
+      publishState: "DRAFT",
+    },
+    {
+      id: "future",
+      articleId: "art-future",
+      article: { title: "Future" },
+      dueDate: null,
+      createdAt: new Date("2026-01-02"),
+      publishState: "SCHEDULED",
+      publishAt: new Date("2999-01-01T00:00:00.000Z"),
+    },
+    {
+      id: "live",
+      articleId: "art-live",
+      article: { title: "Live" },
+      dueDate: null,
+      createdAt: new Date("2026-01-03"),
+      publishState: "PUBLISHED",
+    },
+  ];
+  const { getClassroomProgressData } = await classroomProgress();
+  const result = await getClassroomProgressData("c1");
+  assert.deepEqual(result?.assignments.map((assignment) => assignment.id), ["live"]);
+  const args = lastAssignmentFindManyArgs as { where: { OR: unknown[] } };
+  assert.deepEqual(args.where.OR[0], { publishState: "PUBLISHED" });
 });
 
 // ---- student mapping -------------------------------------------------------

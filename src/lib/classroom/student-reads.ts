@@ -7,7 +7,7 @@
  */
 import { AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { assignmentVisibleToStudentWhere } from "./targeting";
+import { assignmentLiveWhere, assignmentVisibleToStudentWhere } from "./targeting";
 
 export type StudentAssignment = {
   assignmentId: string;
@@ -84,10 +84,11 @@ function compareByDueDateAsc(left: StudentAssignment, right: StudentAssignment):
 export async function listAssignmentsForStudent(
   studentId: string,
 ): Promise<StudentAssignment[]> {
+  const now = new Date();
   const rows = (await prisma.assignment.findMany({
     where: {
       classroom: { archivedAt: null, members: { some: { userId: studentId } } },
-      ...assignmentVisibleToStudentWhere(studentId),
+      AND: [assignmentVisibleToStudentWhere(studentId), assignmentLiveWhere(now)],
     },
     include: assignmentIncludeForStudent(studentId),
     orderBy: [{ createdAt: "desc" }],
@@ -106,11 +107,12 @@ export async function listStudentAssignmentsForArticle(
   userId: string,
   articleId: string,
 ): Promise<StudentAssignment[]> {
+  const now = new Date();
   const rows = (await prisma.assignment.findMany({
     where: {
       articleId,
       classroom: { archivedAt: null, members: { some: { userId } } },
-      ...assignmentVisibleToStudentWhere(userId),
+      AND: [assignmentVisibleToStudentWhere(userId), assignmentLiveWhere(now)],
     },
     include: assignmentIncludeForStudent(userId),
     orderBy: [{ createdAt: "desc" }],

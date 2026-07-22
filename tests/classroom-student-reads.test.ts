@@ -24,7 +24,13 @@ let lastFindManyArgs: unknown = null;
 type StudentScopeFindManyArgs = {
   where: {
     classroom: { archivedAt: null; members: { some: { userId: string } } };
-    OR: Array<{ targets: { none?: Record<string, never>; some?: { studentId: string } } }>;
+    AND: Array<{
+      OR: Array<{
+        targets?: { none?: Record<string, never>; some?: { studentId: string } };
+        publishState?: string;
+        publishAt?: { lte: Date };
+      }>;
+    }>;
   };
 };
 
@@ -126,15 +132,18 @@ test("listAssignmentsForStudent scopes assignments to the student's classroom me
   assert.equal(args.where.classroom.archivedAt, null);
 });
 
-test("listAssignmentsForStudent includes the targeting visibility seam", async () => {
+test("listAssignmentsForStudent AND-composes targeting and live visibility seams", async () => {
   assignmentRowStub = [makeRow()];
   const { listAssignmentsForStudent } = await studentReads();
   await listAssignmentsForStudent("s1");
   const args = lastStudentScopeArgs();
-  assert.deepEqual(args.where.OR, [
+  assert.deepEqual(args.where.AND[0].OR, [
     { targets: { none: {} } },
     { targets: { some: { studentId: "s1" } } },
   ]);
+  assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
+  assert.equal(args.where.AND[1].OR[1].publishState, "SCHEDULED");
+  assert.ok(args.where.AND[1].OR[1].publishAt?.lte instanceof Date);
 });
 
 test("listAssignmentsForStudent uses a different userId scope per call", async () => {
@@ -308,8 +317,9 @@ test("listStudentAssignmentsForArticle includes article, classroom, and targetin
   const args = lastFindManyArgs as StudentScopeFindManyArgs & { where: { articleId: string } };
   assert.equal(args.where.articleId, "art-42");
   assert.equal(args.where.classroom.members.some.userId, "s42");
-  assert.deepEqual(args.where.OR, [
+  assert.deepEqual(args.where.AND[0].OR, [
     { targets: { none: {} } },
     { targets: { some: { studentId: "s42" } } },
   ]);
+  assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });

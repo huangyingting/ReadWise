@@ -39,6 +39,7 @@ import EditAssignmentForm from "@/components/teacher/EditAssignmentForm";
 import ReopenAssignmentButton from "@/components/teacher/ReopenAssignmentButton";
 import RemindStudentsButton from "@/components/teacher/RemindStudentsButton";
 import RemoveStudentButton from "@/components/teacher/RemoveStudentButton";
+import PublishAssignmentButton from "@/components/teacher/PublishAssignmentButton";
 
 type ClassroomAnalytics = NonNullable<
   Awaited<ReturnType<typeof getClassroomAnalytics>>
@@ -95,6 +96,20 @@ function assignmentDisplayTitle(
   return meta?.title ?? articleTitle;
 }
 
+function assignmentPublishBadge(meta: Pick<AssignmentMeta, "publishState" | "publishAt">) {
+  if (meta.publishState === "DRAFT") {
+    return <Badge variant="neutral">Draft</Badge>;
+  }
+  if (meta.publishState === "SCHEDULED") {
+    // server-tz: RSC formats this scheduled time using the server timezone.
+    const when = meta.publishAt
+      ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(meta.publishAt)
+      : "not set";
+    return <Badge variant="warning">Scheduled · {when}</Badge>;
+  }
+  return <Badge variant="neutral">Published</Badge>;
+}
+
 function assignmentPointsSuffix(points: number | null | undefined): string {
   return points == null ? "" : ` · ${points} pts`;
 }
@@ -148,46 +163,55 @@ function AssignmentsCard({
   assignmentTargetStudents: { id: string; label: string }[];
 }) {
   const now = new Date();
+  const analyticsByAssignment = new Map(
+    (analytics?.perAssignment ?? []).map((assignment) => [assignment.assignmentId, assignment]),
+  );
+  const assignments = [...assignmentMeta.values()];
   return (
     <Card>
       <CardHeader>
         <CardTitle>Assignments</CardTitle>
       </CardHeader>
       <CardBody>
-        {!analytics || analytics.perAssignment.length === 0 ? (
+        {assignments.length === 0 ? (
           <p className="text-[length:var(--text-sm)] text-text-muted">
             No assignments yet.
           </p>
         ) : (
           <ul className="flex flex-col gap-[var(--space-3)]">
-            {analytics.perAssignment.map((assignment) => {
-              const meta = assignmentMeta.get(assignment.assignmentId);
-              const displayTitle = assignmentDisplayTitle(assignment.articleTitle, meta);
-              const overdue = isAssignmentOverdue(
-                meta?.dueDate ?? null,
-                assignmentSynthesizedStatus(assignment),
-                now,
-              );
+            {assignments.map((meta) => {
+              const assignment = analyticsByAssignment.get(meta.assignmentId);
+              const displayTitle = assignmentDisplayTitle(meta.articleTitle, meta);
+              const overdue = assignment
+                ? isAssignmentOverdue(
+                    meta.dueDate,
+                    assignmentSynthesizedStatus(assignment),
+                    now,
+                  )
+                : false;
               return (
                 <li
-                  key={assignment.assignmentId}
+                  key={meta.assignmentId}
                   className="flex flex-col gap-[var(--space-2)] border-b border-border pb-[var(--space-2)] last:border-0 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <span className="flex flex-col gap-[var(--space-1)]">
                     <span className="flex items-center gap-[var(--space-2)] font-medium text-text">
                       {displayTitle}
                       {overdue ? <Badge variant="danger">Overdue</Badge> : null}
+                      {assignmentPublishBadge(meta)}
                     </span>
                     {meta?.title ? (
                       <span className="text-[length:var(--text-sm)] text-text-muted">
-                        {assignment.articleTitle}
+                        {meta.articleTitle}
                       </span>
                     ) : null}
                   </span>
                   <div className="flex flex-col items-start gap-[var(--space-1)] sm:items-end">
                     <span className="text-[length:var(--text-sm)] text-text-muted">
-                      {assignmentSummary(assignment)}
-                      {assignmentPointsSuffix(meta?.points)}
+                      {assignment
+                        ? assignmentSummary(assignment)
+                        : "Not visible to students yet"}
+                      {assignmentPointsSuffix(meta.points)}
                     </span>
                     {meta && meta.targetStudentIds.length > 0 ? (
                       <Badge variant="neutral">{meta.targetStudentIds.length} students</Badge>
@@ -197,30 +221,38 @@ function AssignmentsCard({
                     {canManage ? (
                       <div className="flex items-center gap-[var(--space-2)]">
                         <EditAssignmentForm
-                          assignmentId={assignment.assignmentId}
+                          assignmentId={meta.assignmentId}
                           assignmentTitle={displayTitle}
-                          initialDueDate={meta?.dueDate?.toISOString() ?? null}
-                          initialInstructions={meta?.instructions ?? null}
-                          initialTitle={meta?.title ?? null}
-                          initialPoints={meta?.points ?? null}
-                          initialTargetIds={meta?.targetStudentIds ?? []}
+                          initialDueDate={meta.dueDate?.toISOString() ?? null}
+                          initialInstructions={meta.instructions}
+                          initialTitle={meta.title}
+                          initialPoints={meta.points}
+                          initialTargetIds={meta.targetStudentIds}
                           students={assignmentTargetStudents}
                         />
                         <DeleteAssignmentButton
-                          assignmentId={assignment.assignmentId}
+                          assignmentId={meta.assignmentId}
                           assignmentTitle={displayTitle}
                         />
-                        {assignment.completed > 0 ? (
-                          <ReopenAssignmentButton
-                            assignmentId={assignment.assignmentId}
+                        {meta.publishState !== "PUBLISHED" ? (
+                          <PublishAssignmentButton
+                            assignmentId={meta.assignmentId}
                             assignmentTitle={displayTitle}
                           />
                         ) : null}
-                        <RemindStudentsButton
-                          assignmentId={assignment.assignmentId}
-                          assignmentTitle={displayTitle}
-                          pendingCount={assignment.inProgress + assignment.notStarted}
-                        />
+                        {assignment && assignment.completed > 0 ? (
+                          <ReopenAssignmentButton
+                            assignmentId={meta.assignmentId}
+                            assignmentTitle={displayTitle}
+                          />
+                        ) : null}
+                        {assignment ? (
+                          <RemindStudentsButton
+                            assignmentId={meta.assignmentId}
+                            assignmentTitle={displayTitle}
+                            pendingCount={assignment.inProgress + assignment.notStarted}
+                          />
+                        ) : null}
                       </div>
                     ) : null}
                   </div>

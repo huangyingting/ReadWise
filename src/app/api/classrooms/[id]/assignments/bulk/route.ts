@@ -6,6 +6,7 @@ import {
   nonEmptyString,
   number,
   object,
+  oneOf,
   optional,
   string,
 } from "@/lib/validation";
@@ -20,6 +21,8 @@ const bulkBody = object({
   instructions: optional(string({ max: 2000 })),
   points: optional(number({ min: 0, max: 10000, int: true })),
   studentIds: optional(array(nonEmptyString(200), { max: 200 })),
+  publishState: optional(oneOf(["DRAFT", "SCHEDULED", "PUBLISHED"] as const)),
+  publishAt: optional(string({ max: 40 })),
 });
 
 export const POST = createHandler(
@@ -27,6 +30,13 @@ export const POST = createHandler(
   async ({ req, params, body, session, requestId }) => {
     if (body.articleIds.length === 0) {
       throw new ApiError(400, "No articles selected");
+    }
+    if (body.publishState === "SCHEDULED") {
+      const now = new Date();
+      const publishAt = body.publishAt ? new Date(body.publishAt) : null;
+      if (!publishAt || Number.isNaN(publishAt.getTime()) || publishAt <= now) {
+        throw new ApiError(400, "Scheduled publish time must be in the future");
+      }
     }
 
     const { classroom } = await requireActiveClassroomManageApi(session, params.id);
@@ -39,6 +49,8 @@ export const POST = createHandler(
       instructions: body.instructions ?? null,
       points: body.points ?? null,
       studentIds: body.studentIds,
+      publishState: body.publishState,
+      publishAt: body.publishAt,
     });
 
     await recordAuditFromRequest({
@@ -54,6 +66,8 @@ export const POST = createHandler(
         created: created.length,
         failed: failed.length,
         targeted: Boolean(body.studentIds && body.studentIds.length > 0),
+        publishState: body.publishState ?? "PUBLISHED",
+        scheduled: body.publishState === "SCHEDULED",
       },
     });
 

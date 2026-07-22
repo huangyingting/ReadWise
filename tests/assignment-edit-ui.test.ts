@@ -25,6 +25,7 @@ const EDIT_PAYLOAD = "src/components/teacher/editAssignmentPayload.ts";
 const COMPLETE_BUTTON = "src/components/teacher/CompleteAssignmentButton.tsx";
 const STUDENT_PAGE = "src/app/(app)/assignments/page.tsx";
 const TEACHER_PAGE = "src/app/(app)/teacher/classrooms/[id]/page.tsx";
+const TEACHER_DASHBOARD = "src/app/(app)/teacher/page.tsx";
 
 const NO_RAW_HEX = /#[0-9a-fA-F]{3,6}\b/;
 const NO_INLINE_FONT_SIZE = /fontSize|style=\{\{/;
@@ -169,5 +170,16 @@ test("teacher classroom page renders an Overdue Badge and the EditAssignmentForm
   assert.match(src, /listClassroomAssignmentMeta/);
   assert.match(src, /Whole class/);
   assert.match(src, /students<\/Badge>/);
-  assert.match(src, /initialTargetIds=\{meta\?\.targetStudentIds \?\? \[\]\}/);
+  assert.match(src, /initialTargetIds=\{meta\.targetStudentIds\}/);
+});
+
+test("teacher dashboard distinguishes draft/scheduled assignments from live progress", () => {
+  const src = readSrc(TEACHER_DASHBOARD);
+
+  assert.match(src, /assignmentIsLive/);
+  assert.match(src, /assignmentPublishBadge/);
+  assert.match(src, />\s*Draft\s*</);
+  assert.match(src, />\s*Scheduled · /);
+  assert.match(src, /live &&\s*isAssignmentOverdue/);
+  assert.match(src, /live \? \(/);
 });

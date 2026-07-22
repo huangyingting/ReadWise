@@ -1069,6 +1069,12 @@ enum AssignmentCompletionSource {
   QUIZ    @map("quiz")
 }
 
+enum AssignmentPublishState {
+  DRAFT     @map("draft")
+  SCHEDULED @map("scheduled")
+  PUBLISHED @map("published")
+}
+
 // ===========================================================================
 // Content Reporting — user-submitted safety/quality/rights reports and admin
 // moderation queue (Epic #734 — #738). Reports reference content by articleId.
@@ -1167,6 +1173,8 @@ model Assignment {
   instructions String?
   title        String?
   points       Int?
+  publishState AssignmentPublishState @default(PUBLISHED)
+  publishAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
