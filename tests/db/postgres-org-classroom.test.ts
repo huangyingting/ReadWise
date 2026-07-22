@@ -17,6 +17,7 @@ import { AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 import { removeClassroomMember } from "@/lib/classroom/commands";
+import { countPendingAssignmentsForStudent } from "@/lib/classroom/queries";
 import { enabled, isPostgres } from "./support/db-config";
 import { id, registerIntegrationCleanup } from "./support/db-helpers";
 
@@ -224,4 +225,77 @@ test("removeClassroomMember deletes membership AND student completions for that 
     0,
     "completions must be deleted",
   );
+});
+
+test("countPendingAssignmentsForStudent counts ASSIGNED+IN_PROGRESS but not COMPLETED; excludes archived classrooms", { skip: !enabled }, async () => {
+  requirePostgres();
+
+  const teacherId = id("pab_teacher");
+  const studentId = id("pab_student");
+  const orgId = id("pab_org");
+  const classroomId = id("pab_classroom");
+  const archivedClassroomId = id("pab_archived_classroom");
+  const articleId1 = id("pab_article1");
+  const articleId2 = id("pab_article2");
+  const articleId3 = id("pab_article3");
+  const articleId4 = id("pab_article4");
+
+  await prisma.user.createMany({
+    data: [
+      { id: teacherId, name: "PAB Teacher", role: "Reader" },
+      { id: studentId, name: "PAB Student", role: "Reader" },
+    ],
+  });
+  await prisma.organization.create({ data: { id: orgId, name: "PAB Org", slug: orgId } });
+  await prisma.article.createMany({
+    data: [
+      { id: articleId1, title: "PAB Article 1", content: "body" },
+      { id: articleId2, title: "PAB Article 2", content: "body" },
+      { id: articleId3, title: "PAB Article 3", content: "body" },
+      { id: articleId4, title: "PAB Article 4 (archived)", content: "body" },
+    ],
+  });
+
+  // Active classroom with student membership.
+  await prisma.classroom.create({
+    data: { id: classroomId, orgId, name: "PAB Active Classroom", teacherId },
+  });
+  await prisma.classroomMembership.create({
+    data: { classroomId, userId: studentId, role: "Student" },
+  });
+
+  // 3 assignments in the active classroom.
+  const a1 = await prisma.assignment.create({ data: { classroomId, articleId: articleId1 } });
+  const a2 = await prisma.assignment.create({ data: { classroomId, articleId: articleId2 } });
+  const a3 = await prisma.assignment.create({ data: { classroomId, articleId: articleId3 } });
+
+  // a1: COMPLETED — must NOT count.
+  await prisma.assignmentCompletion.create({
+    data: { assignmentId: a1.id, studentId, status: AssignmentStatus.COMPLETED },
+  });
+  // a2: IN_PROGRESS — must count (not COMPLETED).
+  await prisma.assignmentCompletion.create({
+    data: { assignmentId: a2.id, studentId, status: AssignmentStatus.IN_PROGRESS },
+  });
+  // a3: no completion row (ASSIGNED default) — must count.
+
+  // Archived classroom — its assignments must NOT count even without completions.
+  await prisma.classroom.create({
+    data: {
+      id: archivedClassroomId,
+      orgId,
+      name: "PAB Archived Classroom",
+      teacherId,
+      archivedAt: new Date(),
+    },
+  });
+  await prisma.classroomMembership.create({
+    data: { classroomId: archivedClassroomId, userId: studentId, role: "Student" },
+  });
+  await prisma.assignment.create({
+    data: { classroomId: archivedClassroomId, articleId: articleId4 },
+  });
+
+  const count = await countPendingAssignmentsForStudent(studentId);
+  assert.equal(count, 2, "should count IN_PROGRESS + no-completion rows, not COMPLETED or archived");
 });

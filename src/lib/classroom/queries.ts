@@ -5,6 +5,7 @@
  * {@link ./commands}.
  */
 import type { Classroom, ClassroomRole, Prisma } from "@prisma/client";
+import { AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   readableArticleWhere,
@@ -197,6 +198,24 @@ export function searchClassroomStudentCandidates(
     select: USER_PROFILE_SELECT,
     orderBy: [{ name: "asc" }, { email: "asc" }],
     take: Math.max(1, Math.min(limit, STUDENT_PICKER_LIMIT)),
+  });
+}
+
+/**
+ * Count of pending (not-yet-completed) assignments for a student across all
+ * their enrolled, non-archived classrooms. An assignment is pending when the
+ * student has no COMPLETED completion row — covers both the ASSIGNED default
+ * and any IN_PROGRESS row. Mirrors the visibility filter used by
+ * {@link listAssignmentsForStudent} in student-reads.ts.
+ *
+ * Server-only (uses prisma directly). Intended for the RSC layout badge only.
+ */
+export function countPendingAssignmentsForStudent(studentId: string): Promise<number> {
+  return prisma.assignment.count({
+    where: {
+      classroom: { archivedAt: null, members: { some: { userId: studentId } } },
+      NOT: { completions: { some: { studentId, status: AssignmentStatus.COMPLETED } } },
+    },
   });
 }
 
