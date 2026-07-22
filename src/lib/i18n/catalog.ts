@@ -92,6 +92,15 @@ export interface MessageCatalog {
    */
   "push.assignmentReminder.body": (params: { count: number }) => string;
 
+  /** Title for a teacher-triggered assignment nudge (not necessarily due yet). */
+  "push.assignmentReminder.nudgeTitle": () => string;
+
+  /**
+   * Body of the OS push notification for teacher-triggered assignment nudges.
+   * `count` is the number of pending assignments. Copy stays generic — no names.
+   */
+  "push.assignmentReminder.nudgeBody": (params: { count: number }) => string;
+
   // ---------------------------------------------------------------------------
   // Reading fluency feedback (#813)
   // ---------------------------------------------------------------------------
