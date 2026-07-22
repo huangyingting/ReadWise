@@ -52,6 +52,7 @@ export type ClassroomAssignmentMetaRow = {
   instructions: string | null;
   title: string | null;
   points: number | null;
+  targetStudentIds: string[];
 };
 
 const NEWEST_FIRST = { createdAt: "desc" } as const;
@@ -94,7 +95,14 @@ export async function listClassroomAssignmentMeta(
 ): Promise<ClassroomAssignmentMetaRow[]> {
   const rows = await prisma.assignment.findMany({
     where: { classroomId },
-    select: { id: true, dueDate: true, instructions: true, title: true, points: true },
+    select: {
+      id: true,
+      dueDate: true,
+      instructions: true,
+      title: true,
+      points: true,
+      targets: { select: { studentId: true } },
+    },
   });
   return rows.map((r) => ({
     assignmentId: r.id,
@@ -102,6 +110,7 @@ export async function listClassroomAssignmentMeta(
     instructions: r.instructions,
     title: r.title,
     points: r.points,
+    targetStudentIds: r.targets.map((t) => t.studentId),
   }));
 }
 
@@ -241,6 +250,7 @@ export type TeacherAssignmentRow = {
   dueDate: Date | null;
   completedCount: number;
   studentCount: number;
+  targetCount: number;
 };
 
 /**
@@ -293,6 +303,7 @@ export async function listAssignmentsForTeacher(
         title: r.title,
         points: r.points,
         dueDate: r.dueDate,
+        targetCount: r.targets.length,
         completedCount: r.targets.length === 0
           ? r.completions.length
           : r.completions.filter((c) => audience.has(c.studentId)).length,
@@ -323,6 +334,7 @@ export type AssignmentDetail = {
   points: number | null;
   dueDate: Date | null;
   instructions: string | null;
+  targetStudentIds: string[];
   completions: AssignmentDetailCompletion[];
 };
 
@@ -369,6 +381,7 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
     points: row.points,
     dueDate: row.dueDate,
     instructions: row.instructions,
+    targetStudentIds: row.targets.map((t) => t.studentId),
     completions: keptCompletions.map((c) => ({
       studentId: c.studentId,
       name: c.student.name,

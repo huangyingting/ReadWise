@@ -127,7 +127,13 @@ let deleteClassroomResult:
 const deleteAssignmentCalls: string[] = [];
 const updateAssignmentCalls: Array<{
   assignmentId: string;
-  input: { dueDate?: string; instructions?: string | null; title?: string | null; points?: number | null };
+  input: {
+    dueDate?: string;
+    instructions?: string | null;
+    title?: string | null;
+    points?: number | null;
+    studentIds?: string[];
+  };
 }> = [];
 const createArticleAssignmentCalls: Array<{
   articleId?: string;
@@ -149,7 +155,7 @@ const recordAssignmentCompletionCalls: Array<{
 }> = [];
 let updateAssignmentResult:
   | { ok: true; assignment: Record<string, unknown> }
-  | { ok: false; status: 400; reason: "invalid_due_date" } = {
+  | { ok: false; status: 400; reason: "invalid_due_date" | "invalid_target_students" } = {
   ok: true,
   assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
 };
@@ -243,7 +249,13 @@ before(() => {
       },
       updateAssignment: async (
         assignmentId: string,
-        input: { dueDate?: string; instructions?: string | null; title?: string | null; points?: number | null },
+        input: {
+          dueDate?: string;
+          instructions?: string | null;
+          title?: string | null;
+          points?: number | null;
+          studentIds?: string[];
+        },
       ) => {
         updateAssignmentCalls.push({ assignmentId, input });
         return updateAssignmentResult;
@@ -1400,6 +1412,7 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
     instructions: "Focus on the intro",
     title: "Unit 2",
     points: 30,
+    studentIds: ["s1", "s2"],
   });
   assert.equal(res.status, 200);
   const body = (await res.json()) as { assignment: { instructions: string } };
@@ -1412,6 +1425,7 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
         instructions: "Focus on the intro",
         title: "Unit 2",
         points: 30,
+        studentIds: ["s1", "s2"],
       },
     },
   ]);
@@ -1419,10 +1433,38 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
   assert.deepEqual(auditCalls.at(-1)?.metadata, {
     assignmentId: "asgn1",
     classroomId: "c1",
-    changed: { dueDate: true, instructions: true, title: true, points: true },
+    changed: { dueDate: true, instructions: true, title: true, points: true, targets: true },
   });
   assert.equal(JSON.stringify(auditCalls.at(-1)?.metadata).includes("Focus on the intro"), false);
   assert.equal(JSON.stringify(auditCalls.at(-1)?.metadata).includes("Unit 2"), false);
+});
+
+test("PATCH /api/assignments/[id] forwards clearable dueDate, points, and whole-class targets", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  const res = await patchAssignmentRoute("asgn1", {
+    dueDate: "",
+    instructions: "",
+    title: "",
+    points: null,
+    studentIds: [],
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(updateAssignmentCalls.at(-1), {
+    assignmentId: "asgn1",
+    input: {
+      dueDate: "",
+      instructions: "",
+      title: "",
+      points: null,
+      studentIds: [],
+    },
+  });
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    assignmentId: "asgn1",
+    classroomId: "c1",
+    changed: { dueDate: true, instructions: true, title: true, points: true, targets: true },
+  });
 });
 
 test("PATCH /api/assignments/[id] rejects out-of-range points", async () => {
@@ -1439,6 +1481,16 @@ test("PATCH /api/assignments/[id] returns 400 when the due date is invalid", asy
   updateAssignmentResult = { ok: false, status: 400, reason: "invalid_due_date" };
   const res = await patchAssignmentRoute("asgn1", { dueDate: "not-a-date" });
   assert.equal(res.status, 400);
+});
+
+test("PATCH /api/assignments/[id] maps invalid target students to 400", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  updateAssignmentResult = { ok: false, status: 400, reason: "invalid_target_students" };
+  const res = await patchAssignmentRoute("asgn1", { studentIds: ["ghost"] });
+  assert.equal(res.status, 400);
+  const body = (await res.json()) as { error: string };
+  assert.equal(body.error, "Select at least one enrolled student to target");
 });
 
 // ===========================================================================

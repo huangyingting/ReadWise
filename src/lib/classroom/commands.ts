@@ -168,11 +168,12 @@ export type UpdateAssignmentInput = {
   instructions?: string | null;
   title?: string | null;
   points?: number | null;
+  studentIds?: string[];
 };
 
 export type UpdateAssignmentResult =
   | { ok: true; assignment: Assignment }
-  | { ok: false; status: 400; reason: "invalid_due_date" };
+  | { ok: false; status: 400; reason: "invalid_due_date" | "invalid_target_students" };
 
 /**
  * Updates an assignment's due date and/or instructions. Only the fields present
@@ -188,6 +189,7 @@ export async function updateAssignment(
     instructions?: string | null;
     title?: string | null;
     points?: number | null;
+    updatedAt?: Date;
   } = {};
 
   if (input.dueDate !== undefined) {
@@ -210,9 +212,50 @@ export async function updateAssignment(
     data.points = input.points;
   }
 
-  const assignment = await prisma.assignment.update({
-    where: { id: assignmentId },
-    data,
+  if (input.studentIds === undefined) {
+    const assignment = await prisma.assignment.update({
+      where: { id: assignmentId },
+      data,
+    });
+    return { ok: true, assignment };
+  }
+
+  const requested = [...new Set(input.studentIds)];
+  let targetIds: string[] = [];
+  if (requested.length > 0) {
+    const existing = await prisma.assignment.findUnique({
+      where: { id: assignmentId },
+      select: { classroomId: true },
+    });
+    const enrolled = existing
+      ? await prisma.classroomMembership.findMany({
+          where: {
+            classroomId: existing.classroomId,
+            role: "Student",
+            userId: { in: requested },
+          },
+          select: { userId: true },
+        })
+      : [];
+    const enrolledSet = new Set(enrolled.map((e) => e.userId));
+    targetIds = requested.filter((id) => enrolledSet.has(id));
+    if (targetIds.length === 0) {
+      return { ok: false, status: 400, reason: "invalid_target_students" };
+    }
+  }
+
+  const assignment = await prisma.$transaction(async (tx) => {
+    const updated = await tx.assignment.update({
+      where: { id: assignmentId },
+      data: { ...data, updatedAt: new Date() },
+    });
+    await tx.assignmentTarget.deleteMany({ where: { assignmentId } });
+    if (targetIds.length > 0) {
+      await tx.assignmentTarget.createMany({
+        data: targetIds.map((studentId) => ({ assignmentId, studentId })),
+      });
+    }
+    return updated;
   });
   return { ok: true, assignment };
 }
