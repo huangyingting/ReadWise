@@ -25,6 +25,7 @@ export type CreateArticleAssignmentInput = {
   instructions?: string | null;
   title?: string | null;
   points?: number | null;
+  studentIds?: string[];
 };
 
 export type CreateArticleAssignmentResult =
@@ -32,7 +33,7 @@ export type CreateArticleAssignmentResult =
   | {
       ok: false;
       status: 400;
-      reason: "invalid_due_date";
+      reason: "invalid_due_date" | "invalid_target_students";
     }
   | {
       ok: false;
@@ -124,6 +125,49 @@ export async function createArticleAssignment(
   const dueDate = parseOptionalDueDate(input.dueDate);
   if (input.dueDate && !dueDate) {
     return { ok: false, status: 400, reason: "invalid_due_date" };
+  }
+
+  const requestedStudentIds = input.studentIds?.length
+    ? [...new Set(input.studentIds)]
+    : [];
+  if (requestedStudentIds.length > 0) {
+    const enrolledTargets = await prisma.classroomMembership.findMany({
+      where: {
+        classroomId: input.classroomId,
+        role: "Student",
+        userId: { in: requestedStudentIds },
+      },
+      select: { userId: true },
+    });
+    const enrolledIds = new Set(enrolledTargets.map((target) => target.userId));
+    const targetStudentIds = requestedStudentIds.filter((studentId) =>
+      enrolledIds.has(studentId),
+    );
+
+    if (targetStudentIds.length === 0) {
+      return { ok: false, status: 400, reason: "invalid_target_students" };
+    }
+
+    const assignment = await prisma.$transaction(async (tx) => {
+      const created = await tx.assignment.create({
+        data: {
+          classroomId: input.classroomId,
+          articleId: input.articleId,
+          dueDate,
+          instructions: trimOrNull(input.instructions),
+          title: trimOrNull(input.title),
+          points: input.points ?? null,
+        },
+      });
+      await tx.assignmentTarget.createMany({
+        data: targetStudentIds.map((studentId) => ({
+          assignmentId: created.id,
+          studentId,
+        })),
+      });
+      return created;
+    });
+    return { ok: true, assignment };
   }
 
   const assignment = await prisma.assignment.create({

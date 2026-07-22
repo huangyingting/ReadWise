@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { idParams, number, object, optional, string, nonEmptyString } from "@/lib/validation";
+import { array, idParams, number, object, optional, string, nonEmptyString } from "@/lib/validation";
 import { articleAccessContext } from "@/lib/article-library";
 import { createArticleAssignment } from "@/lib/classroom/article-assignments";
 import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
@@ -11,6 +11,7 @@ const assignBody = object({
   instructions: optional(string({ max: 2000 })),
   title: optional(string({ max: 200 })),
   points: optional(number({ min: 0, max: 10000, int: true })),
+  studentIds: optional(array(nonEmptyString(200), { max: 200 })),
 });
 
 /**
@@ -31,12 +32,15 @@ export const POST = createHandler(
       instructions: body.instructions ?? null,
       title: body.title ?? null,
       points: body.points ?? null,
+      studentIds: body.studentIds,
     });
     if (!result.ok) {
       throw new ApiError(
         result.status,
         result.reason === "invalid_due_date"
           ? "Invalid due date"
+          : result.reason === "invalid_target_students"
+          ? "Select at least one enrolled student to target"
           : result.reason === "article_not_found" || result.status === 404
           ? "Article not found"
           : "Article organization scope is invalid",
