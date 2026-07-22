@@ -10,6 +10,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import { AssignmentCompletionSource } from "@prisma/client";
 
 let findManyArgs: unknown = null;
 let findManyResult: Array<{ id: string }> = [];
@@ -121,13 +122,20 @@ test("marks every matching assignment COMPLETED with the clamped quiz score", as
   for (const call of upsertCalls) {
     const c = call as {
       where: { assignmentId_studentId: { studentId: string } };
-      update: { status: string; quizScore: number };
-      create: { status: string; quizScore: number; studentId: string };
+      update: { status: string; quizScore: number; completionSource: AssignmentCompletionSource };
+      create: {
+        status: string;
+        quizScore: number;
+        completionSource: AssignmentCompletionSource;
+        studentId: string;
+      };
     };
     assert.equal(c.where.assignmentId_studentId.studentId, "student-1");
     assert.equal(c.update.status, "COMPLETED");
     assert.equal(c.update.quizScore, 87);
+    assert.equal(c.update.completionSource, AssignmentCompletionSource.QUIZ);
     assert.equal(c.create.status, "COMPLETED");
+    assert.equal(c.create.completionSource, AssignmentCompletionSource.QUIZ);
     assert.equal(c.create.studentId, "student-1");
   }
 });

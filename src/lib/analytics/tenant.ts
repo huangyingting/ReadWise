@@ -23,6 +23,7 @@
  * The aggregation functions are PURE (take raw rows, return numbers) so they are
  * unit-testable without a DB.
  */
+import type { AssignmentCompletionSource } from "@prisma/client";
 import { AssignmentStatus } from "@prisma/client";
 import { isSystemAdmin } from "@/lib/org/guards";
 import {
@@ -115,6 +116,7 @@ export type CompletionDrilldownRow = {
 	email: string | null;
 	status: AssignmentStatus;
 	quizScore: number | null;
+	completionSource: AssignmentCompletionSource | null;
 	dueDate: Date | null;
 	completedAt: Date | null;
 	feedback: string | null;
@@ -303,6 +305,7 @@ function buildDrilldownRows({
 				email: student.email,
 				status: completion?.status ?? AssignmentStatus.ASSIGNED,
 				quizScore: completion?.quizScore ?? null,
+				completionSource: completion?.completionSource ?? null,
 				dueDate: assignment.dueDate,
 				completedAt: completion?.completedAt ?? null,
 				feedback: completion?.feedback ?? null,

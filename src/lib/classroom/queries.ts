@@ -4,7 +4,12 @@
  * All functions here are read-only. Mutation commands live in
  * {@link ./commands}.
  */
-import type { Classroom, ClassroomRole, Prisma } from "@prisma/client";
+import type {
+  AssignmentCompletionSource,
+  Classroom,
+  ClassroomRole,
+  Prisma,
+} from "@prisma/client";
 import { AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -280,6 +285,7 @@ export type AssignmentDetailCompletion = {
   email: string | null;
   status: AssignmentStatus;
   quizScore: number | null;
+  completionSource: AssignmentCompletionSource | null;
   completedAt: Date | null;
   feedback: string | null;
   reviewedAt: Date | null;
@@ -311,6 +317,7 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
           studentId: true,
           status: true,
           quizScore: true,
+          completionSource: true,
           completedAt: true,
           feedback: true,
           reviewedAt: true,
@@ -334,6 +341,7 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
       email: c.student.email,
       status: c.status,
       quizScore: c.quizScore,
+      completionSource: c.completionSource,
       completedAt: c.completedAt,
       feedback: c.feedback,
       reviewedAt: c.reviewedAt,

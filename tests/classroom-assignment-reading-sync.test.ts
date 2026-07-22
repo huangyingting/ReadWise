@@ -11,7 +11,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { AssignmentStatus } from "@prisma/client";
+import { AssignmentCompletionSource, AssignmentStatus } from "@prisma/client";
 
 let assignmentFindManyArgs: unknown = null;
 let assignmentFindManyResult: Array<{ id: string }> = [];
@@ -20,6 +20,7 @@ let completionFindManyResult: Array<{
   assignmentId: string;
   status: AssignmentStatus;
   quizScore: number | null;
+  completionSource?: AssignmentCompletionSource | null;
   completedAt: Date | null;
 }> = [];
 const upsertCalls: Array<Record<string, unknown>> = [];
@@ -120,9 +121,11 @@ test("creates IN_PROGRESS row when reading reaches start percent with no prior c
   assert.equal(call.update.status, AssignmentStatus.IN_PROGRESS);
   assert.equal(call.update.completedAt, null);
   assert.equal("quizScore" in call.update, false, "quizScore must not appear in update");
+  assert.equal("completionSource" in call.update, false, "completionSource must not appear in update");
   assert.equal(call.create.status, AssignmentStatus.IN_PROGRESS);
   assert.equal(call.create.completedAt, null);
   assert.equal(call.create.quizScore, null);
+  assert.equal("completionSource" in call.create, false, "IN_PROGRESS rows have no source");
 });
 
 // ---------------------------------------------------------------------------
@@ -147,9 +150,11 @@ test("upserts COMPLETED with completedAt when completed=true and no prior row", 
   assert.equal(call.update.status, AssignmentStatus.COMPLETED);
   assert.ok(call.update.completedAt instanceof Date, "completedAt should be stamped");
   assert.equal("quizScore" in call.update, false, "quizScore must not appear in update");
+  assert.equal(call.update.completionSource, AssignmentCompletionSource.READING);
   assert.equal(call.create.status, AssignmentStatus.COMPLETED);
   assert.ok(call.create.completedAt instanceof Date);
   assert.equal(call.create.quizScore, null);
+  assert.equal(call.create.completionSource, AssignmentCompletionSource.READING);
 });
 
 test("upgrades IN_PROGRESS to COMPLETED and stamps completedAt", async () => {
@@ -169,6 +174,37 @@ test("upgrades IN_PROGRESS to COMPLETED and stamps completedAt", async () => {
   assert.equal(call.update.status, AssignmentStatus.COMPLETED);
   assert.ok(call.update.completedAt instanceof Date, "completedAt should be stamped");
   assert.equal("quizScore" in call.update, false, "quizScore must not be touched");
+  assert.equal(call.update.completionSource, AssignmentCompletionSource.READING);
+});
+
+test("does not overwrite an existing quiz or self completion source on reading completion", async () => {
+  const cases = [AssignmentCompletionSource.QUIZ, AssignmentCompletionSource.SELF];
+  const { syncAssignmentReadingProgress } = await load();
+
+  for (const source of cases) {
+    assignmentFindManyResult = [{ id: "asgn-1" }];
+    completionFindManyResult = [
+      {
+        assignmentId: "asgn-1",
+        status: AssignmentStatus.IN_PROGRESS,
+        quizScore: null,
+        completionSource: source,
+        completedAt: null,
+      },
+    ];
+    upsertCalls.length = 0;
+
+    const result = await syncAssignmentReadingProgress({
+      userId: "student-1",
+      articleId: "article-1",
+      percent: 95,
+      completed: true,
+    });
+
+    assert.deepEqual(result, { updatedCount: 1 });
+    const call = upsertCalls[0] as { update: Record<string, unknown> };
+    assert.equal("completionSource" in call.update, false, `${source} source must stay sticky`);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -371,5 +407,6 @@ test("scopes existing-completion read to returned assignment IDs and the student
   assert.equal(args.select.assignmentId, true);
   assert.equal(args.select.status, true);
   assert.equal(args.select.quizScore, true);
+  assert.equal(args.select.completionSource, true);
   assert.equal(args.select.completedAt, true);
 });

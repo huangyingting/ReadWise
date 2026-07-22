@@ -6,7 +6,7 @@
  * untrusted body. {@link getStudentAssignmentContext} enforces enrollment before
  * any completion is written.
  */
-import { AssignmentStatus } from "@prisma/client";
+import { AssignmentCompletionSource, AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isCompletePercent } from "@/lib/engagement/progress-rules";
 
@@ -70,11 +70,14 @@ export async function recordAssignmentCompletion(
   const status = input.status ?? AssignmentStatus.COMPLETED;
   const quizScore = normalizeQuizScore(input.quizScore);
   const completedAt = completionTimestamp(status);
+  const completionSource =
+    status === AssignmentStatus.COMPLETED ? AssignmentCompletionSource.SELF : null;
   return prisma.assignmentCompletion.upsert({
     where: { assignmentId_studentId: { assignmentId, studentId } },
     update: {
       status,
       ...(quizScore === undefined ? {} : { quizScore }),
+      completionSource,
       completedAt,
     },
     create: {
@@ -82,6 +85,7 @@ export async function recordAssignmentCompletion(
       studentId,
       status,
       quizScore: quizScore ?? null,
+      completionSource,
       completedAt,
     },
   });
@@ -124,6 +128,7 @@ export async function markAssignmentQuizComplete(input: {
         update: {
           status: AssignmentStatus.COMPLETED,
           quizScore,
+          completionSource: AssignmentCompletionSource.QUIZ,
           completedAt,
         },
         create: {
@@ -131,6 +136,7 @@ export async function markAssignmentQuizComplete(input: {
           studentId: userId,
           status: AssignmentStatus.COMPLETED,
           quizScore,
+          completionSource: AssignmentCompletionSource.QUIZ,
           completedAt,
         },
       }),
@@ -200,7 +206,13 @@ export async function syncAssignmentReadingProgress(input: {
   const assignmentIds = assignments.map((a) => a.id);
   const existingCompletions = await prisma.assignmentCompletion.findMany({
     where: { assignmentId: { in: assignmentIds }, studentId: userId },
-    select: { assignmentId: true, status: true, quizScore: true, completedAt: true },
+    select: {
+      assignmentId: true,
+      status: true,
+      quizScore: true,
+      completionSource: true,
+      completedAt: true,
+    },
   });
   const completionByAssignmentId = new Map(
     existingCompletions.map((c) => [c.assignmentId, c]),
@@ -224,11 +236,15 @@ export async function syncAssignmentReadingProgress(input: {
             status: AssignmentStatus.COMPLETED,
             // Sticky: only stamp completedAt the first time.
             ...(existing?.completedAt ? {} : { completedAt: now }),
+            ...(existing?.completionSource
+              ? {}
+              : { completionSource: AssignmentCompletionSource.READING }),
           },
           create: {
             assignmentId: assignment.id,
             studentId: userId,
             status: AssignmentStatus.COMPLETED,
+            completionSource: AssignmentCompletionSource.READING,
             completedAt: now,
             quizScore: null,
           },
