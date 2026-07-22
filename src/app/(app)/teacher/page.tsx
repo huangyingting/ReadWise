@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { GraduationCap, Users } from "lucide-react";
+import { GraduationCap, Users, ClipboardList, CalendarClock } from "lucide-react";
 import { requireSession } from "@/lib/session";
 import {
   listOrgMembers,
   listUserOrganizations,
   hasOrgCapability,
 } from "@/lib/org";
-import { listClassroomsForTeacher } from "@/lib/classroom";
+import { listClassroomsForTeacher, listAssignmentsForTeacher } from "@/lib/classroom";
+import { formatMediumDate } from "@/lib/display-format";
+import { isAssignmentOverdue } from "@/lib/classroom/overdue";
 import { CAPABILITIES } from "@/lib/rbac";
 import {
   Badge,
@@ -30,6 +32,9 @@ type OrganizationMembership = Awaited<
 type OrganizationMember = Awaited<ReturnType<typeof listOrgMembers>>[number];
 type TeacherClassroom = Awaited<
   ReturnType<typeof listClassroomsForTeacher>
+>[number];
+type TeacherAssignmentRow = Awaited<
+  ReturnType<typeof listAssignmentsForTeacher>
 >[number];
 type TeachableOrg = { id: string; name: string };
 type ManageableOrganization = {
@@ -98,6 +103,54 @@ function ClassroomList({
   );
 }
 
+function TeacherAssignmentList({
+  assignments,
+}: {
+  assignments: TeacherAssignmentRow[];
+}) {
+  const now = new Date();
+  return (
+    <ul className="flex flex-col gap-[var(--space-3)]">
+      {assignments.map((a) => {
+        const allComplete =
+          a.studentCount > 0 && a.completedCount >= a.studentCount;
+        const overdue = isAssignmentOverdue(
+          a.dueDate,
+          allComplete ? "COMPLETED" : "PENDING",
+          now,
+        );
+        return (
+          <li key={a.assignmentId}>
+            <Link href={`/teacher/classrooms/${a.classroomId}`} className="block">
+              <Card className="transition-shadow hover:shadow-[var(--shadow-md)]">
+                <CardBody className="flex items-center justify-between gap-[var(--space-3)]">
+                  <div>
+                    <p className="font-medium text-text">{a.articleTitle}</p>
+                    <p className="text-[length:var(--text-sm)] text-text-muted">
+                      {a.classroomName} ·{" "}
+                      <CalendarClock
+                        aria-hidden
+                        className="inline size-3.5 align-text-bottom"
+                      />{" "}
+                      {formatMediumDate(a.dueDate) ?? "No due date"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-[var(--space-2)]">
+                    <Badge variant={allComplete ? "success" : "neutral"}>
+                      {a.completedCount}/{a.studentCount} done
+                    </Badge>
+                    {overdue && <Badge variant="danger">Overdue</Badge>}
+                  </div>
+                </CardBody>
+              </Card>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function TeacherSidebar({ teachableOrgs }: { teachableOrgs: TeachableOrg[] }) {
   if (teachableOrgs.length > 0) {
     return (
@@ -138,9 +191,10 @@ export default async function TeacherPage() {
   const session = await requireSession("/teacher");
   const userId = session.user.id;
 
-  const [memberships, classrooms] = await Promise.all([
+  const [memberships, classrooms, assignments] = await Promise.all([
     listUserOrganizations(userId),
     listClassroomsForTeacher(userId),
+    listAssignmentsForTeacher(userId),
   ]);
 
   const teachableOrgs = getTeachableOrgs(memberships);
@@ -165,6 +219,21 @@ export default async function TeacherPage() {
               />
             ) : (
               <ClassroomList classrooms={classrooms} orgNameById={orgNameById} />
+            )}
+          </Section>
+
+          <Section
+            title="Assignments"
+            description="Every reading you've assigned across your classrooms, soonest due first."
+          >
+            {assignments.length === 0 ? (
+              <EmptyState
+                icon={ClipboardList}
+                title="No assignments yet"
+                description="Assign a reading from any classroom to see it tracked here."
+              />
+            ) : (
+              <TeacherAssignmentList assignments={assignments} />
             )}
           </Section>
 
