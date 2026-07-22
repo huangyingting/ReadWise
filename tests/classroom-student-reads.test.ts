@@ -22,7 +22,10 @@ let assignmentRowStub: Record<string, unknown>[] = [];
 let lastFindManyArgs: unknown = null;
 
 type StudentScopeFindManyArgs = {
-  where: { classroom: { archivedAt: null; members: { some: { userId: string } } } };
+  where: {
+    classroom: { archivedAt: null; members: { some: { userId: string } } };
+    OR: Array<{ targets: { none?: Record<string, never>; some?: { studentId: string } } }>;
+  };
 };
 
 type CompletionIncludeFindManyArgs = {
@@ -115,6 +118,17 @@ test("listAssignmentsForStudent scopes assignments to the student's classroom me
   const args = lastStudentScopeArgs();
   assert.equal(args.where.classroom.members.some.userId, "s1");
   assert.equal(args.where.classroom.archivedAt, null);
+});
+
+test("listAssignmentsForStudent includes the targeting visibility seam", async () => {
+  assignmentRowStub = [makeRow()];
+  const { listAssignmentsForStudent } = await studentReads();
+  await listAssignmentsForStudent("s1");
+  const args = lastStudentScopeArgs();
+  assert.deepEqual(args.where.OR, [
+    { targets: { none: {} } },
+    { targets: { some: { studentId: "s1" } } },
+  ]);
 });
 
 test("listAssignmentsForStudent uses a different userId scope per call", async () => {
@@ -272,4 +286,17 @@ test("listAssignmentsForStudent returns multiple rows each with correct fields",
   assert.equal(r1.quizScore, 95);
   assert.equal(r2.status, AssignmentStatus.ASSIGNED);
   assert.equal(r2.quizScore, null);
+});
+
+test("listStudentAssignmentsForArticle includes article, classroom, and targeting filters", async () => {
+  assignmentRowStub = [makeRow({ articleId: "art-42" })];
+  const { listStudentAssignmentsForArticle } = await studentReads();
+  await listStudentAssignmentsForArticle("s42", "art-42");
+  const args = lastFindManyArgs as StudentScopeFindManyArgs & { where: { articleId: string } };
+  assert.equal(args.where.articleId, "art-42");
+  assert.equal(args.where.classroom.members.some.userId, "s42");
+  assert.deepEqual(args.where.OR, [
+    { targets: { none: {} } },
+    { targets: { some: { studentId: "s42" } } },
+  ]);
 });

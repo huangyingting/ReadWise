@@ -16,6 +16,7 @@ import {
   readableArticleWhere,
   type ArticleAccessContext,
 } from "@/lib/article-library/policy";
+import { assignmentVisibleToStudentWhere, effectiveStudentIds } from "./targeting";
 
 export type ClassroomMemberRow = {
   userId: string;
@@ -223,6 +224,7 @@ export function countPendingAssignmentsForStudent(studentId: string): Promise<nu
   return prisma.assignment.count({
     where: {
       classroom: { archivedAt: null, members: { some: { userId: studentId } } },
+      ...assignmentVisibleToStudentWhere(studentId),
       NOT: { completions: { some: { studentId, status: AssignmentStatus.COMPLETED } } },
     },
   });
@@ -271,21 +273,32 @@ export async function listAssignmentsForTeacher(
       },
       article: { select: { id: true, title: true } },
       completions: { where: { status: AssignmentStatus.COMPLETED }, select: { studentId: true } },
+      targets: { select: { studentId: true } },
     },
   });
   return rows
-    .map((r) => ({
-      assignmentId: r.id,
-      classroomId: r.classroom.id,
-      classroomName: r.classroom.name,
-      articleId: r.article.id,
-      articleTitle: r.article.title,
-      title: r.title,
-      points: r.points,
-      dueDate: r.dueDate,
-      completedCount: r.completions.length,
-      studentCount: r.classroom.members.length,
-    }))
+    .map((r) => {
+      const audience = new Set(
+        effectiveStudentIds(
+          r.classroom.members.map((m) => m.userId),
+          r.targets.map((t) => t.studentId),
+        ),
+      );
+      return {
+        assignmentId: r.id,
+        classroomId: r.classroom.id,
+        classroomName: r.classroom.name,
+        articleId: r.article.id,
+        articleTitle: r.article.title,
+        title: r.title,
+        points: r.points,
+        dueDate: r.dueDate,
+        completedCount: r.targets.length === 0
+          ? r.completions.length
+          : r.completions.filter((c) => audience.has(c.studentId)).length,
+        studentCount: audience.size,
+      };
+    })
     .sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity));
 }
 
@@ -326,6 +339,7 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
       points: true,
       classroom: { select: { name: true } },
       article: { select: { id: true, title: true } },
+      targets: { select: { studentId: true } },
       completions: {
         select: {
           studentId: true,
@@ -341,6 +355,10 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
     },
   });
   if (!row) return null;
+  const targetIds = new Set(row.targets.map((t) => t.studentId));
+  const keptCompletions = row.targets.length === 0
+    ? row.completions
+    : row.completions.filter((c) => targetIds.has(c.studentId));
   return {
     id: row.id,
     classroomId: row.classroomId,
@@ -351,7 +369,7 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
     points: row.points,
     dueDate: row.dueDate,
     instructions: row.instructions,
-    completions: row.completions.map((c) => ({
+    completions: keptCompletions.map((c) => ({
       studentId: c.studentId,
       name: c.student.name,
       email: c.student.email,

@@ -25,6 +25,7 @@ import {
   type ReminderPreference,
 } from "@/lib/reminder-preferences";
 import { reminderAssignment } from "@/lib/copy/push";
+import { assignmentVisibleToStudentWhere, effectiveStudentIds } from "@/lib/classroom/targeting";
 import { isPushConfigured } from "./provider";
 import { type SubRow, sendToSubs, type PushPayload } from "./delivery";
 
@@ -59,6 +60,7 @@ export async function countDueAssignmentsForStudent(
     where: {
       dueDate: { not: null, lte: now },
       classroom: { members: { some: { userId: studentId, role: "Student" } } },
+      ...assignmentVisibleToStudentWhere(studentId),
       completions: { none: { studentId, status: AssignmentStatus.COMPLETED } },
     },
   });
@@ -165,6 +167,7 @@ export async function sendDueAssignmentReminders(): Promise<AssignmentReminderRe
         where: { status: AssignmentStatus.COMPLETED },
         select: { studentId: true },
       },
+      targets: { select: { studentId: true } },
     },
   });
 
@@ -172,9 +175,13 @@ export async function sendDueAssignmentReminders(): Promise<AssignmentReminderRe
   const dueCountMap = new Map<string, number>();
   for (const assignment of dueAssignments) {
     const completedStudents = new Set(assignment.completions.map((c) => c.studentId));
-    for (const member of assignment.classroom.members) {
-      if (!completedStudents.has(member.userId)) {
-        dueCountMap.set(member.userId, (dueCountMap.get(member.userId) ?? 0) + 1);
+    const audience = effectiveStudentIds(
+      assignment.classroom.members.map((m) => m.userId),
+      assignment.targets.map((t) => t.studentId),
+    );
+    for (const studentId of audience) {
+      if (!completedStudents.has(studentId)) {
+        dueCountMap.set(studentId, (dueCountMap.get(studentId) ?? 0) + 1);
       }
     }
   }
@@ -279,13 +286,18 @@ export async function remindAssignmentStudents(assignmentId: string): Promise<Re
       id: true,
       classroom: { select: { members: { where: { role: "Student" }, select: { userId: true } } } },
       completions: { where: { status: AssignmentStatus.COMPLETED }, select: { studentId: true } },
+      targets: { select: { studentId: true } },
     },
   });
   if (!assignment) return null;
   const completed = new Set(assignment.completions.map((c) => c.studentId));
-  const targets = assignment.classroom.members.map((m) => m.userId).filter((id) => !completed.has(id));
-  const result: RemindAssignmentResult = { total: targets.length, notified: 0, skipped: 0, suppressed: 0 };
-  for (const studentId of targets) {
+  const audience = effectiveStudentIds(
+    assignment.classroom.members.map((m) => m.userId),
+    assignment.targets.map((t) => t.studentId),
+  );
+  const nudges = audience.filter((id) => !completed.has(id));
+  const result: RemindAssignmentResult = { total: nudges.length, notified: 0, skipped: 0, suppressed: 0 };
+  for (const studentId of nudges) {
     const r = await sendAssignmentReminderToStudent(studentId);
     if (r.sent > 0) result.notified++;
     else if (r.suppressed) result.suppressed++;
