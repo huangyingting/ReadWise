@@ -65,6 +65,11 @@ export const en: MessageCatalog = {
   "push.assignmentReminder.body": ({ count }) =>
     `You have ${assignmentCount(count)} due in ${SITE_NAME}.`,
 
+  "push.assignmentReminder.nudgeTitle": () => "Assignment reminder 📌",
+
+  "push.assignmentReminder.nudgeBody": ({ count }) =>
+    `You have ${assignmentCount(count)} waiting in ${SITE_NAME}.`,
+
   // ---------------------------------------------------------------------------
   // Reading fluency feedback (#813)
   // ---------------------------------------------------------------------------

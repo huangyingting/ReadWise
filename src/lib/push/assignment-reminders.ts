@@ -9,8 +9,7 @@
  * reminder preferences, dead-sub pruning) so assignment reminders behave
  * identically to SRS due-card reminders.
  *
- * `sendAssignmentReminderToStudent()` is the reusable single-student primitive
- * that GAP-5 (teacher nudge) will call directly.
+ * `sendAssignmentNudgeToStudent()` is the reusable teacher-nudge primitive.
  *
  * Server-only — never import from a Client Component.
  */
@@ -59,7 +58,17 @@ export async function countDueAssignmentsForStudent(
   return prisma.assignment.count({
     where: {
       dueDate: { not: null, lte: now },
-      classroom: { members: { some: { userId: studentId, role: "Student" } } },
+      classroom: { archivedAt: null, members: { some: { userId: studentId, role: "Student" } } },
+      ...assignmentVisibleToStudentWhere(studentId),
+      completions: { none: { studentId, status: AssignmentStatus.COMPLETED } },
+    },
+  });
+}
+
+export async function countOpenAssignmentsForStudent(studentId: string): Promise<number> {
+  return prisma.assignment.count({
+    where: {
+      classroom: { archivedAt: null, members: { some: { userId: studentId, role: "Student" } } },
       ...assignmentVisibleToStudentWhere(studentId),
       completions: { none: { studentId, status: AssignmentStatus.COMPLETED } },
     },
@@ -68,7 +77,6 @@ export async function countDueAssignmentsForStudent(
 
 /**
  * Sends an assignment due reminder to a single student.
- * Reusable primitive — GAP-5 teacher nudge will call this directly.
  */
 export async function sendAssignmentReminderToStudent(
   studentId: string,
@@ -84,6 +92,39 @@ export async function sendAssignmentReminderToStudent(
     return skippedStudentReminder(studentId, "no_due_assignments");
   }
 
+  const payload: PushPayload = {
+    title: reminderAssignment.title,
+    body: reminderAssignment.body(dueCount),
+    url: reminderAssignment.url,
+    icon: reminderAssignment.icon,
+  };
+  return deliverAssignmentPush(studentId, payload, dueCount);
+}
+
+export async function sendAssignmentNudgeToStudent(
+  studentId: string,
+): Promise<AssignmentReminderUserResult> {
+  if (!isPushConfigured()) {
+    log.info("sendAssignmentNudgeToStudent: VAPID unconfigured — no-op", { studentId });
+    return skippedStudentReminder(studentId, "unconfigured");
+  }
+
+  const pending = await countOpenAssignmentsForStudent(studentId);
+  const count = Math.max(pending, 1);
+  const payload: PushPayload = {
+    title: reminderAssignment.nudgeTitle,
+    body: reminderAssignment.nudgeBody(count),
+    url: reminderAssignment.url,
+    icon: reminderAssignment.icon,
+  };
+  return deliverAssignmentPush(studentId, payload, pending);
+}
+
+async function deliverAssignmentPush(
+  studentId: string,
+  payload: PushPayload,
+  countForResult: number,
+): Promise<AssignmentReminderUserResult> {
   const subs = await prisma.pushSubscription.findMany({
     where: { userId: studentId },
     select: {
@@ -96,9 +137,10 @@ export async function sendAssignmentReminderToStudent(
     },
   });
   if (subs.length === 0) {
-    return skippedStudentReminder(studentId, "no_subscription", dueCount);
+    return skippedStudentReminder(studentId, "no_subscription", countForResult);
   }
 
+  const now = new Date();
   const [prefMap, profile] = await Promise.all([
     getReminderPreferenceMap([studentId]),
     prisma.profile.findUnique({
@@ -119,7 +161,7 @@ export async function sendAssignmentReminderToStudent(
     });
     return {
       studentId,
-      dueCount,
+      dueCount: countForResult,
       sent: 0,
       skipped: false,
       suppressed: true,
@@ -127,14 +169,8 @@ export async function sendAssignmentReminderToStudent(
     };
   }
 
-  const payload: PushPayload = {
-    title: reminderAssignment.title,
-    body: reminderAssignment.body(dueCount),
-    url: reminderAssignment.url,
-    icon: reminderAssignment.icon,
-  };
   const sent = await sendToSubs(subs, JSON.stringify(payload));
-  return { studentId, dueCount, sent, skipped: false, suppressed: false };
+  return { studentId, dueCount: countForResult, sent, skipped: false, suppressed: false };
 }
 
 /**
@@ -152,7 +188,7 @@ export async function sendDueAssignmentReminders(): Promise<AssignmentReminderRe
   // ONE query: fetch all due/overdue assignments with their classroom members
   // and completed student IDs.
   const dueAssignments = await prisma.assignment.findMany({
-    where: { dueDate: { not: null, lte: now } },
+    where: { dueDate: { not: null, lte: now }, classroom: { archivedAt: null } },
     select: {
       id: true,
       classroom: {
@@ -275,7 +311,7 @@ export type RemindAssignmentResult = {
 
 /**
  * Nudges every enrolled student who has NOT completed the given assignment,
- * reusing sendAssignmentReminderToStudent (which honours push opt-in + quiet
+ * reusing sendAssignmentNudgeToStudent (which honours push opt-in + quiet
  * hours). Returns null when the assignment does not exist. Metadata-only result
  * — never returns student ids or content.
  */
@@ -298,7 +334,7 @@ export async function remindAssignmentStudents(assignmentId: string): Promise<Re
   const nudges = audience.filter((id) => !completed.has(id));
   const result: RemindAssignmentResult = { total: nudges.length, notified: 0, skipped: 0, suppressed: 0 };
   for (const studentId of nudges) {
-    const r = await sendAssignmentReminderToStudent(studentId);
+    const r = await sendAssignmentNudgeToStudent(studentId);
     if (r.sent > 0) result.notified++;
     else if (r.suppressed) result.suppressed++;
     else result.skipped++;
