@@ -173,7 +173,11 @@ export type UpdateAssignmentInput = {
 
 export type UpdateAssignmentResult =
   | { ok: true; assignment: Assignment }
-  | { ok: false; status: 400; reason: "invalid_due_date" | "invalid_target_students" };
+  | {
+      ok: false;
+      status: 400 | 409;
+      reason: "invalid_due_date" | "invalid_target_students" | "points_below_awarded";
+    };
 
 /**
  * Updates an assignment's due date and/or instructions. Only the fields present
@@ -210,6 +214,16 @@ export async function updateAssignment(
 
   if (input.points !== undefined) {
     data.points = input.points;
+  }
+
+  if (input.points !== undefined && input.points != null) {
+    const overAward = await prisma.assignmentCompletion.findFirst({
+      where: { assignmentId, pointsAwarded: { gt: input.points } },
+      select: { id: true },
+    });
+    if (overAward) {
+      return { ok: false, status: 409, reason: "points_below_awarded" };
+    }
   }
 
   if (input.studentIds === undefined) {

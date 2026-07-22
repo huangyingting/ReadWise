@@ -252,6 +252,7 @@ export const USER_EXPORT_SELECT = {
       assignmentId: true,
       status: true,
       quizScore: true,
+      pointsAwarded: true,
       completedAt: true,
       createdAt: true,
       updatedAt: true,

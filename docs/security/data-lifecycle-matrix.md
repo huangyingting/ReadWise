@@ -248,7 +248,7 @@ flowchart TD
 | `Classroom` (orgId, name, teacherId) | Access / Tenancy | **operational** | ⛔ | Teacher link cascades via `Classroom.teacherId`; classroom deleted if teacher deleted | Cascade via `Classroom.orgId` | Deleted with org | Safe |
 | `ClassroomMembership` (classroomId, userId, role) | Access / Tenancy | **personal** | ✅ classroomId, role, createdAt | Cascade via `ClassroomMembership.userId` or classroom | Cascade via classroom → org | Deleted with user or org | Safe |
 | `Assignment` (classroomId, articleId, dueDate, instructions) | Access / Tenancy | **operational** | ⛔ | `instructions` may reference a deleted article; article cascade removes assignment | Cascade via classroom → org | Deleted with classroom | `instructions` is teacher-authored text; avoid logging |
-| `AssignmentCompletion` (assignmentId, studentId, status, quizScore, completedAt) | Access / Tenancy | **personal** | ✅ assignmentId, status, quizScore, completedAt, timestamps | Cascade via `AssignmentCompletion.studentId` | Cascade via assignment → classroom → org | Deleted with user or org | Safe |
+| `AssignmentCompletion` (assignmentId, studentId, status, quizScore, pointsAwarded, completedAt) | Access / Tenancy | **personal** | ✅ assignmentId, status, quizScore, pointsAwarded, completedAt, timestamps | Cascade via `AssignmentCompletion.studentId` | Cascade via assignment → classroom → org | Deleted with user or org | Safe |
 
 > **Gap #711-E — RESOLVED (#711):** Membership, classroom enrollment, and
 > assignment completion records are now included in the `exportUserData` bundle.

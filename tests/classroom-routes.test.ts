@@ -161,7 +161,7 @@ const reviewAssignmentCompletionCalls: Array<{
 }> = [];
 let updateAssignmentResult:
   | { ok: true; assignment: Record<string, unknown> }
-  | { ok: false; status: 400; reason: "invalid_due_date" | "invalid_target_students" } = {
+  | { ok: false; status: 400 | 409; reason: "invalid_due_date" | "invalid_target_students" | "points_below_awarded" } = {
   ok: true,
   assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
 };
@@ -1519,6 +1519,18 @@ test("PATCH /api/assignments/[id] maps invalid target students to 400", async ()
   assert.equal(body.error, "Select at least one enrolled student to target");
 });
 
+test("PATCH /api/assignments/[id] maps points below awarded score to 409", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  updateAssignmentResult = { ok: false, status: 409, reason: "points_below_awarded" };
+
+  const res = await patchAssignmentRoute("asgn1", { points: 10 });
+
+  assert.equal(res.status, 409);
+  const body = (await res.json()) as { error: string };
+  assert.equal(body.error, "Cannot set points below an already-awarded score");
+});
+
 // ===========================================================================
 // POST /api/assignments/[id]/completion
 // ===========================================================================
@@ -1578,7 +1590,7 @@ test("PATCH assignment completion review awards a score", async () => {
     classroomId: "c1",
     studentId: "student-1",
     hasFeedback: true,
-    awardedScore: 18,
+    scoreAction: "set",
   });
 });
 
@@ -1588,6 +1600,18 @@ test("PATCH assignment completion review rejects an awarded score over max point
 
   const res = await patchAssignmentCompletionReview("asgn1", "student-1", {
     pointsAwarded: 21,
+  });
+
+  assert.equal(res.status, 400);
+  assert.equal(reviewAssignmentCompletionCalls.length, 0);
+});
+
+test("PATCH assignment completion review rejects awarded score above absolute cap", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: null };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await patchAssignmentCompletionReview("asgn1", "student-1", {
+    pointsAwarded: 100001,
   });
 
   assert.equal(res.status, 400);

@@ -16,7 +16,7 @@ const reviewParams = object({
 
 const reviewBody = object({
   feedback: optional(string({ max: 2000 })),
-  pointsAwarded: nullable(number({ min: 0, int: true })),
+  pointsAwarded: nullable(number({ min: 0, max: 100000, int: true })),
 });
 
 /**
@@ -57,7 +57,11 @@ export const PATCH = createHandler(
         classroomId: assignment.classroomId,
         studentId: params.studentId,
         hasFeedback: Boolean(body.feedback && body.feedback.trim()),
-        awardedScore: body.pointsAwarded ?? null,
+        scoreAction: body.pointsAwarded === undefined
+          ? "unchanged"
+          : body.pointsAwarded === null
+            ? "cleared"
+            : "set",
       },
     });
 
