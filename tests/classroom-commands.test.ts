@@ -23,6 +23,7 @@ let classroomCreateArgs: unknown = null;
 let membershipCreateArgs: unknown = null;
 let membershipUpsertArgs: unknown = null;
 let membershipDeleteManyArgs: unknown = null;
+let completionDeleteManyArgs: unknown = null;
 let assignmentDeleteManyArgs: unknown = null;
 let assignmentUpdateArgs: unknown = null;
 let classroomUpdateArgs: unknown = null;
@@ -82,6 +83,12 @@ before(() => {
       },
       count: async () => membershipCountResult,
     },
+    assignmentCompletion: {
+      deleteMany: async (args: unknown) => {
+        completionDeleteManyArgs = args;
+        return { count: 1 };
+      },
+    },
     assignment: {
       deleteMany: async (args: unknown) => {
         assignmentDeleteManyArgs = args;
@@ -113,6 +120,7 @@ beforeEach(() => {
   membershipCreateArgs = null;
   membershipUpsertArgs = null;
   membershipDeleteManyArgs = null;
+  completionDeleteManyArgs = null;
   assignmentDeleteManyArgs = null;
   assignmentUpdateArgs = null;
   classroomUpdateArgs = null;
@@ -289,6 +297,23 @@ test("removeClassroomMember deletes the membership by classroomId and userId", a
   const args = membershipDeleteManyArgs as { where: { classroomId: string; userId: string } };
   assert.equal(args.where.classroomId, "c1");
   assert.equal(args.where.userId, "s1");
+});
+
+test("removeClassroomMember runs inside a transaction", async () => {
+  const { removeClassroomMember } = await loadCommands();
+  await removeClassroomMember("c1", "s1");
+  assert.equal(transactionCalled, true);
+});
+
+test("removeClassroomMember deletes the student's completions scoped to the classroom's assignments", async () => {
+  const { removeClassroomMember } = await loadCommands();
+  await removeClassroomMember("c1", "s1");
+  assert.ok(completionDeleteManyArgs, "assignmentCompletion.deleteMany must be called");
+  const args = completionDeleteManyArgs as {
+    where: { studentId: string; assignment: { classroomId: string } };
+  };
+  assert.equal(args.where.studentId, "s1");
+  assert.deepEqual(args.where.assignment, { classroomId: "c1" });
 });
 
 test("removeClassroomMember resolves without error when member does not exist", async () => {

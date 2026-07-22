@@ -16,6 +16,7 @@ import { AssignmentStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
+import { removeClassroomMember } from "@/lib/classroom/commands";
 import { enabled, isPostgres } from "./support/db-config";
 import { id, registerIntegrationCleanup } from "./support/db-helpers";
 
@@ -169,5 +170,58 @@ test("Classroom delete cascades to Assignment and AssignmentCompletion", { skip:
     await prisma.assignmentCompletion.count({ where: { assignmentId: assignment.id } }),
     0,
     "completions should be deleted on assignment cascade",
+  );
+});
+
+test("removeClassroomMember deletes membership AND student completions for that classroom", { skip: !enabled }, async () => {
+  requirePostgres();
+
+  const teacherId = id("rmcm_teacher");
+  const studentId = id("rmcm_student");
+  const orgId = id("rmcm_org");
+  const articleId = id("rmcm_article");
+  const classroomId = id("rmcm_classroom");
+
+  await prisma.user.createMany({
+    data: [
+      { id: teacherId, name: "RMCM Teacher", role: "Reader" },
+      { id: studentId, name: "RMCM Student", role: "Reader" },
+    ],
+  });
+  await createOrganization(orgId, "RMCM Org");
+  await createArticle(articleId, "RMCM Article", "Body for removeClassroomMember test");
+  await prisma.classroom.create({
+    data: { id: classroomId, orgId, name: "RMCM Classroom", teacherId },
+  });
+  const assignment = await prisma.assignment.create({
+    data: { classroomId, articleId },
+  });
+  await prisma.classroomMembership.create({
+    data: { classroomId, userId: studentId, role: "Student" },
+  });
+  await prisma.assignmentCompletion.create({
+    data: { assignmentId: assignment.id, studentId, status: AssignmentStatus.ASSIGNED },
+  });
+
+  assert.equal(
+    await prisma.classroomMembership.count({ where: { classroomId, userId: studentId } }),
+    1,
+  );
+  assert.equal(
+    await prisma.assignmentCompletion.count({ where: { studentId, assignmentId: assignment.id } }),
+    1,
+  );
+
+  await removeClassroomMember(classroomId, studentId);
+
+  assert.equal(
+    await prisma.classroomMembership.count({ where: { classroomId, userId: studentId } }),
+    0,
+    "membership must be deleted",
+  );
+  assert.equal(
+    await prisma.assignmentCompletion.count({ where: { studentId, assignmentId: assignment.id } }),
+    0,
+    "completions must be deleted",
   );
 });

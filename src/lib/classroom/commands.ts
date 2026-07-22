@@ -126,12 +126,18 @@ export async function deleteClassroom(classroomId: string): Promise<DeleteClassr
   });
 }
 
-/** Removes a member from a classroom. */
+/** Removes a member from a classroom, atomically deleting their membership
+ *  and any AssignmentCompletion rows for that classroom's assignments. */
 export async function removeClassroomMember(
   classroomId: string,
   userId: string,
 ): Promise<void> {
-  await prisma.classroomMembership.deleteMany({ where: { classroomId, userId } });
+  await prisma.$transaction(async (tx) => {
+    await tx.classroomMembership.deleteMany({ where: { classroomId, userId } });
+    await tx.assignmentCompletion.deleteMany({
+      where: { studentId: userId, assignment: { classroomId } },
+    });
+  });
 }
 
 /** Deletes an assignment (cascades its completions). */
