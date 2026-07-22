@@ -22,6 +22,7 @@ type ArticleOption = {
 interface AssignArticleFormProps {
   classroomId: string;
   initialArticles: ArticleOption[];
+  students: { id: string; label: string }[];
 }
 
 type ArticleOptionsResponse = {
@@ -68,6 +69,7 @@ function buildAssignmentPayload(
   instructions: string,
   title: string,
   points: string,
+  studentIds?: string[],
 ) {
   return {
     articleId,
@@ -75,17 +77,21 @@ function buildAssignmentPayload(
     points: points ? Number(points) : undefined,
     dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
     instructions: instructions.trim() || undefined,
+    studentIds,
   };
 }
 
 export default function AssignArticleForm({
   classroomId,
   initialArticles,
+  students,
 }: AssignArticleFormProps) {
   const [form, setForm] = useState(EMPTY_ASSIGNMENT_FORM);
   const [query, setQuery] = useState("");
   const [articles, setArticles] = useState(initialArticles);
   const [selected, setSelected] = useState<ArticleOption[]>([]);
+  const [audience, setAudience] = useState<"class" | "students">("class");
+  const [targetIds, setTargetIds] = useState<string[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const { busy, error, run } = useMutation("Failed to assign article");
@@ -109,6 +115,13 @@ export default function AssignArticleForm({
     });
   }, [classroomId, trimmedQuery, runArticleSearch]);
 
+  useEffect(() => {
+    if (selected.length !== 1) {
+      setAudience("class");
+      setTargetIds([]);
+    }
+  }, [selected.length]);
+
   const visibleArticles = useMemo(
     () => articles.filter((article) => articleMatches(article, trimmedQuery)),
     [articles, trimmedQuery],
@@ -118,6 +131,8 @@ export default function AssignArticleForm({
     setForm(EMPTY_ASSIGNMENT_FORM);
     setQuery("");
     setSelected([]);
+    setAudience("class");
+    setTargetIds([]);
   }
 
   function toggleArticle(article: ArticleOption) {
@@ -132,13 +147,24 @@ export default function AssignArticleForm({
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  function toggleTarget(studentId: string) {
+    setTargetIds((current) =>
+      current.includes(studentId)
+        ? current.filter((id) => id !== studentId)
+        : [...current, studentId],
+    );
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (selected.length === 0) return;
+    if (selected.length === 1 && audience === "students" && targetIds.length === 0) return;
 
     await run(async () => {
       setStatus(null);
       if (selected.length === 1) {
+        const studentIds =
+          audience === "students" && targetIds.length > 0 ? targetIds : undefined;
         await postJson(
           `/api/classrooms/${classroomId}/assignments`,
           buildAssignmentPayload(
@@ -147,6 +173,7 @@ export default function AssignArticleForm({
             form.instructions,
             form.title,
             form.points,
+            studentIds,
           ),
         );
       } else {
@@ -172,12 +199,15 @@ export default function AssignArticleForm({
   const submitLabel = selected.length > 1
     ? `Assign ${selected.length} articles`
     : "Assign article";
+  const canSubmit =
+    selected.length >= 1 &&
+    !(selected.length === 1 && audience === "students" && targetIds.length === 0);
 
   return (
     <TeacherFormShell
       onSubmit={submit}
       busy={busy}
-      canSubmit={selected.length >= 1}
+      canSubmit={canSubmit}
       submitLabel={submitLabel}
       busyLabel="Assigning…"
       buttonSize="md"
@@ -246,14 +276,79 @@ export default function AssignArticleForm({
         />
       </Field>
       {selected.length === 1 ? (
-        <Field label="Title (optional)">
-          <Input
-            value={form.title}
-            onChange={(e) => updateField("title", e.target.value)}
-            placeholder="Override the article title for this class"
-            maxLength={TITLE_MAX_LENGTH}
-          />
-        </Field>
+        <>
+          <Field label="Assign to">
+            <div className="flex flex-col gap-[var(--space-2)]">
+              <div
+                role="group"
+                aria-label="Assignment audience"
+                className="flex flex-wrap gap-[var(--space-2)]"
+              >
+                <Button
+                  type="button"
+                  variant={audience === "class" ? "secondary" : "outline"}
+                  size="sm"
+                  aria-pressed={audience === "class"}
+                  onClick={() => setAudience("class")}
+                >
+                  Whole class
+                </Button>
+                <Button
+                  type="button"
+                  variant={audience === "students" ? "secondary" : "outline"}
+                  size="sm"
+                  aria-pressed={audience === "students"}
+                  onClick={() => setAudience("students")}
+                >
+                  Specific students
+                </Button>
+              </div>
+              {audience === "students" ? (
+                <div className="flex flex-col gap-[var(--space-2)]">
+                  <p className="m-0 text-[length:var(--text-xs)] text-text-muted">
+                    <Badge variant="neutral">{targetIds.length} selected</Badge>
+                  </p>
+                  <div
+                    role="group"
+                    aria-label="Target students"
+                    className="flex max-h-[calc(var(--space-6)*8)] flex-col gap-[var(--space-2)] overflow-y-auto"
+                  >
+                    {students.length > 0 ? (
+                      students.map((student) => {
+                        const isTargeted = targetIds.includes(student.id);
+                        return (
+                          <Button
+                            key={student.id}
+                            type="button"
+                            variant={isTargeted ? "secondary" : "outline"}
+                            size="sm"
+                            aria-pressed={isTargeted}
+                            className="h-auto w-full justify-start whitespace-normal py-[var(--space-2)] text-left"
+                            onClick={() => toggleTarget(student.id)}
+                          >
+                            {student.label}
+                          </Button>
+                        );
+                      })
+                    ) : (
+                      <p className="m-0 text-[length:var(--text-sm)] text-text-muted">
+                        No students are enrolled yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </Field>
+          <Field label="Title (optional)">
+            <Input
+              value={form.title}
+              onChange={(e) => updateField("title", e.target.value)}
+              placeholder="Override the article title for this class"
+              maxLength={TITLE_MAX_LENGTH}
+            />
+          </Field>
+        </>
       ) : null}
       <Field label="Points (optional)">
         <Input

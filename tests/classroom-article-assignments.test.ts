@@ -26,8 +26,12 @@ type IntegrityResult =
 let integrityResult: IntegrityResult;
 let integrityCalls: Array<{ articleId: string; organizationId: string }>;
 let createCalls: Array<{ data: Record<string, unknown> }>;
+let targetCreateManyCalls: Array<{ data: Array<Record<string, unknown>> }>;
+let membershipFindManyCalls: Array<Record<string, unknown>>;
+let transactionCalls: number;
 let assignmentThrows: boolean;
 let articleRows: Article[];
+let enrolledStudentRows: Array<{ userId: string }>;
 
 function matchesWhere(article: Article, where: Prisma.ArticleWhereInput = {}): boolean {
   const record = article as unknown as Record<string, unknown>;
@@ -93,6 +97,43 @@ before(() => {
             return { id: "assignment-1", ...input.data };
           },
         },
+        assignmentTarget: {
+          createMany: async (input: { data: Array<Record<string, unknown>> }) => {
+            targetCreateManyCalls.push(input);
+            return { count: input.data.length };
+          },
+        },
+        classroomMembership: {
+          findMany: async (input: Record<string, unknown>) => {
+            membershipFindManyCalls.push(input);
+            return enrolledStudentRows;
+          },
+        },
+        $transaction: async <T>(callback: (tx: {
+          assignment: {
+            create: (input: { data: Record<string, unknown> }) => Promise<Record<string, unknown>>;
+          };
+          assignmentTarget: {
+            createMany: (input: { data: Array<Record<string, unknown>> }) => Promise<{ count: number }>;
+          };
+        }) => Promise<T>) => {
+          transactionCalls += 1;
+          return callback({
+            assignment: {
+              create: async (input: { data: Record<string, unknown> }) => {
+                createCalls.push(input);
+                if (assignmentThrows) throw new Error("assignment unavailable");
+                return { id: "assignment-1", ...input.data };
+              },
+            },
+            assignmentTarget: {
+              createMany: async (input: { data: Array<Record<string, unknown>> }) => {
+                targetCreateManyCalls.push(input);
+                return { count: input.data.length };
+              },
+            },
+          });
+        },
       },
     },
   });
@@ -102,7 +143,11 @@ beforeEach(() => {
   integrityResult = { ok: true, article: { id: "article-1" } };
   integrityCalls = [];
   createCalls = [];
+  targetCreateManyCalls = [];
+  membershipFindManyCalls = [];
+  transactionCalls = 0;
   assignmentThrows = false;
+  enrolledStudentRows = [];
   articleRows = [
     buildArticle({
       id: "article-1",
@@ -122,6 +167,7 @@ async function create(overrides: Partial<{
   instructions: string | null;
   title: string | null;
   points: number | null;
+  studentIds: string[];
 }> = {}) {
   const { createArticleAssignment } = await import(
     "@/lib/classroom/article-assignments"
@@ -258,6 +304,56 @@ test("stores null for absent due date and blank metadata", async () => {
     title: null,
     points: null,
   });
+});
+
+test("creates target rows atomically for enrolled requested students", async () => {
+  enrolledStudentRows = [{ userId: "student-1" }, { userId: "student-3" }];
+
+  const result = await create({
+    studentIds: ["student-1", "not-enrolled", "student-3", "student-1"],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(transactionCalls, 1);
+  assert.equal(createCalls.length, 1);
+  assert.equal(targetCreateManyCalls.length, 1);
+  assert.deepEqual(membershipFindManyCalls[0], {
+    where: {
+      classroomId: "classroom-1",
+      role: "Student",
+      userId: { in: ["student-1", "not-enrolled", "student-3"] },
+    },
+    select: { userId: true },
+  });
+  assert.deepEqual(targetCreateManyCalls[0].data, [
+    { assignmentId: "assignment-1", studentId: "student-1" },
+    { assignmentId: "assignment-1", studentId: "student-3" },
+  ]);
+});
+
+test("rejects requested targets when none are enrolled students", async () => {
+  enrolledStudentRows = [];
+
+  const result = await create({ studentIds: ["missing-1", "missing-2"] });
+
+  assert.deepEqual(result, {
+    ok: false,
+    status: 400,
+    reason: "invalid_target_students",
+  });
+  assert.equal(transactionCalls, 0);
+  assert.deepEqual(createCalls, []);
+  assert.deepEqual(targetCreateManyCalls, []);
+});
+
+test("omitted or empty studentIds keep the plain whole-class create path", async () => {
+  await create();
+  await create({ studentIds: [] });
+
+  assert.equal(createCalls.length, 2);
+  assert.equal(transactionCalls, 0);
+  assert.deepEqual(membershipFindManyCalls, []);
+  assert.deepEqual(targetCreateManyCalls, []);
 });
 
 test("propagates unexpected persistence failures", async () => {

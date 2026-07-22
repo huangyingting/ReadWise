@@ -437,6 +437,10 @@ function TeacherSidebar({
   studentCandidates: StudentCandidate[];
   articleOptions: AssignableArticle[];
 }) {
+  const assignmentTargetStudents = students
+    .filter((student) => student.role === "Student")
+    .map((student) => ({ id: student.userId, label: memberLabel(student) }));
+
   return (
     <aside className="flex flex-col gap-[var(--space-6)]">
       {canManageLifecycle ? (
@@ -456,6 +460,7 @@ function TeacherSidebar({
               <AssignArticleForm
                 classroomId={classroomId}
                 initialArticles={articleOptions}
+                students={assignmentTargetStudents}
               />
             </CardBody>
           </Card>
