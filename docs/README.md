@@ -55,6 +55,7 @@ flowchart LR
 | [`ai/safety.md`](./ai/safety.md) | Structured output validation, moderation, provider error normalization, and safe fallbacks. |
 | [`ai/evaluations.md`](./ai/evaluations.md) | Offline/live AI evaluation harness and datasets. |
 | [`ai/governance-ledger.md`](./ai/governance-ledger.md) | AI invocation ledger, budgets/quotas, usage summaries, cost estimates, and privacy boundaries. |
+| [`ai/provider-db-translation-prompts.md`](./ai/provider-db-translation-prompts.md) | Offline prompt lab for category-aware Simplified Chinese translation of `prisma/provider-dbs` articles via local vLLM: category→profile mapping, prompt variants, heuristic + LLM-judge evaluation methodology, and current recommendation. |
 
 ### Analytics
 
