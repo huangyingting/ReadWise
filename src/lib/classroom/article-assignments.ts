@@ -40,7 +40,13 @@ export type CreateArticleAssignmentResult =
 
 export function parseOptionalDueDate(dueDate: string | undefined): Date | null {
   if (!dueDate) return null;
-  const parsed = new Date(dueDate);
+  // Date-only strings (from <input type="date">) parse as midnight UTC, which
+  // flags assignments overdue a day early west of UTC. Resolve them to
+  // end-of-day UTC so students get the full calendar day.
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dueDate)
+    ? `${dueDate}T23:59:59.999Z`
+    : dueDate;
+  const parsed = new Date(dateOnly);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
