@@ -877,69 +877,6 @@ Note: `tests/difficulty*.test.ts` target remains in scope only for the constants
 5. **reader/ (3 safe files)** — scope review + document merge decision (do not execute)
 6. **After #946 merges** → file child issue → execute deferred 7 items in one pass
 
-
-### 2026-07-14: Design Review — Azure batch TTS audio + Reader word-sync (Issue #1054)
-
-**By:** Morpheus (Lead)
-
-**What:** Ratified the implementation/operational contract for generating Azure **Batch** TTS MP3 audio for `prisma/dev.db` articles, persisting V2 word timings, and verifying Reader karaoke highlighting end-to-end. Filed/owns GitHub issue **#1054** (https://github.com/huangyingting/ReadWise/issues/1054).
-
-**Key facts (evidence-backed):**
-- The full pipeline **already exists**: `scripts/batch-synthesis.ts` (npm `speech:batch`, Azure Batch REST `2024-04-01`, `wordBoundaryEnabled`), `src/lib/speech/repository.ts::saveSpeechResult`, `ArticleSpeech` model + **V2 columnar timing format** (`src/lib/speech/timing.ts`), Reader client (`ReaderAudioProvider`, `useActiveWord`, `useTtsProseHighlight`), and analyzer `scripts/analyze-speech-alignment.ts`. This is operate+verify, not green-field.
-- **Gap:** `prisma/dev.db` = 217 articles, **0 `ArticleSpeech` rows** — pipeline never run against dev.
-- **Schema decision:** reuse **V2** timing payload; **no schema change**. Legacy raw arrays remain read-only compat input.
-- **Word boundaries:** Azure Batch returns them directly (`.word.json`); UTF-16 text-span fallback via `buildTokenAlignment` already implemented.
-- **Top risk (verification-critical):** `batchWordFromBoundary` treats `AudioOffset`/`Duration` as **ms**, but the real-time SDK path converts **ticks→ms (÷1e4)**. If batch emits ticks, timings desync ~10,000×. Must be proven vs real MP3 duration before acceptance.
-- **Storage:** `MEDIA_STORAGE=database` now aliases to `local` (warning); needs `local`(`.media`)/`azure`. `.env.example` ~L125 doc is stale (fix in pipeline PR). `unzip` present on PATH.
-
-**Ownership (disjoint files):** Mouse (generation + units: `scripts/batch-synthesis.ts`, `speech/{repository,timing,provider-azure}.ts`) → then Tank (`speech/index.ts` + speech routes) and Trinity (`ReaderAudioProvider`, `useNarrationApi`, `useActiveWord`, `useTtsProseHighlight`, `ReaderListenButton`, `ReaderMiniPlayer`) in parallel → Switch last (`analyze-speech-alignment.ts`, `tests/**`, reader-listen e2e; empirical MP3/timing + browser checks, drive defect iteration).
-
-**Alignment tolerances:** MP3 duration vs `max(endMs)/1000` within 0.75s and ratio ∈ [0.90,1.15]; monotonic timings; boundary coverage ≥0.95 for ≥90% rows, retained rows ≥0.80; text spans in-range + key-match; word count within [0.7,1.3]× tokens.
-
-**Why:** Concurrent agents must not co-edit shared speech files; sequencing (populate → serve/render → verify) prevents building on empty data; explicit unit/coverage tolerances make "looks functional but highlights wrong word" defects catchable with evidence.
-
-**Delivery:** dev-first (`squad/1054-*` branches from `dev`), PRs target `dev`, then a dev→main promotion PR — no direct unreviewed `main` commits.
-
-**Blocker:** Actual generation needs Azure Speech `KEY`+`REGION` and writable media storage at run time; if unavailable it is a permission-only blocker — use `batch-synthesis.test.ts` dependency-injection + analyzer on fixtures for offline verification. Never read `.env`.
-
-**Termination condition:** Close #1054 when every acceptance criterion is met with evidence (populated rows, proven units, coverage thresholds, real-browser word-sync) and the dev→main promotion PR is merged green.
-
-### 2026-07-14: Azure Batch REST API timing units confirmed as milliseconds
-
-**By:** Mouse
-
-**What:** Azure Batch Synthesis REST API 2024-04-01 returns `AudioOffset` and `Duration` in **milliseconds** in `.word.json`. The real-time SDK path (`provider-azure.ts`) returns ticks (100-ns units) requiring ÷1e4. The batch path stores values directly — this was correct all along. Empirically verified: max(endMs)/1000 = 318.91 s vs 319.21 s estimated MP3 duration at 32kbps (δ=0.299 s ≤ 0.75 s, ratio=0.9991).
-
-**Why:** Issue #1054 listed this as a verification-critical risk. Web search results claimed ticks (wrong). The discrepancy is now empirically resolved. Tank and Switch can rely on the timing data already in dev.db.
-
-**Additional finding:** `analyze-speech-alignment.ts::timingWordsFromJson` only handled legacy array format and returned empty for V2 columnar payloads — fixed in PR #1055.
-
-**Generated data in dev.db:** 217/217 ArticleSpeech rows, overall boundary coverage 99.96%, zero rows below 0.80. MP3 files in `.media/speech/` (gitignored, 217 files).
-
-### 2026-07-14: Backend speech delivery contract validated — no defects
-
-**By:** Tank
-
-**What:** Validated backend delivery contract against 217 persisted ArticleSpeech rows and 221 local MP3s.
-
-**Why:** Confirm routes serve exact persisted data without re-synthesis, correct V2 timings/plainText, MIME/format, and graceful fallbacks.
-
-**Evidence (aggregates/booleans only):**
-- 217 ArticleSpeech rows: all storageKey non-null, all `audio/mpeg`, all `words.version=2 / provider=azure-batch`.
-- Sample: 887 words, all have textStart/textEnd spans, max endMs=318913ms (318.913s vs 319.21s MP3 ≈ ratio 0.999 ✓).
-- `getOrCreateArticleSpeech(id, SYSTEM_ARTICLE_CONTEXT)`: `cached=true, fallback=false` — no re-synthesis triggered.
-- plainText length 4994 chars ≤ MAX_TTS_CHARS (5000). Re-derived from current article content per design.
-- `getArticleSpeechAudio`: bytes non-null, byteLength=1,276,848, MPEG sync header (0xFF 0xF3) confirmed.
-- Audio route headers: `Content-Type: audio/mpeg`, `Content-Length` matches byteLength, `Cache-Control: private, max-age=3600`.
-- Both speech routes use same `ArticleSpeech` row (single `findUnique`).
-- Missing article: `null` (correct 404 path).
-- Range/streaming: not supported — existing behavior, no regression.
-- 44/44 targeted tests pass (speech-audio-route, speech-orchestration, speech-index-access, speech-json, speech-repository).
-- Lint clean, diff --check clean, no type errors in owned files.
-
-**Outcome:** No code changes required. PR #1055 backend delivery is correct as-is.
-
-
 ### 2026-07-21T13-17-33: Assignment lifecycle refactor — target process + PR plan
 **By:** Morpheus
 **What:** Assignment lifecycle refactor — target process + PR plan
@@ -1004,3 +941,22 @@ Deep module mirroring `markAssignmentQuizComplete` + `syncTodayReadingFromProgre
 **What:** Created `tests/db/postgres-assignment-reading-sync.test.ts` — 9 PostgreSQL integration tests covering the full reading→assignment lifecycle. Tests are modeled exactly on the sibling `postgres-org-classroom.test.ts` (same imports, guard pattern, and `dbit_` PREFIX hygiene). All 9 tests fail with the benign guard message on SQLite and are verified via the `test:db` baseline (31 guard failures = 31 total failures, zero logic errors).
 
 **Why:** Unit tests in `tests/classroom-assignment-reading-sync.test.ts` (PR1) mock Prisma and cannot prove the actual upsert target (`assignmentId_studentId`), enrollment `where` clause, archived-classroom exclusion filter (`archivedAt: null`), or multi-row fan-out work against a real schema. Integration tests are the only reliable gate for these DB-level invariants. Chosen `completed:true` as an explicit second code path for scenario (c) rather than merging it with the percent path, ensuring both branches of `isCompletePercent(percent) || completed` are covered in isolation.
+
+
+### 2026-07-22T10:45:14+0000: Assignment review v2 (Wave 2) complete — all 6 gaps closed via PRs #1276–#1281
+**By:** coordinator
+**What:** Assignment review v2 (Wave 2) complete — all 6 gaps closed via PRs #1276–#1281
+**Why:** Second-wave complete review of the assignment system (Lead: Morpheus) found 11 gaps → validated → triaged into 6 issues/PRs, all now merged to main:
+
+- W2-1 (P1) #1276 b8063e0e — [core gap]
+- W2-2 (P1) #1277 d06e81a2 — [core gap]
+- W2-3 (P1) #1278 e03f4136 — edit-time targeting + clear fields + audience visibility
+- W2-4 (P1) #1279 bbb3078a — grading: pointsAwarded + student sees title/points/score (+4 rubber-duck fixes: content-safe audit, GDPR export, points-below-awarded 409 guard, overflow cap)
+- W2-5 (P2) #1280 17644eb1 — bulk assign per-student targeting
+- W2-6 (P2) #1281 82605f88 — draft/scheduled publish lifecycle (AssignmentPublishState enum + publishAt; assignmentLiveWhere AND-composed at all student reads; +6 rubber-duck fixes: nudge-path push leak gated, bulk schedule up-front 400 validation, global teacher list lifecycle badges + overdue suppression, 3 stale tests fixed, publishAt-only PATCH 400 guard, server-tz badge note)
+
+Process notes for future waves:
+- Rubber-duck caught real regressions BOTH large PRs (#1279, #1281) missed — notably 3 tests that passed in the aggregate run but FAILED in isolation (mock-leak / stale where.OR assertions). Always re-run touched test files INDIVIDUALLY, not just the aggregate.
+- OR-clobbering trap: assignmentVisibleToStudentWhere and assignmentLiveWhere both return {OR}; must compose via AND:[...], never spread as sibling keys.
+- CI "Unit tests + native coverage" baseline nondeterministic ~111 fails (flaky DB-route 500s); the separate DB-free "test" gate + PostgreSQL Migrate/Integration are the real signals for schema-change PRs.
+- Test runner summary format is `ℹ pass N` / `ℹ fail N` (spec reporter), not `# pass`.

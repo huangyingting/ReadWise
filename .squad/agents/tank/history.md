@@ -99,3 +99,8 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - Wired `syncAssignmentReadingProgress` best-effort into `src/app/api/reader/[id]/progress/route.ts` via `bestEffortMastery`.
 - 15 new unit tests in `tests/classroom-assignment-reading-sync.test.ts`.
 - **PR #1240** merged to `main` as **`7d73171c`**.
+
+
+## 2026-07-22T10:45:14+0000 — Assignment review v2 Wave 2 shipped
+
+Implemented the schema-touching assignment PRs in Wave 2: edit-time targeting (#1278), grading/pointsAwarded (#1279), bulk targeting (#1280), and draft/scheduled publish lifecycle (#1281). Lessons to carry forward: re-run touched tests individually because aggregate runs hid isolation failures; when combining visibility helpers that each return `{ OR: ... }`, compose with `AND:[...]` instead of spreading and clobbering sibling OR keys.

@@ -77,3 +77,5 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - Teacher classroom page: replaced binary `assignmentSynthesizedStatus` with 3-segment count from `perAssignment.{notStarted,inProgress,completed}`; per-student rows use drilldown status; overdue recomputed from due date + not-fully-complete.
 - 25 new tests; additive/presentation-only — no business logic, route, or API contract changed.
 - **PR #1242** merged to `main` as **`01e46a2b`**.
+
+- 2026-07-22T10:45:14+0000 — Assignment review v2 Wave 2 shipped: 11 gaps became 6 merged PRs (#1276–#1281), main at 82605f88.

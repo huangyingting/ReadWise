@@ -61,3 +61,5 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - Broke work into sequential 3-PR plan: Tank (PR1/backend) → Trinity (PR2/frontend) → Switch (PR3/integration tests). Filed decision to inbox; all three PRs merged to `main`.
 - Hotfix context: coordinator handled api-catalog drift (`b7ae615c`) to unblock the PR stack before agent dispatch.
 - Merged PRs: #1241 (`b7ae615c`), #1240 (`7d73171c`), #1242 (`01e46a2b`), #1243 (`c5a89b47`).
+
+- 2026-07-22T10:45:14+0000 — Assignment review v2 Wave 2 shipped: 11 gaps became 6 merged PRs (#1276–#1281), main at 82605f88.
