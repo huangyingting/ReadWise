@@ -256,6 +256,45 @@ export async function sendDueAssignmentReminders(): Promise<AssignmentReminderRe
 }
 
 // ---------------------------------------------------------------------------
+// remindAssignmentStudents — GAP-5 teacher nudge orchestration
+// ---------------------------------------------------------------------------
+
+export type RemindAssignmentResult = {
+  total: number;
+  notified: number;
+  skipped: number;
+  suppressed: number;
+};
+
+/**
+ * Nudges every enrolled student who has NOT completed the given assignment,
+ * reusing sendAssignmentReminderToStudent (which honours push opt-in + quiet
+ * hours). Returns null when the assignment does not exist. Metadata-only result
+ * — never returns student ids or content.
+ */
+export async function remindAssignmentStudents(assignmentId: string): Promise<RemindAssignmentResult | null> {
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: {
+      id: true,
+      classroom: { select: { members: { where: { role: "Student" }, select: { userId: true } } } },
+      completions: { where: { status: AssignmentStatus.COMPLETED }, select: { studentId: true } },
+    },
+  });
+  if (!assignment) return null;
+  const completed = new Set(assignment.completions.map((c) => c.studentId));
+  const targets = assignment.classroom.members.map((m) => m.userId).filter((id) => !completed.has(id));
+  const result: RemindAssignmentResult = { total: targets.length, notified: 0, skipped: 0, suppressed: 0 };
+  for (const studentId of targets) {
+    const r = await sendAssignmentReminderToStudent(studentId);
+    if (r.sent > 0) result.notified++;
+    else if (r.suppressed) result.suppressed++;
+    else result.skipped++;
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
