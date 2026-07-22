@@ -50,7 +50,11 @@ before(() => {
           findMany: async () => memberRowStub,
         },
         assignment: {
-          findMany: async () => assignmentRowStub,
+          findMany: async () =>
+            assignmentRowStub.map((assignment) => ({
+              ...assignment,
+              targets: (assignment.targets as unknown[]) ?? [],
+            })),
         },
         assignmentCompletion: {
           findMany: async () => completionRowStub,
@@ -165,7 +169,26 @@ test("getClassroomProgressData maps assignment rows to ClassroomProgressAssignme
     articleTitle: "Article One",
     dueDate,
     createdAt,
+    targetedStudentIds: null,
   });
+});
+
+test("getClassroomProgressData maps assignment targets to targetedStudentIds", async () => {
+  const createdAt = new Date("2026-01-01");
+  assignmentRowStub = [
+    {
+      id: "asgn1",
+      articleId: "art1",
+      dueDate: null,
+      createdAt,
+      article: { id: "art1", title: "Article One" },
+      targets: [{ studentId: "s1" }, { studentId: "s2" }],
+    },
+  ];
+  const { getClassroomProgressData } = await classroomProgress();
+  const result = await getClassroomProgressData("c1");
+  assert.ok(result);
+  assert.deepEqual(result.assignments[0].targetedStudentIds, ["s1", "s2"]);
 });
 
 test("getClassroomProgressData maps assignment with null dueDate", async () => {

@@ -17,6 +17,7 @@ export type ClassroomProgressAssignment = {
   articleTitle: string;
   dueDate: Date | null;
   createdAt: Date;
+  targetedStudentIds: string[] | null;
 };
 export type ClassroomProgressCompletion = {
   assignmentId: string;
@@ -45,6 +46,7 @@ type ClassroomAssignmentRow = {
   article: { title: string };
   dueDate: Date | null;
   createdAt: Date;
+  targets: { studentId: string }[];
 };
 
 function toProgressStudent(member: ClassroomMemberRow): ClassroomProgressStudent {
@@ -64,6 +66,9 @@ function toProgressAssignment(
     articleTitle: assignment.article.title,
     dueDate: assignment.dueDate,
     createdAt: assignment.createdAt,
+    targetedStudentIds: assignment.targets.length
+      ? assignment.targets.map((target) => target.studentId)
+      : null,
   };
 }
 
@@ -102,7 +107,10 @@ export async function getClassroomProgressData(
     }),
     prisma.assignment.findMany({
       where: { classroomId },
-      include: { article: { select: { id: true, title: true } } },
+      include: {
+        article: { select: { id: true, title: true } },
+        targets: { select: { studentId: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.assignmentCompletion.findMany({

@@ -258,6 +258,13 @@ export const USER_EXPORT_SELECT = {
     },
     orderBy: { createdAt: "asc" },
   },
+  assignmentTargets: {
+    select: {
+      assignmentId: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "asc" },
+  },
   placementResult: {
     select: {
       seedLevel: true,

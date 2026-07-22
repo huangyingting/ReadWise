@@ -362,10 +362,15 @@ test("excludes non-enrolled students via the where clause — returns updatedCou
     where: {
       articleId: string;
       classroom: { archivedAt: null; members: { some: { userId: string } } };
+      OR: Array<{ targets: { none?: Record<string, never>; some?: { studentId: string } } }>;
     };
   };
   assert.equal(args.where.classroom.archivedAt, null, "must filter archived classrooms");
   assert.deepEqual(args.where.classroom.members.some, { userId: "outsider" }, "must scope to enrolled student");
+  assert.deepEqual(args.where.OR, [
+    { targets: { none: {} } },
+    { targets: { some: { studentId: "outsider" } } },
+  ]);
 });
 
 test("excludes archived classrooms — findMany returns empty when all are archived", async () => {

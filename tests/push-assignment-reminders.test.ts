@@ -28,6 +28,7 @@ type MockAssignment = {
     members: { userId: string }[];
   };
   completions: { studentId: string }[];
+  targets?: { studentId: string }[];
 };
 
 type MockAssignmentCount = {
@@ -35,6 +36,7 @@ type MockAssignmentCount = {
     dueDate?: { not?: null; lte?: Date };
     classroom?: { members?: { some?: { userId?: string; role?: string } } };
     completions?: { none?: { studentId?: string; status?: string } };
+    OR?: Array<{ targets: { none?: Record<string, never>; some?: { studentId: string } } }>;
   };
 };
 
@@ -56,7 +58,9 @@ let mockAssignmentFindUniqueResult: {
   id: string;
   classroom: { members: { userId: string }[] };
   completions: { studentId: string }[];
+  targets?: { studentId: string }[];
 } | null = null;
+let lastAssignmentCountArgs: MockAssignmentCount | null = null;
 
 let sendCalls: { endpoint: string; payload: string }[] = [];
 let sendShouldFail: number | false = false;
@@ -149,9 +153,15 @@ before(() => {
           },
         },
         assignment: {
-          findMany: async () => mockAssignments,
-          count: async (_args: MockAssignmentCount) => mockAssignmentCount,
-          findUnique: async () => mockAssignmentFindUniqueResult,
+          findMany: async () => mockAssignments.map((a) => ({ ...a, targets: a.targets ?? [] })),
+          count: async (args: MockAssignmentCount) => {
+            lastAssignmentCountArgs = args;
+            return mockAssignmentCount;
+          },
+          findUnique: async () =>
+            mockAssignmentFindUniqueResult
+              ? { ...mockAssignmentFindUniqueResult, targets: mockAssignmentFindUniqueResult.targets ?? [] }
+              : null,
         },
         reminderPreference: {
           findMany: async (args: { where?: { userId?: { in?: string[] } } }) => {
@@ -215,6 +225,7 @@ beforeEach(() => {
   mockAssignments = [];
   mockAssignmentCount = 0;
   mockAssignmentFindUniqueResult = null;
+  lastAssignmentCountArgs = null;
   sendCalls = [];
   sendShouldFail = false;
   mockReminderPrefs = [];
@@ -389,6 +400,29 @@ describe("sendDueAssignmentReminders", () => {
     assert.equal(sendCalls.length, 1);
     assert.ok(sendCalls[0].endpoint.endsWith("/s1"));
   });
+
+  test("targeted assignment only counts targeted not-completed students", async () => {
+    const pastDate = new Date(Date.now() - 60_000);
+    mockAssignments = [
+      {
+        id: "a1",
+        dueDate: pastDate,
+        classroom: { members: [{ userId: "s1" }, { userId: "s2" }, { userId: "s3" }] },
+        completions: [{ studentId: "s2" }],
+        targets: [{ studentId: "s1" }, { studentId: "s2" }, { studentId: "ghost" }],
+      },
+    ];
+    mockSubs = [subscription("sub1", "s1"), subscription("sub3", "s3")];
+    mockReminderPrefs = [reminderPreference("s1"), reminderPreference("s3")];
+
+    const { sendDueAssignmentReminders } = await import("@/lib/push/assignment-reminders");
+    const result = await sendDueAssignmentReminders();
+
+    assert.equal(result.studentsWithDue, 1);
+    assert.equal(result.sent, 1);
+    assert.equal(sendCalls.length, 1);
+    assert.ok(sendCalls[0].endpoint.endsWith("/s1"));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -412,6 +446,10 @@ describe("sendAssignmentReminderToStudent", () => {
     assert.equal(sendCalls.length, 1);
     const payload = sentPayload();
     assert.ok(payload.body.includes("2 assignments"), `expected '2 assignments' in '${payload.body}'`);
+    assert.deepEqual(lastAssignmentCountArgs?.where?.OR, [
+      { targets: { none: {} } },
+      { targets: { some: { studentId: "s1" } } },
+    ]);
   });
 
   test("unconfigured => skipped with reason 'unconfigured'", async () => {
@@ -503,6 +541,27 @@ describe("remindAssignmentStudents", () => {
     assert.equal(result.notified, 1);
     assert.equal(result.skipped, 0);
     assert.equal(result.suppressed, 0);
+  });
+
+  test("targeted assignment nudge only targets audience members", async () => {
+    mockAssignmentFindUniqueResult = {
+      id: "a1",
+      classroom: { members: [{ userId: "s1" }, { userId: "s2" }, { userId: "s3" }] },
+      completions: [{ studentId: "s2" }],
+      targets: [{ studentId: "s1" }, { studentId: "s2" }, { studentId: "ghost" }],
+    };
+    mockAssignmentCount = 1;
+    mockSubs = [subscription("sub1", "s1"), subscription("sub3", "s3")];
+    mockReminderPrefs = [reminderPreference("s1"), reminderPreference("s3")];
+
+    const { remindAssignmentStudents } = await import("@/lib/push/assignment-reminders");
+    const result = await remindAssignmentStudents("a1");
+
+    assert.ok(result !== null);
+    assert.equal(result.total, 1);
+    assert.equal(result.notified, 1);
+    assert.equal(sendCalls.length, 1);
+    assert.ok(sendCalls[0].endpoint.endsWith("/s1"));
   });
 
   test("skipped when student has no due assignments", async () => {

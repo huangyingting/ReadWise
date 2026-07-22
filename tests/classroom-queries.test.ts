@@ -64,10 +64,25 @@ before(() => {
           findMany: async () => membershipListStub,
         },
         assignment: {
-          findUnique: async () => assignmentStub,
+          findUnique: async (args?: { select?: Record<string, unknown> }) => {
+            if (!assignmentStub) return null;
+            if (!args?.select?.classroom) return assignmentStub;
+            return {
+              ...assignmentStub,
+              targets: (assignmentStub.targets as unknown[]) ?? [],
+              classroom: {
+                ...((assignmentStub.classroom as Record<string, unknown> | undefined) ?? {}),
+                members:
+                  ((assignmentStub.classroom as { members?: unknown[] } | undefined)?.members) ?? [],
+              },
+            };
+          },
           findMany: async (args: { where?: unknown }) => {
             lastAssignmentFindManyWhere = args?.where;
-            return assignmentListStub;
+            return assignmentListStub.map((assignment) => ({
+              ...assignment,
+              targets: (assignment.targets as unknown[]) ?? [],
+            }));
           },
           count: async (args: { where?: unknown }) => {
             lastAssignmentCountWhere = args?.where;
@@ -345,6 +360,7 @@ test("listClassroomMembers preserves all rows without filtering", async () => {
 
 type PendingCountWhere = {
   classroom: { archivedAt: null; members: { some: { userId: string } } };
+  OR: Array<{ targets: { none?: Record<string, never>; some?: { studentId: string } } }>;
   NOT: { completions: { some: { studentId: string; status: string } } };
 };
 
@@ -363,6 +379,10 @@ test("countPendingAssignmentsForStudent passes classroom archivedAt:null and mem
   const where = lastAssignmentCountWhere as PendingCountWhere;
   assert.equal(where.classroom.archivedAt, null, "must exclude archived classrooms");
   assert.equal(where.classroom.members.some.userId, "student-42", "must scope to the student");
+  assert.deepEqual(where.OR, [
+    { targets: { none: {} } },
+    { targets: { some: { studentId: "student-42" } } },
+  ]);
 });
 
 test("countPendingAssignmentsForStudent uses NOT completions COMPLETED filter", async () => {
@@ -404,6 +424,7 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
       },
       article: { id: "art1", title: "Article One" },
       completions: [{ studentId: "s1" }],
+      targets: [],
     },
     {
       id: "a2",
@@ -417,6 +438,7 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
       },
       article: { id: "art2", title: "Article Two" },
       completions: [],
+      targets: [],
     },
   ];
   const { listAssignmentsForTeacher } = await classroomQueries();
@@ -434,6 +456,7 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
     completedCount: 1,
     studentCount: 2,
   });
+
   assert.deepEqual(result[1], {
     assignmentId: "a2",
     classroomId: "c2",
@@ -446,6 +469,29 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
     completedCount: 0,
     studentCount: 1,
   });
+});
+
+test("listAssignmentsForTeacher uses targeted audience size as denominator", async () => {
+  assignmentListStub = [
+    {
+      id: "a1",
+      dueDate: null,
+      title: null,
+      points: null,
+      classroom: {
+        id: "c1",
+        name: "Algebra",
+        members: [{ userId: "s1" }, { userId: "s2" }, { userId: "s3" }],
+      },
+      article: { id: "art1", title: "Article One" },
+      completions: [{ studentId: "s1" }, { studentId: "s3" }],
+      targets: [{ studentId: "s1" }, { studentId: "s2" }, { studentId: "ghost" }],
+    },
+  ];
+  const { listAssignmentsForTeacher } = await classroomQueries();
+  const result = await listAssignmentsForTeacher("t1");
+  assert.equal(result[0].studentCount, 2);
+  assert.equal(result[0].completedCount, 1);
 });
 
 test("listAssignmentsForTeacher sorts soonest-due first, undated last", async () => {
@@ -516,8 +562,15 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
     instructions: "Read carefully",
     title: "Lab prep",
     points: 15,
-    classroom: { name: "Physics" },
+    classroom: {
+      name: "Physics",
+      members: [
+        { userId: "s1", user: { name: "Alice", email: "alice@example.com" } },
+        { userId: "s2", user: { name: null, email: null } },
+      ],
+    },
     article: { id: "art1", title: "Newton's Laws" },
+    targets: [],
     completions: [
       {
         studentId: "s1",
@@ -565,6 +618,7 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
     feedback: "Excellent",
     reviewedAt: new Date("2026-07-21"),
   });
+
   assert.deepEqual(result.completions[1], {
     studentId: "s2",
     name: null,
@@ -576,4 +630,43 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
     feedback: null,
     reviewedAt: null,
   });
+});
+
+test("getAssignmentDetail uses targeted roster as expected completions", async () => {
+  assignmentStub = {
+    id: "a1",
+    classroomId: "c1",
+    dueDate: null,
+    instructions: null,
+    title: null,
+    points: null,
+    classroom: {
+      name: "Physics",
+      members: [
+        { userId: "s1", user: { name: "Alice", email: "alice@example.com" } },
+        { userId: "s2", user: { name: "Bob", email: "bob@example.com" } },
+        { userId: "s3", user: { name: "Cy", email: "cy@example.com" } },
+      ],
+    },
+    article: { id: "art1", title: "Newton's Laws" },
+    targets: [{ studentId: "s1" }, { studentId: "s3" }, { studentId: "ghost" }],
+    completions: [
+      {
+        studentId: "s1",
+        status: "COMPLETED",
+        quizScore: 90,
+        completionSource: "SELF",
+        completedAt: new Date("2026-07-20"),
+        feedback: null,
+        reviewedAt: null,
+        student: { name: "Alice", email: "alice@example.com" },
+      },
+    ],
+  };
+  const { getAssignmentDetail } = await classroomQueries();
+  const result = await getAssignmentDetail("a1");
+  assert.ok(result);
+  assert.deepEqual(result.completions.map((c) => c.studentId), ["s1", "s3"]);
+  assert.equal(result.completions[0].status, "COMPLETED");
+  assert.equal(result.completions[1].status, "ASSIGNED");
 });

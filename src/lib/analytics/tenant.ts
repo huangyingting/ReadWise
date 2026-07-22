@@ -30,6 +30,7 @@ import {
 	getClassroomProgressData,
 	type ClassroomProgressData,
 } from "@/lib/classroom/progress";
+import { effectiveStudentIds } from "@/lib/classroom/targeting";
 import { averageRounded as average, wholePercentage as rate } from "@/lib/aggregation";
 
 export type AnalyticsViewerRole = "learner" | "teacher" | "orgAdmin" | "systemAdmin";
@@ -201,6 +202,13 @@ function studentCounts(rows: CompletionRow[]): { completed: number; scores: numb
 	return { completed, scores };
 }
 
+function assignmentAudience(
+	assignment: ClassroomProgressData["assignments"][number],
+	studentIds: Set<string>,
+): Set<string> {
+	return new Set(effectiveStudentIds([...studentIds], assignment.targetedStudentIds));
+}
+
 export function aggregateClassroom(
 	data: ClassroomProgressData,
 	filters: ClassroomAnalyticsFilters = {},
@@ -213,10 +221,14 @@ export function aggregateClassroom(
 		: data.assignments;
 	const studentIds = new Set(students.map((s) => s.userId));
 	const assignmentIds = new Set(assignments.map((a) => a.id));
+	const audienceByAssignment = new Map(
+		assignments.map((assignment) => [assignment.id, assignmentAudience(assignment, studentIds)]),
+	);
 	const scopedCompletions = data.completions.filter(
 		(completion) =>
 			studentIds.has(completion.studentId) &&
-			assignmentIds.has(completion.assignmentId),
+			assignmentIds.has(completion.assignmentId) &&
+			(audienceByAssignment.get(completion.assignmentId)?.has(completion.studentId) ?? false),
 	);
 	const { byAssignment, byStudent, allScores } = collectRosterCompletions(
 		scopedCompletions,
@@ -229,15 +241,16 @@ export function aggregateClassroom(
 	const perAssignment: AssignmentAggregate[] = assignments.map((a) => {
 		const rows = byAssignment.get(a.id) ?? [];
 		const { completed, inProgress, scores } = assignmentCounts(rows);
-		const notStarted = Math.max(0, studentCount - completed - inProgress);
+		const assigned = audienceByAssignment.get(a.id)?.size ?? 0;
+		const notStarted = Math.max(0, assigned - completed - inProgress);
 		return {
 			assignmentId: a.id,
 			articleTitle: a.articleTitle,
-			assigned: studentCount,
+			assigned,
 			completed,
 			inProgress,
 			notStarted,
-			completionRate: rate(completed, studentCount),
+			completionRate: rate(completed, assigned),
 			averageQuizScore: average(scores),
 		};
 	});
@@ -245,18 +258,24 @@ export function aggregateClassroom(
 	const perStudent: StudentAggregate[] = students.map((s) => {
 		const rows = byStudent.get(s.userId) ?? [];
 		const { completed, scores } = studentCounts(rows);
+		const total = assignments.filter((assignment) =>
+			audienceByAssignment.get(assignment.id)?.has(s.userId),
+		).length;
 		return {
 			studentId: s.userId,
 			name: s.name,
 			email: s.email,
 			completed,
-			total: assignmentCount,
-			completionRate: rate(completed, assignmentCount),
+			total,
+			completionRate: rate(completed, total),
 			averageQuizScore: average(scores),
 		};
 	});
 
-	const totalExpected = studentCount * assignmentCount;
+	const totalExpected = [...audienceByAssignment.values()].reduce(
+		(acc, audience) => acc + audience.size,
+		0,
+	);
 	const totalCompleted = perStudent.reduce((acc, s) => acc + s.completed, 0);
 
 	return {
@@ -270,7 +289,13 @@ export function aggregateClassroom(
 		averageQuizScore: average(allScores),
 		perAssignment,
 		perStudent,
-		drilldown: buildDrilldownRows({ students, assignments, completions: scopedCompletions, filters }),
+		drilldown: buildDrilldownRows({
+			students,
+			assignments,
+			completions: scopedCompletions,
+			filters,
+			audienceByAssignment,
+		}),
 		redacted: false,
 	};
 }
@@ -280,11 +305,13 @@ function buildDrilldownRows({
 	assignments,
 	completions,
 	filters,
+	audienceByAssignment,
 }: {
 	students: ClassroomProgressData["students"];
 	assignments: ClassroomProgressData["assignments"];
 	completions: CompletionRow[];
 	filters: ClassroomAnalyticsFilters;
+	audienceByAssignment: Map<string, Set<string>>;
 }): ClassroomAnalytics["drilldown"] {
 	if (!filters.assignmentId && !filters.studentId) return null;
 
@@ -295,7 +322,9 @@ function buildDrilldownRows({
 
 	const rows: CompletionDrilldownRow[] = [];
 	for (const assignment of assignments) {
+		const audience = audienceByAssignment.get(assignment.id) ?? new Set<string>();
 		for (const student of students) {
+			if (!audience.has(student.userId)) continue;
 			const completion = completionByPair.get(`${assignment.id}:${student.userId}`);
 			rows.push({
 				assignmentId: assignment.id,

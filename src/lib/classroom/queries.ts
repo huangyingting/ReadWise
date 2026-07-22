@@ -16,6 +16,7 @@ import {
   readableArticleWhere,
   type ArticleAccessContext,
 } from "@/lib/article-library/policy";
+import { assignmentVisibleToStudentWhere, effectiveStudentIds } from "./targeting";
 
 export type ClassroomMemberRow = {
   userId: string;
@@ -223,6 +224,7 @@ export function countPendingAssignmentsForStudent(studentId: string): Promise<nu
   return prisma.assignment.count({
     where: {
       classroom: { archivedAt: null, members: { some: { userId: studentId } } },
+      ...assignmentVisibleToStudentWhere(studentId),
       NOT: { completions: { some: { studentId, status: AssignmentStatus.COMPLETED } } },
     },
   });
@@ -271,21 +273,30 @@ export async function listAssignmentsForTeacher(
       },
       article: { select: { id: true, title: true } },
       completions: { where: { status: AssignmentStatus.COMPLETED }, select: { studentId: true } },
+      targets: { select: { studentId: true } },
     },
   });
   return rows
-    .map((r) => ({
-      assignmentId: r.id,
-      classroomId: r.classroom.id,
-      classroomName: r.classroom.name,
-      articleId: r.article.id,
-      articleTitle: r.article.title,
-      title: r.title,
-      points: r.points,
-      dueDate: r.dueDate,
-      completedCount: r.completions.length,
-      studentCount: r.classroom.members.length,
-    }))
+    .map((r) => {
+      const audience = new Set(
+        effectiveStudentIds(
+          r.classroom.members.map((m) => m.userId),
+          r.targets.map((t) => t.studentId),
+        ),
+      );
+      return {
+        assignmentId: r.id,
+        classroomId: r.classroom.id,
+        classroomName: r.classroom.name,
+        articleId: r.article.id,
+        articleTitle: r.article.title,
+        title: r.title,
+        points: r.points,
+        dueDate: r.dueDate,
+        completedCount: r.completions.filter((c) => audience.has(c.studentId)).length,
+        studentCount: audience.size,
+      };
+    })
     .sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity));
 }
 
@@ -324,8 +335,17 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
       instructions: true,
       title: true,
       points: true,
-      classroom: { select: { name: true } },
+      classroom: {
+        select: {
+          name: true,
+          members: {
+            where: { role: "Student" },
+            select: { userId: true, user: { select: { name: true, email: true } } },
+          },
+        },
+      },
       article: { select: { id: true, title: true } },
+      targets: { select: { studentId: true } },
       completions: {
         select: {
           studentId: true,
@@ -341,6 +361,12 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
     },
   });
   if (!row) return null;
+  const completionByStudent = new Map(row.completions.map((c) => [c.studentId, c]));
+  const enrolledByStudent = new Map(row.classroom.members.map((m) => [m.userId, m]));
+  const expectedStudentIds = effectiveStudentIds(
+    row.classroom.members.map((m) => m.userId),
+    row.targets.map((t) => t.studentId),
+  );
   return {
     id: row.id,
     classroomId: row.classroomId,
@@ -351,17 +377,21 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
     points: row.points,
     dueDate: row.dueDate,
     instructions: row.instructions,
-    completions: row.completions.map((c) => ({
-      studentId: c.studentId,
-      name: c.student.name,
-      email: c.student.email,
-      status: c.status,
-      quizScore: c.quizScore,
-      completionSource: c.completionSource,
-      completedAt: c.completedAt,
-      feedback: c.feedback,
-      reviewedAt: c.reviewedAt,
-    })),
+    completions: expectedStudentIds.map((studentId) => {
+      const completion = completionByStudent.get(studentId);
+      const member = enrolledByStudent.get(studentId);
+      return {
+        studentId,
+        name: completion?.student.name ?? member?.user.name ?? null,
+        email: completion?.student.email ?? member?.user.email ?? null,
+        status: completion?.status ?? AssignmentStatus.ASSIGNED,
+        quizScore: completion?.quizScore ?? null,
+        completionSource: completion?.completionSource ?? null,
+        completedAt: completion?.completedAt ?? null,
+        feedback: completion?.feedback ?? null,
+        reviewedAt: completion?.reviewedAt ?? null,
+      };
+    }),
   };
 }
 
