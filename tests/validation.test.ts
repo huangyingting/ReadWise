@@ -9,6 +9,7 @@ import {
   oneOf,
   array,
   optional,
+  nullable,
   object,
   idParams,
   queryString,
@@ -71,6 +72,14 @@ test("optional maps null/undefined to undefined", () => {
   assert.deepEqual(s(undefined), { ok: true, value: undefined });
   assert.deepEqual(s(null), { ok: true, value: undefined });
   assert.deepEqual(s("v"), { ok: true, value: "v" });
+});
+
+test("nullable preserves null and undefined and delegates other values", () => {
+  const s = nullable(nonEmptyString());
+  assert.deepEqual(s(undefined), { ok: true, value: undefined });
+  assert.deepEqual(s(null), { ok: true, value: null });
+  assert.deepEqual(s("v"), { ok: true, value: "v" });
+  assert.equal(s("").ok, false);
 });
 
 test("object drops unknown keys and validates shape", () => {

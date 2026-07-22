@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { useMutation } from "@/hooks/useMutation";
+import AssignmentAudienceSelector from "./AssignmentAudienceSelector";
 import { TeacherFormShell } from "./TeacherFormShell";
 
 interface EditAssignmentFormProps {
@@ -17,6 +18,8 @@ interface EditAssignmentFormProps {
   initialInstructions: string | null;
   initialTitle: string | null;
   initialPoints: number | null;
+  initialTargetIds: string[];
+  students: { id: string; label: string }[];
 }
 
 const TITLE_MAX_LENGTH = 200;
@@ -33,12 +36,15 @@ function buildUpdatePayload(
   instructions: string,
   title: string,
   points: string,
+  audience: "class" | "students",
+  targetIds: string[],
 ) {
   return {
-    ...(dueDate ? { dueDate } : {}),
+    dueDate,
     title: title.trim(),
-    ...(points ? { points: Number(points) } : {}),
+    points: points ? Number(points) : null,
     instructions: instructions.trim(),
+    studentIds: audience === "students" ? targetIds : [],
   };
 }
 
@@ -54,20 +60,35 @@ export default function EditAssignmentForm({
   initialInstructions,
   initialTitle,
   initialPoints,
+  initialTargetIds,
+  students,
 }: EditAssignmentFormProps) {
   const [open, setOpen] = useState(false);
   const [dueDate, setDueDate] = useState(toDateInputValue(initialDueDate));
   const [instructions, setInstructions] = useState(initialInstructions ?? "");
   const [title, setTitle] = useState(initialTitle ?? "");
   const [points, setPoints] = useState(initialPoints == null ? "" : String(initialPoints));
+  const [audience, setAudience] = useState<"class" | "students">(
+    initialTargetIds.length > 0 ? "students" : "class",
+  );
+  const [targetIds, setTargetIds] = useState<string[]>(initialTargetIds);
   const { busy, error, run } = useMutation("Failed to update assignment");
+
+  function toggleTarget(studentId: string) {
+    setTargetIds((current) =>
+      current.includes(studentId)
+        ? current.filter((id) => id !== studentId)
+        : [...current, studentId],
+    );
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (audience === "students" && targetIds.length === 0) return;
     await run(async () => {
       await patchJson(
         `/api/assignments/${encodeURIComponent(assignmentId)}`,
-        buildUpdatePayload(dueDate, instructions, title, points),
+        buildUpdatePayload(dueDate, instructions, title, points, audience, targetIds),
       );
       setOpen(false);
     }, { refreshOnSuccess: true });
@@ -120,6 +141,17 @@ export default function EditAssignmentForm({
           onChange={(e) => setDueDate(e.target.value)}
         />
       </Field>
+      {students.length > 0 ? (
+        <Field label="Assign to">
+          <AssignmentAudienceSelector
+            students={students}
+            audience={audience}
+            onAudienceChange={setAudience}
+            targetIds={targetIds}
+            onToggleTarget={toggleTarget}
+          />
+        </Field>
+      ) : null}
       <Field label="Instructions (optional)">
         <Textarea
           value={instructions}

@@ -40,11 +40,13 @@ test("EditAssignmentForm is a client island that PATCHes the assignment endpoint
 
 test("EditAssignmentForm sends assignment metadata in the PATCH body", () => {
   const src = readSrc(EDIT_FORM);
-  assert.match(src, /\.\.\.\(dueDate \? \{ dueDate \} : \{\}\)/);
+  assert.match(src, /dueDate,/);
   assert.doesNotMatch(src, /new Date\(dueDate\)\.toISOString\(\)/);
   assert.match(src, /instructions: instructions\.trim\(\)/);
   assert.match(src, /title: title\.trim\(\)/);
-  assert.match(src, /points: Number\(points\)/);
+  assert.match(src, /points: points \? Number\(points\) : null/);
+  assert.match(src, /studentIds: audience === "students" \? targetIds : \[\]/);
+  assert.match(src, /audience === "students" && targetIds\.length === 0/);
 });
 
 test("EditAssignmentForm composes shared UI primitives and refreshes on success", () => {
@@ -54,6 +56,7 @@ test("EditAssignmentForm composes shared UI primitives and refreshes on success"
   assert.match(src, /@\/components\/ui\/Button/);
   assert.match(src, /useMutation/);
   assert.match(src, /refreshOnSuccess: true/);
+  assert.match(src, /AssignmentAudienceSelector/);
 });
 
 test("EditAssignmentForm is token-driven (no raw hex, no inline font size)", () => {
@@ -91,4 +94,7 @@ test("teacher classroom page renders an Overdue Badge and the EditAssignmentForm
   assert.match(src, /EditAssignmentForm/);
   assert.match(src, /Overdue/);
   assert.match(src, /listClassroomAssignmentMeta/);
+  assert.match(src, /Whole class/);
+  assert.match(src, /students<\/Badge>/);
+  assert.match(src, /initialTargetIds=\{meta\?\.targetStudentIds \?\? \[\]\}/);
 });

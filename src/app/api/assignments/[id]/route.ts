@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { idParams, number, object, optional, string } from "@/lib/validation";
+import { array, idParams, nonEmptyString, nullable, number, object, optional, string } from "@/lib/validation";
 import {
   deleteAssignment,
   getAssignmentClassroom,
@@ -11,10 +11,11 @@ import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const updateBody = object({
-  dueDate: optional(string({ min: 1, max: 40 })),
+  dueDate: optional(string({ max: 40 })),
   instructions: optional(string({ max: 2000 })),
   title: optional(string({ max: 200 })),
-  points: optional(number({ min: 0, max: 10000, int: true })),
+  points: nullable(number({ min: 0, max: 10000, int: true })),
+  studentIds: optional(array(nonEmptyString(200), { max: 200 })),
 });
 
 export const GET = createHandler(
@@ -65,9 +66,15 @@ export const PATCH = createHandler(
       instructions: body.instructions,
       title: body.title,
       points: body.points,
+      studentIds: body.studentIds,
     });
     if (!result.ok) {
-      throw new ApiError(result.status, "Invalid due date");
+      throw new ApiError(
+        result.status,
+        result.reason === "invalid_target_students"
+          ? "Select at least one enrolled student to target"
+          : "Invalid due date",
+      );
     }
     await recordAuditFromRequest({
       req,
@@ -84,6 +91,7 @@ export const PATCH = createHandler(
           instructions: body.instructions !== undefined,
           title: body.title !== undefined,
           points: body.points !== undefined,
+          targets: body.studentIds !== undefined,
         },
       },
     });

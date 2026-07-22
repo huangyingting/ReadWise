@@ -28,6 +28,10 @@ let completionUpdateManyArgs: unknown = null;
 let completionUpdateManyResult = { count: 2 };
 let assignmentDeleteManyArgs: unknown = null;
 let assignmentUpdateArgs: unknown = null;
+let assignmentFindUniqueArgs: unknown = null;
+let membershipFindManyArgs: unknown = null;
+let targetDeleteManyArgs: unknown = null;
+let targetCreateManyArgs: unknown = null;
 let classroomUpdateArgs: unknown = null;
 let classroomFindUniqueArgs: unknown = null;
 let classroomDeleteArgs: unknown = null;
@@ -45,6 +49,8 @@ let assignmentUpdateResult: Record<string, unknown> = {
   title: null,
   points: null,
 };
+let assignmentFindUniqueResult: Record<string, unknown> | null = { classroomId: "c1" };
+let membershipFindManyResult: Array<Record<string, unknown>> = [];
 let transactionCalled = false;
 
 // Module-level ref so $transaction callback can receive it as `tx`
@@ -85,6 +91,10 @@ before(() => {
         membershipDeleteManyArgs = args;
         return { count: 1 };
       },
+      findMany: async (args: unknown) => {
+        membershipFindManyArgs = args;
+        return membershipFindManyResult;
+      },
       count: async () => membershipCountResult,
     },
     assignmentCompletion: {
@@ -106,6 +116,20 @@ before(() => {
       update: async (args: unknown) => {
         assignmentUpdateArgs = args;
         return assignmentUpdateResult;
+      },
+      findUnique: async (args: unknown) => {
+        assignmentFindUniqueArgs = args;
+        return assignmentFindUniqueResult;
+      },
+    },
+    assignmentTarget: {
+      deleteMany: async (args: unknown) => {
+        targetDeleteManyArgs = args;
+        return { count: 1 };
+      },
+      createMany: async (args: unknown) => {
+        targetCreateManyArgs = args;
+        return { count: ((args as { data?: unknown[] }).data ?? []).length };
       },
     },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
@@ -133,6 +157,10 @@ beforeEach(() => {
   completionUpdateManyResult = { count: 2 };
   assignmentDeleteManyArgs = null;
   assignmentUpdateArgs = null;
+  assignmentFindUniqueArgs = null;
+  membershipFindManyArgs = null;
+  targetDeleteManyArgs = null;
+  targetCreateManyArgs = null;
   classroomUpdateArgs = null;
   classroomFindUniqueArgs = null;
   classroomDeleteArgs = null;
@@ -147,6 +175,8 @@ beforeEach(() => {
     title: null,
     points: null,
   };
+  assignmentFindUniqueResult = { classroomId: "c1" };
+  membershipFindManyResult = [];
   transactionCalled = false;
 });
 
@@ -447,6 +477,13 @@ test("updateAssignment parses a valid dueDate into a Date", async () => {
   assert.equal(args.data.dueDate.toISOString(), "2026-08-01T00:00:00.000Z");
 });
 
+test("updateAssignment clears dueDate with an empty string and points with null", async () => {
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", { dueDate: "", points: null });
+  const args = assignmentUpdateArgs as { data: { dueDate: Date | null; points: number | null } };
+  assert.deepEqual(args.data, { dueDate: null, points: null });
+});
+
 test("updateAssignment rejects an invalid dueDate without touching the row", async () => {
   const { updateAssignment } = await loadCommands();
   const result = await updateAssignment("asgn-1", { dueDate: "not-a-date" });
@@ -459,4 +496,58 @@ test("updateAssignment sends no data keys when the input is empty", async () => 
   await updateAssignment("asgn-1", {});
   const args = assignmentUpdateArgs as { data: Record<string, unknown> };
   assert.deepEqual(args.data, {});
+});
+
+test("updateAssignment leaves targets unchanged when studentIds is omitted", async () => {
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", { instructions: "Keep going" });
+  assert.equal(transactionCalled, false);
+  assert.equal(targetDeleteManyArgs, null);
+  assert.equal(targetCreateManyArgs, null);
+});
+
+test("updateAssignment replaces targets with enrolled deduped students", async () => {
+  membershipFindManyResult = [{ userId: "s2" }, { userId: "s1" }];
+  const { updateAssignment } = await loadCommands();
+  const result = await updateAssignment("asgn-1", { studentIds: ["s1", "s2", "s1", "ghost"] });
+  assert.deepEqual(result, { ok: true, assignment: assignmentUpdateResult });
+  assert.equal(transactionCalled, true);
+  assert.deepEqual(assignmentFindUniqueArgs, {
+    where: { id: "asgn-1" },
+    select: { classroomId: true },
+  });
+  assert.deepEqual(membershipFindManyArgs, {
+    where: {
+      classroomId: "c1",
+      role: "Student",
+      userId: { in: ["s1", "s2", "ghost"] },
+    },
+    select: { userId: true },
+  });
+  assert.deepEqual(targetDeleteManyArgs, { where: { assignmentId: "asgn-1" } });
+  assert.deepEqual(targetCreateManyArgs, {
+    data: [
+      { assignmentId: "asgn-1", studentId: "s1" },
+      { assignmentId: "asgn-1", studentId: "s2" },
+    ],
+  });
+});
+
+test("updateAssignment clears targets when studentIds is empty", async () => {
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", { studentIds: [] });
+  assert.equal(transactionCalled, true);
+  assert.equal(assignmentFindUniqueArgs, null);
+  assert.deepEqual(targetDeleteManyArgs, { where: { assignmentId: "asgn-1" } });
+  assert.equal(targetCreateManyArgs, null);
+});
+
+test("updateAssignment rejects target changes when no requested students are enrolled", async () => {
+  membershipFindManyResult = [];
+  const { updateAssignment } = await loadCommands();
+  const result = await updateAssignment("asgn-1", { studentIds: ["ghost"] });
+  assert.deepEqual(result, { ok: false, status: 400, reason: "invalid_target_students" });
+  assert.equal(transactionCalled, false);
+  assert.equal(assignmentUpdateArgs, null);
+  assert.equal(targetDeleteManyArgs, null);
 });

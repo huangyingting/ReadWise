@@ -41,16 +41,17 @@ beforeEach(() => {
 
 test("AssignArticleForm exposes targeting UI only in the single-article branch", () => {
   const src = readSrc("src/components/teacher/AssignArticleForm.tsx");
+  const selectorSrc = readSrc("src/components/teacher/AssignmentAudienceSelector.tsx");
   const normalized = src.replace(/\s+/g, " ");
 
   assert.ok(src.includes('students: { id: string; label: string }[]'), "receives roster options");
   assert.ok(src.includes('useState<"class" | "students">("class")'), "defaults to whole-class audience");
   assert.ok(src.includes("const [targetIds, setTargetIds] = useState<string[]>([])"), "tracks target ids");
-  assert.ok(normalized.includes("{selected.length === 1 ? ( <> <Field label=\"Assign to\">"), "renders selector in the single-select block");
-  assert.ok(src.includes("Whole class"), "offers whole-class audience");
-  assert.ok(src.includes("Specific students"), "offers specific-students audience");
-  assert.ok(src.includes("aria-label=\"Target students\""), "renders a roster toggle group");
-  assert.ok(src.includes("{targetIds.length} selected"), "shows selected target count");
+  assert.ok(normalized.includes("{selected.length === 1 ? ( <> <Field label=\"Assign to\"> <AssignmentAudienceSelector"), "renders selector in the single-select block");
+  assert.ok(selectorSrc.includes("Whole class"), "offers whole-class audience");
+  assert.ok(selectorSrc.includes("Specific students"), "offers specific-students audience");
+  assert.ok(selectorSrc.includes("aria-label=\"Target students\""), "renders a roster toggle group");
+  assert.ok(selectorSrc.includes("{targetIds.length} selected"), "shows selected target count");
   assert.ok(src.includes('setAudience("class")'), "can reset to whole class");
 });
 

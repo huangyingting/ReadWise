@@ -152,6 +152,15 @@ export function optional<T>(inner: Schema<T>): Schema<T | undefined> {
   };
 }
 
+/** Allows explicit `null` (kept as null → "clear this field") and `undefined` (absent → "leave unchanged"); otherwise delegates. */
+export function nullable<T>(inner: Schema<T>): Schema<T | null | undefined> {
+  return (value, field) => {
+    if (value === undefined) return { ok: true, value: undefined };
+    if (value === null) return { ok: true, value: null };
+    return inner(value, field);
+  };
+}
+
 type Shape = Record<string, Schema<unknown>>;
 type Infer<S extends Shape> = { [K in keyof S]: S[K] extends Schema<infer T> ? T : never };
 
