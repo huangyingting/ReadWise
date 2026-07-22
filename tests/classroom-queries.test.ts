@@ -145,6 +145,7 @@ test("listClassroomAssignmentMeta maps editable assignment metadata", async () =
       instructions: "Read carefully",
       title: "Week 1",
       points: 20,
+      targets: [{ studentId: "s1" }],
     },
   ];
   const { listClassroomAssignmentMeta } = await classroomQueries();
@@ -156,6 +157,7 @@ test("listClassroomAssignmentMeta maps editable assignment metadata", async () =
       instructions: "Read carefully",
       title: "Week 1",
       points: 20,
+      targetStudentIds: ["s1"],
     },
   ]);
 });
@@ -455,6 +457,7 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
     dueDate: new Date("2026-08-01"),
     completedCount: 1,
     studentCount: 2,
+    targetCount: 0,
   });
 
   assert.deepEqual(result[1], {
@@ -468,6 +471,7 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
     dueDate: null,
     completedCount: 0,
     studentCount: 1,
+    targetCount: 0,
   });
 });
 
@@ -492,6 +496,7 @@ test("listAssignmentsForTeacher uses targeted audience size as denominator", asy
   const result = await listAssignmentsForTeacher("t1");
   assert.equal(result[0].studentCount, 2);
   assert.equal(result[0].completedCount, 1);
+  assert.equal(result[0].targetCount, 3);
 });
 
 test("listAssignmentsForTeacher keeps zero-target completedCount unscoped for parity", async () => {
@@ -623,6 +628,7 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
   assert.equal(result.instructions, "Read carefully");
   assert.equal(result.title, "Lab prep");
   assert.equal(result.points, 15);
+  assert.deepEqual(result.targetStudentIds, []);
   assert.equal(result.completions.length, 2);
   assert.deepEqual(result.completions[0], {
     studentId: "s1",
@@ -686,6 +692,7 @@ test("getAssignmentDetail scopes targeted assignments to persisted target comple
   const { getAssignmentDetail } = await classroomQueries();
   const result = await getAssignmentDetail("a1");
   assert.ok(result);
+  assert.deepEqual(result.targetStudentIds, ["s1", "s3", "ghost"]);
   assert.deepEqual(result.completions.map((c) => c.studentId), ["s1"]);
   assert.equal(result.completions[0].status, "COMPLETED");
 });

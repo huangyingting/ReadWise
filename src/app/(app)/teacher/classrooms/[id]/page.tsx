@@ -140,10 +140,12 @@ function AssignmentsCard({
   analytics,
   assignmentMeta,
   canManage,
+  assignmentTargetStudents,
 }: {
   analytics: ClassroomAnalytics | null;
   assignmentMeta: AssignmentMetaMap;
   canManage: boolean;
+  assignmentTargetStudents: { id: string; label: string }[];
 }) {
   const now = new Date();
   return (
@@ -187,6 +189,11 @@ function AssignmentsCard({
                       {assignmentSummary(assignment)}
                       {assignmentPointsSuffix(meta?.points)}
                     </span>
+                    {meta && meta.targetStudentIds.length > 0 ? (
+                      <Badge variant="neutral">{meta.targetStudentIds.length} students</Badge>
+                    ) : (
+                      <Badge variant="neutral">Whole class</Badge>
+                    )}
                     {canManage ? (
                       <div className="flex items-center gap-[var(--space-2)]">
                         <EditAssignmentForm
@@ -196,6 +203,8 @@ function AssignmentsCard({
                           initialInstructions={meta?.instructions ?? null}
                           initialTitle={meta?.title ?? null}
                           initialPoints={meta?.points ?? null}
+                          initialTargetIds={meta?.targetStudentIds ?? []}
+                          students={assignmentTargetStudents}
                         />
                         <DeleteAssignmentButton
                           assignmentId={assignment.assignmentId}
@@ -437,9 +446,10 @@ function TeacherSidebar({
   studentCandidates: StudentCandidate[];
   articleOptions: AssignableArticle[];
 }) {
-  const assignmentTargetStudents = students
-    .filter((student) => student.role === "Student")
-    .map((student) => ({ id: student.userId, label: memberLabel(student) }));
+  const assignmentTargetStudents = students.map((student) => ({
+    id: student.userId,
+    label: memberLabel(student),
+  }));
 
   return (
     <aside className="flex flex-col gap-[var(--space-6)]">
@@ -549,6 +559,10 @@ export default async function ClassroomDetailPage({
   const canManage = isTeacher || isOrgAdmin || isSystemAdmin(session.user.role);
   const canManageActiveClassroom = canManage && !isArchived;
   const students = members.filter((m) => m.role === "Student");
+  const assignmentTargetStudents = students.map((student) => ({
+    id: student.userId,
+    label: memberLabel(student),
+  }));
   const [studentCandidates, articleOptions] = canManageActiveClassroom
     ? await Promise.all([
         searchClassroomStudentCandidates(id, classroom.orgId),
@@ -586,6 +600,7 @@ export default async function ClassroomDetailPage({
             analytics={analytics}
             assignmentMeta={assignmentMeta}
             canManage={canManageActiveClassroom}
+            assignmentTargetStudents={assignmentTargetStudents}
           />
           <DrilldownCard analytics={analytics} assignmentMeta={assignmentMeta} />
           <StudentProgressCard analytics={analytics} />
