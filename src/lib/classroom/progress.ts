@@ -6,6 +6,7 @@
  * (e.g. `@/lib/analytics/tenant`) must verify the viewer's access before
  * calling into this module.
  */
+import type { AssignmentCompletionSource } from "@prisma/client";
 import { AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -22,6 +23,7 @@ export type ClassroomProgressCompletion = {
   studentId: string;
   status: AssignmentStatus;
   quizScore: number | null;
+  completionSource: AssignmentCompletionSource | null;
   completedAt: Date | null;
   feedback: string | null;
 };
@@ -73,6 +75,7 @@ function toProgressCompletion(
     studentId: completion.studentId,
     status: completion.status,
     quizScore: completion.quizScore,
+    completionSource: completion.completionSource,
     completedAt: completion.completedAt,
     feedback: completion.feedback,
   };
@@ -109,6 +112,7 @@ export async function getClassroomProgressData(
         studentId: true,
         status: true,
         quizScore: true,
+        completionSource: true,
         completedAt: true,
         feedback: true,
       },
