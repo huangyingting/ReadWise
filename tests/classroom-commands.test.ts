@@ -40,6 +40,8 @@ let assignmentUpdateResult: Record<string, unknown> = {
   classroomId: "c1",
   dueDate: null,
   instructions: null,
+  title: null,
+  points: null,
 };
 let transactionCalled = false;
 
@@ -129,7 +131,14 @@ beforeEach(() => {
   assignmentCountResult = 0;
   membershipCountResult = 0;
   classroomFindUniqueResult = { id: "c1", teacherId: "t1" };
-  assignmentUpdateResult = { id: "asgn-1", classroomId: "c1", dueDate: null, instructions: null };
+  assignmentUpdateResult = {
+    id: "asgn-1",
+    classroomId: "c1",
+    dueDate: null,
+    instructions: null,
+    title: null,
+    points: null,
+  };
   transactionCalled = false;
 });
 
@@ -367,6 +376,28 @@ test("updateAssignment trims blank instructions to null", async () => {
   await updateAssignment("asgn-1", { instructions: "   " });
   const args = assignmentUpdateArgs as { data: { instructions: string | null } };
   assert.equal(args.data.instructions, null);
+});
+
+test("updateAssignment patches title and points when provided", async () => {
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", { title: "  Unit review  ", points: 40 });
+  const args = assignmentUpdateArgs as { data: { title: string | null; points: number | null } };
+  assert.deepEqual(args.data, { title: "Unit review", points: 40 });
+});
+
+test("updateAssignment clears title and points when null or blank", async () => {
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", { title: "   ", points: null });
+  const args = assignmentUpdateArgs as { data: { title: string | null; points: number | null } };
+  assert.deepEqual(args.data, { title: null, points: null });
+});
+
+test("updateAssignment leaves title and points untouched when absent", async () => {
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", { instructions: "Keep going" });
+  const args = assignmentUpdateArgs as { data: Record<string, unknown> };
+  assert.equal("title" in args.data, false);
+  assert.equal("points" in args.data, false);
 });
 
 test("updateAssignment parses a valid dueDate into a Date", async () => {

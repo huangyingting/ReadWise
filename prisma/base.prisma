@@ -1062,6 +1062,12 @@ enum AssignmentStatus {
   COMPLETED   @map("completed")
 }
 
+enum AssignmentCompletionSource {
+  SELF    @map("self")
+  READING @map("reading")
+  QUIZ    @map("quiz")
+}
+
 // ===========================================================================
 // Content Reporting — user-submitted safety/quality/rights reports and admin
 // moderation queue (Epic #734 — #738). Reports reference content by articleId.
@@ -1158,6 +1164,8 @@ model Assignment {
   articleId    String
   dueDate      DateTime?
   instructions String?
+  title        String?
+  points       Int?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -1170,17 +1178,18 @@ model Assignment {
 }
 
 model AssignmentCompletion {
-  id           String           @id @default(cuid())
-  assignmentId String
-  studentId    String
-  status       AssignmentStatus @default(ASSIGNED)
-  quizScore    Int?
-  completedAt  DateTime?
-  feedback     String?
-  reviewedAt   DateTime?
-  reviewedBy   String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id               String                      @id @default(cuid())
+  assignmentId     String
+  studentId        String
+  status           AssignmentStatus            @default(ASSIGNED)
+  quizScore        Int?
+  completionSource AssignmentCompletionSource?
+  completedAt      DateTime?
+  feedback         String?
+  reviewedAt       DateTime?
+  reviewedBy       String?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
 
   assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)

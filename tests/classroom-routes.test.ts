@@ -126,7 +126,13 @@ let deleteClassroomResult:
 const deleteAssignmentCalls: string[] = [];
 const updateAssignmentCalls: Array<{
   assignmentId: string;
-  input: { dueDate?: string; instructions?: string | null };
+  input: { dueDate?: string; instructions?: string | null; title?: string | null; points?: number | null };
+}> = [];
+const createArticleAssignmentCalls: Array<{
+  title?: string | null;
+  points?: number | null;
+  dueDate?: string;
+  instructions?: string | null;
 }> = [];
 const recordAssignmentCompletionCalls: Array<{
   assignmentId: string;
@@ -225,7 +231,7 @@ before(() => {
       },
       updateAssignment: async (
         assignmentId: string,
-        input: { dueDate?: string; instructions?: string | null },
+        input: { dueDate?: string; instructions?: string | null; title?: string | null; points?: number | null },
       ) => {
         updateAssignmentCalls.push({ assignmentId, input });
         return updateAssignmentResult;
@@ -260,7 +266,13 @@ before(() => {
   });
   mock.module("@/lib/classroom/article-assignments", {
     namedExports: {
-      createArticleAssignment: async (input: { dueDate?: string }) => {
+      createArticleAssignment: async (input: {
+        dueDate?: string;
+        instructions?: string | null;
+        title?: string | null;
+        points?: number | null;
+      }) => {
+        createArticleAssignmentCalls.push(input);
         if (articleAssignmentFailure) {
           return { ok: false, ...articleAssignmentFailure };
         }
@@ -270,7 +282,7 @@ before(() => {
         if (input.dueDate && Number.isNaN(new Date(input.dueDate).getTime())) {
           return { ok: false, status: 400, reason: "invalid_due_date" };
         }
-        return { ok: true, assignment: assignArticleResult };
+        return { ok: true, assignment: { ...assignArticleResult, title: input.title ?? null, points: input.points ?? null } };
       },
     },
   });
@@ -400,6 +412,7 @@ beforeEach(() => {
   deleteClassroomResult = { ok: true, deleted: true };
   deleteAssignmentCalls.length = 0;
   updateAssignmentCalls.length = 0;
+  createArticleAssignmentCalls.length = 0;
   recordAssignmentCompletionCalls.length = 0;
   assignmentDetailResult = null;
   updateAssignmentResult = {
@@ -1079,10 +1092,23 @@ test("POST /api/classrooms/[id]/assignments returns 201 with assignment on succe
     articleId: "a1",
     dueDate: "2026-12-31",
     instructions: "Read carefully",
+    title: "Week 1 reading",
+    points: 20,
   });
   assert.equal(res.status, 201);
-  const body = await res.json() as { assignment: { id: string } };
+  const body = await res.json() as { assignment: { id: string; title: string | null; points: number | null } };
   assert.equal(body.assignment.id, "asgn1");
+  assert.equal(body.assignment.title, "Week 1 reading");
+  assert.equal(body.assignment.points, 20);
+  assert.equal(createArticleAssignmentCalls.at(-1)?.title, "Week 1 reading");
+  assert.equal(createArticleAssignmentCalls.at(-1)?.points, 20);
+});
+
+test("POST /api/classrooms/[id]/assignments rejects out-of-range points", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  const res = await postClassroomAssignment("c1", { articleId: "a1", points: 10001 });
+  assert.equal(res.status, 400);
+  assert.equal(createArticleAssignmentCalls.length, 0);
 });
 
 // ===========================================================================
@@ -1183,11 +1209,15 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
       classroomId: "c1",
       dueDate: "2026-08-01T00:00:00.000Z",
       instructions: "Focus on the intro",
+      title: "Unit 2",
+      points: 30,
     },
   };
   const res = await patchAssignmentRoute("asgn1", {
     dueDate: "2026-08-01T00:00:00.000Z",
     instructions: "Focus on the intro",
+    title: "Unit 2",
+    points: 30,
   });
   assert.equal(res.status, 200);
   const body = (await res.json()) as { assignment: { instructions: string } };
@@ -1198,6 +1228,8 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
       input: {
         dueDate: "2026-08-01T00:00:00.000Z",
         instructions: "Focus on the intro",
+        title: "Unit 2",
+        points: 30,
       },
     },
   ]);
@@ -1205,9 +1237,18 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
   assert.deepEqual(auditCalls.at(-1)?.metadata, {
     assignmentId: "asgn1",
     classroomId: "c1",
-    changed: { dueDate: true, instructions: true },
+    changed: { dueDate: true, instructions: true, title: true, points: true },
   });
   assert.equal(JSON.stringify(auditCalls.at(-1)?.metadata).includes("Focus on the intro"), false);
+  assert.equal(JSON.stringify(auditCalls.at(-1)?.metadata).includes("Unit 2"), false);
+});
+
+test("PATCH /api/assignments/[id] rejects out-of-range points", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  const res = await patchAssignmentRoute("asgn1", { points: -1 });
+  assert.equal(res.status, 400);
+  assert.equal(updateAssignmentCalls.length, 0);
 });
 
 test("PATCH /api/assignments/[id] returns 400 when the due date is invalid", async () => {

@@ -38,10 +38,12 @@ test("EditAssignmentForm is a client island that PATCHes the assignment endpoint
   assert.match(src, /`\/api\/assignments\/\$\{encodeURIComponent\(assignmentId\)\}`/);
 });
 
-test("EditAssignmentForm sends only dueDate + instructions in the PATCH body", () => {
+test("EditAssignmentForm sends assignment metadata in the PATCH body", () => {
   const src = readSrc(EDIT_FORM);
   assert.match(src, /dueDate: new Date\(dueDate\)\.toISOString\(\)/);
   assert.match(src, /instructions: instructions\.trim\(\)/);
+  assert.match(src, /title: title\.trim\(\)/);
+  assert.match(src, /points: Number\(points\)/);
 });
 
 test("EditAssignmentForm composes shared UI primitives and refreshes on success", () => {

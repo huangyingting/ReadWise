@@ -23,6 +23,8 @@ export type CreateArticleAssignmentInput = {
   accessContext: ArticleAccessContext;
   dueDate?: string;
   instructions?: string | null;
+  title?: string | null;
+  points?: number | null;
 };
 
 export type CreateArticleAssignmentResult =
@@ -115,6 +117,8 @@ export async function createArticleAssignment(
       articleId: input.articleId,
       dueDate,
       instructions: trimOrNull(input.instructions),
+      title: trimOrNull(input.title),
+      points: input.points ?? null,
     },
   });
   return { ok: true, assignment };

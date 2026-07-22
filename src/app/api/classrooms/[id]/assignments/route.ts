@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { idParams, object, optional, string, nonEmptyString } from "@/lib/validation";
+import { idParams, number, object, optional, string, nonEmptyString } from "@/lib/validation";
 import { articleAccessContext } from "@/lib/article-library";
 import { createArticleAssignment } from "@/lib/classroom/article-assignments";
 import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
@@ -9,6 +9,8 @@ const assignBody = object({
   articleId: nonEmptyString(200),
   dueDate: optional(string({ min: 1, max: 40 })),
   instructions: optional(string({ max: 2000 })),
+  title: optional(string({ max: 200 })),
+  points: optional(number({ min: 0, max: 10000, int: true })),
 });
 
 /**
@@ -27,6 +29,8 @@ export const POST = createHandler(
       accessContext: articleAccessContext(session.user, classroom.orgId),
       dueDate: body.dueDate,
       instructions: body.instructions ?? null,
+      title: body.title ?? null,
+      points: body.points ?? null,
     });
     if (!result.ok) {
       throw new ApiError(
