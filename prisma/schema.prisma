@@ -1164,6 +1164,8 @@ model Assignment {
   articleId    String
   dueDate      DateTime?
   instructions String?
+  title        String?
+  points       Int?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

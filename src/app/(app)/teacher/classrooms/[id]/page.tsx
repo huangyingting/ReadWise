@@ -87,6 +87,17 @@ function assignmentSummary(assignment: ClassroomAnalytics["perAssignment"][numbe
   );
 }
 
+function assignmentDisplayTitle(
+  articleTitle: string,
+  meta: Pick<AssignmentMeta, "title"> | undefined,
+): string {
+  return meta?.title ?? articleTitle;
+}
+
+function assignmentPointsSuffix(points: number | null | undefined): string {
+  return points == null ? "" : ` · ${points} pts`;
+}
+
 function studentSummary(student: ClassroomAnalytics["perStudent"][number]) {
   const quizSummary =
     student.averageQuizScore == null
@@ -148,6 +159,7 @@ function AssignmentsCard({
           <ul className="flex flex-col gap-[var(--space-3)]">
             {analytics.perAssignment.map((assignment) => {
               const meta = assignmentMeta.get(assignment.assignmentId);
+              const displayTitle = assignmentDisplayTitle(assignment.articleTitle, meta);
               const overdue = isAssignmentOverdue(
                 meta?.dueDate ?? null,
                 assignmentSynthesizedStatus(assignment),
@@ -158,29 +170,39 @@ function AssignmentsCard({
                   key={assignment.assignmentId}
                   className="flex flex-col gap-[var(--space-2)] border-b border-border pb-[var(--space-2)] last:border-0 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <span className="flex items-center gap-[var(--space-2)] font-medium text-text">
-                    {assignment.articleTitle}
-                    {overdue ? <Badge variant="danger">Overdue</Badge> : null}
+                  <span className="flex flex-col gap-[var(--space-1)]">
+                    <span className="flex items-center gap-[var(--space-2)] font-medium text-text">
+                      {displayTitle}
+                      {overdue ? <Badge variant="danger">Overdue</Badge> : null}
+                    </span>
+                    {meta?.title ? (
+                      <span className="text-[length:var(--text-sm)] text-text-muted">
+                        {assignment.articleTitle}
+                      </span>
+                    ) : null}
                   </span>
                   <div className="flex flex-col items-start gap-[var(--space-1)] sm:items-end">
                     <span className="text-[length:var(--text-sm)] text-text-muted">
                       {assignmentSummary(assignment)}
+                      {assignmentPointsSuffix(meta?.points)}
                     </span>
                     {canManage ? (
                       <div className="flex items-center gap-[var(--space-2)]">
                         <EditAssignmentForm
                           assignmentId={assignment.assignmentId}
-                          assignmentTitle={assignment.articleTitle}
+                          assignmentTitle={displayTitle}
                           initialDueDate={meta?.dueDate?.toISOString() ?? null}
                           initialInstructions={meta?.instructions ?? null}
+                          initialTitle={meta?.title ?? null}
+                          initialPoints={meta?.points ?? null}
                         />
                         <DeleteAssignmentButton
                           assignmentId={assignment.assignmentId}
-                          assignmentTitle={assignment.articleTitle}
+                          assignmentTitle={displayTitle}
                         />
                         <RemindStudentsButton
                           assignmentId={assignment.assignmentId}
-                          assignmentTitle={assignment.articleTitle}
+                          assignmentTitle={displayTitle}
                           pendingCount={assignment.inProgress + assignment.notStarted}
                         />
                       </div>
@@ -260,11 +282,13 @@ function StudentProgressCard({
   function AnalyticsFilters({
     classroomId,
     analytics,
+    assignmentMeta,
     students,
     filters,
   }: {
     classroomId: string;
     analytics: ClassroomAnalytics | null;
+    assignmentMeta: AssignmentMetaMap;
     students: ClassroomMember[];
     filters: SearchParams;
   }) {
@@ -277,11 +301,14 @@ function StudentProgressCard({
               <span className="text-text-muted">Assignment</span>
               <Select name="assignmentId" defaultValue={filters.assignmentId ?? ""} selectSize="md" className="w-auto">
                 <option value="">All assignments</option>
-                {(analytics?.perAssignment ?? []).map((assignment) => (
-                  <option key={assignment.assignmentId} value={assignment.assignmentId}>
-                    {assignment.articleTitle}
-                  </option>
-                ))}
+                {(analytics?.perAssignment ?? []).map((assignment) => {
+                  const meta = assignmentMeta.get(assignment.assignmentId);
+                  return (
+                    <option key={assignment.assignmentId} value={assignment.assignmentId}>
+                      {assignmentDisplayTitle(assignment.articleTitle, meta)}
+                    </option>
+                  );
+                })}
               </Select>
             </label>
             {canFilterStudents ? (
@@ -320,7 +347,13 @@ function StudentProgressCard({
     );
   }
 
-  function DrilldownCard({ analytics }: { analytics: ClassroomAnalytics | null }) {
+  function DrilldownCard({
+    analytics,
+    assignmentMeta,
+  }: {
+    analytics: ClassroomAnalytics | null;
+    assignmentMeta: AssignmentMetaMap;
+  }) {
     if (!analytics?.drilldown || analytics.redacted) return null;
     return (
       <Card>
@@ -334,34 +367,43 @@ function StudentProgressCard({
             </p>
           ) : (
             <ul className="flex flex-col gap-[var(--space-2)]">
-              {analytics.drilldown.rows.map((row) => (
-                <li
-                  key={`${row.assignmentId}:${row.studentId}`}
-                  className="rounded-[var(--radius-md)] border border-border p-[var(--space-3)]"
-                >
-                  <div className="flex flex-col gap-[var(--space-1)] sm:flex-row sm:items-center sm:justify-between">
-                    <span className="font-medium text-text">
-                      {row.name ?? row.email ?? row.studentId}
-                    </span>
-                    <Badge variant={row.status === "COMPLETED" ? "success" : "neutral"}>
-                      {row.status.toLowerCase().replace("_", " ")}
-                    </Badge>
-                  </div>
-                  <p className="text-[length:var(--text-sm)] text-text-muted m-0 mt-[var(--space-1)]">
-                    {row.articleTitle}
-                    {row.quizScore == null ? "" : ` · quiz ${pct(row.quizScore)}`}
-                    {completionSourceSuffix(row)}
-                  </p>
-                  <div className="mt-[var(--space-2)]">
-                    <AssignmentFeedbackForm
-                      assignmentId={row.assignmentId}
-                      studentId={row.studentId}
-                      initialFeedback={row.feedback}
-                      studentLabel={row.name ?? row.email ?? row.studentId}
-                    />
-                  </div>
-                </li>
-              ))}
+              {analytics.drilldown.rows.map((row) => {
+                const meta = assignmentMeta.get(row.assignmentId);
+                return (
+                  <li
+                    key={`${row.assignmentId}:${row.studentId}`}
+                    className="rounded-[var(--radius-md)] border border-border p-[var(--space-3)]"
+                  >
+                    <div className="flex flex-col gap-[var(--space-1)] sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-medium text-text">
+                        {row.name ?? row.email ?? row.studentId}
+                      </span>
+                      <Badge variant={row.status === "COMPLETED" ? "success" : "neutral"}>
+                        {row.status.toLowerCase().replace("_", " ")}
+                      </Badge>
+                    </div>
+                    <p className="text-[length:var(--text-sm)] text-text-muted m-0 mt-[var(--space-1)]">
+                      {assignmentDisplayTitle(row.articleTitle, meta)}
+                      {row.quizScore == null ? "" : ` · quiz ${pct(row.quizScore)}`}
+                      {completionSourceSuffix(row)}
+                      {assignmentPointsSuffix(meta?.points)}
+                    </p>
+                    {meta?.title ? (
+                      <p className="m-0 text-[length:var(--text-xs)] text-text-muted">
+                        Article: {row.articleTitle}
+                      </p>
+                    ) : null}
+                    <div className="mt-[var(--space-2)]">
+                      <AssignmentFeedbackForm
+                        assignmentId={row.assignmentId}
+                        studentId={row.studentId}
+                        initialFeedback={row.feedback}
+                        studentLabel={row.name ?? row.email ?? row.studentId}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardBody>
@@ -521,6 +563,7 @@ export default async function ClassroomDetailPage({
       <AnalyticsFilters
         classroomId={id}
         analytics={filterAnalytics}
+        assignmentMeta={assignmentMeta}
         students={students}
         filters={filters}
       />
@@ -532,7 +575,7 @@ export default async function ClassroomDetailPage({
             assignmentMeta={assignmentMeta}
             canManage={canManageActiveClassroom}
           />
-          <DrilldownCard analytics={analytics} />
+          <DrilldownCard analytics={analytics} assignmentMeta={assignmentMeta} />
           <StudentProgressCard analytics={analytics} />
         </div>
 

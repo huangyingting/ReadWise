@@ -119,13 +119,19 @@ function TeacherAssignmentList({
           allComplete ? "COMPLETED" : "PENDING",
           now,
         );
+        const displayTitle = a.title ?? a.articleTitle;
         return (
           <li key={a.assignmentId}>
             <Link href={`/teacher/classrooms/${a.classroomId}`} className="block">
               <Card className="transition-shadow hover:shadow-[var(--shadow-md)]">
                 <CardBody className="flex items-center justify-between gap-[var(--space-3)]">
                   <div>
-                    <p className="font-medium text-text">{a.articleTitle}</p>
+                    <p className="font-medium text-text">{displayTitle}</p>
+                    {a.title ? (
+                      <p className="text-[length:var(--text-sm)] text-text-muted">
+                        {a.articleTitle}
+                      </p>
+                    ) : null}
                     <p className="text-[length:var(--text-sm)] text-text-muted">
                       {a.classroomName} ·{" "}
                       <CalendarClock
@@ -133,6 +139,7 @@ function TeacherAssignmentList({
                         className="inline size-3.5 align-text-bottom"
                       />{" "}
                       {formatMediumDate(a.dueDate) ?? "No due date"}
+                      {a.points == null ? "" : ` · ${a.points} pts`}
                     </p>
                   </div>
                   <div className="flex items-center gap-[var(--space-2)]">

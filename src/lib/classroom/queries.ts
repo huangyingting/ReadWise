@@ -49,6 +49,8 @@ export type ClassroomAssignmentMetaRow = {
   assignmentId: string;
   dueDate: Date | null;
   instructions: string | null;
+  title: string | null;
+  points: number | null;
 };
 
 const NEWEST_FIRST = { createdAt: "desc" } as const;
@@ -91,12 +93,14 @@ export async function listClassroomAssignmentMeta(
 ): Promise<ClassroomAssignmentMetaRow[]> {
   const rows = await prisma.assignment.findMany({
     where: { classroomId },
-    select: { id: true, dueDate: true, instructions: true },
+    select: { id: true, dueDate: true, instructions: true, title: true, points: true },
   });
   return rows.map((r) => ({
     assignmentId: r.id,
     dueDate: r.dueDate,
     instructions: r.instructions,
+    title: r.title,
+    points: r.points,
   }));
 }
 
@@ -230,6 +234,8 @@ export type TeacherAssignmentRow = {
   classroomName: string;
   articleId: string;
   articleTitle: string;
+  title: string | null;
+  points: number | null;
   dueDate: Date | null;
   completedCount: number;
   studentCount: number;
@@ -254,6 +260,8 @@ export async function listAssignmentsForTeacher(
     select: {
       id: true,
       dueDate: true,
+      title: true,
+      points: true,
       classroom: {
         select: {
           id: true,
@@ -272,6 +280,8 @@ export async function listAssignmentsForTeacher(
       classroomName: r.classroom.name,
       articleId: r.article.id,
       articleTitle: r.article.title,
+      title: r.title,
+      points: r.points,
       dueDate: r.dueDate,
       completedCount: r.completions.length,
       studentCount: r.classroom.members.length,
@@ -296,6 +306,8 @@ export type AssignmentDetail = {
   classroomName: string;
   articleId: string;
   articleTitle: string;
+  title: string | null;
+  points: number | null;
   dueDate: Date | null;
   instructions: string | null;
   completions: AssignmentDetailCompletion[];
@@ -310,6 +322,8 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
       classroomId: true,
       dueDate: true,
       instructions: true,
+      title: true,
+      points: true,
       classroom: { select: { name: true } },
       article: { select: { id: true, title: true } },
       completions: {
@@ -333,6 +347,8 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
     classroomName: row.classroom.name,
     articleId: row.article.id,
     articleTitle: row.article.title,
+    title: row.title,
+    points: row.points,
     dueDate: row.dueDate,
     instructions: row.instructions,
     completions: row.completions.map((c) => ({

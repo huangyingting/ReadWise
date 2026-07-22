@@ -15,8 +15,11 @@ interface EditAssignmentFormProps {
   /** ISO date string (or null) for the current due date. */
   initialDueDate: string | null;
   initialInstructions: string | null;
+  initialTitle: string | null;
+  initialPoints: number | null;
 }
 
+const TITLE_MAX_LENGTH = 200;
 const INSTRUCTIONS_MAX_LENGTH = 2000;
 
 /** Turns an ISO timestamp into the `yyyy-mm-dd` value a date input expects. */
@@ -25,9 +28,16 @@ function toDateInputValue(iso: string | null): string {
   return iso.slice(0, 10);
 }
 
-function buildUpdatePayload(dueDate: string, instructions: string) {
+function buildUpdatePayload(
+  dueDate: string,
+  instructions: string,
+  title: string,
+  points: string,
+) {
   return {
     ...(dueDate ? { dueDate: new Date(dueDate).toISOString() } : {}),
+    title: title.trim(),
+    ...(points ? { points: Number(points) } : {}),
     instructions: instructions.trim(),
   };
 }
@@ -42,10 +52,14 @@ export default function EditAssignmentForm({
   assignmentTitle,
   initialDueDate,
   initialInstructions,
+  initialTitle,
+  initialPoints,
 }: EditAssignmentFormProps) {
   const [open, setOpen] = useState(false);
   const [dueDate, setDueDate] = useState(toDateInputValue(initialDueDate));
   const [instructions, setInstructions] = useState(initialInstructions ?? "");
+  const [title, setTitle] = useState(initialTitle ?? "");
+  const [points, setPoints] = useState(initialPoints == null ? "" : String(initialPoints));
   const { busy, error, run } = useMutation("Failed to update assignment");
 
   async function submit(e: FormEvent) {
@@ -53,7 +67,7 @@ export default function EditAssignmentForm({
     await run(async () => {
       await patchJson(
         `/api/assignments/${encodeURIComponent(assignmentId)}`,
-        buildUpdatePayload(dueDate, instructions),
+        buildUpdatePayload(dueDate, instructions, title, points),
       );
       setOpen(false);
     }, { refreshOnSuccess: true });
@@ -81,6 +95,24 @@ export default function EditAssignmentForm({
       submitLabel="Save changes"
       busyLabel="Saving…"
     >
+      <Field label="Title (optional)">
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder={assignmentTitle}
+          maxLength={TITLE_MAX_LENGTH}
+        />
+      </Field>
+      <Field label="Points (optional)">
+        <Input
+          type="number"
+          min={0}
+          max={10000}
+          step={1}
+          value={points}
+          onChange={(e) => setPoints(e.target.value)}
+        />
+      </Field>
       <Field label="Due date (optional)" error={error ?? undefined}>
         <Input
           type="date"
