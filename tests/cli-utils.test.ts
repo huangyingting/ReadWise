@@ -77,6 +77,16 @@ before(() => {
       sendDueReminders: async () => ({ usersWithDue: 0, sent: 0, skipped: 0, suppressed: 0 }),
     },
   });
+  mock.module("@/lib/push/assignment-reminders", {
+    namedExports: {
+      sendDueAssignmentReminders: async () => ({
+        studentsWithDue: 0,
+        sent: 0,
+        skipped: 0,
+        suppressed: 0,
+      }),
+    },
+  });
   mock.module("@/lib/observability/logger", {
     namedExports: {
       createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
