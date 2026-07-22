@@ -25,6 +25,9 @@ yarn-error.log*
 .env.*
 !.env.example
 
+# translation prompt-lab scratch data (article text/translations — never commit)
+/.translation-lab/
+
 # database
 *.db
 *.db.bak
@@ -67,3 +70,4 @@ dev-server.log
 ReadWise/
 
 provider-dbs/
+provider-db-translations/
