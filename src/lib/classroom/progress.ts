@@ -24,6 +24,7 @@ export type ClassroomProgressCompletion = {
   studentId: string;
   status: AssignmentStatus;
   quizScore: number | null;
+  pointsAwarded: number | null;
   completionSource: AssignmentCompletionSource | null;
   completedAt: Date | null;
   feedback: string | null;
@@ -80,6 +81,7 @@ function toProgressCompletion(
     studentId: completion.studentId,
     status: completion.status,
     quizScore: completion.quizScore,
+    pointsAwarded: completion.pointsAwarded,
     completionSource: completion.completionSource,
     completedAt: completion.completedAt,
     feedback: completion.feedback,
@@ -120,6 +122,7 @@ export async function getClassroomProgressData(
         studentId: true,
         status: true,
         quizScore: true,
+        pointsAwarded: true,
         completionSource: true,
         completedAt: true,
         feedback: true,

@@ -124,10 +124,10 @@ test("getClassroom returns null when the classroom does not exist", async () => 
 });
 
 test("getAssignmentClassroom returns assignment id and classroomId when it exists", async () => {
-  assignmentStub = { id: "a1", classroomId: "c1" };
+  assignmentStub = { id: "a1", classroomId: "c1", points: 12 };
   const { getAssignmentClassroom } = await classroomQueries();
   const result = await getAssignmentClassroom("a1");
-  assert.deepEqual(result, { id: "a1", classroomId: "c1" });
+  assert.deepEqual(result, { id: "a1", classroomId: "c1", points: 12 });
 });
 
 test("getAssignmentClassroom returns null when assignment does not exist", async () => {
@@ -598,6 +598,7 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
         studentId: "s1",
         status: "COMPLETED",
         quizScore: 90,
+        pointsAwarded: 14,
         completionSource: "SELF",
         completedAt: new Date("2026-07-20"),
         feedback: "Excellent",
@@ -608,6 +609,7 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
         studentId: "s2",
         status: "ASSIGNED",
         quizScore: null,
+        pointsAwarded: null,
         completionSource: null,
         completedAt: null,
         feedback: null,
@@ -636,6 +638,7 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
     email: "alice@example.com",
     status: "COMPLETED",
     quizScore: 90,
+    pointsAwarded: 14,
     completionSource: "SELF",
     completedAt: new Date("2026-07-20"),
     feedback: "Excellent",
@@ -648,6 +651,7 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
     email: null,
     status: "ASSIGNED",
     quizScore: null,
+    pointsAwarded: null,
     completionSource: null,
     completedAt: null,
     feedback: null,

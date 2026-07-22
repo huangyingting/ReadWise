@@ -83,9 +83,10 @@ let completionResult: Record<string, unknown> = {
   status: "COMPLETED",
 };
 let assignmentContext: { id: string; classroomArchivedAt?: Date | null } | null = { id: "asgn1" };
-let assignmentClassroomResult: { id: string; classroomId: string } | null = {
+let assignmentClassroomResult: { id: string; classroomId: string; points?: number | null } | null = {
   id: "asgn1",
   classroomId: "c1",
+  points: 20,
 };
 let articleAssignmentFailure: {
   status: 400 | 404 | 409;
@@ -152,6 +153,11 @@ const recordAssignmentCompletionCalls: Array<{
   assignmentId: string;
   studentId: string;
   input: { status?: string; quizScore?: number };
+}> = [];
+const reviewAssignmentCompletionCalls: Array<{
+  assignmentId: string;
+  studentId: string;
+  input: { feedback: string | null; pointsAwarded?: number | null; reviewedBy: string };
 }> = [];
 let updateAssignmentResult:
   | { ok: true; assignment: Record<string, unknown> }
@@ -268,6 +274,14 @@ before(() => {
       ) => {
         recordAssignmentCompletionCalls.push({ assignmentId, studentId, input });
         return completionResult;
+      },
+      reviewAssignmentCompletion: async (
+        assignmentId: string,
+        studentId: string,
+        input: { feedback: string | null; pointsAwarded?: number | null; reviewedBy: string },
+      ) => {
+        reviewAssignmentCompletionCalls.push({ assignmentId, studentId, input });
+        return { ...completionResult, pointsAwarded: input.pointsAwarded ?? null };
       },
     },
   });
@@ -422,6 +436,7 @@ before(() => {
         assignmentCreate: "assignment.create",
         assignmentRemind: "assignment.remind",
         assignmentReopen: "assignment.reopen",
+        assignmentReview: "assignment.review",
       },
       auditRequestInfo: () => ({ ipAddress: null, userAgent: null }),
       tryRecordAuditLog: async () => {},
@@ -461,7 +476,7 @@ beforeEach(() => {
   assignArticleResult = { id: "asgn1", classroomId: "c1", articleId: "a1", dueDate: null };
   completionResult = { id: "comp1", userId: "user-1", assignmentId: "asgn1", status: "COMPLETED" };
   assignmentContext = { id: "asgn1" };
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   articleAssignmentFailure = null;
   membershipStub = null;
   targetMembershipStub = { role: "Member" };
@@ -483,6 +498,7 @@ beforeEach(() => {
   createArticleAssignmentCalls.length = 0;
   articleAssignmentFailuresById.clear();
   recordAssignmentCompletionCalls.length = 0;
+  reviewAssignmentCompletionCalls.length = 0;
   reopenAssignmentCalls.length = 0;
   assignmentDetailResult = null;
   updateAssignmentResult = {
@@ -567,6 +583,16 @@ async function postBulkClassroomAssignments(id: string, body: Record<string, unk
     POST: RouteHandler;
   };
   return POST(jsonPost(`http://test/api/classrooms/${id}/assignments/bulk`, body), withParams({ id }));
+}
+
+async function patchAssignmentCompletionReview(id: string, studentId: string, body: Record<string, unknown>) {
+  const { PATCH } = (await import("@/app/api/assignments/[id]/completions/[studentId]/route")) as {
+    PATCH: RouteHandler;
+  };
+  return PATCH(
+    jsonPatch(`http://test/api/assignments/${id}/completions/${studentId}`, body),
+    withParams({ id, studentId }),
+  );
 }
 
 async function postAssignmentCompletion(id: string, body: Record<string, unknown>) {
@@ -1322,14 +1348,14 @@ test("DELETE /api/assignments/[id] returns 404 when assignment is missing", asyn
 });
 
 test("DELETE /api/assignments/[id] enforces tenant isolation with classroom-manage guard", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
   const res = await deleteAssignmentRoute("asgn1");
   assert.equal(res.status, 403);
 });
 
 test("DELETE /api/assignments/[id] rejects archived classrooms", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = {
     id: "c1",
     orgId: "org-1",
@@ -1342,7 +1368,7 @@ test("DELETE /api/assignments/[id] rejects archived classrooms", async () => {
 });
 
 test("DELETE /api/assignments/[id] returns 200 and deletes assignment on success", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   const res = await deleteAssignmentRoute("asgn1");
   assert.equal(res.status, 200);
@@ -1373,7 +1399,7 @@ test("PATCH /api/assignments/[id] returns 404 when assignment is missing", async
 });
 
 test("PATCH /api/assignments/[id] enforces tenant isolation with classroom-manage guard", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
   const res = await patchAssignmentRoute("asgn1", { instructions: "x" });
   assert.equal(res.status, 403);
@@ -1381,7 +1407,7 @@ test("PATCH /api/assignments/[id] enforces tenant isolation with classroom-manag
 });
 
 test("PATCH /api/assignments/[id] rejects archived classrooms", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = {
     id: "c1",
     orgId: "org-1",
@@ -1394,7 +1420,7 @@ test("PATCH /api/assignments/[id] rejects archived classrooms", async () => {
 });
 
 test("PATCH /api/assignments/[id] updates dueDate + instructions for the classroom teacher", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   updateAssignmentResult = {
     ok: true,
@@ -1440,7 +1466,7 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
 });
 
 test("PATCH /api/assignments/[id] forwards clearable dueDate, points, and whole-class targets", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   const res = await patchAssignmentRoute("asgn1", {
     dueDate: "",
@@ -1468,7 +1494,7 @@ test("PATCH /api/assignments/[id] forwards clearable dueDate, points, and whole-
 });
 
 test("PATCH /api/assignments/[id] rejects out-of-range points", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   const res = await patchAssignmentRoute("asgn1", { points: -1 });
   assert.equal(res.status, 400);
@@ -1476,7 +1502,7 @@ test("PATCH /api/assignments/[id] rejects out-of-range points", async () => {
 });
 
 test("PATCH /api/assignments/[id] returns 400 when the due date is invalid", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   updateAssignmentResult = { ok: false, status: 400, reason: "invalid_due_date" };
   const res = await patchAssignmentRoute("asgn1", { dueDate: "not-a-date" });
@@ -1484,7 +1510,7 @@ test("PATCH /api/assignments/[id] returns 400 when the due date is invalid", asy
 });
 
 test("PATCH /api/assignments/[id] maps invalid target students to 400", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   updateAssignmentResult = { ok: false, status: 400, reason: "invalid_target_students" };
   const res = await patchAssignmentRoute("asgn1", { studentIds: ["ghost"] });
@@ -1528,6 +1554,71 @@ test("POST /api/assignments/[id]/completion returns 201 with completion record o
 });
 
 // ===========================================================================
+// PATCH /api/assignments/[id]/completions/[studentId]
+// ===========================================================================
+
+test("PATCH assignment completion review awards a score", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await patchAssignmentCompletionReview("asgn1", "student-1", {
+    feedback: "Nice work",
+    pointsAwarded: 18,
+  });
+
+  assert.equal(res.status, 200);
+  assert.deepEqual(reviewAssignmentCompletionCalls.at(-1), {
+    assignmentId: "asgn1",
+    studentId: "student-1",
+    input: { feedback: "Nice work", pointsAwarded: 18, reviewedBy: "user-1" },
+  });
+  assert.equal(auditCalls.at(-1)?.action, "assignment.review");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    assignmentId: "asgn1",
+    classroomId: "c1",
+    studentId: "student-1",
+    hasFeedback: true,
+    awardedScore: 18,
+  });
+});
+
+test("PATCH assignment completion review rejects an awarded score over max points", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await patchAssignmentCompletionReview("asgn1", "student-1", {
+    pointsAwarded: 21,
+  });
+
+  assert.equal(res.status, 400);
+  assert.equal(reviewAssignmentCompletionCalls.length, 0);
+});
+
+test("PATCH assignment completion review allows unbounded score when assignment points are null", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: null };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await patchAssignmentCompletionReview("asgn1", "student-1", {
+    pointsAwarded: 500,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(reviewAssignmentCompletionCalls.at(-1)?.input.pointsAwarded, 500);
+});
+
+test("PATCH assignment completion review clears awarded score with null", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await patchAssignmentCompletionReview("asgn1", "student-1", {
+    pointsAwarded: null,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(reviewAssignmentCompletionCalls.at(-1)?.input.pointsAwarded, null);
+});
+
+// ===========================================================================
 // GET /api/assignments/[id]
 // ===========================================================================
 
@@ -1544,14 +1635,14 @@ test("GET /api/assignments/[id] returns 404 when assignment is missing", async (
 });
 
 test("GET /api/assignments/[id] enforces tenant isolation with classroom-manage guard", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
   const res = await getAssignmentRoute("asgn1");
   assert.equal(res.status, 403);
 });
 
 test("GET /api/assignments/[id] returns 200 with assignment detail on success", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   assignmentDetailResult = {
     id: "a1",
@@ -1587,14 +1678,14 @@ test("POST /api/assignments/[id]/remind returns 404 when assignment is missing",
 });
 
 test("POST /api/assignments/[id]/remind enforces tenant isolation with classroom-manage guard", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
   const res = await remindAssignmentRoute("asgn1");
   assert.equal(res.status, 403);
 });
 
 test("POST /api/assignments/[id]/remind returns 200 with result on success", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   remindResult = { total: 5, notified: 3, skipped: 1, suppressed: 1 };
   const res = await remindAssignmentRoute("asgn1");
@@ -1615,7 +1706,7 @@ test("POST /api/assignments/[id]/remind returns 200 with result on success", asy
 // ===========================================================================
 
 test("POST /api/assignments/[id]/reopen returns 200 with result on success", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   reopenResult = { reopened: 4 };
 
@@ -1641,7 +1732,7 @@ test("POST /api/assignments/[id]/reopen returns 404 when assignment is missing",
 });
 
 test("POST /api/assignments/[id]/reopen enforces tenant isolation with classroom-manage guard", async () => {
-  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
   const res = await reopenAssignmentRoute("asgn1");
   assert.equal(res.status, 403);

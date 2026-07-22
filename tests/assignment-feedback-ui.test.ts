@@ -47,9 +47,18 @@ test("AssignmentFeedbackForm sends feedback in the PATCH body", () => {
   assert.match(src, /\{ feedback/);
 });
 
+test("AssignmentFeedbackForm renders a score input and sends pointsAwarded", () => {
+  const src = readSrc(FEEDBACK_FORM);
+  assert.match(src, /type="number"/);
+  assert.match(src, /pointsAwarded/);
+  assert.match(src, /Number\(score\)/);
+  assert.match(src, /max=\{points \?\? undefined\}/);
+});
+
 test("AssignmentFeedbackForm uses shared UI primitives", () => {
   const src = readSrc(FEEDBACK_FORM);
   assert.match(src, /@\/components\/ui\/Textarea/);
+  assert.match(src, /@\/components\/ui\/Input/);
   assert.match(src, /@\/components\/ui\/Field/);
 });
 
@@ -84,6 +93,14 @@ test("student assignments page references assignment.feedback for read-only disp
   const src = readSrc(STUDENT_PAGE);
   assert.match(src, /assignment\.feedback/);
   assert.match(src, /Teacher feedback/);
+});
+
+test("student assignments page uses display title and score fields", () => {
+  const src = readSrc(STUDENT_PAGE);
+  assert.match(src, /assignment\.title \?\? assignment\.articleTitle/);
+  assert.match(src, /assignment\.pointsAwarded/);
+  assert.match(src, /assignment\.points/);
+  assert.match(src, /Score:/);
 });
 
 test("student assignments page feedback display is token-driven", () => {

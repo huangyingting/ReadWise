@@ -44,6 +44,7 @@ export type AssignableArticleOptionRow = {
 export type AssignmentClassroomRow = {
   id: string;
   classroomId: string;
+  points: number | null;
 };
 
 export type ClassroomAssignmentMetaRow = {
@@ -80,7 +81,7 @@ export function getAssignmentClassroom(
 ): Promise<AssignmentClassroomRow | null> {
   return prisma.assignment.findUnique({
     where: { id: assignmentId },
-    select: { id: true, classroomId: true },
+    select: { id: true, classroomId: true, points: true },
   });
 }
 
@@ -319,6 +320,7 @@ export type AssignmentDetailCompletion = {
   email: string | null;
   status: AssignmentStatus;
   quizScore: number | null;
+  pointsAwarded: number | null;
   completionSource: AssignmentCompletionSource | null;
   completedAt: Date | null;
   feedback: string | null;
@@ -357,6 +359,7 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
           studentId: true,
           status: true,
           quizScore: true,
+          pointsAwarded: true,
           completionSource: true,
           completedAt: true,
           feedback: true,
@@ -388,6 +391,7 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
       email: c.student.email,
       status: c.status,
       quizScore: c.quizScore,
+      pointsAwarded: c.pointsAwarded,
       completionSource: c.completionSource,
       completedAt: c.completedAt,
       feedback: c.feedback,
