@@ -28,6 +28,11 @@ type ArticleOptionsResponse = {
   articles: ArticleOption[];
 };
 
+type BulkAssignmentResponse = {
+  created: unknown[];
+  failed: { articleId: string; reason: string }[];
+};
+
 const ARTICLE_QUERY_MAX_LENGTH = 100;
 const TITLE_MAX_LENGTH = 200;
 const INSTRUCTIONS_MAX_LENGTH = 2000;
@@ -80,8 +85,9 @@ export default function AssignArticleForm({
   const [form, setForm] = useState(EMPTY_ASSIGNMENT_FORM);
   const [query, setQuery] = useState("");
   const [articles, setArticles] = useState(initialArticles);
-  const [selected, setSelected] = useState<ArticleOption | null>(null);
+  const [selected, setSelected] = useState<ArticleOption[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const { busy, error, run } = useMutation("Failed to assign article");
   const { run: runArticleSearch } = useFilteredFetch<ArticleOptionsResponse>(0);
   const trimmedQuery = query.trim();
@@ -111,7 +117,15 @@ export default function AssignArticleForm({
   function resetForm() {
     setForm(EMPTY_ASSIGNMENT_FORM);
     setQuery("");
-    setSelected(null);
+    setSelected([]);
+  }
+
+  function toggleArticle(article: ArticleOption) {
+    setSelected((current) =>
+      current.some((item) => item.id === article.id)
+        ? current.filter((item) => item.id !== article.id)
+        : [...current, article],
+    );
   }
 
   function updateField(field: AssignmentFormField, value: string) {
@@ -120,29 +134,51 @@ export default function AssignArticleForm({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!selected) return;
+    if (selected.length === 0) return;
 
     await run(async () => {
-      await postJson(
-        `/api/classrooms/${classroomId}/assignments`,
-        buildAssignmentPayload(
-          selected.id,
-          form.dueDate,
-          form.instructions,
-          form.title,
-          form.points,
-        ),
-      );
+      setStatus(null);
+      if (selected.length === 1) {
+        await postJson(
+          `/api/classrooms/${classroomId}/assignments`,
+          buildAssignmentPayload(
+            selected[0].id,
+            form.dueDate,
+            form.instructions,
+            form.title,
+            form.points,
+          ),
+        );
+      } else {
+        const result = await postJson<BulkAssignmentResponse>(
+          `/api/classrooms/${classroomId}/assignments/bulk`,
+          {
+            articleIds: selected.map((article) => article.id),
+            points: form.points ? Number(form.points) : undefined,
+            dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+            instructions: form.instructions.trim() || undefined,
+          },
+        );
+        if (result.failed.length > 0) {
+          setStatus(
+            `Assigned ${result.created.length}, ${result.failed.length} could not be assigned.`,
+          );
+        }
+      }
       resetForm();
     }, { refreshOnSuccess: true });
   }
+
+  const submitLabel = selected.length > 1
+    ? `Assign ${selected.length} articles`
+    : "Assign article";
 
   return (
     <TeacherFormShell
       onSubmit={submit}
       busy={busy}
-      canSubmit={!!selected}
-      submitLabel="Assign article"
+      canSubmit={selected.length >= 1}
+      submitLabel={submitLabel}
       busyLabel="Assigning…"
       buttonSize="md"
     >
@@ -151,7 +187,6 @@ export default function AssignArticleForm({
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
-            setSelected(null);
           }}
           placeholder="Search title, author or source…"
           maxLength={ARTICLE_QUERY_MAX_LENGTH}
@@ -161,6 +196,9 @@ export default function AssignArticleForm({
       <p id="article-picker-help" className="text-[length:var(--text-xs)] text-text-muted">
         Choose an article before assigning it to the class.
       </p>
+      <p className="m-0 text-[length:var(--text-xs)] text-text-muted">
+        {selected.length} selected
+      </p>
       <div
         role="group"
         aria-label="Article search results"
@@ -168,7 +206,7 @@ export default function AssignArticleForm({
       >
         {visibleArticles.length > 0 ? (
           visibleArticles.map((article) => {
-            const isSelected = selected?.id === article.id;
+            const isSelected = selected.some((item) => item.id === article.id);
             const meta = articleMeta(article);
             return (
               <Button
@@ -178,7 +216,7 @@ export default function AssignArticleForm({
                 size="sm"
                 aria-pressed={isSelected}
                 className="h-auto w-full justify-start whitespace-normal py-[var(--space-2)] text-left"
-                onClick={() => setSelected(article)}
+                onClick={() => toggleArticle(article)}
               >
                 <span className="flex flex-col items-start gap-[var(--space-1)]">
                   <span>{article.title}</span>
@@ -207,14 +245,16 @@ export default function AssignArticleForm({
           onChange={(e) => updateField("dueDate", e.target.value)}
         />
       </Field>
-      <Field label="Title (optional)">
-        <Input
-          value={form.title}
-          onChange={(e) => updateField("title", e.target.value)}
-          placeholder="Override the article title for this class"
-          maxLength={TITLE_MAX_LENGTH}
-        />
-      </Field>
+      {selected.length === 1 ? (
+        <Field label="Title (optional)">
+          <Input
+            value={form.title}
+            onChange={(e) => updateField("title", e.target.value)}
+            placeholder="Override the article title for this class"
+            maxLength={TITLE_MAX_LENGTH}
+          />
+        </Field>
+      ) : null}
       <Field label="Points (optional)">
         <Input
           type="number"
@@ -234,6 +274,11 @@ export default function AssignArticleForm({
           maxLength={INSTRUCTIONS_MAX_LENGTH}
         />
       </Field>
+      {status ? (
+        <p aria-live="polite" className="m-0 text-[length:var(--text-sm)] text-text-muted">
+          {status}
+        </p>
+      ) : null}
     </TeacherFormShell>
   );
 }

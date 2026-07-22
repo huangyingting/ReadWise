@@ -97,6 +97,7 @@ let remindResult: { total: number; notified: number; skipped: number; suppressed
   skipped: 1,
   suppressed: 0,
 };
+let reopenResult: { reopened: number } = { reopened: 2 };
 const removeClassroomMemberCalls: Array<{ classroomId: string; userId: string }> = [];
 const updateClassroomLifecycleCalls: Array<{
   classroomId: string;
@@ -129,11 +130,17 @@ const updateAssignmentCalls: Array<{
   input: { dueDate?: string; instructions?: string | null; title?: string | null; points?: number | null };
 }> = [];
 const createArticleAssignmentCalls: Array<{
+  articleId?: string;
   title?: string | null;
   points?: number | null;
   dueDate?: string;
   instructions?: string | null;
 }> = [];
+const reopenAssignmentCalls: string[] = [];
+const articleAssignmentFailuresById = new Map<string, {
+  status: 400 | 404 | 409;
+  reason: "invalid_due_date" | "article_not_found" | "org_reference_orphaned";
+}>();
 const recordAssignmentCompletionCalls: Array<{
   assignmentId: string;
   studentId: string;
@@ -229,6 +236,10 @@ before(() => {
       deleteAssignment: async (assignmentId: string) => {
         deleteAssignmentCalls.push(assignmentId);
       },
+      reopenAssignment: async (assignmentId: string) => {
+        reopenAssignmentCalls.push(assignmentId);
+        return reopenResult;
+      },
       updateAssignment: async (
         assignmentId: string,
         input: { dueDate?: string; instructions?: string | null; title?: string | null; points?: number | null },
@@ -267,12 +278,16 @@ before(() => {
   mock.module("@/lib/classroom/article-assignments", {
     namedExports: {
       createArticleAssignment: async (input: {
+        articleId?: string;
         dueDate?: string;
         instructions?: string | null;
         title?: string | null;
         points?: number | null;
       }) => {
         createArticleAssignmentCalls.push(input);
+        if (input.articleId && articleAssignmentFailuresById.has(input.articleId)) {
+          return { ok: false, ...articleAssignmentFailuresById.get(input.articleId) };
+        }
         if (articleAssignmentFailure) {
           return { ok: false, ...articleAssignmentFailure };
         }
@@ -283,6 +298,43 @@ before(() => {
           return { ok: false, status: 400, reason: "invalid_due_date" };
         }
         return { ok: true, assignment: { ...assignArticleResult, title: input.title ?? null, points: input.points ?? null } };
+      },
+      bulkCreateArticleAssignments: async (input: {
+        articleIds: string[];
+        dueDate?: string;
+        instructions?: string | null;
+        points?: number | null;
+      }) => {
+        const created: Array<Record<string, unknown>> = [];
+        const failed: Array<{ articleId: string; reason: string }> = [];
+        for (const articleId of input.articleIds) {
+          createArticleAssignmentCalls.push({
+            articleId,
+            dueDate: input.dueDate,
+            instructions: input.instructions,
+            points: input.points,
+            title: null,
+          });
+          const perArticleFailure = articleAssignmentFailuresById.get(articleId);
+          if (perArticleFailure) {
+            failed.push({ articleId, reason: perArticleFailure.reason });
+            continue;
+          }
+          if (articleAssignmentFailure) {
+            failed.push({ articleId, reason: articleAssignmentFailure.reason });
+            continue;
+          }
+          if (!articleStub) {
+            failed.push({ articleId, reason: "article_not_found" });
+            continue;
+          }
+          if (input.dueDate && Number.isNaN(new Date(input.dueDate).getTime())) {
+            failed.push({ articleId, reason: "invalid_due_date" });
+            continue;
+          }
+          created.push({ ...assignArticleResult, id: `asgn-${articleId}`, articleId, points: input.points ?? null });
+        }
+        return { created, failed };
       },
     },
   });
@@ -353,7 +405,9 @@ before(() => {
         classroomMemberRemove: "classroom.member.remove",
         assignmentUpdate: "assignment.update",
         assignmentDelete: "assignment.delete",
+        assignmentCreate: "assignment.create",
         assignmentRemind: "assignment.remind",
+        assignmentReopen: "assignment.reopen",
       },
       auditRequestInfo: () => ({ ipAddress: null, userAgent: null }),
       tryRecordAuditLog: async () => {},
@@ -413,13 +467,16 @@ beforeEach(() => {
   deleteAssignmentCalls.length = 0;
   updateAssignmentCalls.length = 0;
   createArticleAssignmentCalls.length = 0;
+  articleAssignmentFailuresById.clear();
   recordAssignmentCompletionCalls.length = 0;
+  reopenAssignmentCalls.length = 0;
   assignmentDetailResult = null;
   updateAssignmentResult = {
     ok: true,
     assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
   };
   remindResult = { total: 3, notified: 2, skipped: 1, suppressed: 0 };
+  reopenResult = { reopened: 2 };
   auditCalls.length = 0;
 });
 
@@ -491,6 +548,13 @@ async function postClassroomAssignment(id: string, body: Record<string, unknown>
   return POST(jsonPost(`http://test/api/classrooms/${id}/assignments`, body), withParams({ id }));
 }
 
+async function postBulkClassroomAssignments(id: string, body: Record<string, unknown>) {
+  const { POST } = (await import("@/app/api/classrooms/[id]/assignments/bulk/route")) as {
+    POST: RouteHandler;
+  };
+  return POST(jsonPost(`http://test/api/classrooms/${id}/assignments/bulk`, body), withParams({ id }));
+}
+
 async function postAssignmentCompletion(id: string, body: Record<string, unknown>) {
   const { POST } = (await import("@/app/api/assignments/[id]/completion/route")) as {
     POST: RouteHandler;
@@ -524,6 +588,13 @@ async function remindAssignmentRoute(id: string) {
     POST: RouteHandler;
   };
   return POST(jsonPost(`http://test/api/assignments/${id}/remind`, {}), withParams({ id }));
+}
+
+async function reopenAssignmentRoute(id: string) {
+  const { POST } = (await import("@/app/api/assignments/[id]/reopen/route")) as {
+    POST: RouteHandler;
+  };
+  return POST(jsonPost(`http://test/api/assignments/${id}/reopen`, {}), withParams({ id }));
 }
 
 // ===========================================================================
@@ -1112,6 +1183,66 @@ test("POST /api/classrooms/[id]/assignments rejects out-of-range points", async 
 });
 
 // ===========================================================================
+// POST /api/classrooms/[id]/assignments/bulk
+// ===========================================================================
+
+test("POST /api/classrooms/[id]/assignments/bulk returns 201 with created and failed", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  articleAssignmentFailuresById.set("a2", { status: 404, reason: "article_not_found" });
+
+  const res = await postBulkClassroomAssignments("c1", {
+    articleIds: ["a1", "a2", "a3"],
+    dueDate: "2026-12-31",
+    instructions: "Read carefully",
+    points: 20,
+  });
+
+  assert.equal(res.status, 201);
+  const body = await res.json() as {
+    created: Array<{ articleId: string; points: number | null }>;
+    failed: Array<{ articleId: string; reason: string }>;
+  };
+  assert.deepEqual(body.created.map((assignment) => assignment.articleId), ["a1", "a3"]);
+  assert.deepEqual(body.failed, [{ articleId: "a2", reason: "article_not_found" }]);
+  assert.deepEqual(
+    createArticleAssignmentCalls.map((call) => call.articleId),
+    ["a1", "a2", "a3"],
+  );
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    classroomId: "c1",
+    requested: 3,
+    created: 2,
+    failed: 1,
+  });
+});
+
+test("POST /api/classrooms/[id]/assignments/bulk returns 400 for an empty array", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  const res = await postBulkClassroomAssignments("c1", { articleIds: [] });
+  assert.equal(res.status, 400);
+  assert.equal(createArticleAssignmentCalls.length, 0);
+});
+
+test("POST /api/classrooms/[id]/assignments/bulk returns 403 when caller cannot manage classroom", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
+  const res = await postBulkClassroomAssignments("c1", { articleIds: ["a1"] });
+  assert.equal(res.status, 403);
+  assert.equal(createArticleAssignmentCalls.length, 0);
+});
+
+test("POST /api/classrooms/[id]/assignments/bulk surfaces article-access failures in failed", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  articleAssignmentFailuresById.set("restricted", { status: 404, reason: "article_not_found" });
+
+  const res = await postBulkClassroomAssignments("c1", { articleIds: ["restricted"] });
+
+  assert.equal(res.status, 201);
+  const body = await res.json() as { created: unknown[]; failed: Array<{ articleId: string; reason: string }> };
+  assert.deepEqual(body.created, []);
+  assert.deepEqual(body.failed, [{ articleId: "restricted", reason: "article_not_found" }]);
+});
+
+// ===========================================================================
 // DELETE /api/assignments/[id]
 // ===========================================================================
 
@@ -1374,4 +1505,42 @@ test("POST /api/assignments/[id]/remind returns 200 with result on success", asy
     total: 5,
     notified: 3,
   });
+});
+
+// ===========================================================================
+// POST /api/assignments/[id]/reopen
+// ===========================================================================
+
+test("POST /api/assignments/[id]/reopen returns 200 with result on success", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  reopenResult = { reopened: 4 };
+
+  const res = await reopenAssignmentRoute("asgn1");
+
+  assert.equal(res.status, 200);
+  const body = await res.json() as { result: { reopened: number } };
+  assert.deepEqual(body.result, { reopened: 4 });
+  assert.deepEqual(reopenAssignmentCalls, ["asgn1"]);
+  assert.equal(auditCalls.at(-1)?.action, "assignment.reopen");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    assignmentId: "asgn1",
+    classroomId: "c1",
+    reopened: 4,
+  });
+});
+
+test("POST /api/assignments/[id]/reopen returns 404 when assignment is missing", async () => {
+  assignmentClassroomResult = null;
+  const res = await reopenAssignmentRoute("missing");
+  assert.equal(res.status, 404);
+  assert.equal(reopenAssignmentCalls.length, 0);
+});
+
+test("POST /api/assignments/[id]/reopen enforces tenant isolation with classroom-manage guard", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
+  const res = await reopenAssignmentRoute("asgn1");
+  assert.equal(res.status, 403);
+  assert.equal(reopenAssignmentCalls.length, 0);
 });
