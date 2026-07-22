@@ -40,7 +40,8 @@ test("EditAssignmentForm is a client island that PATCHes the assignment endpoint
 
 test("EditAssignmentForm sends assignment metadata in the PATCH body", () => {
   const src = readSrc(EDIT_FORM);
-  assert.match(src, /dueDate: new Date\(dueDate\)\.toISOString\(\)/);
+  assert.match(src, /\.\.\.\(dueDate \? \{ dueDate \} : \{\}\)/);
+  assert.doesNotMatch(src, /new Date\(dueDate\)\.toISOString\(\)/);
   assert.match(src, /instructions: instructions\.trim\(\)/);
   assert.match(src, /title: title\.trim\(\)/);
   assert.match(src, /points: Number\(points\)/);

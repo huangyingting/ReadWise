@@ -1175,6 +1175,16 @@ test("POST /api/classrooms/[id]/assignments returns 201 with assignment on succe
   assert.equal(body.assignment.points, 20);
   assert.equal(createArticleAssignmentCalls.at(-1)?.title, "Week 1 reading");
   assert.equal(createArticleAssignmentCalls.at(-1)?.points, 20);
+  assert.equal(createArticleAssignmentCalls.at(-1)?.dueDate, "2026-12-31");
+  assert.equal(auditCalls.at(-1)?.action, "assignment.create");
+  assert.equal(auditCalls.at(-1)?.targetType, "classroom");
+  assert.equal(auditCalls.at(-1)?.targetId, "c1");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    classroomId: "c1",
+    assignmentId: "asgn1",
+    articleId: "a1",
+    targeted: 0,
+  });
 });
 
 test("POST /api/classrooms/[id]/assignments forwards target studentIds", async () => {
@@ -1190,6 +1200,12 @@ test("POST /api/classrooms/[id]/assignments forwards target studentIds", async (
     "student-1",
     "student-2",
   ]);
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    classroomId: "c1",
+    assignmentId: "asgn1",
+    articleId: "a1",
+    targeted: 2,
+  });
 });
 
 test("POST /api/classrooms/[id]/assignments maps invalid target students to 400", async () => {
@@ -1207,6 +1223,7 @@ test("POST /api/classrooms/[id]/assignments maps invalid target students to 400"
   assert.equal(res.status, 400);
   const body = await res.json() as { error: string };
   assert.equal(body.error, "Select at least one enrolled student to target");
+  assert.equal(auditCalls.length, 0);
 });
 
 test("POST /api/classrooms/[id]/assignments rejects out-of-range points", async () => {
