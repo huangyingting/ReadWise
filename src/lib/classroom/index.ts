@@ -30,6 +30,9 @@ export {
   type ClassroomMemberRow,
   type ClassroomStudentCandidateRow,
   type AssignableArticleOptionRow,
+  type TeacherAssignmentRow,
+  type AssignmentDetailCompletion,
+  type AssignmentDetail,
   getClassroom,
   getAssignmentClassroom,
   listClassroomAssignmentMeta,
@@ -41,6 +44,8 @@ export {
   searchClassroomStudentCandidates,
   searchAssignableArticleOptions,
   countPendingAssignmentsForStudent,
+  listAssignmentsForTeacher,
+  getAssignmentDetail,
 } from "./queries";
 export {
   type CreateClassroomInput,

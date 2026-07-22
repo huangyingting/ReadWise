@@ -133,6 +133,7 @@ let updateAssignmentResult:
   ok: true,
   assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
 };
+let assignmentDetailResult: unknown = null;
 
 // org stubs — controls requireOrgCapabilityApi (for POST /classrooms) and
 // the inline RBAC check in GET /classrooms/[id]/analytics.
@@ -212,6 +213,7 @@ before(() => {
         return deleteClassroomResult;
       },
       getAssignmentClassroom: async () => assignmentClassroomResult,
+      getAssignmentDetail: async () => assignmentDetailResult,
       deleteAssignment: async (assignmentId: string) => {
         deleteAssignmentCalls.push(assignmentId);
       },
@@ -387,6 +389,7 @@ beforeEach(() => {
   deleteAssignmentCalls.length = 0;
   updateAssignmentCalls.length = 0;
   recordAssignmentCompletionCalls.length = 0;
+  assignmentDetailResult = null;
   updateAssignmentResult = {
     ok: true,
     assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
@@ -467,6 +470,13 @@ async function postAssignmentCompletion(id: string, body: Record<string, unknown
     POST: RouteHandler;
   };
   return POST(jsonPost(`http://test/api/assignments/${id}/completion`, body), withParams({ id }));
+}
+
+async function getAssignmentRoute(id: string) {
+  const { GET } = (await import("@/app/api/assignments/[id]/route")) as {
+    GET: RouteHandler;
+  };
+  return GET(getReq(`http://test/api/assignments/${id}`), withParams({ id }));
 }
 
 async function deleteAssignmentRoute(id: string) {
@@ -1219,4 +1229,47 @@ test("POST /api/assignments/[id]/completion returns 201 with completion record o
   const body = await res.json() as { ok: boolean; completion: { id: string } };
   assert.equal(body.ok, true);
   assert.equal(body.completion.id, "comp1");
+});
+
+// ===========================================================================
+// GET /api/assignments/[id]
+// ===========================================================================
+
+test("GET /api/assignments/[id] returns 401 when unauthenticated", async () => {
+  authState = "unauth";
+  const res = await getAssignmentRoute("asgn1");
+  assert.equal(res.status, 401);
+});
+
+test("GET /api/assignments/[id] returns 404 when assignment is missing", async () => {
+  assignmentClassroomResult = null;
+  const res = await getAssignmentRoute("missing");
+  assert.equal(res.status, 404);
+});
+
+test("GET /api/assignments/[id] enforces tenant isolation with classroom-manage guard", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
+  const res = await getAssignmentRoute("asgn1");
+  assert.equal(res.status, 403);
+});
+
+test("GET /api/assignments/[id] returns 200 with assignment detail on success", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  assignmentDetailResult = {
+    id: "a1",
+    classroomId: "c1",
+    classroomName: "C1",
+    articleId: "art1",
+    articleTitle: "T",
+    dueDate: null,
+    instructions: null,
+    completions: [],
+  };
+  const res = await getAssignmentRoute("asgn1");
+  assert.equal(res.status, 200);
+  const body = await res.json() as { assignment: { id: string; classroomId: string } };
+  assert.equal(body.assignment.id, "a1");
+  assert.equal(body.assignment.classroomId, "c1");
 });

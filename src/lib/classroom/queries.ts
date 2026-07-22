@@ -219,6 +219,128 @@ export function countPendingAssignmentsForStudent(studentId: string): Promise<nu
   });
 }
 
+export type TeacherAssignmentRow = {
+  assignmentId: string;
+  classroomId: string;
+  classroomName: string;
+  articleId: string;
+  articleTitle: string;
+  dueDate: Date | null;
+  completedCount: number;
+  studentCount: number;
+};
+
+/**
+ * Every assignment across the classrooms a teacher leads (owner or Teacher
+ * member), non-archived only. Includes per-assignment completed vs. enrolled
+ * student counts. Sorted soonest-due first (undated last) so overdue work
+ * surfaces at the top — mirrors the due-date sort used by student-reads.
+ */
+export async function listAssignmentsForTeacher(
+  teacherId: string,
+): Promise<TeacherAssignmentRow[]> {
+  const rows = await prisma.assignment.findMany({
+    where: {
+      classroom: {
+        ...ACTIVE_CLASSROOM_WHERE,
+        OR: [{ teacherId }, classroomMembership(teacherId, "Teacher")],
+      },
+    },
+    select: {
+      id: true,
+      dueDate: true,
+      classroom: {
+        select: {
+          id: true,
+          name: true,
+          members: { where: { role: "Student" }, select: { userId: true } },
+        },
+      },
+      article: { select: { id: true, title: true } },
+      completions: { where: { status: AssignmentStatus.COMPLETED }, select: { studentId: true } },
+    },
+  });
+  return rows
+    .map((r) => ({
+      assignmentId: r.id,
+      classroomId: r.classroom.id,
+      classroomName: r.classroom.name,
+      articleId: r.article.id,
+      articleTitle: r.article.title,
+      dueDate: r.dueDate,
+      completedCount: r.completions.length,
+      studentCount: r.classroom.members.length,
+    }))
+    .sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity));
+}
+
+export type AssignmentDetailCompletion = {
+  studentId: string;
+  name: string | null;
+  email: string | null;
+  status: AssignmentStatus;
+  quizScore: number | null;
+  completedAt: Date | null;
+  feedback: string | null;
+  reviewedAt: Date | null;
+};
+export type AssignmentDetail = {
+  id: string;
+  classroomId: string;
+  classroomName: string;
+  articleId: string;
+  articleTitle: string;
+  dueDate: Date | null;
+  instructions: string | null;
+  completions: AssignmentDetailCompletion[];
+};
+
+/** One assignment + its per-student completions (teacher/admin drilldown; caller must manage the classroom). */
+export async function getAssignmentDetail(assignmentId: string): Promise<AssignmentDetail | null> {
+  const row = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: {
+      id: true,
+      classroomId: true,
+      dueDate: true,
+      instructions: true,
+      classroom: { select: { name: true } },
+      article: { select: { id: true, title: true } },
+      completions: {
+        select: {
+          studentId: true,
+          status: true,
+          quizScore: true,
+          completedAt: true,
+          feedback: true,
+          reviewedAt: true,
+          student: { select: { name: true, email: true } },
+        },
+      },
+    },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    classroomId: row.classroomId,
+    classroomName: row.classroom.name,
+    articleId: row.article.id,
+    articleTitle: row.article.title,
+    dueDate: row.dueDate,
+    instructions: row.instructions,
+    completions: row.completions.map((c) => ({
+      studentId: c.studentId,
+      name: c.student.name,
+      email: c.student.email,
+      status: c.status,
+      quizScore: c.quizScore,
+      completedAt: c.completedAt,
+      feedback: c.feedback,
+      reviewedAt: c.reviewedAt,
+    })),
+  };
+}
+
 export function searchAssignableArticleOptions(
   context: ArticleAccessContext,
   query = "",
