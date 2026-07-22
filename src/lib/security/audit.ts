@@ -35,6 +35,7 @@ export const AUDIT_ACTIONS = {
   classroomMemberRemove: "classroom.member.remove",
   assignmentUpdate: "assignment.update",
   assignmentDelete: "assignment.delete",
+  assignmentReview: "assignment.review",
   adminScrapeTrigger: "admin.scrape.trigger",
   adminSourceToggle: "admin.source.toggle",
   adminSourceSync: "admin.source.sync",

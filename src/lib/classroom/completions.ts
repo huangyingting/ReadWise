@@ -140,6 +140,33 @@ export async function markAssignmentQuizComplete(input: {
 }
 
 /**
+ * Upserts teacher feedback and review metadata on an assignment completion row.
+ * Creates the row with status ASSIGNED if the student hasn't started yet, so a
+ * teacher can leave feedback proactively. `reviewedBy` is a plain string (user id)
+ * and is never treated as a FK — review metadata survives account deletion.
+ */
+export async function reviewAssignmentCompletion(
+  assignmentId: string,
+  studentId: string,
+  input: { feedback: string | null; reviewedBy: string },
+) {
+  const feedback = input.feedback?.trim() || null;
+  const reviewedAt = new Date();
+  return prisma.assignmentCompletion.upsert({
+    where: { assignmentId_studentId: { assignmentId, studentId } },
+    update: { feedback, reviewedAt, reviewedBy: input.reviewedBy },
+    create: {
+      assignmentId,
+      studentId,
+      status: AssignmentStatus.ASSIGNED,
+      feedback,
+      reviewedAt,
+      reviewedBy: input.reviewedBy,
+    },
+  });
+}
+
+/**
  * Monotonically advances every active assignment for `articleId` in classrooms
  * the student is enrolled in, based on reading progress. Never downgrades a
  * status, never clears or overwrites an existing `quizScore`, and keeps

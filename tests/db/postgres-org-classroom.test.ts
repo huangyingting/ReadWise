@@ -18,6 +18,7 @@ import { prisma } from "@/lib/prisma";
 
 import { removeClassroomMember } from "@/lib/classroom/commands";
 import { countPendingAssignmentsForStudent } from "@/lib/classroom/queries";
+import { reviewAssignmentCompletion } from "@/lib/classroom/completions";
 import { enabled, isPostgres } from "./support/db-config";
 import { id, registerIntegrationCleanup } from "./support/db-helpers";
 
@@ -298,4 +299,46 @@ test("countPendingAssignmentsForStudent counts ASSIGNED+IN_PROGRESS but not COMP
 
   const count = await countPendingAssignmentsForStudent(studentId);
   assert.equal(count, 2, "should count IN_PROGRESS + no-completion rows, not COMPLETED or archived");
+});
+
+test("reviewAssignmentCompletion persists feedback, reviewedAt, and reviewedBy", { skip: !enabled }, async () => {
+  requirePostgres();
+
+  const teacherId = id("rac_teacher");
+  const studentId = id("rac_student");
+  const orgId = id("rac_org");
+  const articleId = id("rac_article");
+  const classroomId = id("rac_classroom");
+
+  await prisma.user.createMany({
+    data: [
+      { id: teacherId, name: "RAC Teacher", role: "Reader" },
+      { id: studentId, name: "RAC Student", role: "Reader" },
+    ],
+  });
+  await createOrganization(orgId, "RAC Org");
+  await createArticle(articleId, "RAC Article", "Body for review feedback test");
+  await prisma.classroom.create({
+    data: { id: classroomId, orgId, name: "RAC Classroom", teacherId },
+  });
+  await prisma.classroomMembership.create({
+    data: { classroomId, userId: studentId, role: "Student" },
+  });
+  const assignment = await prisma.assignment.create({
+    data: { classroomId, articleId },
+  });
+
+  await reviewAssignmentCompletion(assignment.id, studentId, {
+    feedback: "Great work",
+    reviewedBy: teacherId,
+  });
+
+  const completion = await prisma.assignmentCompletion.findUnique({
+    where: { assignmentId_studentId: { assignmentId: assignment.id, studentId } },
+  });
+
+  assert.ok(completion, "completion row must exist");
+  assert.equal(completion.feedback, "Great work");
+  assert.equal(completion.reviewedBy, teacherId);
+  assert.ok(completion.reviewedAt instanceof Date, "reviewedAt must be a Date");
 });
