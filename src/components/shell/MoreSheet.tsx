@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Settings, Shield, Keyboard, LogOut } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
-import { Button, Sheet } from "@/components/ui";
+import { Badge, Button, Sheet } from "@/components/ui";
 import { SECONDARY_NAV, isActivePath, filterNavForUser } from "./nav-items";
 import ThemeToggle from "./ThemeToggle";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
@@ -66,6 +66,7 @@ export default function MoreSheet({
         <nav aria-label="Secondary" className="py-[var(--space-2)]">
           {filterNavForUser(SECONDARY_NAV, user.showTodayNav ?? false).map(({ href, label, icon: Icon }) => {
             const active = isActivePath(pathname, href);
+            const showBadge = href === "/assignments" && (user.pendingAssignmentCount ?? 0) > 0;
             return (
               <Link
                 key={href}
@@ -76,6 +77,14 @@ export default function MoreSheet({
               >
                 <Icon size={20} aria-hidden />
                 {label}
+                {showBadge ? (
+                  <Badge
+                    variant="primary"
+                    aria-label={`${user.pendingAssignmentCount} pending assignments`}
+                  >
+                    {user.pendingAssignmentCount}
+                  </Badge>
+                ) : null}
               </Link>
             );
           })}

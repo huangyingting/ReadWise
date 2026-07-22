@@ -40,6 +40,7 @@ export {
   listClassroomMembers,
   searchClassroomStudentCandidates,
   searchAssignableArticleOptions,
+  countPendingAssignmentsForStudent,
 } from "./queries";
 export {
   type CreateClassroomInput,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeft, ChevronsLeft } from "lucide-react";
-import { Button, Tooltip } from "@/components/ui";
+import { Badge, Button, Tooltip } from "@/components/ui";
 import { cn, focusRing } from "@/lib/cn";
 import {
   PRIMARY_NAV,
@@ -41,6 +41,7 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
   const pathname = usePathname();
   const isAdmin = user?.role === "Admin";
   const { collapsed, mounted, toggle } = useSidebarState();
+  const pendingCount = user?.pendingAssignmentCount ?? 0;
 
   const primaryNav = filterNavForUser(PRIMARY_NAV, user?.showTodayNav ?? false).filter(hasNavGroup("primary"));
   const secondaryNav = filterNavForUser(PRIMARY_NAV, user?.showTodayNav ?? false).filter(hasNavGroup("secondary"));
@@ -50,6 +51,7 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
       item={item}
       pathname={pathname}
       collapsed={collapsed}
+      pendingAssignmentCount={pendingCount}
     />
   );
 
@@ -142,13 +144,16 @@ function SidebarNavLink({
   item,
   pathname,
   collapsed,
+  pendingAssignmentCount,
 }: {
   item: Pick<NavItem, "href" | "label" | "icon">;
   pathname: string;
   collapsed: boolean;
+  pendingAssignmentCount: number;
 }) {
   const { href, label, icon: Icon } = item;
   const active = isActivePath(pathname, href);
+  const showBadge = href === "/assignments" && pendingAssignmentCount > 0;
 
   const link = (
     <Link
@@ -174,13 +179,40 @@ function SidebarNavLink({
           className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-[var(--radius-full)] bg-[var(--teal)]"
         />
       ) : null}
-      <Icon size={20} aria-hidden className="shrink-0" />
-      <span className={cn(collapsed ? "sr-only" : "truncate")}>{label}</span>
+      <span className="relative shrink-0">
+        <Icon size={20} aria-hidden className="shrink-0" />
+        {showBadge && collapsed ? (
+          <span
+            aria-hidden
+            className="absolute -right-[3px] -top-[3px] h-[7px] w-[7px] rounded-[var(--radius-full)] bg-[var(--primary)] ring-[2px] ring-surface"
+          />
+        ) : null}
+      </span>
+      <span className={cn(collapsed ? "sr-only" : "flex flex-1 items-center gap-[var(--space-2)] truncate")}>
+        {label}
+        {showBadge && !collapsed ? (
+          <Badge
+            variant="primary"
+            aria-label={`${pendingAssignmentCount} pending assignments`}
+          >
+            {pendingAssignmentCount}
+          </Badge>
+        ) : null}
+      </span>
     </Link>
   );
 
   return collapsed ? (
-    <Tooltip content={label} side="right" wrap={false} className="w-full">
+    <Tooltip
+      content={
+        showBadge
+          ? `${label} · ${pendingAssignmentCount} pending`
+          : label
+      }
+      side="right"
+      wrap={false}
+      className="w-full"
+    >
       {link}
     </Tooltip>
   ) : (
