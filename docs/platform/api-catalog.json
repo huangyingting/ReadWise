@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-21T13:32:31.193Z",
-  "routeCount": 136,
-  "methodCount": 165,
+  "generatedAt": "2026-07-22T02:03:15.346Z",
+  "routeCount": 137,
+  "methodCount": 166,
   "routes": [
     {
       "path": "/api/account",
@@ -1749,6 +1749,31 @@
           "bodyFieldNames": [
             "quizScore",
             "status"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/assignments/{id}/completions/{studentId}",
+      "file": "src/app/api/assignments/[id]/completions/[studentId]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "PATCH",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "completion"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "feedback"
           ]
         }
       ]
