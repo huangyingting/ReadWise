@@ -148,6 +148,8 @@ export async function deleteAssignment(assignmentId: string): Promise<void> {
 export type UpdateAssignmentInput = {
   dueDate?: string;
   instructions?: string | null;
+  title?: string | null;
+  points?: number | null;
 };
 
 export type UpdateAssignmentResult =
@@ -163,7 +165,12 @@ export async function updateAssignment(
   assignmentId: string,
   input: UpdateAssignmentInput,
 ): Promise<UpdateAssignmentResult> {
-  const data: { dueDate?: Date | null; instructions?: string | null } = {};
+  const data: {
+    dueDate?: Date | null;
+    instructions?: string | null;
+    title?: string | null;
+    points?: number | null;
+  } = {};
 
   if (input.dueDate !== undefined) {
     const dueDate = parseOptionalDueDate(input.dueDate);
@@ -175,6 +182,14 @@ export async function updateAssignment(
 
   if (input.instructions !== undefined) {
     data.instructions = trimOrNull(input.instructions);
+  }
+
+  if (input.title !== undefined) {
+    data.title = trimOrNull(input.title);
+  }
+
+  if (input.points !== undefined) {
+    data.points = input.points;
   }
 
   const assignment = await prisma.assignment.update({

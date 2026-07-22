@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-22T03:40:31.088Z",
+  "generatedAt": "2026-07-22T04:33:15.487Z",
   "routeCount": 138,
   "methodCount": 168,
   "routes": [
@@ -1737,7 +1737,9 @@
           "queryParamNames": null,
           "bodyFieldNames": [
             "dueDate",
-            "instructions"
+            "instructions",
+            "points",
+            "title"
           ]
         }
       ]
@@ -2103,7 +2105,9 @@
           "bodyFieldNames": [
             "articleId",
             "dueDate",
-            "instructions"
+            "instructions",
+            "points",
+            "title"
           ]
         }
       ]

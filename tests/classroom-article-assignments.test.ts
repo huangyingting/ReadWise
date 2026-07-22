@@ -120,6 +120,8 @@ async function create(overrides: Partial<{
   articleId: string;
   dueDate: string;
   instructions: string | null;
+  title: string | null;
+  points: number | null;
 }> = {}) {
   const { createArticleAssignment } = await import(
     "@/lib/classroom/article-assignments"
@@ -229,6 +231,8 @@ test("normalizes optional fields and creates the assignment", async () => {
   const result = await create({
     dueDate: "2026-12-31",
     instructions: "  Read carefully  ",
+    title: "  Week 1 reading  ",
+    points: 25,
   });
 
   assert.equal(result.ok, true);
@@ -238,17 +242,21 @@ test("normalizes optional fields and creates the assignment", async () => {
     articleId: "article-1",
     dueDate: new Date("2026-12-31T23:59:59.999Z"),
     instructions: "Read carefully",
+    title: "Week 1 reading",
+    points: 25,
   });
 });
 
-test("stores null for absent due date and blank instructions", async () => {
-  await create({ instructions: "   " });
+test("stores null for absent due date and blank metadata", async () => {
+  await create({ instructions: "   ", title: "   " });
 
   assert.deepEqual(createCalls[0].data, {
     classroomId: "classroom-1",
     articleId: "article-1",
     dueDate: null,
     instructions: null,
+    title: null,
+    points: null,
   });
 });
 

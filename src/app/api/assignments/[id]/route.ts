@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { idParams, object, optional, string } from "@/lib/validation";
+import { idParams, number, object, optional, string } from "@/lib/validation";
 import {
   deleteAssignment,
   getAssignmentClassroom,
@@ -13,6 +13,8 @@ import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 const updateBody = object({
   dueDate: optional(string({ min: 1, max: 40 })),
   instructions: optional(string({ max: 2000 })),
+  title: optional(string({ max: 200 })),
+  points: optional(number({ min: 0, max: 10000, int: true })),
 });
 
 export const GET = createHandler(
@@ -61,6 +63,8 @@ export const PATCH = createHandler(
     const result = await updateAssignment(params.id, {
       dueDate: body.dueDate,
       instructions: body.instructions,
+      title: body.title,
+      points: body.points,
     });
     if (!result.ok) {
       throw new ApiError(result.status, "Invalid due date");
@@ -78,6 +82,8 @@ export const PATCH = createHandler(
         changed: {
           dueDate: body.dueDate !== undefined,
           instructions: body.instructions !== undefined,
+          title: body.title !== undefined,
+          points: body.points !== undefined,
         },
       },
     });

@@ -29,8 +29,11 @@ type ArticleOptionsResponse = {
 };
 
 const ARTICLE_QUERY_MAX_LENGTH = 100;
+const TITLE_MAX_LENGTH = 200;
 const INSTRUCTIONS_MAX_LENGTH = 2000;
 const EMPTY_ASSIGNMENT_FORM = {
+  title: "",
+  points: "",
   dueDate: "",
   instructions: "",
 };
@@ -58,9 +61,13 @@ function buildAssignmentPayload(
   articleId: string,
   dueDate: string,
   instructions: string,
+  title: string,
+  points: string,
 ) {
   return {
     articleId,
+    title: title.trim() || undefined,
+    points: points ? Number(points) : undefined,
     dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
     instructions: instructions.trim() || undefined,
   };
@@ -118,7 +125,13 @@ export default function AssignArticleForm({
     await run(async () => {
       await postJson(
         `/api/classrooms/${classroomId}/assignments`,
-        buildAssignmentPayload(selected.id, form.dueDate, form.instructions),
+        buildAssignmentPayload(
+          selected.id,
+          form.dueDate,
+          form.instructions,
+          form.title,
+          form.points,
+        ),
       );
       resetForm();
     }, { refreshOnSuccess: true });
@@ -192,6 +205,24 @@ export default function AssignArticleForm({
           type="date"
           value={form.dueDate}
           onChange={(e) => updateField("dueDate", e.target.value)}
+        />
+      </Field>
+      <Field label="Title (optional)">
+        <Input
+          value={form.title}
+          onChange={(e) => updateField("title", e.target.value)}
+          placeholder="Override the article title for this class"
+          maxLength={TITLE_MAX_LENGTH}
+        />
+      </Field>
+      <Field label="Points (optional)">
+        <Input
+          type="number"
+          min={0}
+          max={10000}
+          step={1}
+          value={form.points}
+          onChange={(e) => updateField("points", e.target.value)}
         />
       </Field>
       <Field label="Instructions (optional)">

@@ -122,6 +122,29 @@ test("getAssignmentClassroom returns null when assignment does not exist", async
   assert.equal(result, null);
 });
 
+test("listClassroomAssignmentMeta maps editable assignment metadata", async () => {
+  assignmentListStub = [
+    {
+      id: "a1",
+      dueDate: new Date("2026-08-01"),
+      instructions: "Read carefully",
+      title: "Week 1",
+      points: 20,
+    },
+  ];
+  const { listClassroomAssignmentMeta } = await classroomQueries();
+  const result = await listClassroomAssignmentMeta("c1");
+  assert.deepEqual(result, [
+    {
+      assignmentId: "a1",
+      dueDate: new Date("2026-08-01"),
+      instructions: "Read carefully",
+      title: "Week 1",
+      points: 20,
+    },
+  ]);
+});
+
 // ---- listClassroomsForOrg --------------------------------------------------
 
 test("listClassroomsForOrg returns classrooms scoped to the given org", async () => {
@@ -372,6 +395,8 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
     {
       id: "a1",
       dueDate: new Date("2026-08-01"),
+      title: "Week 1",
+      points: 20,
       classroom: {
         id: "c1",
         name: "Algebra",
@@ -383,6 +408,8 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
     {
       id: "a2",
       dueDate: null,
+      title: null,
+      points: null,
       classroom: {
         id: "c2",
         name: "Biology",
@@ -401,6 +428,8 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
     classroomName: "Algebra",
     articleId: "art1",
     articleTitle: "Article One",
+    title: "Week 1",
+    points: 20,
     dueDate: new Date("2026-08-01"),
     completedCount: 1,
     studentCount: 2,
@@ -411,6 +440,8 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
     classroomName: "Biology",
     articleId: "art2",
     articleTitle: "Article Two",
+    title: null,
+    points: null,
     dueDate: null,
     completedCount: 0,
     studentCount: 1,
@@ -422,6 +453,8 @@ test("listAssignmentsForTeacher sorts soonest-due first, undated last", async ()
     {
       id: "a-null",
       dueDate: null,
+      title: null,
+      points: null,
       classroom: { id: "c1", name: "C1", members: [] },
       article: { id: "art1", title: "T1" },
       completions: [],
@@ -429,6 +462,8 @@ test("listAssignmentsForTeacher sorts soonest-due first, undated last", async ()
     {
       id: "a-far",
       dueDate: new Date("2026-09-01"),
+      title: null,
+      points: null,
       classroom: { id: "c1", name: "C1", members: [] },
       article: { id: "art2", title: "T2" },
       completions: [],
@@ -436,6 +471,8 @@ test("listAssignmentsForTeacher sorts soonest-due first, undated last", async ()
     {
       id: "a-near",
       dueDate: new Date("2026-07-25"),
+      title: null,
+      points: null,
       classroom: { id: "c1", name: "C1", members: [] },
       article: { id: "art3", title: "T3" },
       completions: [],
@@ -477,6 +514,8 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
     classroomId: "c1",
     dueDate: new Date("2026-08-10"),
     instructions: "Read carefully",
+    title: "Lab prep",
+    points: 15,
     classroom: { name: "Physics" },
     article: { id: "art1", title: "Newton's Laws" },
     completions: [
@@ -512,6 +551,8 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
   assert.equal(result.articleTitle, "Newton's Laws");
   assert.deepEqual(result.dueDate, new Date("2026-08-10"));
   assert.equal(result.instructions, "Read carefully");
+  assert.equal(result.title, "Lab prep");
+  assert.equal(result.points, 15);
   assert.equal(result.completions.length, 2);
   assert.deepEqual(result.completions[0], {
     studentId: "s1",
@@ -536,4 +577,3 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
     reviewedAt: null,
   });
 });
-
