@@ -103,6 +103,34 @@ function ClassroomList({
   );
 }
 
+function assignmentIsLive(
+  assignment: Pick<TeacherAssignmentRow, "publishState" | "publishAt">,
+  now: Date,
+): boolean {
+  return (
+    assignment.publishState === "PUBLISHED" ||
+    (assignment.publishState === "SCHEDULED" &&
+      assignment.publishAt != null &&
+      assignment.publishAt <= now)
+  );
+}
+
+function assignmentPublishBadge(
+  assignment: Pick<TeacherAssignmentRow, "publishState" | "publishAt">,
+) {
+  if (assignment.publishState === "DRAFT") {
+    return <Badge variant="neutral">Draft</Badge>;
+  }
+  if (assignment.publishState === "SCHEDULED") {
+    return (
+      <Badge variant="warning">
+        Scheduled · {formatMediumDate(assignment.publishAt) ?? "not set"}
+      </Badge>
+    );
+  }
+  return null;
+}
+
 function TeacherAssignmentList({
   assignments,
 }: {
@@ -114,11 +142,14 @@ function TeacherAssignmentList({
       {assignments.map((a) => {
         const allComplete =
           a.studentCount > 0 && a.completedCount >= a.studentCount;
-        const overdue = isAssignmentOverdue(
-          a.dueDate,
-          allComplete ? "COMPLETED" : "PENDING",
-          now,
-        );
+        const live = assignmentIsLive(a, now);
+        const overdue =
+          live &&
+          isAssignmentOverdue(
+            a.dueDate,
+            allComplete ? "COMPLETED" : "PENDING",
+            now,
+          );
         const displayTitle = a.title ?? a.articleTitle;
         return (
           <li key={a.assignmentId}>
@@ -143,9 +174,12 @@ function TeacherAssignmentList({
                     </p>
                   </div>
                   <div className="flex items-center gap-[var(--space-2)]">
-                    <Badge variant={allComplete ? "success" : "neutral"}>
-                      {a.completedCount}/{a.studentCount} done
-                    </Badge>
+                    {assignmentPublishBadge(a)}
+                    {live ? (
+                      <Badge variant={allComplete ? "success" : "neutral"}>
+                        {a.completedCount}/{a.studentCount} done
+                      </Badge>
+                    ) : null}
                     {overdue && <Badge variant="danger">Overdue</Badge>}
                   </div>
                 </CardBody>

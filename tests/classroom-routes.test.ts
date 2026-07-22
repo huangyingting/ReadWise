@@ -1387,7 +1387,6 @@ test("POST /api/classrooms/[id]/assignments/bulk forwards target studentIds and 
     articleIds: ["a1", "a2"],
     studentIds: ["student-1", "student-2"],
   });
-
   assert.equal(res.status, 201);
   assert.deepEqual(
     createArticleAssignmentCalls.map((call) => call.studentIds),
@@ -1402,6 +1401,21 @@ test("POST /api/classrooms/[id]/assignments/bulk forwards target studentIds and 
     publishState: "PUBLISHED",
     scheduled: false,
   });
+});
+
+test("POST /api/classrooms/[id]/assignments/bulk rejects invalid scheduled publish time before creating", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await postBulkClassroomAssignments("c1", {
+    articleIds: ["a1", "a2"],
+    publishState: "SCHEDULED",
+    publishAt: "bad",
+  });
+
+  assert.equal(res.status, 400);
+  const body = await res.json() as { error: string };
+  assert.match(body.error, /Scheduled publish time/i);
+  assert.equal(createArticleAssignmentCalls.length, 0);
 });
 
 test("POST /api/classrooms/[id]/assignments/bulk returns 400 for an empty array", async () => {
@@ -1625,7 +1639,6 @@ test("PATCH /api/assignments/[id] forwards publish lifecycle fields", async () =
     publishState: "SCHEDULED",
     publishAt,
   });
-
   assert.equal(res.status, 200);
   assert.deepEqual(updateAssignmentCalls.at(-1), {
     assignmentId: "asgn1",
@@ -1641,6 +1654,20 @@ test("PATCH /api/assignments/[id] forwards publish lifecycle fields", async () =
   });
   assert.equal(auditCalls.at(-1)?.metadata?.publishState, "SCHEDULED");
   assert.equal(auditCalls.at(-1)?.metadata?.scheduled, true);
+});
+
+test("PATCH /api/assignments/[id] rejects publishAt without publishState", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await patchAssignmentRoute("asgn1", {
+    publishAt: "2999-01-01T00:00:00.000Z",
+  });
+
+  assert.equal(res.status, 400);
+  const body = (await res.json()) as { error: string };
+  assert.equal(body.error, "publishAt requires publishState");
+  assert.equal(updateAssignmentCalls.length, 0);
 });
 
 test("PATCH /api/assignments/[id] rejects out-of-range points", async () => {

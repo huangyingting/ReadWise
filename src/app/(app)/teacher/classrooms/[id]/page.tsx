@@ -101,6 +101,7 @@ function assignmentPublishBadge(meta: Pick<AssignmentMeta, "publishState" | "pub
     return <Badge variant="neutral">Draft</Badge>;
   }
   if (meta.publishState === "SCHEDULED") {
+    // server-tz: RSC formats this scheduled time using the server timezone.
     const when = meta.publishAt
       ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(meta.publishAt)
       : "not set";

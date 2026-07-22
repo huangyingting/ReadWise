@@ -72,16 +72,17 @@ test("student assignment context exposes archived classroom state for route reje
     where: {
       id: string;
       classroom: { members: { some: { userId: string } } };
-      OR: Array<{ targets: { none?: Record<string, never>; some?: { studentId: string } } }>;
+      AND: Array<{ OR: unknown[] }>;
     };
     select: { classroom: { select: { archivedAt: boolean } } };
   };
   assert.equal(args.where.id, "asgn-archived");
   assert.deepEqual(args.where.classroom.members.some, { userId: "student-1" });
-  assert.deepEqual(args.where.OR, [
+  assert.deepEqual(args.where.AND[0].OR, [
     { targets: { none: {} } },
     { targets: { some: { studentId: "student-1" } } },
   ]);
+  assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
   assert.equal(args.select.classroom.select.archivedAt, true);
   assert.deepEqual(result, {
     assignmentId: "asgn-archived",
@@ -98,16 +99,17 @@ test("scopes the assignment lookup to classrooms the student is enrolled in", as
     where: {
       articleId: string;
       classroom: { archivedAt: null; members: { some: { userId: string } } };
-      OR: Array<{ targets: { none?: Record<string, never>; some?: { studentId: string } } }>;
+      AND: Array<{ OR: unknown[] }>;
     };
   };
   assert.equal(args.where.articleId, "article-1");
   assert.equal(args.where.classroom.archivedAt, null);
   assert.deepEqual(args.where.classroom.members.some, { userId: "student-1" });
-  assert.deepEqual(args.where.OR, [
+  assert.deepEqual(args.where.AND[0].OR, [
     { targets: { none: {} } },
     { targets: { some: { studentId: "student-1" } } },
   ]);
+  assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });
 
 test("non-targeted student context returns null when the visibility seam excludes it", async () => {
@@ -117,13 +119,14 @@ test("non-targeted student context returns null when the visibility seam exclude
   assert.equal(result, null);
   const args = findFirstArgs as {
     where: {
-      OR: Array<{ targets: { none?: Record<string, never>; some?: { studentId: string } } }>;
+      AND: Array<{ OR: unknown[] }>;
     };
   };
-  assert.deepEqual(args.where.OR, [
+  assert.deepEqual(args.where.AND[0].OR, [
     { targets: { none: {} } },
     { targets: { some: { studentId: "student-2" } } },
   ]);
+  assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });
 
 test("does nothing when the student is not enrolled in any classroom for the article", async () => {

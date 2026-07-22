@@ -31,6 +31,13 @@ export const POST = createHandler(
     if (body.articleIds.length === 0) {
       throw new ApiError(400, "No articles selected");
     }
+    if (body.publishState === "SCHEDULED") {
+      const now = new Date();
+      const publishAt = body.publishAt ? new Date(body.publishAt) : null;
+      if (!publishAt || Number.isNaN(publishAt.getTime()) || publishAt <= now) {
+        throw new ApiError(400, "Scheduled publish time must be in the future");
+      }
+    }
 
     const { classroom } = await requireActiveClassroomManageApi(session, params.id);
     const { created, failed } = await bulkCreateArticleAssignments({

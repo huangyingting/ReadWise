@@ -73,6 +73,9 @@ export const PATCH = createHandler(
     const assignment = await getAssignmentClassroom(params.id);
     if (!assignment) throw new ApiError(404, "Assignment not found");
     await requireActiveClassroomManageApi(session, assignment.classroomId);
+    if (body.publishAt !== undefined && body.publishState === undefined) {
+      throw new ApiError(400, "publishAt requires publishState");
+    }
     const result = await updateAssignment(params.id, {
       dueDate: body.dueDate,
       instructions: body.instructions,

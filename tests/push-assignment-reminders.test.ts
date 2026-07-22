@@ -67,6 +67,8 @@ let mockAssignments: MockAssignment[] = [];
 let mockAssignmentCount: number = 0;
 let mockAssignmentFindUniqueResult: {
   id: string;
+  publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  publishAt?: Date | null;
   classroom: { members: { userId: string }[] };
   completions: { studentId: string }[];
   targets?: { studentId: string }[];
@@ -189,8 +191,13 @@ before(() => {
           },
           findUnique: async () =>
             mockAssignmentFindUniqueResult
-              ? { ...mockAssignmentFindUniqueResult, targets: mockAssignmentFindUniqueResult.targets ?? [] }
-              : null,
+             ? {
+                 publishState: "PUBLISHED",
+                 publishAt: null,
+                 ...mockAssignmentFindUniqueResult,
+                 targets: mockAssignmentFindUniqueResult.targets ?? [],
+               }
+             : null,
         },
         reminderPreference: {
           findMany: async (args: { where?: { userId?: { in?: string[] } } }) => {
@@ -645,6 +652,43 @@ describe("remindAssignmentStudents", () => {
     assert.equal(result.notified, 1);
     assert.equal(result.skipped, 0);
     assert.equal(result.suppressed, 0);
+  });
+
+  test("draft assignment nudge sends zero notifications", async () => {
+    mockAssignmentFindUniqueResult = {
+      id: "a1",
+      publishState: "DRAFT",
+      classroom: { members: [{ userId: "s1" }] },
+      completions: [],
+    };
+    mockAssignmentCount = 1;
+    mockSubs = [subscription("sub1", "s1")];
+    mockReminderPrefs = [reminderPreference("s1")];
+
+    const { remindAssignmentStudents } = await import("@/lib/push/assignment-reminders");
+    const result = await remindAssignmentStudents("a1");
+
+    assert.deepEqual(result, { total: 0, notified: 0, skipped: 0, suppressed: 0 });
+    assert.equal(sendCalls.length, 0);
+  });
+
+  test("future-scheduled assignment nudge sends zero notifications", async () => {
+    mockAssignmentFindUniqueResult = {
+      id: "a1",
+      publishState: "SCHEDULED",
+      publishAt: new Date(Date.now() + 86_400_000),
+      classroom: { members: [{ userId: "s1" }] },
+      completions: [],
+    };
+    mockAssignmentCount = 1;
+    mockSubs = [subscription("sub1", "s1")];
+    mockReminderPrefs = [reminderPreference("s1")];
+
+    const { remindAssignmentStudents } = await import("@/lib/push/assignment-reminders");
+    const result = await remindAssignmentStudents("a1");
+
+    assert.deepEqual(result, { total: 0, notified: 0, skipped: 0, suppressed: 0 });
+    assert.equal(sendCalls.length, 0);
   });
 
   test("targeted assignment nudge only targets audience members", async () => {
