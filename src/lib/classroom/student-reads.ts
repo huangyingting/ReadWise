@@ -16,6 +16,7 @@ export type StudentAssignment = {
   articleTitle: string;
   dueDate: Date | null;
   instructions: string | null;
+  feedback: string | null;
   status: AssignmentStatus;
   quizScore: number | null;
   completedAt: Date | null;
@@ -30,6 +31,7 @@ type AssignmentWithStudentCompletion = Awaited<
     status: AssignmentStatus;
     quizScore: number | null;
     completedAt: Date | null;
+    feedback: string | null;
   }>;
 };
 
@@ -51,6 +53,7 @@ function mapStudentAssignment(assignment: AssignmentWithStudentCompletion): Stud
     articleTitle: assignment.article.title,
     dueDate: assignment.dueDate,
     instructions: assignment.instructions,
+    feedback: completion?.feedback ?? null,
     status: completion?.status ?? AssignmentStatus.ASSIGNED,
     quizScore: completion?.quizScore ?? null,
     completedAt: completion?.completedAt ?? null,

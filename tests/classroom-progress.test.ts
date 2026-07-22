@@ -197,6 +197,7 @@ test("getClassroomProgressData maps completion rows to ClassroomProgressCompleti
       status: AssignmentStatus.COMPLETED,
       quizScore: 92,
       completedAt,
+      feedback: null,
     },
   ];
   const { getClassroomProgressData } = await classroomProgress();
@@ -209,6 +210,7 @@ test("getClassroomProgressData maps completion rows to ClassroomProgressCompleti
     status: AssignmentStatus.COMPLETED,
     quizScore: 92,
     completedAt,
+    feedback: null,
   });
 });
 
