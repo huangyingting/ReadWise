@@ -62,6 +62,9 @@ function makeRow(overrides: {
   classroomName?: string;
   articleId?: string;
   articleTitle?: string;
+  title?: string | null;
+  points?: number | null;
+  pointsAwarded?: number | null;
   dueDate?: Date | null;
   instructions?: string | null;
   completionStatus?: AssignmentStatus;
@@ -70,6 +73,8 @@ function makeRow(overrides: {
 } = {}): Record<string, unknown> {
   return {
     id: overrides.id ?? "a1",
+    title: overrides.title ?? null,
+    points: overrides.points ?? null,
     dueDate: overrides.dueDate ?? null,
     instructions: overrides.instructions ?? null,
     classroom: {
@@ -86,6 +91,7 @@ function makeRow(overrides: {
             {
               status: overrides.completionStatus,
               quizScore: overrides.quizScore ?? null,
+              pointsAwarded: overrides.pointsAwarded ?? null,
               completedAt: overrides.completedAt ?? null,
             },
           ]
@@ -155,6 +161,7 @@ test("listAssignmentsForStudent defaults status to ASSIGNED when no completion e
   assert.equal(result[0].status, AssignmentStatus.ASSIGNED);
   assert.equal(result[0].quizScore, null);
   assert.equal(result[0].completedAt, null);
+  assert.equal(result[0].pointsAwarded, null);
 });
 
 test("listAssignmentsForStudent uses the IN_PROGRESS completion status when present", async () => {
@@ -191,6 +198,9 @@ test("listAssignmentsForStudent maps all output fields from the Prisma row", asy
       articleTitle: "Ancient Rome",
       dueDate,
       instructions: "Take notes",
+      title: "Week 1 Display",
+      points: 20,
+      pointsAwarded: 18,
       completionStatus: AssignmentStatus.ASSIGNED,
     }),
   ];
@@ -203,6 +213,9 @@ test("listAssignmentsForStudent maps all output fields from the Prisma row", asy
     classroomName: "History",
     articleId: "art-x",
     articleTitle: "Ancient Rome",
+    title: "Week 1 Display",
+    points: 20,
+    pointsAwarded: 18,
     dueDate,
     instructions: "Take notes",
     feedback: null,

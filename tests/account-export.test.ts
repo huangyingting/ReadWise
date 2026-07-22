@@ -163,6 +163,7 @@ const stubExportUser = {
       assignmentId: "assign-1",
       status: "COMPLETED",
       quizScore: 95,
+      pointsAwarded: 18,
       completedAt: NOW,
       createdAt: NOW,
       updatedAt: NOW,
@@ -451,6 +452,15 @@ test("exportUserData includes assignmentCompletions (711-E)", async () => {
   assert.equal(data.assignmentCompletions[0].assignmentId, "assign-1");
   assert.equal(data.assignmentCompletions[0].status, "COMPLETED");
   assert.equal(data.assignmentCompletions[0].quizScore, 95);
+  assert.equal(data.assignmentCompletions[0].pointsAwarded, 18);
+});
+
+test("USER_EXPORT_SELECT exports teacher-awarded assignment points", async () => {
+  const { USER_EXPORT_SELECT } = await import("@/lib/account-lifecycle/personal-data-policy");
+  assert.equal(
+    USER_EXPORT_SELECT.assignmentCompletions.select.pointsAwarded,
+    true,
+  );
 });
 
 test("exportUserData includes PlacementResult controlled fields (#806)", async () => {

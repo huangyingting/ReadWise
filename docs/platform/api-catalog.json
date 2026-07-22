@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-22T07:33:08.130Z",
+  "generatedAt": "2026-07-22T08:27:10.863Z",
   "routeCount": 140,
   "methodCount": 170,
   "routes": [
@@ -1792,7 +1792,8 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": [
-            "feedback"
+            "feedback",
+            "pointsAwarded"
           ]
         }
       ]

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { patchJson } from "@/lib/client-fetch";
 import { Textarea } from "@/components/ui/Textarea";
+import { Input } from "@/components/ui/Input";
 import { Field } from "@/components/ui/Field";
 import { useMutation } from "@/hooks/useMutation";
 import { TeacherFormShell } from "./TeacherFormShell";
@@ -11,6 +12,8 @@ interface AssignmentFeedbackFormProps {
   assignmentId: string;
   studentId: string;
   initialFeedback: string | null;
+  points?: number | null;
+  initialPointsAwarded?: number | null;
   studentLabel?: string;
 }
 
@@ -25,9 +28,12 @@ export default function AssignmentFeedbackForm({
   assignmentId,
   studentId,
   initialFeedback,
+  points,
+  initialPointsAwarded,
   studentLabel,
 }: AssignmentFeedbackFormProps) {
   const [feedback, setFeedback] = useState(initialFeedback ?? "");
+  const [score, setScore] = useState(initialPointsAwarded?.toString() ?? "");
   const [saved, setSaved] = useState(false);
   const { busy, error, run } = useMutation("Failed to save feedback");
 
@@ -42,7 +48,10 @@ export default function AssignmentFeedbackForm({
       async () => {
         await patchJson(
           `/api/assignments/${encodeURIComponent(assignmentId)}/completions/${encodeURIComponent(studentId)}`,
-          { feedback: feedback.trim() },
+          {
+            feedback: feedback.trim(),
+            pointsAwarded: score.trim() === "" ? null : Number(score),
+          },
         );
         setSaved(true);
       },
@@ -58,6 +67,24 @@ export default function AssignmentFeedbackForm({
       submitLabel={saved && !error ? "Saved" : "Save feedback"}
       busyLabel="Saving…"
     >
+      <Field
+        label="Score"
+        hint={points == null ? "Optional score" : `Optional score / ${points}`}
+      >
+        <Input
+          type="number"
+          min={0}
+          max={points ?? undefined}
+          step={1}
+          value={score}
+          onChange={(e) => {
+            setScore(e.target.value);
+            setSaved(false);
+          }}
+          placeholder="Score"
+          disabled={busy}
+        />
+      </Field>
       <Field label={fieldLabel} error={error ?? undefined}>
         <Textarea
           value={feedback}

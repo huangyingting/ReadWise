@@ -25,6 +25,8 @@ let membershipUpsertArgs: unknown = null;
 let membershipDeleteManyArgs: unknown = null;
 let completionDeleteManyArgs: unknown = null;
 let completionUpdateManyArgs: unknown = null;
+let completionFindFirstArgs: unknown = null;
+let completionFindFirstResult: Record<string, unknown> | null = null;
 let completionUpdateManyResult = { count: 2 };
 let assignmentDeleteManyArgs: unknown = null;
 let assignmentUpdateArgs: unknown = null;
@@ -106,6 +108,10 @@ before(() => {
         completionUpdateManyArgs = args;
         return completionUpdateManyResult;
       },
+      findFirst: async (args: unknown) => {
+        completionFindFirstArgs = args;
+        return completionFindFirstResult;
+      },
     },
     assignment: {
       deleteMany: async (args: unknown) => {
@@ -165,6 +171,8 @@ beforeEach(() => {
   membershipDeleteManyArgs = null;
   completionDeleteManyArgs = null;
   completionUpdateManyArgs = null;
+  completionFindFirstArgs = null;
+  completionFindFirstResult = null;
   completionUpdateManyResult = { count: 2 };
   assignmentDeleteManyArgs = null;
   assignmentUpdateArgs = null;
@@ -470,6 +478,39 @@ test("updateAssignment clears title and points when null or blank", async () => 
   await updateAssignment("asgn-1", { title: "   ", points: null });
   const args = assignmentUpdateArgs as { data: { title: string | null; points: number | null } };
   assert.deepEqual(args.data, { title: null, points: null });
+});
+
+test("updateAssignment rejects points below an already-awarded score", async () => {
+  completionFindFirstResult = { id: "completion-1" };
+  const { updateAssignment } = await loadCommands();
+  const result = await updateAssignment("asgn-1", { points: 10 });
+
+  assert.deepEqual(result, { ok: false, status: 409, reason: "points_below_awarded" });
+  assert.deepEqual(completionFindFirstArgs, {
+    where: { assignmentId: "asgn-1", pointsAwarded: { gt: 10 } },
+    select: { id: true },
+  });
+  assert.equal(assignmentUpdateArgs, null);
+});
+
+test("updateAssignment allows points at or above awarded scores and clearing points", async () => {
+  const { updateAssignment } = await loadCommands();
+  let result = await updateAssignment("asgn-1", { points: 20 });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(completionFindFirstArgs, {
+    where: { assignmentId: "asgn-1", pointsAwarded: { gt: 20 } },
+    select: { id: true },
+  });
+  assert.deepEqual((assignmentUpdateArgs as { data: Record<string, unknown> }).data, { points: 20 });
+
+  completionFindFirstArgs = null;
+  assignmentUpdateArgs = null;
+  result = await updateAssignment("asgn-1", { points: null });
+
+  assert.equal(result.ok, true);
+  assert.equal(completionFindFirstArgs, null);
+  assert.deepEqual((assignmentUpdateArgs as { data: Record<string, unknown> }).data, { points: null });
 });
 
 test("updateAssignment leaves title and points untouched when absent", async () => {

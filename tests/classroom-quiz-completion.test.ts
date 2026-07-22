@@ -197,3 +197,50 @@ test("idempotent re-attempt overwrites the score via the upsert update path", as
   assert.equal(first.update.quizScore, 55);
   assert.ok(first.update.completedAt instanceof Date);
 });
+
+test("reviewAssignmentCompletion persists awarded points", async () => {
+  const { reviewAssignmentCompletion } = await load();
+  await reviewAssignmentCompletion("asgn-1", "student-1", {
+    feedback: "Great",
+    pointsAwarded: 9,
+    reviewedBy: "teacher-1",
+  });
+
+  const call = upsertCalls[0] as {
+    update: { pointsAwarded: number };
+    create: { pointsAwarded: number };
+  };
+  assert.equal(call.update.pointsAwarded, 9);
+  assert.equal(call.create.pointsAwarded, 9);
+});
+
+test("reviewAssignmentCompletion leaves awarded points unchanged when absent", async () => {
+  const { reviewAssignmentCompletion } = await load();
+  await reviewAssignmentCompletion("asgn-1", "student-1", {
+    feedback: "Updated",
+    reviewedBy: "teacher-1",
+  });
+
+  const call = upsertCalls[0] as {
+    update: Record<string, unknown>;
+    create: { pointsAwarded: number | null };
+  };
+  assert.equal(Object.hasOwn(call.update, "pointsAwarded"), false);
+  assert.equal(call.create.pointsAwarded, null);
+});
+
+test("reviewAssignmentCompletion clears awarded points with explicit null", async () => {
+  const { reviewAssignmentCompletion } = await load();
+  await reviewAssignmentCompletion("asgn-1", "student-1", {
+    feedback: null,
+    pointsAwarded: null,
+    reviewedBy: "teacher-1",
+  });
+
+  const call = upsertCalls[0] as {
+    update: { pointsAwarded: number | null };
+    create: { pointsAwarded: number | null };
+  };
+  assert.equal(call.update.pointsAwarded, null);
+  assert.equal(call.create.pointsAwarded, null);
+});

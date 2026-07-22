@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { object, nonEmptyString, optional, string } from "@/lib/validation";
+import { object, nonEmptyString, nullable, number, optional, string } from "@/lib/validation";
 import {
   getAssignmentClassroom,
   getStudentAssignmentContext,
@@ -16,6 +16,7 @@ const reviewParams = object({
 
 const reviewBody = object({
   feedback: optional(string({ max: 2000 })),
+  pointsAwarded: nullable(number({ min: 0, max: 100000, int: true })),
 });
 
 /**
@@ -31,12 +32,16 @@ export const PATCH = createHandler(
     const assignment = await getAssignmentClassroom(params.id);
     if (!assignment) throw new ApiError(404, "Assignment not found");
     await requireActiveClassroomManageApi(session, assignment.classroomId);
+    if (body.pointsAwarded != null && assignment.points != null && body.pointsAwarded > assignment.points) {
+      throw new ApiError(400, "Awarded score exceeds assignment points");
+    }
 
     const studentContext = await getStudentAssignmentContext(params.id, params.studentId);
     if (!studentContext) throw new ApiError(404, "Student is not enrolled in this assignment");
 
     const completion = await reviewAssignmentCompletion(params.id, params.studentId, {
       feedback: body.feedback ?? null,
+      pointsAwarded: body.pointsAwarded,
       reviewedBy: session.user.id,
     });
 
@@ -52,6 +57,11 @@ export const PATCH = createHandler(
         classroomId: assignment.classroomId,
         studentId: params.studentId,
         hasFeedback: Boolean(body.feedback && body.feedback.trim()),
+        scoreAction: body.pointsAwarded === undefined
+          ? "unchanged"
+          : body.pointsAwarded === null
+            ? "cleared"
+            : "set",
       },
     });
 
