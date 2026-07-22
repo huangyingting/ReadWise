@@ -494,6 +494,29 @@ test("listAssignmentsForTeacher uses targeted audience size as denominator", asy
   assert.equal(result[0].completedCount, 1);
 });
 
+test("listAssignmentsForTeacher keeps zero-target completedCount unscoped for parity", async () => {
+  assignmentListStub = [
+    {
+      id: "a1",
+      dueDate: null,
+      title: null,
+      points: null,
+      classroom: {
+        id: "c1",
+        name: "Algebra",
+        members: [{ userId: "s1" }, { userId: "s2" }],
+      },
+      article: { id: "art1", title: "Article One" },
+      completions: [{ studentId: "s1" }, { studentId: "exstudent" }],
+      targets: [],
+    },
+  ];
+  const { listAssignmentsForTeacher } = await classroomQueries();
+  const result = await listAssignmentsForTeacher("t1");
+  assert.equal(result[0].studentCount, 2);
+  assert.equal(result[0].completedCount, 2);
+});
+
 test("listAssignmentsForTeacher sorts soonest-due first, undated last", async () => {
   assignmentListStub = [
     {
@@ -562,13 +585,7 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
     instructions: "Read carefully",
     title: "Lab prep",
     points: 15,
-    classroom: {
-      name: "Physics",
-      members: [
-        { userId: "s1", user: { name: "Alice", email: "alice@example.com" } },
-        { userId: "s2", user: { name: null, email: null } },
-      ],
-    },
+    classroom: { name: "Physics" },
     article: { id: "art1", title: "Newton's Laws" },
     targets: [],
     completions: [
@@ -632,7 +649,7 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
   });
 });
 
-test("getAssignmentDetail uses targeted roster as expected completions", async () => {
+test("getAssignmentDetail scopes targeted assignments to persisted target completions only", async () => {
   assignmentStub = {
     id: "a1",
     classroomId: "c1",
@@ -640,16 +657,50 @@ test("getAssignmentDetail uses targeted roster as expected completions", async (
     instructions: null,
     title: null,
     points: null,
-    classroom: {
-      name: "Physics",
-      members: [
-        { userId: "s1", user: { name: "Alice", email: "alice@example.com" } },
-        { userId: "s2", user: { name: "Bob", email: "bob@example.com" } },
-        { userId: "s3", user: { name: "Cy", email: "cy@example.com" } },
-      ],
-    },
+    classroom: { name: "Physics" },
     article: { id: "art1", title: "Newton's Laws" },
     targets: [{ studentId: "s1" }, { studentId: "s3" }, { studentId: "ghost" }],
+    completions: [
+      {
+        studentId: "s1",
+        status: "COMPLETED",
+        quizScore: 90,
+        completionSource: "SELF",
+        completedAt: new Date("2026-07-20"),
+        feedback: null,
+        reviewedAt: null,
+        student: { name: "Alice", email: "alice@example.com" },
+      },
+      {
+        studentId: "s2",
+        status: "COMPLETED",
+        quizScore: 75,
+        completionSource: "SELF",
+        completedAt: new Date("2026-07-21"),
+        feedback: null,
+        reviewedAt: null,
+        student: { name: "Bob", email: "bob@example.com" },
+      },
+    ],
+  };
+  const { getAssignmentDetail } = await classroomQueries();
+  const result = await getAssignmentDetail("a1");
+  assert.ok(result);
+  assert.deepEqual(result.completions.map((c) => c.studentId), ["s1"]);
+  assert.equal(result.completions[0].status, "COMPLETED");
+});
+
+test("getAssignmentDetail does not synthesize enrolled zero-target students", async () => {
+  assignmentStub = {
+    id: "a1",
+    classroomId: "c1",
+    dueDate: null,
+    instructions: null,
+    title: null,
+    points: null,
+    classroom: { name: "Physics" },
+    article: { id: "art1", title: "Newton's Laws" },
+    targets: [],
     completions: [
       {
         studentId: "s1",
@@ -666,7 +717,5 @@ test("getAssignmentDetail uses targeted roster as expected completions", async (
   const { getAssignmentDetail } = await classroomQueries();
   const result = await getAssignmentDetail("a1");
   assert.ok(result);
-  assert.deepEqual(result.completions.map((c) => c.studentId), ["s1", "s3"]);
-  assert.equal(result.completions[0].status, "COMPLETED");
-  assert.equal(result.completions[1].status, "ASSIGNED");
+  assert.deepEqual(result.completions.map((c) => c.studentId), ["s1"]);
 });

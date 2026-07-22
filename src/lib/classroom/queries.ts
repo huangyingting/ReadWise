@@ -293,7 +293,9 @@ export async function listAssignmentsForTeacher(
         title: r.title,
         points: r.points,
         dueDate: r.dueDate,
-        completedCount: r.completions.filter((c) => audience.has(c.studentId)).length,
+        completedCount: r.targets.length === 0
+          ? r.completions.length
+          : r.completions.filter((c) => audience.has(c.studentId)).length,
         studentCount: audience.size,
       };
     })
@@ -335,15 +337,7 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
       instructions: true,
       title: true,
       points: true,
-      classroom: {
-        select: {
-          name: true,
-          members: {
-            where: { role: "Student" },
-            select: { userId: true, user: { select: { name: true, email: true } } },
-          },
-        },
-      },
+      classroom: { select: { name: true } },
       article: { select: { id: true, title: true } },
       targets: { select: { studentId: true } },
       completions: {
@@ -361,12 +355,10 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
     },
   });
   if (!row) return null;
-  const completionByStudent = new Map(row.completions.map((c) => [c.studentId, c]));
-  const enrolledByStudent = new Map(row.classroom.members.map((m) => [m.userId, m]));
-  const expectedStudentIds = effectiveStudentIds(
-    row.classroom.members.map((m) => m.userId),
-    row.targets.map((t) => t.studentId),
-  );
+  const targetIds = new Set(row.targets.map((t) => t.studentId));
+  const keptCompletions = row.targets.length === 0
+    ? row.completions
+    : row.completions.filter((c) => targetIds.has(c.studentId));
   return {
     id: row.id,
     classroomId: row.classroomId,
@@ -377,21 +369,17 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
     points: row.points,
     dueDate: row.dueDate,
     instructions: row.instructions,
-    completions: expectedStudentIds.map((studentId) => {
-      const completion = completionByStudent.get(studentId);
-      const member = enrolledByStudent.get(studentId);
-      return {
-        studentId,
-        name: completion?.student.name ?? member?.user.name ?? null,
-        email: completion?.student.email ?? member?.user.email ?? null,
-        status: completion?.status ?? AssignmentStatus.ASSIGNED,
-        quizScore: completion?.quizScore ?? null,
-        completionSource: completion?.completionSource ?? null,
-        completedAt: completion?.completedAt ?? null,
-        feedback: completion?.feedback ?? null,
-        reviewedAt: completion?.reviewedAt ?? null,
-      };
-    }),
+    completions: keptCompletions.map((c) => ({
+      studentId: c.studentId,
+      name: c.student.name,
+      email: c.student.email,
+      status: c.status,
+      quizScore: c.quizScore,
+      completionSource: c.completionSource,
+      completedAt: c.completedAt,
+      feedback: c.feedback,
+      reviewedAt: c.reviewedAt,
+    })),
   };
 }
 
