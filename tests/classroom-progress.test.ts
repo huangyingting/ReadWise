@@ -196,6 +196,7 @@ test("getClassroomProgressData maps completion rows to ClassroomProgressCompleti
       studentId: "s1",
       status: AssignmentStatus.COMPLETED,
       quizScore: 92,
+      completionSource: null,
       completedAt,
       feedback: null,
     },
@@ -209,6 +210,7 @@ test("getClassroomProgressData maps completion rows to ClassroomProgressCompleti
     studentId: "s1",
     status: AssignmentStatus.COMPLETED,
     quizScore: 92,
+    completionSource: null,
     completedAt,
     feedback: null,
   });
@@ -221,6 +223,7 @@ test("getClassroomProgressData maps completion with IN_PROGRESS status and null 
       studentId: "s2",
       status: AssignmentStatus.IN_PROGRESS,
       quizScore: null,
+      completionSource: null,
       completedAt: null,
     },
   ];
@@ -239,6 +242,7 @@ test("getClassroomProgressData maps completion with ASSIGNED status", async () =
       studentId: "s1",
       status: AssignmentStatus.ASSIGNED,
       quizScore: null,
+      completionSource: null,
       completedAt: null,
     },
   ];
@@ -261,8 +265,8 @@ test("getClassroomProgressData returns full matrix with multiple students, assig
     { id: "a2", articleId: "art2", dueDate: null, createdAt: t, article: { id: "art2", title: "A2" } },
   ];
   completionRowStub = [
-    { assignmentId: "a1", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, completedAt: t },
-    { assignmentId: "a2", studentId: "s2", status: AssignmentStatus.ASSIGNED, quizScore: null, completedAt: null },
+    { assignmentId: "a1", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, completionSource: null, completedAt: t },
+    { assignmentId: "a2", studentId: "s2", status: AssignmentStatus.ASSIGNED, quizScore: null, completionSource: null, completedAt: null },
   ];
   const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");

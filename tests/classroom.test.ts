@@ -9,14 +9,18 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { AssignmentStatus } from "@prisma/client";
+import { AssignmentCompletionSource, AssignmentStatus } from "@prisma/client";
 import { membershipHasCapability, type Capability } from "@/lib/rbac";
 
 type Classroom = typeof import("@/lib/classroom");
 let cls: Classroom;
 
 let lastUpsert: { update: Record<string, unknown>; create: Record<string, unknown> } | null;
-let assignmentRow: { id: string; classroomId: string } | null;
+let assignmentRow: {
+  id: string;
+  classroomId: string;
+  classroom: { archivedAt: Date | null };
+} | null;
 
 before(async () => {
   const prismaFake = {
@@ -102,9 +106,13 @@ test("recordAssignmentCompletion clamps the quiz score to 0–100", async () => 
 test("recordAssignmentCompletion stamps completedAt only when COMPLETED", async () => {
   await cls.recordAssignmentCompletion("a1", "s1", { status: AssignmentStatus.COMPLETED });
   assert.ok(lastUpsert!.create.completedAt instanceof Date);
+  assert.equal(lastUpsert!.update.completionSource, AssignmentCompletionSource.SELF);
+  assert.equal(lastUpsert!.create.completionSource, AssignmentCompletionSource.SELF);
 
   await cls.recordAssignmentCompletion("a1", "s1", { status: AssignmentStatus.IN_PROGRESS });
   assert.equal(lastUpsert!.create.completedAt, null);
+  assert.equal(lastUpsert!.update.completionSource, null);
+  assert.equal(lastUpsert!.create.completionSource, null);
 });
 
 test("recordAssignmentCompletion defaults to COMPLETED", async () => {
@@ -118,9 +126,9 @@ test("recordAssignmentCompletion defaults to COMPLETED", async () => {
 // ---------------------------------------------------------------------------
 
 test("getStudentAssignmentContext returns context only for an enrolled student", async () => {
-  assignmentRow = { id: "a1", classroomId: "c1" };
+  assignmentRow = { id: "a1", classroomId: "c1", classroom: { archivedAt: null } };
   const ctx = await cls.getStudentAssignmentContext("a1", "s1");
-  assert.deepEqual(ctx, { assignmentId: "a1", classroomId: "c1" });
+  assert.deepEqual(ctx, { assignmentId: "a1", classroomId: "c1", classroomArchivedAt: null });
 });
 
 test("getStudentAssignmentContext returns null when not enrolled / missing", async () => {

@@ -811,7 +811,7 @@ test("GET /api/classrooms/[id]/analytics/export returns teacher-scoped JSON", as
     averageQuizScore: 90,
     perAssignment: [{ assignmentId: "a1", articleTitle: "Article 1", assigned: 1, completed: 1, inProgress: 0, notStarted: 0, completionRate: 100, averageQuizScore: 90 }],
     perStudent: [{ studentId: "s1", name: "Sam", email: "s@example.com", completed: 1, total: 1, completionRate: 100, averageQuizScore: 90 }],
-    drilldown: { filters: { assignmentId: "a1" }, rows: [{ assignmentId: "a1", articleTitle: "Article 1", studentId: "s1", name: "Sam", email: "s@example.com", status: "COMPLETED", quizScore: 90, dueDate: null, completedAt: null }] },
+    drilldown: { filters: { assignmentId: "a1" }, rows: [{ assignmentId: "a1", articleTitle: "Article 1", studentId: "s1", name: "Sam", email: "s@example.com", status: "COMPLETED", quizScore: 90, completionSource: null, dueDate: null, completedAt: null }] },
     redacted: false,
   };
 
@@ -875,6 +875,7 @@ test("GET /api/classrooms/[id]/analytics/export includes teacher drilldown CSV r
         email: "s@example.com",
         status: "COMPLETED",
         quizScore: 90,
+        completionSource: null,
         dueDate: new Date("2026-07-10T00:00:00Z"),
         completedAt: new Date("2026-07-09T00:00:00Z"),
       }],

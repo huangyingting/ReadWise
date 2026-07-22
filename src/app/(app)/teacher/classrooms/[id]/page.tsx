@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import type { AssignmentCompletionSource } from "@prisma/client";
 import { requireSession } from "@/lib/session";
 import {
   getClassroom,
@@ -53,6 +54,21 @@ type SearchParams = {
 
 function pct(value: number): string {
   return `${Math.round(value)}%`;
+}
+
+const completionSourceLabels: Record<AssignmentCompletionSource, string> = {
+  SELF: "self-marked",
+  READING: "via reading",
+  QUIZ: "via quiz",
+};
+
+function completionSourceSuffix(row: {
+  status: string;
+  completionSource: AssignmentCompletionSource | null;
+}) {
+  return row.status === "COMPLETED" && row.completionSource
+    ? ` · ${completionSourceLabels[row.completionSource]}`
+    : "";
 }
 
 function memberLabel(member: Pick<ClassroomMember, "name" | "email" | "userId">) {
@@ -334,6 +350,7 @@ function StudentProgressCard({
                   <p className="text-[length:var(--text-sm)] text-text-muted m-0 mt-[var(--space-1)]">
                     {row.articleTitle}
                     {row.quizScore == null ? "" : ` · quiz ${pct(row.quizScore)}`}
+                    {completionSourceSuffix(row)}
                   </p>
                   <div className="mt-[var(--space-2)]">
                     <AssignmentFeedbackForm
