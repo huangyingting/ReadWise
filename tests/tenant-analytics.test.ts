@@ -41,11 +41,11 @@ function sampleData(): import("@/lib/classroom/progress").ClassroomProgressData 
       { id: "a2", articleId: "art2", articleTitle: "Article 2", dueDate: null, createdAt: new Date(), targetedStudentIds: null },
     ],
     completions: [
-      { assignmentId: "a1", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, completionSource: null, completedAt: new Date(), feedback: null },
-      { assignmentId: "a2", studentId: "s1", status: AssignmentStatus.IN_PROGRESS, quizScore: null, completionSource: null, completedAt: null, feedback: null },
-      { assignmentId: "a1", studentId: "s2", status: AssignmentStatus.COMPLETED, quizScore: 100, completionSource: null, completedAt: new Date(), feedback: null },
+      { assignmentId: "a1", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, pointsAwarded: null, completionSource: null, completedAt: new Date(), feedback: null },
+      { assignmentId: "a2", studentId: "s1", status: AssignmentStatus.IN_PROGRESS, quizScore: null, pointsAwarded: null, completionSource: null, completedAt: null, feedback: null },
+      { assignmentId: "a1", studentId: "s2", status: AssignmentStatus.COMPLETED, quizScore: 100, pointsAwarded: null, completionSource: null, completedAt: new Date(), feedback: null },
       // A completion from a student NOT on the roster — must be ignored.
-      { assignmentId: "a1", studentId: "ghost", status: AssignmentStatus.COMPLETED, quizScore: 10, completionSource: null, completedAt: new Date(), feedback: null },
+      { assignmentId: "a1", studentId: "ghost", status: AssignmentStatus.COMPLETED, quizScore: 10, pointsAwarded: null, completionSource: null, completedAt: new Date(), feedback: null },
     ],
   };
 }
@@ -64,10 +64,10 @@ function targetedData(): import("@/lib/classroom/progress").ClassroomProgressDat
       { id: "targeted", articleId: "art2", articleTitle: "Targeted", dueDate: null, createdAt, targetedStudentIds: ["s1", "s3", "ghost"] },
     ],
     completions: [
-      { assignmentId: "whole", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, completionSource: null, completedAt: createdAt, feedback: null },
-      { assignmentId: "whole", studentId: "s2", status: AssignmentStatus.IN_PROGRESS, quizScore: null, completionSource: null, completedAt: null, feedback: null },
-      { assignmentId: "targeted", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 100, completionSource: null, completedAt: createdAt, feedback: null },
-      { assignmentId: "targeted", studentId: "s2", status: AssignmentStatus.COMPLETED, quizScore: 10, completionSource: null, completedAt: createdAt, feedback: null },
+      { assignmentId: "whole", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, pointsAwarded: null, completionSource: null, completedAt: createdAt, feedback: null },
+      { assignmentId: "whole", studentId: "s2", status: AssignmentStatus.IN_PROGRESS, quizScore: null, pointsAwarded: null, completionSource: null, completedAt: null, feedback: null },
+      { assignmentId: "targeted", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 100, pointsAwarded: null, completionSource: null, completedAt: createdAt, feedback: null },
+      { assignmentId: "targeted", studentId: "s2", status: AssignmentStatus.COMPLETED, quizScore: 10, pointsAwarded: null, completionSource: null, completedAt: createdAt, feedback: null },
     ],
   };
 }

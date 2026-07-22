@@ -69,12 +69,13 @@ export const PATCH = createHandler(
       studentIds: body.studentIds,
     });
     if (!result.ok) {
-      throw new ApiError(
-        result.status,
-        result.reason === "invalid_target_students"
-          ? "Select at least one enrolled student to target"
-          : "Invalid due date",
-      );
+      let message = "Invalid due date";
+      if (result.reason === "invalid_target_students") {
+        message = "Select at least one enrolled student to target";
+      } else if (result.reason === "points_below_awarded") {
+        message = "Cannot set points below an already-awarded score";
+      }
+      throw new ApiError(result.status, message);
     }
     await recordAuditFromRequest({
       req,

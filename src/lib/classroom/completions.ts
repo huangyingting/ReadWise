@@ -157,18 +157,20 @@ export async function markAssignmentQuizComplete(input: {
 export async function reviewAssignmentCompletion(
   assignmentId: string,
   studentId: string,
-  input: { feedback: string | null; reviewedBy: string },
+  input: { feedback: string | null; pointsAwarded?: number | null; reviewedBy: string },
 ) {
   const feedback = input.feedback?.trim() || null;
   const reviewedAt = new Date();
+  const scorePatch = input.pointsAwarded === undefined ? {} : { pointsAwarded: input.pointsAwarded };
   return prisma.assignmentCompletion.upsert({
     where: { assignmentId_studentId: { assignmentId, studentId } },
-    update: { feedback, reviewedAt, reviewedBy: input.reviewedBy },
+    update: { feedback, reviewedAt, reviewedBy: input.reviewedBy, ...scorePatch },
     create: {
       assignmentId,
       studentId,
       status: AssignmentStatus.ASSIGNED,
       feedback,
+      pointsAwarded: input.pointsAwarded ?? null,
       reviewedAt,
       reviewedBy: input.reviewedBy,
     },

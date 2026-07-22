@@ -414,6 +414,8 @@ function StudentProgressCard({
                         assignmentId={row.assignmentId}
                         studentId={row.studentId}
                         initialFeedback={row.feedback}
+                        points={meta?.points}
+                        initialPointsAwarded={row.pointsAwarded}
                         studentLabel={row.name ?? row.email ?? row.studentId}
                       />
                     </div>

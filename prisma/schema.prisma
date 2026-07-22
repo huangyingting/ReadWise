@@ -1199,6 +1199,7 @@ model AssignmentCompletion {
   studentId        String
   status           AssignmentStatus            @default(ASSIGNED)
   quizScore        Int?
+  pointsAwarded    Int?
   completionSource AssignmentCompletionSource?
   completedAt      DateTime?
   feedback         String?

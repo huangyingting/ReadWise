@@ -117,6 +117,7 @@ export type CompletionDrilldownRow = {
 	email: string | null;
 	status: AssignmentStatus;
 	quizScore: number | null;
+	pointsAwarded: number | null;
 	completionSource: AssignmentCompletionSource | null;
 	dueDate: Date | null;
 	completedAt: Date | null;
@@ -334,6 +335,7 @@ function buildDrilldownRows({
 				email: student.email,
 				status: completion?.status ?? AssignmentStatus.ASSIGNED,
 				quizScore: completion?.quizScore ?? null,
+				pointsAwarded: completion?.pointsAwarded ?? null,
 				completionSource: completion?.completionSource ?? null,
 				dueDate: assignment.dueDate,
 				completedAt: completion?.completedAt ?? null,

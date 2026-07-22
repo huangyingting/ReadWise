@@ -56,6 +56,12 @@ function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
   const completed = assignment.status === "COMPLETED";
   const overdue = isAssignmentOverdue(assignment.dueDate, assignment.status, new Date());
   const { label: statusLabel, variant: statusVariant } = assignmentStatusDisplay(assignment.status);
+  const displayTitle = assignment.title ?? assignment.articleTitle;
+  const scoreLabel = assignment.pointsAwarded != null
+    ? `Score: ${assignment.pointsAwarded}${assignment.points != null ? ` / ${assignment.points}` : ""} points`
+    : assignment.points != null
+      ? `Worth ${assignment.points} points`
+      : null;
 
   return (
     <li>
@@ -66,8 +72,13 @@ function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
               href={`/reader/${assignment.articleId}`}
               className="font-medium text-text hover:underline"
             >
-              {assignment.articleTitle}
+              {displayTitle}
             </Link>
+            {assignment.title ? (
+              <p className="m-0 text-[length:var(--text-xs)] text-text-muted">
+                Article: {assignment.articleTitle}
+              </p>
+            ) : null}
             <p className="text-[length:var(--text-sm)] text-text-muted">
               {assignment.classroomName}
               {due ? ` · Due ${due}` : ""}
@@ -94,6 +105,11 @@ function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
                   ? ` · quiz ${assignment.quizScore}%`
                   : ""}
               </Badge>
+              {scoreLabel ? (
+                <Badge variant="neutral" className="w-fit">
+                  {scoreLabel}
+                </Badge>
+              ) : null}
               {overdue ? (
                 <Badge variant="danger" className="w-fit">
                   Overdue
