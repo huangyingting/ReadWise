@@ -94,6 +94,7 @@ model User {
   taughtClassrooms        Classroom[]                 @relation("TaughtClassrooms")
   classroomMemberships    ClassroomMembership[]
   assignmentCompletions   AssignmentCompletion[]
+  assignmentTargets       AssignmentTarget[]
   todaySessions           TodaySession[]
   placementResult            PlacementResult?
   todayComprehensionFeedback TodayComprehensionFeedback[]
@@ -1172,9 +1173,24 @@ model Assignment {
   classroom   Classroom              @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   article     Article                @relation(fields: [articleId], references: [id], onDelete: Cascade)
   completions AssignmentCompletion[]
+  targets     AssignmentTarget[]
 
   @@index([classroomId])
   @@index([articleId])
+}
+
+model AssignmentTarget {
+  id           String   @id @default(cuid())
+  assignmentId String
+  studentId    String
+  createdAt    DateTime @default(now())
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId])
+  @@index([assignmentId])
 }
 
 model AssignmentCompletion {

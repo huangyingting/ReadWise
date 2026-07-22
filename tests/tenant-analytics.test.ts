@@ -37,8 +37,8 @@ function sampleData(): import("@/lib/classroom/progress").ClassroomProgressData 
       { userId: "s2", name: "Sky", email: "s2@example.com" },
     ],
     assignments: [
-      { id: "a1", articleId: "art1", articleTitle: "Article 1", dueDate: null, createdAt: new Date() },
-      { id: "a2", articleId: "art2", articleTitle: "Article 2", dueDate: null, createdAt: new Date() },
+      { id: "a1", articleId: "art1", articleTitle: "Article 1", dueDate: null, createdAt: new Date(), targetedStudentIds: null },
+      { id: "a2", articleId: "art2", articleTitle: "Article 2", dueDate: null, createdAt: new Date(), targetedStudentIds: null },
     ],
     completions: [
       { assignmentId: "a1", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, completionSource: null, completedAt: new Date(), feedback: null },
@@ -46,6 +46,28 @@ function sampleData(): import("@/lib/classroom/progress").ClassroomProgressData 
       { assignmentId: "a1", studentId: "s2", status: AssignmentStatus.COMPLETED, quizScore: 100, completionSource: null, completedAt: new Date(), feedback: null },
       // A completion from a student NOT on the roster — must be ignored.
       { assignmentId: "a1", studentId: "ghost", status: AssignmentStatus.COMPLETED, quizScore: 10, completionSource: null, completedAt: new Date(), feedback: null },
+    ],
+  };
+}
+
+function targetedData(): import("@/lib/classroom/progress").ClassroomProgressData {
+  const createdAt = new Date("2026-07-22T00:00:00.000Z");
+  return {
+    classroom: { id: "c1", name: "Class 1", orgId: "o1", teacherId: "t1" },
+    students: [
+      { userId: "s1", name: "Sam", email: "s1@example.com" },
+      { userId: "s2", name: "Sky", email: "s2@example.com" },
+      { userId: "s3", name: "Sol", email: "s3@example.com" },
+    ],
+    assignments: [
+      { id: "whole", articleId: "art1", articleTitle: "Whole", dueDate: null, createdAt, targetedStudentIds: null },
+      { id: "targeted", articleId: "art2", articleTitle: "Targeted", dueDate: null, createdAt, targetedStudentIds: ["s1", "s3", "ghost"] },
+    ],
+    completions: [
+      { assignmentId: "whole", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, completionSource: null, completedAt: createdAt, feedback: null },
+      { assignmentId: "whole", studentId: "s2", status: AssignmentStatus.IN_PROGRESS, quizScore: null, completionSource: null, completedAt: null, feedback: null },
+      { assignmentId: "targeted", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 100, completionSource: null, completedAt: createdAt, feedback: null },
+      { assignmentId: "targeted", studentId: "s2", status: AssignmentStatus.COMPLETED, quizScore: 10, completionSource: null, completedAt: createdAt, feedback: null },
     ],
   };
 }
@@ -142,6 +164,77 @@ test("aggregateClassroom computes class/assignment/student numbers", () => {
   assert.equal(a2.notStarted, 1);
   assert.equal(a2.completionRate, 0);
   assert.equal(a2.averageQuizScore, null);
+});
+
+test("aggregateClassroom zero-target assignments keep backward-compatible numbers", () => {
+  const out = ta.aggregateClassroom(sampleData());
+  assert.deepEqual(
+    {
+      studentCount: out.studentCount,
+      assignmentCount: out.assignmentCount,
+      totalExpected: out.totalExpected,
+      totalCompleted: out.totalCompleted,
+      completionRate: out.completionRate,
+      perAssignment: out.perAssignment.map((a) => ({
+        assignmentId: a.assignmentId,
+        assigned: a.assigned,
+        completed: a.completed,
+        inProgress: a.inProgress,
+        notStarted: a.notStarted,
+        completionRate: a.completionRate,
+      })),
+      perStudent: out.perStudent.map((s) => ({
+        studentId: s.studentId,
+        completed: s.completed,
+        total: s.total,
+        completionRate: s.completionRate,
+      })),
+    },
+    {
+      studentCount: 2,
+      assignmentCount: 2,
+      totalExpected: 4,
+      totalCompleted: 2,
+      completionRate: 50,
+      perAssignment: [
+        { assignmentId: "a1", assigned: 2, completed: 2, inProgress: 0, notStarted: 0, completionRate: 100 },
+        { assignmentId: "a2", assigned: 2, completed: 0, inProgress: 1, notStarted: 1, completionRate: 0 },
+      ],
+      perStudent: [
+        { studentId: "s1", completed: 1, total: 2, completionRate: 50 },
+        { studentId: "s2", completed: 1, total: 2, completionRate: 50 },
+      ],
+    },
+  );
+});
+
+test("aggregateClassroom uses per-assignment targeted audiences", () => {
+  const out = ta.aggregateClassroom(targetedData(), { assignmentId: "targeted" });
+  assert.equal(out.studentCount, 3);
+  assert.equal(out.assignmentCount, 1);
+  assert.equal(out.totalExpected, 2);
+  assert.equal(out.totalCompleted, 1);
+
+  const targeted = out.perAssignment[0];
+  assert.equal(targeted.assigned, 2);
+  assert.equal(targeted.completed, 1);
+  assert.equal(targeted.inProgress, 0);
+  assert.equal(targeted.notStarted, 1);
+  assert.equal(targeted.completionRate, 50);
+
+  const s1 = out.perStudent.find((s) => s.studentId === "s1")!;
+  const s2 = out.perStudent.find((s) => s.studentId === "s2")!;
+  const s3 = out.perStudent.find((s) => s.studentId === "s3")!;
+  assert.equal(s1.total, 1);
+  assert.equal(s1.completed, 1);
+  assert.equal(s2.total, 0);
+  assert.equal(s2.completed, 0);
+  assert.equal(s2.completionRate, 0);
+  assert.equal(s3.total, 1);
+  assert.equal(s3.completed, 0);
+
+  assert.ok(out.drilldown);
+  assert.deepEqual(out.drilldown.rows.map((r) => r.studentId).sort(), ["s1", "s3"]);
 });
 
 test("aggregateClassroom ignores completions from non-enrolled students", () => {

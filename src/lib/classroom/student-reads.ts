@@ -7,6 +7,7 @@
  */
 import { AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { assignmentVisibleToStudentWhere } from "./targeting";
 
 export type StudentAssignment = {
   assignmentId: string;
@@ -77,7 +78,10 @@ export async function listAssignmentsForStudent(
   studentId: string,
 ): Promise<StudentAssignment[]> {
   const rows = (await prisma.assignment.findMany({
-    where: { classroom: { archivedAt: null, members: { some: { userId: studentId } } } },
+    where: {
+      classroom: { archivedAt: null, members: { some: { userId: studentId } } },
+      ...assignmentVisibleToStudentWhere(studentId),
+    },
     include: assignmentIncludeForStudent(studentId),
     orderBy: [{ createdAt: "desc" }],
   })) as AssignmentWithStudentCompletion[];
@@ -96,7 +100,11 @@ export async function listStudentAssignmentsForArticle(
   articleId: string,
 ): Promise<StudentAssignment[]> {
   const rows = (await prisma.assignment.findMany({
-    where: { articleId, classroom: { archivedAt: null, members: { some: { userId } } } },
+    where: {
+      articleId,
+      classroom: { archivedAt: null, members: { some: { userId } } },
+      ...assignmentVisibleToStudentWhere(userId),
+    },
     include: assignmentIncludeForStudent(userId),
     orderBy: [{ createdAt: "desc" }],
   })) as AssignmentWithStudentCompletion[];

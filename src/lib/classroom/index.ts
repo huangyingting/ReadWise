@@ -20,6 +20,10 @@
  * this module owns the CRUD + raw progress fetch they build on.
  */
 export {
+  assignmentVisibleToStudentWhere,
+  effectiveStudentIds,
+} from "./targeting";
+export {
   type ClassroomViewer,
   canCreateClassroom,
   canManageClassroom,

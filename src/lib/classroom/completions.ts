@@ -9,6 +9,7 @@
 import { AssignmentCompletionSource, AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isCompletePercent } from "@/lib/engagement/progress-rules";
+import { assignmentVisibleToStudentWhere } from "./targeting";
 
 /** Minimum reading percent (inclusive) at/above which an assignment advances from ASSIGNED to IN_PROGRESS. */
 export const ASSIGNMENT_START_PERCENT = 1;
@@ -45,6 +46,7 @@ export async function getStudentAssignmentContext(
     where: {
       id: assignmentId,
       classroom: { members: { some: { userId: studentId } } },
+      ...assignmentVisibleToStudentWhere(studentId),
     },
     select: { id: true, classroomId: true, classroom: { select: { archivedAt: true } } },
   });
@@ -111,6 +113,7 @@ export async function markAssignmentQuizComplete(input: {
     where: {
       articleId,
       classroom: { archivedAt: null, members: { some: { userId } } },
+      ...assignmentVisibleToStudentWhere(userId),
     },
     select: { id: true },
   });
@@ -197,6 +200,7 @@ export async function syncAssignmentReadingProgress(input: {
     where: {
       articleId,
       classroom: { archivedAt: null, members: { some: { userId } } },
+      ...assignmentVisibleToStudentWhere(userId),
     },
     select: { id: true },
   });
