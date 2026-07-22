@@ -4,6 +4,7 @@ import { idParams, object, optional, string } from "@/lib/validation";
 import {
   deleteAssignment,
   getAssignmentClassroom,
+  getAssignmentDetail,
   updateAssignment,
 } from "@/lib/classroom";
 import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
@@ -13,6 +14,18 @@ const updateBody = object({
   dueDate: optional(string({ min: 1, max: 40 })),
   instructions: optional(string({ max: 2000 })),
 });
+
+export const GET = createHandler(
+  { params: idParams },
+  async ({ params, session }) => {
+    const assignment = await getAssignmentClassroom(params.id);
+    if (!assignment) throw new ApiError(404, "Assignment not found");
+    await requireActiveClassroomManageApi(session, assignment.classroomId);
+    const detail = await getAssignmentDetail(params.id);
+    if (!detail) throw new ApiError(404, "Assignment not found");
+    return NextResponse.json({ assignment: detail });
+  },
+);
 
 export const DELETE = createHandler(
   { params: idParams },

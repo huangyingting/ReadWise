@@ -16,11 +16,13 @@ let classroomStub: Record<string, unknown> | null = null;
 let classroomListStub: Record<string, unknown>[] = [];
 let membershipListStub: Record<string, unknown>[] = [];
 let assignmentStub: Record<string, unknown> | null = null;
+let assignmentListStub: Record<string, unknown>[] = [];
 let assignmentCountStub = 0;
 
 let lastClassroomFindManyWhere: unknown = null;
 let lastClassroomFindManyOrderBy: unknown = null;
 let lastAssignmentCountWhere: unknown = null;
+let lastAssignmentFindManyWhere: unknown = null;
 
 type OrgWhere = { orgId: string; archivedAt: null };
 type TeacherWhere = { archivedAt: null; OR: Array<{ teacherId?: string; members?: unknown }> };
@@ -63,6 +65,10 @@ before(() => {
         },
         assignment: {
           findUnique: async () => assignmentStub,
+          findMany: async (args: { where?: unknown }) => {
+            lastAssignmentFindManyWhere = args?.where;
+            return assignmentListStub;
+          },
           count: async (args: { where?: unknown }) => {
             lastAssignmentCountWhere = args?.where;
             return assignmentCountStub;
@@ -78,10 +84,12 @@ beforeEach(() => {
   classroomListStub = [];
   membershipListStub = [];
   assignmentStub = null;
+  assignmentListStub = [];
   assignmentCountStub = 0;
   lastClassroomFindManyWhere = null;
   lastClassroomFindManyOrderBy = null;
   lastAssignmentCountWhere = null;
+  lastAssignmentFindManyWhere = null;
 });
 
 // ---- getClassroom ----------------------------------------------------------
@@ -349,3 +357,179 @@ test("countPendingAssignmentsForStudent returns 0 when no pending assignments", 
   const result = await countPendingAssignmentsForStudent("all-done-student");
   assert.equal(result, 0);
 });
+
+// ---- listAssignmentsForTeacher --------------------------------------------
+
+type AssignmentFindManyWhere = {
+  classroom: {
+    archivedAt: null;
+    OR: Array<{ teacherId?: string; members?: unknown }>;
+  };
+};
+
+test("listAssignmentsForTeacher returns mapped rows with correct completedCount and studentCount", async () => {
+  assignmentListStub = [
+    {
+      id: "a1",
+      dueDate: new Date("2026-08-01"),
+      classroom: {
+        id: "c1",
+        name: "Algebra",
+        members: [{ userId: "s1" }, { userId: "s2" }],
+      },
+      article: { id: "art1", title: "Article One" },
+      completions: [{ studentId: "s1" }],
+    },
+    {
+      id: "a2",
+      dueDate: null,
+      classroom: {
+        id: "c2",
+        name: "Biology",
+        members: [{ userId: "s3" }],
+      },
+      article: { id: "art2", title: "Article Two" },
+      completions: [],
+    },
+  ];
+  const { listAssignmentsForTeacher } = await classroomQueries();
+  const result = await listAssignmentsForTeacher("t1");
+  assert.equal(result.length, 2);
+  assert.deepEqual(result[0], {
+    assignmentId: "a1",
+    classroomId: "c1",
+    classroomName: "Algebra",
+    articleId: "art1",
+    articleTitle: "Article One",
+    dueDate: new Date("2026-08-01"),
+    completedCount: 1,
+    studentCount: 2,
+  });
+  assert.deepEqual(result[1], {
+    assignmentId: "a2",
+    classroomId: "c2",
+    classroomName: "Biology",
+    articleId: "art2",
+    articleTitle: "Article Two",
+    dueDate: null,
+    completedCount: 0,
+    studentCount: 1,
+  });
+});
+
+test("listAssignmentsForTeacher sorts soonest-due first, undated last", async () => {
+  assignmentListStub = [
+    {
+      id: "a-null",
+      dueDate: null,
+      classroom: { id: "c1", name: "C1", members: [] },
+      article: { id: "art1", title: "T1" },
+      completions: [],
+    },
+    {
+      id: "a-far",
+      dueDate: new Date("2026-09-01"),
+      classroom: { id: "c1", name: "C1", members: [] },
+      article: { id: "art2", title: "T2" },
+      completions: [],
+    },
+    {
+      id: "a-near",
+      dueDate: new Date("2026-07-25"),
+      classroom: { id: "c1", name: "C1", members: [] },
+      article: { id: "art3", title: "T3" },
+      completions: [],
+    },
+  ];
+  const { listAssignmentsForTeacher } = await classroomQueries();
+  const result = await listAssignmentsForTeacher("t1");
+  assert.deepEqual(
+    result.map((r) => r.assignmentId),
+    ["a-near", "a-far", "a-null"],
+  );
+});
+
+test("listAssignmentsForTeacher where includes classroom.archivedAt:null and teacher OR filter", async () => {
+  assignmentListStub = [];
+  const { listAssignmentsForTeacher } = await classroomQueries();
+  await listAssignmentsForTeacher("t42");
+  assert.ok(lastAssignmentFindManyWhere, "assignment.findMany should have been called");
+  const where = lastAssignmentFindManyWhere as AssignmentFindManyWhere;
+  assert.equal(where.classroom.archivedAt, null);
+  assert.ok(Array.isArray(where.classroom.OR));
+  assert.equal(where.classroom.OR.length, 2);
+  assert.ok(where.classroom.OR.some((c) => c.teacherId === "t42"));
+  assert.ok(where.classroom.OR.some((c) => c.members !== undefined));
+});
+
+// ---- getAssignmentDetail --------------------------------------------------
+
+test("getAssignmentDetail returns null when assignment does not exist", async () => {
+  assignmentStub = null;
+  const { getAssignmentDetail } = await classroomQueries();
+  const result = await getAssignmentDetail("missing");
+  assert.equal(result, null);
+});
+
+test("getAssignmentDetail maps assignment and completions including feedback, reviewedAt, student name/email", async () => {
+  assignmentStub = {
+    id: "a1",
+    classroomId: "c1",
+    dueDate: new Date("2026-08-10"),
+    instructions: "Read carefully",
+    classroom: { name: "Physics" },
+    article: { id: "art1", title: "Newton's Laws" },
+    completions: [
+      {
+        studentId: "s1",
+        status: "COMPLETED",
+        quizScore: 90,
+        completedAt: new Date("2026-07-20"),
+        feedback: "Excellent",
+        reviewedAt: new Date("2026-07-21"),
+        student: { name: "Alice", email: "alice@example.com" },
+      },
+      {
+        studentId: "s2",
+        status: "ASSIGNED",
+        quizScore: null,
+        completedAt: null,
+        feedback: null,
+        reviewedAt: null,
+        student: { name: null, email: null },
+      },
+    ],
+  };
+  const { getAssignmentDetail } = await classroomQueries();
+  const result = await getAssignmentDetail("a1");
+  assert.ok(result);
+  assert.equal(result.id, "a1");
+  assert.equal(result.classroomId, "c1");
+  assert.equal(result.classroomName, "Physics");
+  assert.equal(result.articleId, "art1");
+  assert.equal(result.articleTitle, "Newton's Laws");
+  assert.deepEqual(result.dueDate, new Date("2026-08-10"));
+  assert.equal(result.instructions, "Read carefully");
+  assert.equal(result.completions.length, 2);
+  assert.deepEqual(result.completions[0], {
+    studentId: "s1",
+    name: "Alice",
+    email: "alice@example.com",
+    status: "COMPLETED",
+    quizScore: 90,
+    completedAt: new Date("2026-07-20"),
+    feedback: "Excellent",
+    reviewedAt: new Date("2026-07-21"),
+  });
+  assert.deepEqual(result.completions[1], {
+    studentId: "s2",
+    name: null,
+    email: null,
+    status: "ASSIGNED",
+    quizScore: null,
+    completedAt: null,
+    feedback: null,
+    reviewedAt: null,
+  });
+});
+
