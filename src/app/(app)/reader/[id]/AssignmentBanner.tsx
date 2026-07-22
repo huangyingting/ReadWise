@@ -44,6 +44,16 @@ function AssignmentItem({ assignment }: { assignment: StudentAssignment }) {
             {assignment.instructions}
           </p>
         ) : null}
+        {assignment.feedback ? (
+          <div className="flex flex-col gap-[var(--space-1)]">
+            <span className="text-[length:var(--text-xs)] font-semibold text-text-muted uppercase tracking-wide">
+              Teacher feedback
+            </span>
+            <p className="text-[length:var(--text-sm)] text-text m-0">
+              {assignment.feedback}
+            </p>
+          </div>
+        ) : null}
       </div>
       <div className="shrink-0">
         <CompleteAssignmentButton

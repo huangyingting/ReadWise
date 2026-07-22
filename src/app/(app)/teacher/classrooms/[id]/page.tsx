@@ -31,6 +31,7 @@ import { buttonVariants } from "@/components/ui/Button";
 import { StatCard } from "@/components/analytics/StatCard";
 import AddStudentForm from "@/components/teacher/AddStudentForm";
 import AssignArticleForm from "@/components/teacher/AssignArticleForm";
+import AssignmentFeedbackForm from "@/components/teacher/AssignmentFeedbackForm";
 import ClassroomSettingsCard from "@/components/teacher/ClassroomSettingsCard";
 import DeleteAssignmentButton from "@/components/teacher/DeleteAssignmentButton";
 import EditAssignmentForm from "@/components/teacher/EditAssignmentForm";
@@ -328,6 +329,14 @@ function StudentProgressCard({
                     {row.articleTitle}
                     {row.quizScore == null ? "" : ` · quiz ${pct(row.quizScore)}`}
                   </p>
+                  <div className="mt-[var(--space-2)]">
+                    <AssignmentFeedbackForm
+                      assignmentId={row.assignmentId}
+                      studentId={row.studentId}
+                      initialFeedback={row.feedback}
+                      studentLabel={row.name ?? row.email ?? row.studentId}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>

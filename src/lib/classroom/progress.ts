@@ -23,6 +23,7 @@ export type ClassroomProgressCompletion = {
   status: AssignmentStatus;
   quizScore: number | null;
   completedAt: Date | null;
+  feedback: string | null;
 };
 export type ClassroomProgressData = {
   classroom: { id: string; name: string; orgId: string; teacherId: string };
@@ -73,6 +74,7 @@ function toProgressCompletion(
     status: completion.status,
     quizScore: completion.quizScore,
     completedAt: completion.completedAt,
+    feedback: completion.feedback,
   };
 }
 
@@ -108,6 +110,7 @@ export async function getClassroomProgressData(
         status: true,
         quizScore: true,
         completedAt: true,
+        feedback: true,
       },
     }),
   ]);

@@ -77,6 +77,16 @@ function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
                 {assignment.instructions}
               </p>
             ) : null}
+            {assignment.feedback ? (
+              <div className="flex flex-col gap-[var(--space-1)]">
+                <span className="text-[length:var(--text-xs)] font-semibold text-text-muted uppercase tracking-wide">
+                  Teacher feedback
+                </span>
+                <p className="text-[length:var(--text-sm)] text-text">
+                  {assignment.feedback}
+                </p>
+              </div>
+            ) : null}
             <div className="mt-1 flex flex-wrap gap-[var(--space-2)]">
               <Badge variant={statusVariant} className="w-fit">
                 {statusLabel}

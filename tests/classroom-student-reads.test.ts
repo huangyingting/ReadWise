@@ -191,6 +191,7 @@ test("listAssignmentsForStudent maps all output fields from the Prisma row", asy
     articleTitle: "Ancient Rome",
     dueDate,
     instructions: "Take notes",
+    feedback: null,
     status: AssignmentStatus.ASSIGNED,
     quizScore: null,
     completedAt: null,

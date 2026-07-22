@@ -117,6 +117,7 @@ export type CompletionDrilldownRow = {
 	quizScore: number | null;
 	dueDate: Date | null;
 	completedAt: Date | null;
+	feedback: string | null;
 };
 
 export type ClassroomAnalytics = {
@@ -304,6 +305,7 @@ function buildDrilldownRows({
 				quizScore: completion?.quizScore ?? null,
 				dueDate: assignment.dueDate,
 				completedAt: completion?.completedAt ?? null,
+				feedback: completion?.feedback ?? null,
 			});
 		}
 	}
