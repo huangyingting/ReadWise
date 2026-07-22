@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { array, idParams, number, object, optional, string, nonEmptyString } from "@/lib/validation";
+import {
+  array,
+  idParams,
+  nonEmptyString,
+  number,
+  object,
+  oneOf,
+  optional,
+  string,
+} from "@/lib/validation";
 import { articleAccessContext } from "@/lib/article-library";
 import { createArticleAssignment } from "@/lib/classroom/article-assignments";
 import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
@@ -13,6 +22,8 @@ const assignBody = object({
   title: optional(string({ max: 200 })),
   points: optional(number({ min: 0, max: 10000, int: true })),
   studentIds: optional(array(nonEmptyString(200), { max: 200 })),
+  publishState: optional(oneOf(["DRAFT", "SCHEDULED", "PUBLISHED"] as const)),
+  publishAt: optional(string({ max: 40 })),
 });
 
 /**
@@ -34,12 +45,16 @@ export const POST = createHandler(
       title: body.title ?? null,
       points: body.points ?? null,
       studentIds: body.studentIds,
+      publishState: body.publishState,
+      publishAt: body.publishAt,
     });
     if (!result.ok) {
       throw new ApiError(
         result.status,
         result.reason === "invalid_due_date"
           ? "Invalid due date"
+          : result.reason === "invalid_publish_at"
+          ? "Invalid publish time"
           : result.reason === "invalid_target_students"
           ? "Select at least one enrolled student to target"
           : result.reason === "article_not_found" || result.status === 404
@@ -59,6 +74,8 @@ export const POST = createHandler(
         assignmentId: result.assignment.id,
         articleId: body.articleId,
         targeted: body.studentIds?.length ?? 0,
+        publishState: body.publishState ?? "PUBLISHED",
+        scheduled: body.publishState === "SCHEDULED",
       },
     });
     return NextResponse.json({ assignment: result.assignment }, { status: 201 });

@@ -6,6 +6,7 @@
  */
 import type {
   AssignmentCompletionSource,
+  AssignmentPublishState,
   Classroom,
   ClassroomRole,
   Prisma,
@@ -16,7 +17,7 @@ import {
   readableArticleWhere,
   type ArticleAccessContext,
 } from "@/lib/article-library/policy";
-import { assignmentVisibleToStudentWhere, effectiveStudentIds } from "./targeting";
+import { assignmentLiveWhere, assignmentVisibleToStudentWhere, effectiveStudentIds } from "./targeting";
 
 export type ClassroomMemberRow = {
   userId: string;
@@ -49,10 +50,13 @@ export type AssignmentClassroomRow = {
 
 export type ClassroomAssignmentMetaRow = {
   assignmentId: string;
+  articleTitle: string;
   dueDate: Date | null;
   instructions: string | null;
   title: string | null;
   points: number | null;
+  publishState: AssignmentPublishState;
+  publishAt: Date | null;
   targetStudentIds: string[];
 };
 
@@ -102,15 +106,21 @@ export async function listClassroomAssignmentMeta(
       instructions: true,
       title: true,
       points: true,
+      publishState: true,
+      publishAt: true,
+      article: { select: { title: true } },
       targets: { select: { studentId: true } },
     },
   });
   return rows.map((r) => ({
     assignmentId: r.id,
+    articleTitle: r.article.title,
     dueDate: r.dueDate,
     instructions: r.instructions,
     title: r.title,
     points: r.points,
+    publishState: r.publishState,
+    publishAt: r.publishAt,
     targetStudentIds: r.targets.map((t) => t.studentId),
   }));
 }
@@ -231,10 +241,11 @@ export function searchClassroomStudentCandidates(
  * Server-only (uses prisma directly). Intended for the RSC layout badge only.
  */
 export function countPendingAssignmentsForStudent(studentId: string): Promise<number> {
+  const now = new Date();
   return prisma.assignment.count({
     where: {
       classroom: { archivedAt: null, members: { some: { userId: studentId } } },
-      ...assignmentVisibleToStudentWhere(studentId),
+      AND: [assignmentVisibleToStudentWhere(studentId), assignmentLiveWhere(now)],
       NOT: { completions: { some: { studentId, status: AssignmentStatus.COMPLETED } } },
     },
   });
@@ -249,6 +260,8 @@ export type TeacherAssignmentRow = {
   title: string | null;
   points: number | null;
   dueDate: Date | null;
+  publishState: AssignmentPublishState;
+  publishAt: Date | null;
   completedCount: number;
   studentCount: number;
   targetCount: number;
@@ -275,6 +288,8 @@ export async function listAssignmentsForTeacher(
       dueDate: true,
       title: true,
       points: true,
+      publishState: true,
+      publishAt: true,
       classroom: {
         select: {
           id: true,
@@ -304,6 +319,8 @@ export async function listAssignmentsForTeacher(
         title: r.title,
         points: r.points,
         dueDate: r.dueDate,
+        publishState: r.publishState,
+        publishAt: r.publishAt,
         targetCount: r.targets.length,
         completedCount: r.targets.length === 0
           ? r.completions.length
@@ -335,6 +352,8 @@ export type AssignmentDetail = {
   title: string | null;
   points: number | null;
   dueDate: Date | null;
+  publishState: AssignmentPublishState;
+  publishAt: Date | null;
   instructions: string | null;
   targetStudentIds: string[];
   completions: AssignmentDetailCompletion[];
@@ -351,6 +370,8 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
       instructions: true,
       title: true,
       points: true,
+      publishState: true,
+      publishAt: true,
       classroom: { select: { name: true } },
       article: { select: { id: true, title: true } },
       targets: { select: { studentId: true } },
@@ -383,6 +404,8 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
     title: row.title,
     points: row.points,
     dueDate: row.dueDate,
+    publishState: row.publishState,
+    publishAt: row.publishAt,
     instructions: row.instructions,
     targetStudentIds: row.targets.map((t) => t.studentId),
     completions: keptCompletions.map((c) => ({

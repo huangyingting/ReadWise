@@ -21,6 +21,7 @@ let assignmentRow: {
   classroomId: string;
   classroom: { archivedAt: Date | null };
 } | null;
+let lastAssignmentFindFirstArgs: unknown;
 
 before(async () => {
   const prismaFake = {
@@ -31,7 +32,10 @@ before(async () => {
       },
     },
     assignment: {
-      findFirst: async () => assignmentRow,
+      findFirst: async (args: unknown) => {
+        lastAssignmentFindFirstArgs = args;
+        return assignmentRow;
+      },
     },
   };
 
@@ -53,6 +57,7 @@ before(async () => {
 beforeEach(() => {
   lastUpsert = null;
   assignmentRow = null;
+  lastAssignmentFindFirstArgs = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -129,6 +134,12 @@ test("getStudentAssignmentContext returns context only for an enrolled student",
   assignmentRow = { id: "a1", classroomId: "c1", classroom: { archivedAt: null } };
   const ctx = await cls.getStudentAssignmentContext("a1", "s1");
   assert.deepEqual(ctx, { assignmentId: "a1", classroomId: "c1", classroomArchivedAt: null });
+  const args = lastAssignmentFindFirstArgs as { where: { AND: Array<{ OR: unknown[] }> } };
+  assert.deepEqual(args.where.AND[0].OR, [
+    { targets: { none: {} } },
+    { targets: { some: { studentId: "s1" } } },
+  ]);
+  assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });
 
 test("getStudentAssignmentContext returns null when not enrolled / missing", async () => {

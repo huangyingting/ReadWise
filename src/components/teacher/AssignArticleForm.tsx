@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { getJson, postJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
@@ -42,8 +43,10 @@ const EMPTY_ASSIGNMENT_FORM = {
   title: "",
   points: "",
   dueDate: "",
+  publishAt: "",
   instructions: "",
 };
+type PublishState = "PUBLISHED" | "SCHEDULED" | "DRAFT";
 
 type AssignmentFormField = keyof typeof EMPTY_ASSIGNMENT_FORM;
 
@@ -70,6 +73,8 @@ function buildAssignmentPayload(
   instructions: string,
   title: string,
   points: string,
+  publishState: PublishState,
+  publishAt: string,
   studentIds?: string[],
 ) {
   return {
@@ -78,6 +83,10 @@ function buildAssignmentPayload(
     points: points ? Number(points) : undefined,
     dueDate: dueDate || undefined,
     instructions: instructions.trim() || undefined,
+    publishState,
+    publishAt: publishState === "SCHEDULED" && publishAt
+      ? new Date(publishAt).toISOString()
+      : undefined,
     studentIds,
   };
 }
@@ -92,6 +101,7 @@ export default function AssignArticleForm({
   const [articles, setArticles] = useState(initialArticles);
   const [selected, setSelected] = useState<ArticleOption[]>([]);
   const [audience, setAudience] = useState<"class" | "students">("class");
+  const [publishState, setPublishState] = useState<PublishState>("PUBLISHED");
   const [targetIds, setTargetIds] = useState<string[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -133,6 +143,7 @@ export default function AssignArticleForm({
     setQuery("");
     setSelected([]);
     setAudience("class");
+    setPublishState("PUBLISHED");
     setTargetIds([]);
   }
 
@@ -174,6 +185,8 @@ export default function AssignArticleForm({
             form.instructions,
             form.title,
             form.points,
+            publishState,
+            form.publishAt,
             studentIds,
           ),
         );
@@ -185,6 +198,10 @@ export default function AssignArticleForm({
             points: form.points ? Number(form.points) : undefined,
             dueDate: form.dueDate || undefined,
             instructions: form.instructions.trim() || undefined,
+            publishState,
+            publishAt: publishState === "SCHEDULED" && form.publishAt
+              ? new Date(form.publishAt).toISOString()
+              : undefined,
             studentIds: audience === "students" && targetIds.length > 0 ? targetIds : undefined,
           },
         );
@@ -203,7 +220,8 @@ export default function AssignArticleForm({
     : "Assign article";
   const canSubmit =
     selected.length >= 1 &&
-    !(audience === "students" && targetIds.length === 0);
+    !(audience === "students" && targetIds.length === 0) &&
+    !(publishState === "SCHEDULED" && !form.publishAt);
 
   return (
     <TeacherFormShell
@@ -277,6 +295,25 @@ export default function AssignArticleForm({
           onChange={(e) => updateField("dueDate", e.target.value)}
         />
       </Field>
+      <Field label="Visibility">
+        <Select
+          value={publishState}
+          onChange={(e) => setPublishState(e.currentTarget.value as PublishState)}
+        >
+          <option value="PUBLISHED">Publish now</option>
+          <option value="SCHEDULED">Schedule for later</option>
+          <option value="DRAFT">Save as draft</option>
+        </Select>
+      </Field>
+      {publishState === "SCHEDULED" ? (
+        <Field label="Publish at">
+          <Input
+            type="datetime-local"
+            value={form.publishAt}
+            onChange={(e) => updateField("publishAt", e.target.value)}
+          />
+        </Field>
+      ) : null}
       {selected.length >= 1 ? (
         <Field label="Assign to">
           <AssignmentAudienceSelector

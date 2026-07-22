@@ -543,6 +543,51 @@ test("updateAssignment rejects an invalid dueDate without touching the row", asy
   assert.equal(assignmentUpdateArgs, null);
 });
 
+test("updateAssignment applies publish state transitions", async () => {
+  const { updateAssignment } = await loadCommands();
+
+  await updateAssignment("asgn-1", { publishState: "DRAFT" });
+  assert.deepEqual((assignmentUpdateArgs as { data: Record<string, unknown> }).data, {
+    publishState: "DRAFT",
+    publishAt: null,
+  });
+
+  assignmentUpdateArgs = null;
+  await updateAssignment("asgn-1", {
+    publishState: "SCHEDULED",
+    publishAt: "2999-01-01T00:00:00.000Z",
+  });
+  const scheduled = (assignmentUpdateArgs as { data: Record<string, unknown> }).data;
+  assert.equal(scheduled.publishState, "SCHEDULED");
+  assert.equal((scheduled.publishAt as Date).toISOString(), "2999-01-01T00:00:00.000Z");
+
+  assignmentUpdateArgs = null;
+  await updateAssignment("asgn-1", { publishState: "PUBLISHED" });
+  assert.deepEqual((assignmentUpdateArgs as { data: Record<string, unknown> }).data, {
+    publishState: "PUBLISHED",
+    publishAt: null,
+  });
+});
+
+test("updateAssignment rejects scheduled publishAt values that are invalid or past", async () => {
+  const { updateAssignment } = await loadCommands();
+
+  assert.deepEqual(
+    await updateAssignment("asgn-1", { publishState: "SCHEDULED", publishAt: "bad" }),
+    { ok: false, status: 400, reason: "invalid_publish_at" },
+  );
+  assert.equal(assignmentUpdateArgs, null);
+
+  assert.deepEqual(
+    await updateAssignment("asgn-1", {
+      publishState: "SCHEDULED",
+      publishAt: "2000-01-01T00:00:00.000Z",
+    }),
+    { ok: false, status: 400, reason: "invalid_publish_at" },
+  );
+  assert.equal(assignmentUpdateArgs, null);
+});
+
 test("updateAssignment sends no data keys when the input is empty", async () => {
   const { updateAssignment } = await loadCommands();
   await updateAssignment("asgn-1", {});

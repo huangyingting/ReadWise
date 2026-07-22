@@ -69,6 +69,8 @@ before(() => {
             if (!args?.select?.classroom) return assignmentStub;
             return {
               ...assignmentStub,
+              publishState: assignmentStub.publishState ?? "PUBLISHED",
+              publishAt: assignmentStub.publishAt ?? null,
               targets: (assignmentStub.targets as unknown[]) ?? [],
               classroom: {
                 ...((assignmentStub.classroom as Record<string, unknown> | undefined) ?? {}),
@@ -81,6 +83,9 @@ before(() => {
             lastAssignmentFindManyWhere = args?.where;
             return assignmentListStub.map((assignment) => ({
               ...assignment,
+              publishState: assignment.publishState ?? "PUBLISHED",
+              publishAt: assignment.publishAt ?? null,
+              article: assignment.article ?? { title: "Article One" },
               targets: (assignment.targets as unknown[]) ?? [],
             }));
           },
@@ -145,6 +150,9 @@ test("listClassroomAssignmentMeta maps editable assignment metadata", async () =
       instructions: "Read carefully",
       title: "Week 1",
       points: 20,
+      publishState: "DRAFT",
+      publishAt: new Date("2026-08-01T10:00:00.000Z"),
+      article: { title: "Article One" },
       targets: [{ studentId: "s1" }],
     },
   ];
@@ -153,10 +161,13 @@ test("listClassroomAssignmentMeta maps editable assignment metadata", async () =
   assert.deepEqual(result, [
     {
       assignmentId: "a1",
+      articleTitle: "Article One",
       dueDate: new Date("2026-08-01"),
       instructions: "Read carefully",
       title: "Week 1",
       points: 20,
+      publishState: "DRAFT",
+      publishAt: new Date("2026-08-01T10:00:00.000Z"),
       targetStudentIds: ["s1"],
     },
   ]);
@@ -362,7 +373,7 @@ test("listClassroomMembers preserves all rows without filtering", async () => {
 
 type PendingCountWhere = {
   classroom: { archivedAt: null; members: { some: { userId: string } } };
-  OR: Array<{ targets: { none?: Record<string, never>; some?: { studentId: string } } }>;
+  AND: Array<{ OR: unknown[] }>;
   NOT: { completions: { some: { studentId: string; status: string } } };
 };
 
@@ -381,10 +392,11 @@ test("countPendingAssignmentsForStudent passes classroom archivedAt:null and mem
   const where = lastAssignmentCountWhere as PendingCountWhere;
   assert.equal(where.classroom.archivedAt, null, "must exclude archived classrooms");
   assert.equal(where.classroom.members.some.userId, "student-42", "must scope to the student");
-  assert.deepEqual(where.OR, [
+  assert.deepEqual(where.AND[0].OR, [
     { targets: { none: {} } },
     { targets: { some: { studentId: "student-42" } } },
   ]);
+  assert.deepEqual(where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });
 
 test("countPendingAssignmentsForStudent uses NOT completions COMPLETED filter", async () => {
@@ -455,6 +467,8 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
     title: "Week 1",
     points: 20,
     dueDate: new Date("2026-08-01"),
+    publishState: "PUBLISHED",
+    publishAt: null,
     completedCount: 1,
     studentCount: 2,
     targetCount: 0,
@@ -469,6 +483,8 @@ test("listAssignmentsForTeacher returns mapped rows with correct completedCount 
     title: null,
     points: null,
     dueDate: null,
+    publishState: "PUBLISHED",
+    publishAt: null,
     completedCount: 0,
     studentCount: 1,
     targetCount: 0,
@@ -630,6 +646,8 @@ test("getAssignmentDetail maps assignment and completions including feedback, re
   assert.equal(result.instructions, "Read carefully");
   assert.equal(result.title, "Lab prep");
   assert.equal(result.points, 15);
+  assert.equal(result.publishState, "PUBLISHED");
+  assert.equal(result.publishAt, null);
   assert.deepEqual(result.targetStudentIds, []);
   assert.equal(result.completions.length, 2);
   assert.deepEqual(result.completions[0], {

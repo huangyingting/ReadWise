@@ -3,6 +3,7 @@
 import {
   ArticleStatus,
   ArticleVisibility,
+  AssignmentPublishState,
   type Assignment,
   type Prisma,
 } from "@prisma/client";
@@ -26,6 +27,8 @@ export type CreateArticleAssignmentInput = {
   title?: string | null;
   points?: number | null;
   studentIds?: string[];
+  publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  publishAt?: string | null;
 };
 
 export type CreateArticleAssignmentResult =
@@ -33,7 +36,7 @@ export type CreateArticleAssignmentResult =
   | {
       ok: false;
       status: 400;
-      reason: "invalid_due_date" | "invalid_target_students";
+      reason: "invalid_due_date" | "invalid_target_students" | "invalid_publish_at";
     }
   | {
       ok: false;
@@ -50,6 +53,8 @@ export type BulkCreateArticleAssignmentsInput = {
   instructions?: string | null;
   points?: number | null;
   studentIds?: string[];
+  publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  publishAt?: string | null;
 };
 
 export type BulkCreateArticleAssignmentsResult = {
@@ -71,6 +76,29 @@ export function parseOptionalDueDate(dueDate: string | undefined): Date | null {
 
 export function trimOrNull(value: string | null | undefined): string | null {
   return value?.trim() || null;
+}
+
+export function parseAssignmentPublish(input: {
+  publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  publishAt?: string | null;
+  now?: Date;
+}):
+  | { ok: true; publishState: AssignmentPublishState; publishAt: Date | null }
+  | { ok: false; status: 400; reason: "invalid_publish_at" } {
+  const publishState = input.publishState ?? "PUBLISHED";
+  if (publishState === "DRAFT") {
+    return { ok: true, publishState: AssignmentPublishState.DRAFT, publishAt: null };
+  }
+  if (publishState === "PUBLISHED") {
+    return { ok: true, publishState: AssignmentPublishState.PUBLISHED, publishAt: null };
+  }
+
+  const parsed = input.publishAt ? new Date(input.publishAt) : null;
+  const now = input.now ?? new Date();
+  if (!parsed || Number.isNaN(parsed.getTime()) || parsed <= now) {
+    return { ok: false, status: 400, reason: "invalid_publish_at" };
+  }
+  return { ok: true, publishState: AssignmentPublishState.SCHEDULED, publishAt: parsed };
 }
 
 function assignableArticleWhere(input: {
@@ -127,6 +155,8 @@ export async function createArticleAssignment(
   if (input.dueDate && !dueDate) {
     return { ok: false, status: 400, reason: "invalid_due_date" };
   }
+  const publish = parseAssignmentPublish(input);
+  if (!publish.ok) return publish;
 
   const requestedStudentIds = input.studentIds?.length
     ? [...new Set(input.studentIds)]
@@ -158,6 +188,8 @@ export async function createArticleAssignment(
           instructions: trimOrNull(input.instructions),
           title: trimOrNull(input.title),
           points: input.points ?? null,
+          publishState: publish.publishState,
+          publishAt: publish.publishAt,
         },
       });
       await tx.assignmentTarget.createMany({
@@ -179,6 +211,8 @@ export async function createArticleAssignment(
       instructions: trimOrNull(input.instructions),
       title: trimOrNull(input.title),
       points: input.points ?? null,
+      publishState: publish.publishState,
+      publishAt: publish.publishAt,
     },
   });
   return { ok: true, assignment };
@@ -200,6 +234,8 @@ export async function bulkCreateArticleAssignments(
       instructions: input.instructions,
       points: input.points,
       studentIds: input.studentIds,
+      publishState: input.publishState,
+      publishAt: input.publishAt,
     });
 
     if (result.ok) {

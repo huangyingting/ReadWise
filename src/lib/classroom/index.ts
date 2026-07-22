@@ -20,6 +20,7 @@
  * this module owns the CRUD + raw progress fetch they build on.
  */
 export {
+  assignmentLiveWhere,
   assignmentVisibleToStudentWhere,
   effectiveStudentIds,
 } from "./targeting";

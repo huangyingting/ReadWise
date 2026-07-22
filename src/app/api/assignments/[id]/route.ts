@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { array, idParams, nonEmptyString, nullable, number, object, optional, string } from "@/lib/validation";
+import {
+  array,
+  idParams,
+  nonEmptyString,
+  nullable,
+  number,
+  object,
+  oneOf,
+  optional,
+  string,
+} from "@/lib/validation";
 import {
   deleteAssignment,
   getAssignmentClassroom,
@@ -16,6 +26,8 @@ const updateBody = object({
   title: optional(string({ max: 200 })),
   points: nullable(number({ min: 0, max: 10000, int: true })),
   studentIds: optional(array(nonEmptyString(200), { max: 200 })),
+  publishState: optional(oneOf(["DRAFT", "SCHEDULED", "PUBLISHED"] as const)),
+  publishAt: optional(string({ max: 40 })),
 });
 
 export const GET = createHandler(
@@ -67,6 +79,8 @@ export const PATCH = createHandler(
       title: body.title,
       points: body.points,
       studentIds: body.studentIds,
+      publishState: body.publishState,
+      publishAt: body.publishAt,
     });
     if (!result.ok) {
       let message = "Invalid due date";
@@ -74,6 +88,8 @@ export const PATCH = createHandler(
         message = "Select at least one enrolled student to target";
       } else if (result.reason === "points_below_awarded") {
         message = "Cannot set points below an already-awarded score";
+      } else if (result.reason === "invalid_publish_at") {
+        message = "Invalid publish time";
       }
       throw new ApiError(result.status, message);
     }
@@ -93,7 +109,11 @@ export const PATCH = createHandler(
           title: body.title !== undefined,
           points: body.points !== undefined,
           targets: body.studentIds !== undefined,
+          publishState: body.publishState !== undefined,
+          publishAt: body.publishAt !== undefined,
         },
+        publishState: body.publishState,
+        scheduled: body.publishState === "SCHEDULED",
       },
     });
     return NextResponse.json({ assignment: result.assignment });

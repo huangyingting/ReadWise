@@ -6,6 +6,7 @@
  * {@link createClassroom}'s transaction.
  */
 import {
+  AssignmentPublishState,
   AssignmentStatus,
   type Assignment,
   type Classroom,
@@ -13,7 +14,7 @@ import {
   type ClassroomRole,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { parseOptionalDueDate, trimOrNull } from "./article-assignments";
+import { parseAssignmentPublish, parseOptionalDueDate, trimOrNull } from "./article-assignments";
 
 export type CreateClassroomInput = { orgId: string; name: string; teacherId: string };
 export type UpdateClassroomLifecycleInput = {
@@ -169,6 +170,8 @@ export type UpdateAssignmentInput = {
   title?: string | null;
   points?: number | null;
   studentIds?: string[];
+  publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
+  publishAt?: string | null;
 };
 
 export type UpdateAssignmentResult =
@@ -176,7 +179,11 @@ export type UpdateAssignmentResult =
   | {
       ok: false;
       status: 400 | 409;
-      reason: "invalid_due_date" | "invalid_target_students" | "points_below_awarded";
+      reason:
+        | "invalid_due_date"
+        | "invalid_target_students"
+        | "points_below_awarded"
+        | "invalid_publish_at";
     };
 
 /**
@@ -193,6 +200,8 @@ export async function updateAssignment(
     instructions?: string | null;
     title?: string | null;
     points?: number | null;
+    publishState?: AssignmentPublishState;
+    publishAt?: Date | null;
     updatedAt?: Date;
   } = {};
 
@@ -214,6 +223,16 @@ export async function updateAssignment(
 
   if (input.points !== undefined) {
     data.points = input.points;
+  }
+
+  if (input.publishState !== undefined) {
+    const publish = parseAssignmentPublish({
+      publishState: input.publishState,
+      publishAt: input.publishAt,
+    });
+    if (!publish.ok) return publish;
+    data.publishState = publish.publishState;
+    data.publishAt = publish.publishAt;
   }
 
   if (input.points !== undefined && input.points != null) {

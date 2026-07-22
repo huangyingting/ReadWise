@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-22T09:12:18.667Z",
+  "generatedAt": "2026-07-22T09:39:17.172Z",
   "routeCount": 140,
   "methodCount": 170,
   "routes": [
@@ -1739,6 +1739,8 @@
             "dueDate",
             "instructions",
             "points",
+            "publishAt",
+            "publishState",
             "studentIds",
             "title"
           ]
@@ -2132,6 +2134,8 @@
             "dueDate",
             "instructions",
             "points",
+            "publishAt",
+            "publishState",
             "studentIds",
             "title"
           ]
@@ -2163,6 +2167,8 @@
             "dueDate",
             "instructions",
             "points",
+            "publishAt",
+            "publishState",
             "studentIds"
           ]
         }

@@ -24,7 +24,11 @@ import {
   type ReminderPreference,
 } from "@/lib/reminder-preferences";
 import { reminderAssignment } from "@/lib/copy/push";
-import { assignmentVisibleToStudentWhere, effectiveStudentIds } from "@/lib/classroom/targeting";
+import {
+  assignmentLiveWhere,
+  assignmentVisibleToStudentWhere,
+  effectiveStudentIds,
+} from "@/lib/classroom/targeting";
 import { isPushConfigured } from "./provider";
 import { type SubRow, sendToSubs, type PushPayload } from "./delivery";
 
@@ -59,17 +63,18 @@ export async function countDueAssignmentsForStudent(
     where: {
       dueDate: { not: null, lte: now },
       classroom: { archivedAt: null, members: { some: { userId: studentId, role: "Student" } } },
-      ...assignmentVisibleToStudentWhere(studentId),
+      AND: [assignmentVisibleToStudentWhere(studentId), assignmentLiveWhere(now)],
       completions: { none: { studentId, status: AssignmentStatus.COMPLETED } },
     },
   });
 }
 
 export async function countOpenAssignmentsForStudent(studentId: string): Promise<number> {
+  const now = new Date();
   return prisma.assignment.count({
     where: {
       classroom: { archivedAt: null, members: { some: { userId: studentId, role: "Student" } } },
-      ...assignmentVisibleToStudentWhere(studentId),
+      AND: [assignmentVisibleToStudentWhere(studentId), assignmentLiveWhere(now)],
       completions: { none: { studentId, status: AssignmentStatus.COMPLETED } },
     },
   });
@@ -188,7 +193,11 @@ export async function sendDueAssignmentReminders(): Promise<AssignmentReminderRe
   // ONE query: fetch all due/overdue assignments with their classroom members
   // and completed student IDs.
   const dueAssignments = await prisma.assignment.findMany({
-    where: { dueDate: { not: null, lte: now }, classroom: { archivedAt: null } },
+    where: {
+      dueDate: { not: null, lte: now },
+      classroom: { archivedAt: null },
+      ...assignmentLiveWhere(now),
+    },
     select: {
       id: true,
       classroom: {

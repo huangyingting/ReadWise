@@ -9,6 +9,7 @@
 import type { AssignmentCompletionSource } from "@prisma/client";
 import { AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { assignmentLiveWhere } from "./targeting";
 
 export type ClassroomProgressStudent = { userId: string; name: string | null; email: string | null };
 export type ClassroomProgressAssignment = {
@@ -96,6 +97,7 @@ function toProgressCompletion(
 export async function getClassroomProgressData(
   classroomId: string,
 ): Promise<ClassroomProgressData | null> {
+  const now = new Date();
   const classroom = await prisma.classroom.findUnique({
     where: { id: classroomId },
     select: { id: true, name: true, orgId: true, teacherId: true },
@@ -108,7 +110,7 @@ export async function getClassroomProgressData(
       include: { user: { select: { id: true, name: true, email: true } } },
     }),
     prisma.assignment.findMany({
-      where: { classroomId },
+      where: { classroomId, ...assignmentLiveWhere(now) },
       include: {
         article: { select: { id: true, title: true } },
         targets: { select: { studentId: true } },
