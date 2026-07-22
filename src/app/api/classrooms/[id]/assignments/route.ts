@@ -4,6 +4,7 @@ import { array, idParams, number, object, optional, string, nonEmptyString } fro
 import { articleAccessContext } from "@/lib/article-library";
 import { createArticleAssignment } from "@/lib/classroom/article-assignments";
 import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const assignBody = object({
   articleId: nonEmptyString(200),
@@ -21,7 +22,7 @@ const assignBody = object({
  */
 export const POST = createHandler(
   { params: idParams, body: assignBody },
-  async ({ params, body, session }) => {
+  async ({ req, params, body, session, requestId }) => {
     const { classroom } = await requireActiveClassroomManageApi(session, params.id);
     const result = await createArticleAssignment({
       classroomId: classroom.id,
@@ -46,6 +47,20 @@ export const POST = createHandler(
           : "Article organization scope is invalid",
       );
     }
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.assignmentCreate,
+      targetType: "classroom",
+      targetId: classroom.id,
+      metadata: {
+        classroomId: classroom.id,
+        assignmentId: result.assignment.id,
+        articleId: body.articleId,
+        targeted: body.studentIds?.length ?? 0,
+      },
+    });
     return NextResponse.json({ assignment: result.assignment }, { status: 201 });
   },
 );

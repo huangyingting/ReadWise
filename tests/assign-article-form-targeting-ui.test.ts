@@ -72,6 +72,15 @@ test("AssignArticleForm sends studentIds only for single-assign specific-student
   );
 });
 
+test("AssignArticleForm sends raw date-only due dates for server EOD normalization", () => {
+  const src = readSrc("src/components/teacher/AssignArticleForm.tsx");
+
+  assert.match(src, /dueDate: dueDate \|\| undefined/);
+  assert.match(src, /dueDate: form\.dueDate \|\| undefined/);
+  assert.doesNotMatch(src, /new Date\(dueDate\)\.toISOString\(\)/);
+  assert.doesNotMatch(src, /new Date\(form\.dueDate\)\.toISOString\(\)/);
+});
+
 test("AssignArticleForm guards zero-target specific-students submits", () => {
   const src = readSrc("src/components/teacher/AssignArticleForm.tsx");
   const normalized = src.replace(/\s+/g, " ");

@@ -35,7 +35,7 @@ function buildUpdatePayload(
   points: string,
 ) {
   return {
-    ...(dueDate ? { dueDate: new Date(dueDate).toISOString() } : {}),
+    ...(dueDate ? { dueDate } : {}),
     title: title.trim(),
     ...(points ? { points: Number(points) } : {}),
     instructions: instructions.trim(),

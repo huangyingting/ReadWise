@@ -75,7 +75,7 @@ function buildAssignmentPayload(
     articleId,
     title: title.trim() || undefined,
     points: points ? Number(points) : undefined,
-    dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+    dueDate: dueDate || undefined,
     instructions: instructions.trim() || undefined,
     studentIds,
   };
@@ -182,7 +182,7 @@ export default function AssignArticleForm({
           {
             articleIds: selected.map((article) => article.id),
             points: form.points ? Number(form.points) : undefined,
-            dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+            dueDate: form.dueDate || undefined,
             instructions: form.instructions.trim() || undefined,
           },
         );
