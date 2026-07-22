@@ -82,6 +82,16 @@ export interface MessageCatalog {
    */
   "push.reminder.todayBody": (params: { count: number }) => string;
 
+  /** Title of the OS push notification for due/overdue assignment reminders. */
+  "push.assignmentReminder.title": () => string;
+
+  /**
+   * Body of the OS push notification for due/overdue assignments. `count` is the
+   * number of not-completed assignments past (or at) their due date. Copy stays
+   * generic — no article titles, classroom names, or other private content.
+   */
+  "push.assignmentReminder.body": (params: { count: number }) => string;
+
   // ---------------------------------------------------------------------------
   // Reading fluency feedback (#813)
   // ---------------------------------------------------------------------------

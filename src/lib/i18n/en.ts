@@ -15,6 +15,10 @@ function reviewWordCount(count: number): string {
   return count === 1 ? "1 word" : `${count} words`;
 }
 
+function assignmentCount(count: number): string {
+  return count === 1 ? "1 assignment" : `${count} assignments`;
+}
+
 export const en: MessageCatalog = {
   // ---------------------------------------------------------------------------
   // Reader
@@ -55,6 +59,11 @@ export const en: MessageCatalog = {
 
   "push.reminder.todayBody": ({ count }) =>
     `You have ${reviewWordCount(count)} due in your ${SITE_NAME} Today session.`,
+
+  "push.assignmentReminder.title": () => "Assignments due 📌",
+
+  "push.assignmentReminder.body": ({ count }) =>
+    `You have ${assignmentCount(count)} due in ${SITE_NAME}.`,
 
   // ---------------------------------------------------------------------------
   // Reading fluency feedback (#813)

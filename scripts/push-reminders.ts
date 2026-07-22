@@ -12,6 +12,7 @@
  */
 import { isPushConfigured } from "@/lib/push/provider";
 import { sendDueReminders } from "@/lib/push/scheduler";
+import { sendDueAssignmentReminders } from "@/lib/push/assignment-reminders";
 import { createLogger } from "@/lib/observability/logger";
 import { runScript, isMain, parseFlag } from "./lib/cli";
 
@@ -31,7 +32,7 @@ function parseArgs(argv: string[]): Args {
 
 function printHelp() {
   console.log(`
-push-reminders — send SRS review push notifications
+push-reminders — send SRS review and assignment due/overdue push notifications
 
 Usage:
   npm run push-reminders [-- [options]]
@@ -71,13 +72,21 @@ async function main(): Promise<number> {
   }
 
   if (args.dryRun) {
-    log.info("dry-run: push is configured; would send due reminders (skipping actual send)");
+    log.info("dry-run: push is configured; would send SRS due reminders and assignment due/overdue reminders (skipping actual send)");
     return 0;
   }
 
   log.info("sending due-card push reminders…");
   const result = await sendDueReminders();
   logReminderResult(result);
+
+  const asg = await sendDueAssignmentReminders();
+  log.info("assignment reminders done", {
+    studentsWithDue: asg.studentsWithDue,
+    sent: asg.sent,
+    skipped: asg.skipped,
+    suppressed: asg.suppressed,
+  });
   return 0;
 }
 

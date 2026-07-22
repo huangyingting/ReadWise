@@ -68,6 +68,20 @@ export const reminder = {
   icon: ICON_192,
 } satisfies ReminderCopy;
 
+export const reminderAssignment = {
+  /** Notification title for due/overdue assignment reminders. */
+  title: t("push.assignmentReminder.title"),
+
+  /** Notification body — count + site name only, never assignment/classroom names. */
+  body: (count: number) => t("push.assignmentReminder.body", { count }),
+
+  /** Deep-link URL opened when the user taps the notification. */
+  url: "/assignments",
+
+  /** Icon shown in the notification (PWA icon path). */
+  icon: ICON_192,
+};
+
 // ---------------------------------------------------------------------------
 // Settings / toggle UI copy (PushReminderToggle + ReminderPreferencesForm)
 // ---------------------------------------------------------------------------
