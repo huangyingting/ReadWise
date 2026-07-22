@@ -236,7 +236,7 @@ test("normalizes optional fields and creates the assignment", async () => {
   assert.deepEqual(createCalls[0].data, {
     classroomId: "classroom-1",
     articleId: "article-1",
-    dueDate: new Date("2026-12-31"),
+    dueDate: new Date("2026-12-31T23:59:59.999Z"),
     instructions: "Read carefully",
   });
 });
@@ -255,4 +255,47 @@ test("stores null for absent due date and blank instructions", async () => {
 test("propagates unexpected persistence failures", async () => {
   assignmentThrows = true;
   await assert.rejects(() => create(), /assignment unavailable/);
+});
+
+// ── parseOptionalDueDate unit tests ──────────────────────────────────────────
+
+test("parseOptionalDueDate: date-only resolves to end-of-day UTC", async () => {
+  const { parseOptionalDueDate } = await import(
+    "@/lib/classroom/article-assignments"
+  );
+  assert.deepEqual(
+    parseOptionalDueDate("2026-12-31"),
+    new Date("2026-12-31T23:59:59.999Z"),
+  );
+});
+
+test("parseOptionalDueDate: full ISO string is preserved unchanged", async () => {
+  const { parseOptionalDueDate } = await import(
+    "@/lib/classroom/article-assignments"
+  );
+  assert.deepEqual(
+    parseOptionalDueDate("2026-12-31T08:00:00.000Z"),
+    new Date("2026-12-31T08:00:00.000Z"),
+  );
+});
+
+test("parseOptionalDueDate: invalid string returns null", async () => {
+  const { parseOptionalDueDate } = await import(
+    "@/lib/classroom/article-assignments"
+  );
+  assert.equal(parseOptionalDueDate("not-a-date"), null);
+});
+
+test("parseOptionalDueDate: undefined returns null", async () => {
+  const { parseOptionalDueDate } = await import(
+    "@/lib/classroom/article-assignments"
+  );
+  assert.equal(parseOptionalDueDate(undefined), null);
+});
+
+test("parseOptionalDueDate: empty string returns null", async () => {
+  const { parseOptionalDueDate } = await import(
+    "@/lib/classroom/article-assignments"
+  );
+  assert.equal(parseOptionalDueDate(""), null);
 });
