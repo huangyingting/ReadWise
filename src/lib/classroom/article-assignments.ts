@@ -49,6 +49,7 @@ export type BulkCreateArticleAssignmentsInput = {
   dueDate?: string;
   instructions?: string | null;
   points?: number | null;
+  studentIds?: string[];
 };
 
 export type BulkCreateArticleAssignmentsResult = {
@@ -198,6 +199,7 @@ export async function bulkCreateArticleAssignments(
       dueDate: input.dueDate,
       instructions: input.instructions,
       points: input.points,
+      studentIds: input.studentIds,
     });
 
     if (result.ok) {

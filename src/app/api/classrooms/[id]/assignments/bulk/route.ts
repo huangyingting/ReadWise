@@ -19,6 +19,7 @@ const bulkBody = object({
   dueDate: optional(string({ min: 1, max: 40 })),
   instructions: optional(string({ max: 2000 })),
   points: optional(number({ min: 0, max: 10000, int: true })),
+  studentIds: optional(array(nonEmptyString(200), { max: 200 })),
 });
 
 export const POST = createHandler(
@@ -37,6 +38,7 @@ export const POST = createHandler(
       dueDate: body.dueDate,
       instructions: body.instructions ?? null,
       points: body.points ?? null,
+      studentIds: body.studentIds,
     });
 
     await recordAuditFromRequest({
@@ -51,6 +53,7 @@ export const POST = createHandler(
         requested: body.articleIds.length,
         created: created.length,
         failed: failed.length,
+        targeted: Boolean(body.studentIds && body.studentIds.length > 0),
       },
     });
 

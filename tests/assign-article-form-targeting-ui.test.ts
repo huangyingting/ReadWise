@@ -39,7 +39,7 @@ beforeEach(() => {
   postCalls = [];
 });
 
-test("AssignArticleForm exposes targeting UI only in the single-article branch", () => {
+test("AssignArticleForm exposes targeting UI for any selected article count", () => {
   const src = readSrc("src/components/teacher/AssignArticleForm.tsx");
   const selectorSrc = readSrc("src/components/teacher/AssignmentAudienceSelector.tsx");
   const normalized = src.replace(/\s+/g, " ");
@@ -47,7 +47,8 @@ test("AssignArticleForm exposes targeting UI only in the single-article branch",
   assert.ok(src.includes('students: { id: string; label: string }[]'), "receives roster options");
   assert.ok(src.includes('useState<"class" | "students">("class")'), "defaults to whole-class audience");
   assert.ok(src.includes("const [targetIds, setTargetIds] = useState<string[]>([])"), "tracks target ids");
-  assert.ok(normalized.includes("{selected.length === 1 ? ( <> <Field label=\"Assign to\"> <AssignmentAudienceSelector"), "renders selector in the single-select block");
+  assert.ok(normalized.includes("{selected.length >= 1 ? ( <Field label=\"Assign to\"> <AssignmentAudienceSelector"), "renders selector when one or more articles are selected");
+  assert.ok(normalized.includes("{selected.length === 1 ? ( <Field label=\"Title (optional)\">"), "keeps title override single-select only");
   assert.ok(selectorSrc.includes("Whole class"), "offers whole-class audience");
   assert.ok(selectorSrc.includes("Specific students"), "offers specific-students audience");
   assert.ok(selectorSrc.includes("aria-label=\"Target students\""), "renders a roster toggle group");
@@ -59,7 +60,7 @@ test("AssignArticleForm exposes targeting UI only in the single-article branch",
   assert.ok(src.includes('setAudience("class")'), "can reset to whole class");
 });
 
-test("AssignArticleForm sends studentIds only for single-assign specific-students submits", () => {
+test("AssignArticleForm sends studentIds for single and bulk specific-students submits", () => {
   const src = readSrc("src/components/teacher/AssignArticleForm.tsx");
   const normalized = src.replace(/\s+/g, " ");
 
@@ -72,8 +73,9 @@ test("AssignArticleForm sends studentIds only for single-assign specific-student
     "single assignment passes studentIds into the payload builder",
   );
   assert.ok(
-    normalized.includes('`/api/classrooms/${classroomId}/assignments/bulk`, { articleIds: selected.map((article) => article.id), points:'),
-    "bulk assignment payload remains separate and whole-class-only",
+    normalized.includes('`/api/classrooms/${classroomId}/assignments/bulk`, { articleIds: selected.map((article) => article.id), points:') &&
+      normalized.includes('studentIds: audience === "students" && targetIds.length > 0 ? targetIds : undefined'),
+    "bulk assignment payload includes specific-students targets when selected",
   );
 });
 
@@ -91,12 +93,12 @@ test("AssignArticleForm guards zero-target specific-students submits", () => {
   const normalized = src.replace(/\s+/g, " ");
 
   assert.ok(
-    normalized.includes('if (selected.length === 1 && audience === "students" && targetIds.length === 0) return;'),
-    "submit handler returns before posting zero-target specific-students assignments",
+    normalized.includes('if (audience === "students" && targetIds.length === 0) return;'),
+    "submit handler returns before posting zero-target specific-students assignments for any selected count",
   );
   assert.ok(
-    normalized.includes('!(selected.length === 1 && audience === "students" && targetIds.length === 0)'),
-    "submit button is disabled for zero-target specific-students assignments",
+    normalized.includes('!(audience === "students" && targetIds.length === 0)'),
+    "submit button is disabled for zero-target specific-students assignments for any selected count",
   );
   assert.ok(src.includes('setTargetIds([])'), "resetForm clears target selections");
 });

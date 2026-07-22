@@ -332,6 +332,7 @@ before(() => {
         dueDate?: string;
         instructions?: string | null;
         points?: number | null;
+        studentIds?: string[];
       }) => {
         const created: Array<Record<string, unknown>> = [];
         const failed: Array<{ articleId: string; reason: string }> = [];
@@ -342,6 +343,7 @@ before(() => {
             instructions: input.instructions,
             points: input.points,
             title: null,
+            studentIds: input.studentIds,
           });
           const perArticleFailure = articleAssignmentFailuresById.get(articleId);
           if (perArticleFailure) {
@@ -1302,6 +1304,30 @@ test("POST /api/classrooms/[id]/assignments/bulk returns 201 with created and fa
     requested: 3,
     created: 2,
     failed: 1,
+    targeted: false,
+  });
+});
+
+
+test("POST /api/classrooms/[id]/assignments/bulk forwards target studentIds and audits targeted flag", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await postBulkClassroomAssignments("c1", {
+    articleIds: ["a1", "a2"],
+    studentIds: ["student-1", "student-2"],
+  });
+
+  assert.equal(res.status, 201);
+  assert.deepEqual(
+    createArticleAssignmentCalls.map((call) => call.studentIds),
+    [["student-1", "student-2"], ["student-1", "student-2"]],
+  );
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    classroomId: "c1",
+    requested: 2,
+    created: 2,
+    failed: 0,
+    targeted: true,
   });
 });
 

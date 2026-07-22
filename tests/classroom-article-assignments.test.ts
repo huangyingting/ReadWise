@@ -402,6 +402,102 @@ test("bulkCreateArticleAssignments creates sequentially and collects failures", 
   assert.deepEqual(createCalls.map((call) => call.data.points), [10, 10]);
 });
 
+
+test("bulkCreateArticleAssignments threads studentIds and creates target rows for each assignment", async () => {
+  articleRows = [
+    buildArticle({
+      id: "article-1",
+      status: ArticleStatus.PUBLISHED,
+      visibility: ArticleVisibility.PUBLIC,
+      ownerId: null,
+      organizationId: null,
+    }),
+    buildArticle({
+      id: "article-2",
+      status: ArticleStatus.PUBLISHED,
+      visibility: ArticleVisibility.PUBLIC,
+      ownerId: null,
+      organizationId: null,
+    }),
+  ];
+  enrolledStudentRows = [{ userId: "student-1" }, { userId: "student-2" }];
+  const { bulkCreateArticleAssignments } = await import(
+    "@/lib/classroom/article-assignments"
+  );
+
+  const result = await bulkCreateArticleAssignments({
+    classroomId: "classroom-1",
+    organizationId: "organization-1",
+    articleIds: ["article-1", "article-2"],
+    accessContext: { userId: "teacher-1", role: "Reader", orgId: "organization-1" },
+    studentIds: ["student-1", "student-2"],
+  });
+
+  assert.equal(result.created.length, 2);
+  assert.deepEqual(result.failed, []);
+  assert.equal(transactionCalls, 2);
+  assert.deepEqual(
+    membershipFindManyCalls.map((call) => call.where),
+    [
+      { classroomId: "classroom-1", role: "Student", userId: { in: ["student-1", "student-2"] } },
+      { classroomId: "classroom-1", role: "Student", userId: { in: ["student-1", "student-2"] } },
+    ],
+  );
+  assert.deepEqual(
+    targetCreateManyCalls.map((call) => call.data),
+    [
+      [
+        { assignmentId: "assignment-1", studentId: "student-1" },
+        { assignmentId: "assignment-1", studentId: "student-2" },
+      ],
+      [
+        { assignmentId: "assignment-1", studentId: "student-1" },
+        { assignmentId: "assignment-1", studentId: "student-2" },
+      ],
+    ],
+  );
+});
+
+test("bulkCreateArticleAssignments reports invalid_target_students per article", async () => {
+  articleRows = [
+    buildArticle({
+      id: "article-1",
+      status: ArticleStatus.PUBLISHED,
+      visibility: ArticleVisibility.PUBLIC,
+      ownerId: null,
+      organizationId: null,
+    }),
+    buildArticle({
+      id: "article-2",
+      status: ArticleStatus.PUBLISHED,
+      visibility: ArticleVisibility.PUBLIC,
+      ownerId: null,
+      organizationId: null,
+    }),
+  ];
+  enrolledStudentRows = [];
+  const { bulkCreateArticleAssignments } = await import(
+    "@/lib/classroom/article-assignments"
+  );
+
+  const result = await bulkCreateArticleAssignments({
+    classroomId: "classroom-1",
+    organizationId: "organization-1",
+    articleIds: ["article-1", "article-2"],
+    accessContext: { userId: "teacher-1", role: "Reader", orgId: "organization-1" },
+    studentIds: ["missing-student"],
+  });
+
+  assert.deepEqual(result.created, []);
+  assert.deepEqual(result.failed, [
+    { articleId: "article-1", reason: "invalid_target_students" },
+    { articleId: "article-2", reason: "invalid_target_students" },
+  ]);
+  assert.equal(transactionCalls, 0);
+  assert.deepEqual(createCalls, []);
+  assert.deepEqual(targetCreateManyCalls, []);
+});
+
 // ── parseOptionalDueDate unit tests ──────────────────────────────────────────
 
 test("parseOptionalDueDate: date-only resolves to end-of-day UTC", async () => {
