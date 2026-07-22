@@ -5,7 +5,13 @@
  * assignments live here. Teachers are seated as classroom members inside
  * {@link createClassroom}'s transaction.
  */
-import type { Assignment, Classroom, ClassroomMembership, ClassroomRole } from "@prisma/client";
+import {
+  AssignmentStatus,
+  type Assignment,
+  type Classroom,
+  type ClassroomMembership,
+  type ClassroomRole,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseOptionalDueDate, trimOrNull } from "./article-assignments";
 
@@ -143,6 +149,18 @@ export async function removeClassroomMember(
 /** Deletes an assignment (cascades its completions). */
 export async function deleteAssignment(assignmentId: string): Promise<void> {
   await prisma.assignment.deleteMany({ where: { id: assignmentId } });
+}
+
+export async function reopenAssignment(assignmentId: string): Promise<{ reopened: number }> {
+  const res = await prisma.assignmentCompletion.updateMany({
+    where: { assignmentId, status: { not: AssignmentStatus.ASSIGNED } },
+    data: {
+      status: AssignmentStatus.ASSIGNED,
+      completedAt: null,
+      completionSource: null,
+    },
+  });
+  return { reopened: res.count };
 }
 
 export type UpdateAssignmentInput = {

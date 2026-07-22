@@ -40,6 +40,21 @@ export type CreateArticleAssignmentResult =
       reason: "article_not_found" | ArticleOrganizationIntegrityReason;
     };
 
+export type BulkCreateArticleAssignmentsInput = {
+  classroomId: string;
+  organizationId: string;
+  articleIds: string[];
+  accessContext: ArticleAccessContext;
+  dueDate?: string;
+  instructions?: string | null;
+  points?: number | null;
+};
+
+export type BulkCreateArticleAssignmentsResult = {
+  created: Assignment[];
+  failed: { articleId: string; reason: string }[];
+};
+
 export function parseOptionalDueDate(dueDate: string | undefined): Date | null {
   if (!dueDate) return null;
   // Date-only strings (from <input type="date">) parse as midnight UTC, which
@@ -122,4 +137,31 @@ export async function createArticleAssignment(
     },
   });
   return { ok: true, assignment };
+}
+
+export async function bulkCreateArticleAssignments(
+  input: BulkCreateArticleAssignmentsInput,
+): Promise<BulkCreateArticleAssignmentsResult> {
+  const created: Assignment[] = [];
+  const failed: { articleId: string; reason: string }[] = [];
+
+  for (const articleId of input.articleIds) {
+    const result = await createArticleAssignment({
+      classroomId: input.classroomId,
+      organizationId: input.organizationId,
+      articleId,
+      accessContext: input.accessContext,
+      dueDate: input.dueDate,
+      instructions: input.instructions,
+      points: input.points,
+    });
+
+    if (result.ok) {
+      created.push(result.assignment);
+    } else {
+      failed.push({ articleId, reason: result.reason });
+    }
+  }
+
+  return { created, failed };
 }

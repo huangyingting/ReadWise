@@ -36,6 +36,7 @@ import AssignmentFeedbackForm from "@/components/teacher/AssignmentFeedbackForm"
 import ClassroomSettingsCard from "@/components/teacher/ClassroomSettingsCard";
 import DeleteAssignmentButton from "@/components/teacher/DeleteAssignmentButton";
 import EditAssignmentForm from "@/components/teacher/EditAssignmentForm";
+import ReopenAssignmentButton from "@/components/teacher/ReopenAssignmentButton";
 import RemindStudentsButton from "@/components/teacher/RemindStudentsButton";
 import RemoveStudentButton from "@/components/teacher/RemoveStudentButton";
 
@@ -200,6 +201,12 @@ function AssignmentsCard({
                           assignmentId={assignment.assignmentId}
                           assignmentTitle={displayTitle}
                         />
+                        {assignment.completed > 0 ? (
+                          <ReopenAssignmentButton
+                            assignmentId={assignment.assignmentId}
+                            assignmentTitle={displayTitle}
+                          />
+                        ) : null}
                         <RemindStudentsButton
                           assignmentId={assignment.assignmentId}
                           assignmentTitle={displayTitle}

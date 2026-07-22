@@ -60,12 +60,16 @@ export {
   deleteClassroom,
   removeClassroomMember,
   deleteAssignment,
+  reopenAssignment,
   updateAssignment,
 } from "./commands";
 export {
   type CreateArticleAssignmentInput,
   type CreateArticleAssignmentResult,
+  type BulkCreateArticleAssignmentsInput,
+  type BulkCreateArticleAssignmentsResult,
   createArticleAssignment,
+  bulkCreateArticleAssignments,
 } from "./article-assignments";
 export {
   type RecordCompletionInput,

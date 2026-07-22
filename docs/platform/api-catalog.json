@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-22T04:33:15.487Z",
-  "routeCount": 138,
-  "methodCount": 168,
+  "generatedAt": "2026-07-22T04:52:40.189Z",
+  "routeCount": 140,
+  "methodCount": 170,
   "routes": [
     {
       "path": "/api/account",
@@ -1820,6 +1820,29 @@
       ]
     },
     {
+      "path": "/api/assignments/{id}/reopen",
+      "file": "src/app/api/assignments/[id]/reopen/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "result"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/auth/{...nextauth}",
       "file": "src/app/api/auth/[...nextauth]/route.ts",
       "runtime": "default",
@@ -2108,6 +2131,35 @@
             "instructions",
             "points",
             "title"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms/{id}/assignments/bulk",
+      "file": "src/app/api/classrooms/[id]/assignments/bulk/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "created",
+            "failed"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "articleIds",
+            "dueDate",
+            "instructions",
+            "points"
           ]
         }
       ]

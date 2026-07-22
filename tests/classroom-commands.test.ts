@@ -24,6 +24,8 @@ let membershipCreateArgs: unknown = null;
 let membershipUpsertArgs: unknown = null;
 let membershipDeleteManyArgs: unknown = null;
 let completionDeleteManyArgs: unknown = null;
+let completionUpdateManyArgs: unknown = null;
+let completionUpdateManyResult = { count: 2 };
 let assignmentDeleteManyArgs: unknown = null;
 let assignmentUpdateArgs: unknown = null;
 let classroomUpdateArgs: unknown = null;
@@ -90,6 +92,10 @@ before(() => {
         completionDeleteManyArgs = args;
         return { count: 1 };
       },
+      updateMany: async (args: unknown) => {
+        completionUpdateManyArgs = args;
+        return completionUpdateManyResult;
+      },
     },
     assignment: {
       deleteMany: async (args: unknown) => {
@@ -123,6 +129,8 @@ beforeEach(() => {
   membershipUpsertArgs = null;
   membershipDeleteManyArgs = null;
   completionDeleteManyArgs = null;
+  completionUpdateManyArgs = null;
+  completionUpdateManyResult = { count: 2 };
   assignmentDeleteManyArgs = null;
   assignmentUpdateArgs = null;
   classroomUpdateArgs = null;
@@ -355,6 +363,37 @@ test("deleteAssignment returns void (no useful return value)", async () => {
   const { deleteAssignment } = await loadCommands();
   const result = await deleteAssignment("asgn-1");
   assert.equal(result, undefined);
+});
+
+// ---- reopenAssignment -------------------------------------------------------
+
+test("reopenAssignment resets non-assigned completions and returns the count", async () => {
+  const { reopenAssignment } = await loadCommands();
+  completionUpdateManyResult = { count: 3 };
+
+  const result = await reopenAssignment("asgn-1");
+
+  assert.deepEqual(result, { reopened: 3 });
+  assert.deepEqual(completionUpdateManyArgs, {
+    where: { assignmentId: "asgn-1", status: { not: "ASSIGNED" } },
+    data: {
+      status: "ASSIGNED",
+      completedAt: null,
+      completionSource: null,
+    },
+  });
+});
+
+test("reopenAssignment preserves teacher review and quiz fields", async () => {
+  const { reopenAssignment } = await loadCommands();
+
+  await reopenAssignment("asgn-1");
+
+  const args = completionUpdateManyArgs as { data: Record<string, unknown> };
+  assert.equal("feedback" in args.data, false);
+  assert.equal("reviewedAt" in args.data, false);
+  assert.equal("reviewedBy" in args.data, false);
+  assert.equal("quizScore" in args.data, false);
 });
 
 // ---- updateAssignment ------------------------------------------------------
