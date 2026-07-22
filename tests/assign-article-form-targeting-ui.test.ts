@@ -51,6 +51,10 @@ test("AssignArticleForm exposes targeting UI only in the single-article branch",
   assert.ok(selectorSrc.includes("Whole class"), "offers whole-class audience");
   assert.ok(selectorSrc.includes("Specific students"), "offers specific-students audience");
   assert.ok(selectorSrc.includes("aria-label=\"Target students\""), "renders a roster toggle group");
+  assert.ok(
+    selectorSrc.includes("students.length > 0 ?") && selectorSrc.includes("No students are enrolled yet."),
+    "keeps the audience toggle visible while only the roster list switches to an empty state",
+  );
   assert.ok(selectorSrc.includes("{targetIds.length} selected"), "shows selected target count");
   assert.ok(src.includes('setAudience("class")'), "can reset to whole class");
 });

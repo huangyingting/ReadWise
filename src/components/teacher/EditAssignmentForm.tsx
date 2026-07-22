@@ -8,6 +8,7 @@ import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { useMutation } from "@/hooks/useMutation";
 import AssignmentAudienceSelector from "./AssignmentAudienceSelector";
+import { buildUpdatePayload, type AssignmentAudience } from "./editAssignmentPayload";
 import { TeacherFormShell } from "./TeacherFormShell";
 
 interface EditAssignmentFormProps {
@@ -31,23 +32,6 @@ function toDateInputValue(iso: string | null): string {
   return iso.slice(0, 10);
 }
 
-function buildUpdatePayload(
-  dueDate: string,
-  instructions: string,
-  title: string,
-  points: string,
-  audience: "class" | "students",
-  targetIds: string[],
-) {
-  return {
-    dueDate,
-    title: title.trim(),
-    points: points ? Number(points) : null,
-    instructions: instructions.trim(),
-    studentIds: audience === "students" ? targetIds : [],
-  };
-}
-
 /**
  * Lets a teacher edit an assignment's due date and instructions (RW-061).
  * PATCHes `/api/assignments/[id]`; the server re-checks classroom-manage
@@ -68,13 +52,30 @@ export default function EditAssignmentForm({
   const [instructions, setInstructions] = useState(initialInstructions ?? "");
   const [title, setTitle] = useState(initialTitle ?? "");
   const [points, setPoints] = useState(initialPoints == null ? "" : String(initialPoints));
-  const [audience, setAudience] = useState<"class" | "students">(
+  const [audience, setAudience] = useState<AssignmentAudience>(
     initialTargetIds.length > 0 ? "students" : "class",
   );
-  const [targetIds, setTargetIds] = useState<string[]>(initialTargetIds);
+  const [targetIds, setTargetIds] = useState<string[]>([...initialTargetIds]);
+  const [audienceDirty, setAudienceDirty] = useState(false);
   const { busy, error, run } = useMutation("Failed to update assignment");
 
+  function resetDraft() {
+    setDueDate(toDateInputValue(initialDueDate));
+    setInstructions(initialInstructions ?? "");
+    setTitle(initialTitle ?? "");
+    setPoints(initialPoints == null ? "" : String(initialPoints));
+    setAudience(initialTargetIds.length > 0 ? "students" : "class");
+    setTargetIds([...initialTargetIds]);
+    setAudienceDirty(false);
+  }
+
+  function changeAudience(nextAudience: AssignmentAudience) {
+    setAudience(nextAudience);
+    setAudienceDirty(true);
+  }
+
   function toggleTarget(studentId: string) {
+    setAudienceDirty(true);
     setTargetIds((current) =>
       current.includes(studentId)
         ? current.filter((id) => id !== studentId)
@@ -84,11 +85,19 @@ export default function EditAssignmentForm({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (audience === "students" && targetIds.length === 0) return;
+    if (audienceDirty && audience === "students" && targetIds.length === 0) return;
     await run(async () => {
       await patchJson(
         `/api/assignments/${encodeURIComponent(assignmentId)}`,
-        buildUpdatePayload(dueDate, instructions, title, points, audience, targetIds),
+        buildUpdatePayload({
+          dueDate,
+          instructions,
+          title,
+          points,
+          audienceDirty,
+          audience,
+          targetIds,
+        }),
       );
       setOpen(false);
     }, { refreshOnSuccess: true });
@@ -101,7 +110,10 @@ export default function EditAssignmentForm({
         variant="ghost"
         size="sm"
         aria-label={`Edit assignment ${assignmentTitle}`}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          resetDraft();
+          setOpen(true);
+        }}
       >
         Edit
       </Button>
@@ -141,17 +153,15 @@ export default function EditAssignmentForm({
           onChange={(e) => setDueDate(e.target.value)}
         />
       </Field>
-      {students.length > 0 ? (
-        <Field label="Assign to">
-          <AssignmentAudienceSelector
-            students={students}
-            audience={audience}
-            onAudienceChange={setAudience}
-            targetIds={targetIds}
-            onToggleTarget={toggleTarget}
-          />
-        </Field>
-      ) : null}
+      <Field label="Assign to">
+        <AssignmentAudienceSelector
+          students={students}
+          audience={audience}
+          onAudienceChange={changeAudience}
+          targetIds={targetIds}
+          onToggleTarget={toggleTarget}
+        />
+      </Field>
       <Field label="Instructions (optional)">
         <Textarea
           value={instructions}
@@ -166,7 +176,10 @@ export default function EditAssignmentForm({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            resetDraft();
+            setOpen(false);
+          }}
         >
           Cancel
         </Button>

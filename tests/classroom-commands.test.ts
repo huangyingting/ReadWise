@@ -145,6 +145,17 @@ async function loadCommands(): Promise<typeof import("@/lib/classroom/commands")
   return import("@/lib/classroom/commands");
 }
 
+function assertTargetTransactionUpdate(expectedData: Record<string, unknown> = {}) {
+  const args = assignmentUpdateArgs as {
+    where: { id: string };
+    data: Record<string, unknown>;
+  };
+  assert.equal(args.where.id, "asgn-1");
+  assert.ok(args.data.updatedAt instanceof Date);
+  const { updatedAt, ...rest } = args.data;
+  assert.deepEqual(rest, expectedData);
+}
+
 beforeEach(() => {
   createdClassroom = { ...DEFAULT_CLASSROOM };
   upsertedMembership = { ...DEFAULT_UPSERTED_MEMBERSHIP };
@@ -512,6 +523,7 @@ test("updateAssignment replaces targets with enrolled deduped students", async (
   const result = await updateAssignment("asgn-1", { studentIds: ["s1", "s2", "s1", "ghost"] });
   assert.deepEqual(result, { ok: true, assignment: assignmentUpdateResult });
   assert.equal(transactionCalled, true);
+  assertTargetTransactionUpdate();
   assert.deepEqual(assignmentFindUniqueArgs, {
     where: { id: "asgn-1" },
     select: { classroomId: true },
@@ -537,9 +549,35 @@ test("updateAssignment clears targets when studentIds is empty", async () => {
   const { updateAssignment } = await loadCommands();
   await updateAssignment("asgn-1", { studentIds: [] });
   assert.equal(transactionCalled, true);
+  assertTargetTransactionUpdate();
   assert.equal(assignmentFindUniqueArgs, null);
   assert.deepEqual(targetDeleteManyArgs, { where: { assignmentId: "asgn-1" } });
   assert.equal(targetCreateManyArgs, null);
+});
+
+test("updateAssignment target-only patch forces an assignment row update for locking", async () => {
+  membershipFindManyResult = [{ userId: "s1" }];
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", { studentIds: ["s1"] });
+
+  assert.equal(transactionCalled, true);
+  assertTargetTransactionUpdate();
+  assert.deepEqual(targetDeleteManyArgs, { where: { assignmentId: "asgn-1" } });
+  assert.deepEqual(targetCreateManyArgs, {
+    data: [{ assignmentId: "asgn-1", studentId: "s1" }],
+  });
+});
+
+test("updateAssignment updates scalar data and replaces targets in the same row-locking transaction", async () => {
+  membershipFindManyResult = [{ userId: "s1" }];
+  const { updateAssignment } = await loadCommands();
+  await updateAssignment("asgn-1", { instructions: "  Focus  ", studentIds: ["s1"] });
+
+  assert.equal(transactionCalled, true);
+  assertTargetTransactionUpdate({ instructions: "Focus" });
+  assert.deepEqual(targetCreateManyArgs, {
+    data: [{ assignmentId: "asgn-1", studentId: "s1" }],
+  });
 });
 
 test("updateAssignment rejects target changes when no requested students are enrolled", async () => {

@@ -12,6 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { buildUpdatePayload } from "@/components/teacher/editAssignmentPayload";
 
 const WORKTREE = resolve(import.meta.dirname, "..");
 
@@ -20,6 +21,7 @@ function readSrc(relPath: string): string {
 }
 
 const EDIT_FORM = "src/components/teacher/EditAssignmentForm.tsx";
+const EDIT_PAYLOAD = "src/components/teacher/editAssignmentPayload.ts";
 const COMPLETE_BUTTON = "src/components/teacher/CompleteAssignmentButton.tsx";
 const STUDENT_PAGE = "src/app/(app)/assignments/page.tsx";
 const TEACHER_PAGE = "src/app/(app)/teacher/classrooms/[id]/page.tsx";
@@ -39,14 +41,85 @@ test("EditAssignmentForm is a client island that PATCHes the assignment endpoint
 });
 
 test("EditAssignmentForm sends assignment metadata in the PATCH body", () => {
-  const src = readSrc(EDIT_FORM);
+  const src = `${readSrc(EDIT_FORM)}\n${readSrc(EDIT_PAYLOAD)}`;
   assert.match(src, /dueDate,/);
   assert.doesNotMatch(src, /new Date\(dueDate\)\.toISOString\(\)/);
   assert.match(src, /instructions: instructions\.trim\(\)/);
   assert.match(src, /title: title\.trim\(\)/);
   assert.match(src, /points: points \? Number\(points\) : null/);
-  assert.match(src, /studentIds: audience === "students" \? targetIds : \[\]/);
-  assert.match(src, /audience === "students" && targetIds\.length === 0/);
+  assert.match(src, /audienceDirty && audience === "students" && targetIds\.length === 0/);
+});
+
+test("EditAssignmentForm omits studentIds until audience is edited", () => {
+  assert.deepEqual(
+    buildUpdatePayload({
+      dueDate: "2026-08-01",
+      instructions: "  Read closely  ",
+      title: "  Chapter 1  ",
+      points: "10",
+      audienceDirty: false,
+      audience: "students",
+      targetIds: ["orphaned-student"],
+    }),
+    {
+      dueDate: "2026-08-01",
+      instructions: "Read closely",
+      title: "Chapter 1",
+      points: 10,
+    },
+  );
+});
+
+test("EditAssignmentForm sends studentIds only after audience edits", () => {
+  assert.deepEqual(
+    buildUpdatePayload({
+      dueDate: "",
+      instructions: "",
+      title: "",
+      points: "",
+      audienceDirty: true,
+      audience: "class",
+      targetIds: ["orphaned-student"],
+    }),
+    { dueDate: "", instructions: "", title: "", points: null, studentIds: [] },
+  );
+
+  assert.deepEqual(
+    buildUpdatePayload({
+      dueDate: "",
+      instructions: "Note",
+      title: "Targeted",
+      points: "5",
+      audienceDirty: true,
+      audience: "students",
+      targetIds: ["s1", "s2"],
+    }),
+    {
+      dueDate: "",
+      instructions: "Note",
+      title: "Targeted",
+      points: 5,
+      studentIds: ["s1", "s2"],
+    },
+  );
+});
+
+test("EditAssignmentForm resets draft state on open and cancel", () => {
+  const src = readSrc(EDIT_FORM);
+  const normalized = src.replace(/\s+/g, " ");
+
+  assert.match(src, /function resetDraft\(\)/);
+  assert.match(src, /setAudienceDirty\(false\)/);
+  assert.match(
+    normalized,
+    /onClick=\{\(\) => \{ resetDraft\(\); setOpen\(true\); \}\}/,
+    "edit button resets stale draft state before opening",
+  );
+  assert.match(
+    normalized,
+    /onClick=\{\(\) => \{ resetDraft\(\); setOpen\(false\); \}\}/,
+    "cancel resets stale draft state while closing",
+  );
 });
 
 test("EditAssignmentForm composes shared UI primitives and refreshes on success", () => {

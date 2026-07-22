@@ -189,6 +189,7 @@ export async function updateAssignment(
     instructions?: string | null;
     title?: string | null;
     points?: number | null;
+    updatedAt?: Date;
   } = {};
 
   if (input.dueDate !== undefined) {
@@ -244,7 +245,10 @@ export async function updateAssignment(
   }
 
   const assignment = await prisma.$transaction(async (tx) => {
-    const updated = await tx.assignment.update({ where: { id: assignmentId }, data });
+    const updated = await tx.assignment.update({
+      where: { id: assignmentId },
+      data: { ...data, updatedAt: new Date() },
+    });
     await tx.assignmentTarget.deleteMany({ where: { assignmentId } });
     if (targetIds.length > 0) {
       await tx.assignmentTarget.createMany({
