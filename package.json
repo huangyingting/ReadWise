@@ -102,5 +102,9 @@
     "node": ">=24 <25",
     "npm": ">=11 <12"
   },
-  "packageManager": "npm@11.13.0"
+  "packageManager": "npm@11.13.0",
+  "overrides": {
+    "fast-xml-parser": "^5.10.1",
+    "sharp": "^0.35.0"
+  }
 }
