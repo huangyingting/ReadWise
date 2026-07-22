@@ -75,6 +75,12 @@ export const reminderAssignment = {
   /** Notification body — count + site name only, never assignment/classroom names. */
   body: (count: number) => t("push.assignmentReminder.body", { count }),
 
+  /** Title for a teacher-triggered assignment nudge (not necessarily due yet). */
+  nudgeTitle: t("push.assignmentReminder.nudgeTitle"),
+
+  /** Body — count + site name only, never names. */
+  nudgeBody: (count: number) => t("push.assignmentReminder.nudgeBody", { count }),
+
   /** Deep-link URL opened when the user taps the notification. */
   url: "/assignments",
 
