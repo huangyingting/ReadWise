@@ -69,6 +69,7 @@ export {
   recordAssignmentCompletion,
   markAssignmentQuizComplete,
   syncAssignmentReadingProgress,
+  reviewAssignmentCompletion,
 } from "./completions";
 export {
   type StudentAssignment,
