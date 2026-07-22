@@ -13,6 +13,7 @@ export { default as CreateClassroomForm } from "./CreateClassroomForm";
 export type { TeachableOrg } from "./CreateClassroomForm";
 export { default as CreateOrgForm } from "./CreateOrgForm";
 export { default as DeleteAssignmentButton } from "./DeleteAssignmentButton";
+export { default as ReopenAssignmentButton } from "./ReopenAssignmentButton";
 export { default as RemindStudentsButton } from "./RemindStudentsButton";
 export { default as OrgMembersCard } from "./OrgMembersCard";
 export { default as RemoveStudentButton } from "./RemoveStudentButton";

@@ -265,6 +265,47 @@ test("propagates unexpected persistence failures", async () => {
   await assert.rejects(() => create(), /assignment unavailable/);
 });
 
+test("bulkCreateArticleAssignments creates sequentially and collects failures", async () => {
+  articleRows = [
+    buildArticle({
+      id: "article-1",
+      status: ArticleStatus.PUBLISHED,
+      visibility: ArticleVisibility.PUBLIC,
+      ownerId: null,
+      organizationId: null,
+    }),
+    buildArticle({
+      id: "article-2",
+      status: ArticleStatus.PUBLISHED,
+      visibility: ArticleVisibility.PUBLIC,
+      ownerId: null,
+      organizationId: null,
+    }),
+  ];
+  const { bulkCreateArticleAssignments } = await import(
+    "@/lib/classroom/article-assignments"
+  );
+
+  const result = await bulkCreateArticleAssignments({
+    classroomId: "classroom-1",
+    organizationId: "organization-1",
+    articleIds: ["article-1", "missing", "article-2"],
+    accessContext: { userId: "teacher-1", role: "Reader", orgId: "organization-1" },
+    dueDate: "2026-12-31",
+    instructions: "  Shared instructions  ",
+    points: 10,
+  });
+
+  assert.equal(result.created.length, 2);
+  assert.deepEqual(result.failed, [{ articleId: "missing", reason: "article_not_found" }]);
+  assert.deepEqual(
+    createCalls.map((call) => call.data.articleId),
+    ["article-1", "article-2"],
+  );
+  assert.deepEqual(createCalls.map((call) => call.data.title), [null, null]);
+  assert.deepEqual(createCalls.map((call) => call.data.points), [10, 10]);
+});
+
 // ── parseOptionalDueDate unit tests ──────────────────────────────────────────
 
 test("parseOptionalDueDate: date-only resolves to end-of-day UTC", async () => {
