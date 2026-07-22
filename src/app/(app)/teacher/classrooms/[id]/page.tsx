@@ -35,6 +35,7 @@ import AssignmentFeedbackForm from "@/components/teacher/AssignmentFeedbackForm"
 import ClassroomSettingsCard from "@/components/teacher/ClassroomSettingsCard";
 import DeleteAssignmentButton from "@/components/teacher/DeleteAssignmentButton";
 import EditAssignmentForm from "@/components/teacher/EditAssignmentForm";
+import RemindStudentsButton from "@/components/teacher/RemindStudentsButton";
 import RemoveStudentButton from "@/components/teacher/RemoveStudentButton";
 
 type ClassroomAnalytics = NonNullable<
@@ -160,6 +161,11 @@ function AssignmentsCard({
                         <DeleteAssignmentButton
                           assignmentId={assignment.assignmentId}
                           assignmentTitle={assignment.articleTitle}
+                        />
+                        <RemindStudentsButton
+                          assignmentId={assignment.assignmentId}
+                          assignmentTitle={assignment.articleTitle}
+                          pendingCount={assignment.inProgress + assignment.notStarted}
                         />
                       </div>
                     ) : null}

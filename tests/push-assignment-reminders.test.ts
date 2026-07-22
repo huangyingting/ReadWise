@@ -52,6 +52,11 @@ type ReminderPayload = { body: string; icon: string; title: string; url: string 
 let mockSubs: MockSubscription[] = [];
 let mockAssignments: MockAssignment[] = [];
 let mockAssignmentCount: number = 0;
+let mockAssignmentFindUniqueResult: {
+  id: string;
+  classroom: { members: { userId: string }[] };
+  completions: { studentId: string }[];
+} | null = null;
 
 let sendCalls: { endpoint: string; payload: string }[] = [];
 let sendShouldFail: number | false = false;
@@ -146,6 +151,7 @@ before(() => {
         assignment: {
           findMany: async () => mockAssignments,
           count: async (_args: MockAssignmentCount) => mockAssignmentCount,
+          findUnique: async () => mockAssignmentFindUniqueResult,
         },
         reminderPreference: {
           findMany: async (args: { where?: { userId?: { in?: string[] } } }) => {
@@ -208,6 +214,7 @@ beforeEach(() => {
   mockSubs = [];
   mockAssignments = [];
   mockAssignmentCount = 0;
+  mockAssignmentFindUniqueResult = null;
   sendCalls = [];
   sendShouldFail = false;
   mockReminderPrefs = [];
@@ -461,5 +468,96 @@ describe("sendAssignmentReminderToStudent", () => {
     assert.equal(result.skipped, false);
     assert.equal(result.sent, 0);
     assert.equal(sendCalls.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// remindAssignmentStudents
+// ---------------------------------------------------------------------------
+
+describe("remindAssignmentStudents", () => {
+  test("returns null when assignment does not exist", async () => {
+    mockAssignmentFindUniqueResult = null;
+    const { remindAssignmentStudents } = await import("@/lib/push/assignment-reminders");
+    const result = await remindAssignmentStudents("missing");
+    assert.equal(result, null);
+  });
+
+  test("targets only not-completed students and tallies results", async () => {
+    // s1: not completed => targeted; s2: completed => skipped
+    mockAssignmentFindUniqueResult = {
+      id: "a1",
+      classroom: { members: [{ userId: "s1" }, { userId: "s2" }] },
+      completions: [{ studentId: "s2" }],
+    };
+    // s1 has a due assignment + subscription + enabled pref => sent: 1
+    mockAssignmentCount = 1;
+    mockSubs = [subscription("sub1", "s1")];
+    mockReminderPrefs = [reminderPreference("s1")];
+
+    const { remindAssignmentStudents } = await import("@/lib/push/assignment-reminders");
+    const result = await remindAssignmentStudents("a1");
+
+    assert.ok(result !== null);
+    assert.equal(result.total, 1, "only s1 is not-completed");
+    assert.equal(result.notified, 1);
+    assert.equal(result.skipped, 0);
+    assert.equal(result.suppressed, 0);
+  });
+
+  test("skipped when student has no due assignments", async () => {
+    mockAssignmentFindUniqueResult = {
+      id: "a1",
+      classroom: { members: [{ userId: "s1" }] },
+      completions: [],
+    };
+    mockAssignmentCount = 0;
+    mockSubs = [subscription("sub1", "s1")];
+
+    const { remindAssignmentStudents } = await import("@/lib/push/assignment-reminders");
+    const result = await remindAssignmentStudents("a1");
+
+    assert.ok(result !== null);
+    assert.equal(result.total, 1);
+    assert.equal(result.notified, 0);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.suppressed, 0);
+  });
+
+  test("suppressed when student preference disables reminders", async () => {
+    mockAssignmentFindUniqueResult = {
+      id: "a1",
+      classroom: { members: [{ userId: "s1" }] },
+      completions: [],
+    };
+    mockAssignmentCount = 2;
+    mockSubs = [subscription("sub1", "s1")];
+    mockReminderPrefs = [reminderPreference("s1", { enabled: false })];
+
+    const { remindAssignmentStudents } = await import("@/lib/push/assignment-reminders");
+    const result = await remindAssignmentStudents("a1");
+
+    assert.ok(result !== null);
+    assert.equal(result.total, 1);
+    assert.equal(result.notified, 0);
+    assert.equal(result.skipped, 0);
+    assert.equal(result.suppressed, 1);
+  });
+
+  test("all completed students are excluded from total", async () => {
+    mockAssignmentFindUniqueResult = {
+      id: "a1",
+      classroom: { members: [{ userId: "s1" }, { userId: "s2" }] },
+      completions: [{ studentId: "s1" }, { studentId: "s2" }],
+    };
+
+    const { remindAssignmentStudents } = await import("@/lib/push/assignment-reminders");
+    const result = await remindAssignmentStudents("a1");
+
+    assert.ok(result !== null);
+    assert.equal(result.total, 0);
+    assert.equal(result.notified, 0);
+    assert.equal(result.skipped, 0);
+    assert.equal(result.suppressed, 0);
   });
 });

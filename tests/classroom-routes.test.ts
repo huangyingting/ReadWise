@@ -91,6 +91,12 @@ let articleAssignmentFailure: {
   status: 400 | 404 | 409;
   reason: "invalid_due_date" | "article_not_found" | "org_reference_orphaned";
 } | null = null;
+let remindResult: { total: number; notified: number; skipped: number; suppressed: number } | null = {
+  total: 3,
+  notified: 2,
+  skipped: 1,
+  suppressed: 0,
+};
 const removeClassroomMemberCalls: Array<{ classroomId: string; userId: string }> = [];
 const updateClassroomLifecycleCalls: Array<{
   classroomId: string;
@@ -335,6 +341,7 @@ before(() => {
         classroomMemberRemove: "classroom.member.remove",
         assignmentUpdate: "assignment.update",
         assignmentDelete: "assignment.delete",
+        assignmentRemind: "assignment.remind",
       },
       auditRequestInfo: () => ({ ipAddress: null, userAgent: null }),
       tryRecordAuditLog: async () => {},
@@ -346,6 +353,11 @@ before(() => {
       }) => {
         auditCalls.push(input);
       },
+    },
+  });
+  mock.module("@/lib/push/assignment-reminders", {
+    namedExports: {
+      remindAssignmentStudents: async () => remindResult,
     },
   });
 });
@@ -394,6 +406,7 @@ beforeEach(() => {
     ok: true,
     assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
   };
+  remindResult = { total: 3, notified: 2, skipped: 1, suppressed: 0 };
   auditCalls.length = 0;
 });
 
@@ -491,6 +504,13 @@ async function patchAssignmentRoute(id: string, body: Record<string, unknown>) {
     PATCH: RouteHandler;
   };
   return PATCH(jsonPatch(`http://test/api/assignments/${id}`, body), withParams({ id }));
+}
+
+async function remindAssignmentRoute(id: string) {
+  const { POST } = (await import("@/app/api/assignments/[id]/remind/route")) as {
+    POST: RouteHandler;
+  };
+  return POST(jsonPost(`http://test/api/assignments/${id}/remind`, {}), withParams({ id }));
 }
 
 // ===========================================================================
@@ -1272,4 +1292,44 @@ test("GET /api/assignments/[id] returns 200 with assignment detail on success", 
   const body = await res.json() as { assignment: { id: string; classroomId: string } };
   assert.equal(body.assignment.id, "a1");
   assert.equal(body.assignment.classroomId, "c1");
+});
+
+// ===========================================================================
+// POST /api/assignments/[id]/remind
+// ===========================================================================
+
+test("POST /api/assignments/[id]/remind returns 401 when unauthenticated", async () => {
+  authState = "unauth";
+  const res = await remindAssignmentRoute("asgn1");
+  assert.equal(res.status, 401);
+});
+
+test("POST /api/assignments/[id]/remind returns 404 when assignment is missing", async () => {
+  assignmentClassroomResult = null;
+  const res = await remindAssignmentRoute("missing");
+  assert.equal(res.status, 404);
+});
+
+test("POST /api/assignments/[id]/remind enforces tenant isolation with classroom-manage guard", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
+  const res = await remindAssignmentRoute("asgn1");
+  assert.equal(res.status, 403);
+});
+
+test("POST /api/assignments/[id]/remind returns 200 with result on success", async () => {
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1" };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  remindResult = { total: 5, notified: 3, skipped: 1, suppressed: 1 };
+  const res = await remindAssignmentRoute("asgn1");
+  assert.equal(res.status, 200);
+  const body = await res.json() as { result: { total: number; notified: number; skipped: number; suppressed: number } };
+  assert.deepEqual(body.result, { total: 5, notified: 3, skipped: 1, suppressed: 1 });
+  assert.equal(auditCalls.at(-1)?.action, "assignment.remind");
+  assert.deepEqual(auditCalls.at(-1)?.metadata, {
+    assignmentId: "asgn1",
+    classroomId: "c1",
+    total: 5,
+    notified: 3,
+  });
 });

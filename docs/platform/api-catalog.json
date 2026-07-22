@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-22T02:34:29.030Z",
-  "routeCount": 137,
-  "methodCount": 167,
+  "generatedAt": "2026-07-22T03:40:31.088Z",
+  "routeCount": 138,
+  "methodCount": 168,
   "routes": [
     {
       "path": "/api/account",
@@ -1791,6 +1791,29 @@
           "bodyFieldNames": [
             "feedback"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/assignments/{id}/remind",
+      "file": "src/app/api/assignments/[id]/remind/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "result"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
