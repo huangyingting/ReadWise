@@ -117,7 +117,7 @@ export default function AssignArticleForm({
   }, [classroomId, trimmedQuery, runArticleSearch]);
 
   useEffect(() => {
-    if (selected.length !== 1) {
+    if (selected.length === 0) {
       setAudience("class");
       setTargetIds([]);
     }
@@ -159,7 +159,7 @@ export default function AssignArticleForm({
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (selected.length === 0) return;
-    if (selected.length === 1 && audience === "students" && targetIds.length === 0) return;
+    if (audience === "students" && targetIds.length === 0) return;
 
     await run(async () => {
       setStatus(null);
@@ -185,6 +185,7 @@ export default function AssignArticleForm({
             points: form.points ? Number(form.points) : undefined,
             dueDate: form.dueDate || undefined,
             instructions: form.instructions.trim() || undefined,
+            studentIds: audience === "students" && targetIds.length > 0 ? targetIds : undefined,
           },
         );
         if (result.failed.length > 0) {
@@ -202,7 +203,7 @@ export default function AssignArticleForm({
     : "Assign article";
   const canSubmit =
     selected.length >= 1 &&
-    !(selected.length === 1 && audience === "students" && targetIds.length === 0);
+    !(audience === "students" && targetIds.length === 0);
 
   return (
     <TeacherFormShell
@@ -276,26 +277,26 @@ export default function AssignArticleForm({
           onChange={(e) => updateField("dueDate", e.target.value)}
         />
       </Field>
+      {selected.length >= 1 ? (
+        <Field label="Assign to">
+          <AssignmentAudienceSelector
+            students={students}
+            audience={audience}
+            onAudienceChange={setAudience}
+            targetIds={targetIds}
+            onToggleTarget={toggleTarget}
+          />
+        </Field>
+      ) : null}
       {selected.length === 1 ? (
-        <>
-          <Field label="Assign to">
-            <AssignmentAudienceSelector
-              students={students}
-              audience={audience}
-              onAudienceChange={setAudience}
-              targetIds={targetIds}
-              onToggleTarget={toggleTarget}
-            />
-          </Field>
-          <Field label="Title (optional)">
-            <Input
-              value={form.title}
-              onChange={(e) => updateField("title", e.target.value)}
-              placeholder="Override the article title for this class"
-              maxLength={TITLE_MAX_LENGTH}
-            />
-          </Field>
-        </>
+        <Field label="Title (optional)">
+          <Input
+            value={form.title}
+            onChange={(e) => updateField("title", e.target.value)}
+            placeholder="Override the article title for this class"
+            maxLength={TITLE_MAX_LENGTH}
+          />
+        </Field>
       ) : null}
       <Field label="Points (optional)">
         <Input
