@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-22T02:03:15.346Z",
+  "generatedAt": "2026-07-22T02:34:29.030Z",
   "routeCount": 137,
-  "methodCount": 166,
+  "methodCount": 167,
   "routes": [
     {
       "path": "/api/account",
@@ -1689,6 +1689,22 @@
       "file": "src/app/api/assignments/[id]/route.ts",
       "runtime": "default",
       "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "assignment"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
         {
           "method": "DELETE",
           "authMode": "session",

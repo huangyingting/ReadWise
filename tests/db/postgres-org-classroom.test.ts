@@ -17,7 +17,7 @@ import { AssignmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 import { removeClassroomMember } from "@/lib/classroom/commands";
-import { countPendingAssignmentsForStudent } from "@/lib/classroom/queries";
+import { countPendingAssignmentsForStudent, listAssignmentsForTeacher } from "@/lib/classroom/queries";
 import { reviewAssignmentCompletion } from "@/lib/classroom/completions";
 import { enabled, isPostgres } from "./support/db-config";
 import { id, registerIntegrationCleanup } from "./support/db-helpers";
@@ -342,3 +342,73 @@ test("reviewAssignmentCompletion persists feedback, reviewedAt, and reviewedBy",
   assert.equal(completion.reviewedBy, teacherId);
   assert.ok(completion.reviewedAt instanceof Date, "reviewedAt must be a Date");
 });
+
+test("listAssignmentsForTeacher returns assignments from both classrooms with correct counts", { skip: !enabled }, async () => {
+  requirePostgres();
+
+  const teacherId = id("laft_teacher");
+  const studentId = id("laft_student");
+  const orgId = id("laft_org");
+  const classroomId1 = id("laft_classroom1");
+  const classroomId2 = id("laft_classroom2");
+  const articleId1 = id("laft_article1");
+  const articleId2 = id("laft_article2");
+
+  await prisma.user.createMany({
+    data: [
+      { id: teacherId, name: "LAFT Teacher", role: "Reader" },
+      { id: studentId, name: "LAFT Student", role: "Reader" },
+    ],
+  });
+  await createOrganization(orgId, "LAFT Org");
+  await createArticle(articleId1, "LAFT Article 1", "body");
+  await createArticle(articleId2, "LAFT Article 2", "body");
+
+  // Classroom 1: teacher is primary teacherId, 1 student enrolled.
+  await prisma.classroom.create({
+    data: { id: classroomId1, orgId, name: "LAFT Classroom 1", teacherId },
+  });
+  await prisma.classroomMembership.create({
+    data: { classroomId: classroomId1, userId: studentId, role: "Student" },
+  });
+  const a1 = await prisma.assignment.create({ data: { classroomId: classroomId1, articleId: articleId1, dueDate: new Date("2026-08-01") } });
+
+  // Student completes the assignment in classroom 1.
+  await prisma.assignmentCompletion.create({
+    data: { assignmentId: a1.id, studentId, status: AssignmentStatus.COMPLETED },
+  });
+
+  // Classroom 2: teacher is a Teacher member (not primary teacherId).
+  const otherTeacherId = id("laft_other_teacher");
+  await prisma.user.create({ data: { id: otherTeacherId, name: "LAFT Other Teacher", role: "Reader" } });
+  await prisma.classroom.create({
+    data: { id: classroomId2, orgId, name: "LAFT Classroom 2", teacherId: otherTeacherId },
+  });
+  await prisma.classroomMembership.create({
+    data: { classroomId: classroomId2, userId: teacherId, role: "Teacher" },
+  });
+  await prisma.classroomMembership.create({
+    data: { classroomId: classroomId2, userId: studentId, role: "Student" },
+  });
+  await prisma.assignment.create({ data: { classroomId: classroomId2, articleId: articleId2 } });
+
+  const rows = await listAssignmentsForTeacher(teacherId);
+
+  // Should return assignments from both classrooms.
+  const classroomIds = rows.map((r) => r.classroomId);
+  assert.ok(classroomIds.includes(classroomId1), "must include classroom 1");
+  assert.ok(classroomIds.includes(classroomId2), "must include classroom 2");
+
+  // Classroom 1 assignment: 1 completed, 1 student enrolled.
+  const row1 = rows.find((r) => r.classroomId === classroomId1);
+  assert.ok(row1, "row for classroom 1 must exist");
+  assert.equal(row1.completedCount, 1, "completedCount must be 1");
+  assert.equal(row1.studentCount, 1, "studentCount must be 1");
+
+  // Classroom 2 assignment: 0 completed, 1 student enrolled.
+  const row2 = rows.find((r) => r.classroomId === classroomId2);
+  assert.ok(row2, "row for classroom 2 must exist");
+  assert.equal(row2.completedCount, 0, "completedCount must be 0");
+  assert.equal(row2.studentCount, 1, "studentCount must be 1");
+});
+
