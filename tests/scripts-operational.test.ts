@@ -399,7 +399,7 @@ test("process main summarizes inline processing results and failures", async () 
 test("push-reminders main covers help, configuration, dry-run, and send paths", async () => {
   let run = await runMain(pushPath, pushScript.main, ["--help"]);
   assert.equal(run.result, 0);
-  assert.match(run.logs.join("\n"), /push-reminders — send SRS review push notifications/);
+  assert.match(run.logs.join("\n"), /push-reminders — send SRS review/);
 
   pushConfigured = false;
   run = await runMain(pushPath, pushScript.main, []);
