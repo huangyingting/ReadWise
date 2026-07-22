@@ -89,7 +89,7 @@ let assignmentClassroomResult: { id: string; classroomId: string } | null = {
 };
 let articleAssignmentFailure: {
   status: 400 | 404 | 409;
-  reason: "invalid_due_date" | "article_not_found" | "org_reference_orphaned";
+  reason: "invalid_due_date" | "invalid_target_students" | "article_not_found" | "org_reference_orphaned";
 } | null = null;
 let remindResult: { total: number; notified: number; skipped: number; suppressed: number } | null = {
   total: 3,
@@ -135,11 +135,12 @@ const createArticleAssignmentCalls: Array<{
   points?: number | null;
   dueDate?: string;
   instructions?: string | null;
+  studentIds?: string[];
 }> = [];
 const reopenAssignmentCalls: string[] = [];
 const articleAssignmentFailuresById = new Map<string, {
   status: 400 | 404 | 409;
-  reason: "invalid_due_date" | "article_not_found" | "org_reference_orphaned";
+  reason: "invalid_due_date" | "invalid_target_students" | "article_not_found" | "org_reference_orphaned";
 }>();
 const recordAssignmentCompletionCalls: Array<{
   assignmentId: string;
@@ -283,6 +284,7 @@ before(() => {
         instructions?: string | null;
         title?: string | null;
         points?: number | null;
+        studentIds?: string[];
       }) => {
         createArticleAssignmentCalls.push(input);
         if (input.articleId && articleAssignmentFailuresById.has(input.articleId)) {
@@ -1173,6 +1175,38 @@ test("POST /api/classrooms/[id]/assignments returns 201 with assignment on succe
   assert.equal(body.assignment.points, 20);
   assert.equal(createArticleAssignmentCalls.at(-1)?.title, "Week 1 reading");
   assert.equal(createArticleAssignmentCalls.at(-1)?.points, 20);
+});
+
+test("POST /api/classrooms/[id]/assignments forwards target studentIds", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+
+  const res = await postClassroomAssignment("c1", {
+    articleId: "a1",
+    studentIds: ["student-1", "student-2"],
+  });
+
+  assert.equal(res.status, 201);
+  assert.deepEqual(createArticleAssignmentCalls.at(-1)?.studentIds, [
+    "student-1",
+    "student-2",
+  ]);
+});
+
+test("POST /api/classrooms/[id]/assignments maps invalid target students to 400", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  articleAssignmentFailure = {
+    status: 400,
+    reason: "invalid_target_students",
+  };
+
+  const res = await postClassroomAssignment("c1", {
+    articleId: "a1",
+    studentIds: ["missing-student"],
+  });
+
+  assert.equal(res.status, 400);
+  const body = await res.json() as { error: string };
+  assert.equal(body.error, "Select at least one enrolled student to target");
 });
 
 test("POST /api/classrooms/[id]/assignments rejects out-of-range points", async () => {
