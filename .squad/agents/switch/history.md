@@ -54,3 +54,46 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - PostgreSQL Migrate/Integration CI job passed.
 - Decision filed: `switch-assignment-db-test.md` (processed into `decisions.md`).
 - **PR #1243** merged to `main` as **`c5a89b47`**.
+
+
+## 2026-07-22: Full unit test suite repair — stale mock maintenance
+
+- Ran canonical unit test suite: 5648 pass / 111 fail / 255 skipped
+- Identified and repaired 111 stale test mocks across 14 test files
+- Final result: 5759 pass / 0 fail / 255 skipped (6014 total)
+- Changes: 82 insertions / 3 deletions in test files only, no production code changes
+- Pattern: mocks were referencing API schemas, types, or behavior that had changed; repairs synchronized mock definitions to current implementation contracts
+- All tests now pass; no regressions
+
+
+## PostgreSQL 16 Integration Suite — Full Verification (2026-07-22T22:10:38Z)
+
+**Task:** Verify complete database integration partition against isolated disposable PostgreSQL 16 instance matching CI.
+
+**Execution:**
+- Spawned PostgreSQL 16 container with matching CI configuration
+- Ran Prisma generation (PostgreSQL target)
+- Executed all 34 migrations
+- Verified migration status (all up-to-date)
+- Ran canonical `npm run test:db` (PostgreSQL integration suite)
+
+**Result:**
+- **Total tests:** 256
+- **Passed:** 256 ✓
+- **Failed:** 0
+- **Skipped:** 0
+- **Todo:** 0
+- **Status:** ALL PASSED
+
+**Coverage:**
+- 255 tests previously skipped by plain `npm test` now verified against real PostgreSQL schema
+- 1 existing DB test that runs in default suite also confirmed passing
+- No stale mocks, no schema mismatches, no integration failures
+
+**Quality Gates:**
+- No repo files changed
+- No blockers identified
+- Temporary container removed (clean shutdown)
+- All assertions passed (upsert targets, enrollment where clauses, multi-row fan-out, schema constraints verified)
+
+**Verification Status:** COMPLETE ✓ Green
