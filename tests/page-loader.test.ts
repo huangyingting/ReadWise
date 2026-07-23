@@ -132,6 +132,12 @@ before(() => {
       },
     },
   });
+
+  mock.module("@/lib/classroom", {
+    namedExports: {
+      listStudentAssignmentsForArticle: async (_userId: unknown, _articleId: unknown) => [],
+    },
+  });
 });
 
 beforeEach(() => {

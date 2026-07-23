@@ -59,6 +59,10 @@ before(() => {
         userId: user.id,
         role: user.role,
       }),
+      articleAccessContextForUser: async (user: { id: string; role: string }) => ({
+        userId: user.id,
+        role: user.role,
+      }),
       getReadableArticleById: async () => (articleExists ? { id: "a1" } : null),
     },
   });

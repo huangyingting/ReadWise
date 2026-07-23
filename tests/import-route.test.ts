@@ -91,6 +91,10 @@ before(() => {
           throw new Error(`Only http(s) URLs are allowed (got ${u.protocol})`);
         }
       },
+      ssrfFailureDetails: (_err: unknown, rawUrl: string) => ({
+        reason: "private_address" as const,
+        target: rawUrl,
+      }),
     },
   });
 

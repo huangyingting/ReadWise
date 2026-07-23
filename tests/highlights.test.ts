@@ -41,6 +41,7 @@ before(() => {
           delete: async () => ({}),
           groupBy: async () => [],
         },
+        membership: { findMany: async () => [] },
       },
     },
   });

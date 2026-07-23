@@ -36,7 +36,10 @@ before(() => {
 
   mock.module("@/lib/prisma", {
     namedExports: {
-      prisma: makePrisma(makeArticlePrisma(() => articleExists)),
+      prisma: makePrisma({
+        ...makeArticlePrisma(() => articleExists),
+        membership: { findMany: async () => [] },
+      }),
     },
   });
 

@@ -78,6 +78,15 @@ before(() => {
       assertSafeUrl: async () => {},
       assertSafeHostname: async () => {},
       isPrivateAddress: () => false,
+      SsrfError: class SsrfError extends Error {
+        reason: string; target: string;
+        constructor(reason: string, url: string) {
+          super(`URL rejected: ${reason} (${url})`);
+          this.name = "SsrfError";
+          this.reason = reason;
+          this.target = url;
+        }
+      },
     },
   });
 

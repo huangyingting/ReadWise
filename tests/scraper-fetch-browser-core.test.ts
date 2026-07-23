@@ -106,6 +106,15 @@ before(() => {
         if (url.includes("private")) throw new Error("private address blocked");
         return { ip: "93.184.216.34", family: 4 };
       },
+      SsrfError: class SsrfError extends Error {
+        reason: string; target: string;
+        constructor(reason: string, url: string) {
+          super(`URL rejected: ${reason} (${url})`);
+          this.name = "SsrfError";
+          this.reason = reason;
+          this.target = url;
+        }
+      },
     },
   });
   mock.module("playwright", {

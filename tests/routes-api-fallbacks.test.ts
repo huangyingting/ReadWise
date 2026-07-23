@@ -45,7 +45,7 @@ async function assertJson(res: Response, expected: unknown): Promise<void> {
   assert.deepEqual(await res.json(), expected);
 }
 
-let progressResult: { percent: number; completed: boolean };
+let progressResult: { percent: number; completed: boolean; completedNow?: boolean };
 let recordedEvents: unknown[];
 let revalidatedUsers: string[];
 let todaySyncCalls: unknown[];
@@ -407,6 +407,11 @@ before(() => {
   mock.module("@/lib/rbac", {
     namedExports: {
       CAPABILITIES: { contentModerate: "content.moderate" },
+      hasCapability: () => false,
+      membershipCapabilities: () => [],
+      membershipHasCapability: () => false,
+      roleIsPlatformSuperuser: () => false,
+      isPlatformSuperuser: () => false,
     },
   });
   mock.module("@/lib/admin/articles/schemas", {
@@ -525,6 +530,11 @@ before(() => {
       clientIp: () => "127.0.0.1",
     },
   });
+  mock.module("@/lib/classroom", {
+    namedExports: {
+      syncAssignmentReadingProgress: async () => {},
+    },
+  });
 });
 
 beforeEach(() => {
@@ -609,12 +619,13 @@ test("reader progress route records completion side effects only when completed"
   assert.deepEqual(masteryCalls, [
     "progress.article_mastery",
     "progress.today_reading",
+    "progress.assignment_completion",
   ]);
   assert.deepEqual(learnerEvidenceCalls, [
     { activity: "reading-progress", percent: 60 },
   ]);
 
-  progressResult = { percent: 100, completed: true };
+  progressResult = { percent: 100, completed: true, completedNow: true };
   res = await POST({ params: { id: "a1" }, body: { percent: 100 }, session } as never);
   await assertJson(res, { percent: 100, completed: true });
   assert.deepEqual(recordedEvents[0], {

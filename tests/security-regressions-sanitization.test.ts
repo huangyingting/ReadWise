@@ -69,6 +69,10 @@ before(() => {
         userId: user?.id ?? null,
         role: user?.role ?? null,
       }),
+      articleAccessContextForUser: async (user: MockUser): Promise<MockAccessContext> => ({
+        userId: user?.id ?? null,
+        role: user?.role ?? null,
+      }),
       getReadableArticleById: async (id: string, context?: MockAccessContext | null) => {
         viewableCalls.push({ id, role: context?.role, userId: context?.userId });
         return viewableArticle;
@@ -158,6 +162,10 @@ before(() => {
         assertSafeCalls.push(url);
         if (assertSafeThrows) throw new Error("private address blocked");
       },
+      ssrfFailureDetails: (_err: unknown, rawUrl: string) => ({
+        reason: "private_address" as const,
+        target: rawUrl,
+      }),
     },
   });
 

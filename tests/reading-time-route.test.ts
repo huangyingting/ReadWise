@@ -48,6 +48,7 @@ before(() => {
   mock.module("@/lib/article-library", {
     namedExports: {
       articleAccessContext: () => ({ userId: session.user.id }),
+      articleAccessContextForUser: async () => ({ userId: session.user.id }),
       getReadableArticleById: async () =>
         articleExists ? { id: "a1", wordCount: 500 } : null,
     },

@@ -54,6 +54,7 @@ before(() => {
           findUnique: async () => (articleExists ? { id: "a1" } : null),
           findFirst: async () => (articleExists ? { id: "a1" } : null),
         },
+        membership: { findMany: async () => [] },
         quizAttempt: {
           create: async (args: {
             data: Record<string, unknown>;
