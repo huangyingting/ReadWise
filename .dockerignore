@@ -6,7 +6,6 @@ build
 
 # Version control
 .git
-.gitattributes
 
 # Local environment files (NEVER bake secrets into the image)
 .env
