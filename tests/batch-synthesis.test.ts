@@ -486,6 +486,32 @@ describe("Azure Batch synthesis interface", () => {
     });
   });
 
+  test("strips XML-invalid control characters (e.g. null bytes) from SSML content", async (t) => {
+    articleRows = [
+      article({
+        content: "<p>Hello\x00world. Null\x00byte\x00s.</p><p>Para\x01graph\x0E two.</p>",
+      }),
+    ];
+    const fetches: Array<{ url: string; init?: RequestInit }> = [];
+    t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
+      fetches.push({ url: String(url), init });
+      return jsonResponse({ status: "Accepted" });
+    });
+
+    await runBatchSynthesis(["--all", "--submit-only"]);
+
+    assert.equal(fetches.length, 1);
+    const body = JSON.parse(String(fetches[0]!.init?.body)) as {
+      inputs: Array<{ content: string }>;
+    };
+    const content = body.inputs[0]!.content;
+    assert.doesNotMatch(content, /\x00/);
+    assert.doesNotMatch(content, /\x01/);
+    assert.doesNotMatch(content, /\x0E/);
+    assert.match(content, /Helloworld/);
+    assert.match(content, /Nullbytes/);
+  });
+
   test("chunks submitted jobs and rejects an oversized article", async (t) => {
     articleRows = [article({ id: "a" }), article({ id: "b" })];
     const fetches: Array<{ url: string; init?: RequestInit }> = [];
