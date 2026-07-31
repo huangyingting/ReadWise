@@ -38,8 +38,6 @@ next-env.d.ts
 *.log
 dev-server.log
 
-# Squad / agent runtime state
-.squad
 .agents
 .copilot
 .mcp.json
