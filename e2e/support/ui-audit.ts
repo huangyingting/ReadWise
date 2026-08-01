@@ -96,6 +96,9 @@ const LATEST_RUN_PATH = path.join(ARTIFACT_DIR, "latest-run.json");
 const MAX_LOG_LENGTH = 1_000;
 export const UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS = 30_000;
 const UI_AUDIT_MUTATION_TIMEOUT_MS = 60_000;
+const UI_AUDIT_NAVIGATION_TIMEOUT_MS = 30_000;
+const UI_AUDIT_NAVIGATION_ATTEMPTS = 4;
+const UI_AUDIT_SCENARIO_TIMEOUT_MS = 180_000;
 const THEME_STORAGE_KEY = "readwise:theme";
 const FATAL_PATTERNS = [
   /Hydration failed/i,
@@ -786,6 +789,30 @@ async function signInForProfile(signIn: SignIn, session: SessionState): Promise<
   });
 }
 
+async function prewarmAuditDependencies(page: Page, profile: RouteProfile): Promise<void> {
+  let endpoint: string | null = null;
+
+  switch (profile.id) {
+    case "admin-canonical-conflicts":
+      endpoint = "/api/admin/canonical-conflicts?status=OPEN&offset=0&limit=50";
+      break;
+    case "admin-organizations":
+      endpoint = "/api/admin/organizations";
+      break;
+    default:
+      return;
+  }
+
+  // These client islands share the normal 25-second product request deadline.
+  // Late in the dev-server audit, compiling either API module can exceed that
+  // deadline even though the handler itself is healthy. Compile and verify the
+  // authenticated endpoint outside the product deadline before exercising UI.
+  const response = await page.request.get(endpoint, {
+    timeout: UI_AUDIT_MUTATION_TIMEOUT_MS,
+  });
+  expect(response.ok(), `prewarm ${endpoint}`).toBeTruthy();
+}
+
 async function applyPresentation(
   context: BrowserContext,
   page: Page,
@@ -871,8 +898,23 @@ async function appendAuditResult(
   await appendFile(RESULTS_PATH, `${JSON.stringify(record)}\n`);
 }
 
+async function gotoAuditPath(page: Page, path: string) {
+  for (let attempt = 1; attempt <= UI_AUDIT_NAVIGATION_ATTEMPTS; attempt += 1) {
+    try {
+      return await page.goto(path, {
+        waitUntil: "domcontentloaded",
+        timeout: UI_AUDIT_NAVIGATION_TIMEOUT_MS,
+      });
+    } catch (error) {
+      if (attempt === UI_AUDIT_NAVIGATION_ATTEMPTS) throw error;
+    }
+  }
+
+  throw new Error(`Navigation attempts exhausted for ${path}`);
+}
+
 async function assertCoreRender(page: Page, profile: RouteProfile): Promise<void> {
-  const response = await page.goto(profile.path, { waitUntil: "domcontentloaded" });
+  const response = await gotoAuditPath(page, profile.path);
   if (response) expect(response.status()).toBeLessThan(500);
 
   await expect
@@ -880,7 +922,9 @@ async function assertCoreRender(page: Page, profile: RouteProfile): Promise<void
       timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS,
     })
     .toBe(expectedPathname(profile));
-  await expect(page.getByRole("heading", { name: profile.heading }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: profile.heading }).first()).toBeVisible({
+    timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS,
+  });
 
   if (profile.expectedText) {
     await expect(page.getByText(profile.expectedText).first()).toBeVisible({
@@ -1093,26 +1137,40 @@ async function assertRouteBehavior(page: Page, profile: RouteProfile): Promise<v
       await expect(page).toHaveURL(/providerKey=missing-provider/);
       await expect(page.getByText("No deleted identities match.", { exact: true })).toBeVisible();
       break;
-    case "admin-organizations":
+    case "admin-organizations": {
+      const nameInput = page.getByRole("textbox", { name: "Organization name" });
+      const slugInput = page.getByRole("textbox", {
+        name: "Organization slug (optional)",
+      });
+      const ownerInput = page.getByRole("textbox", { name: "Owner user ID" });
+      const createButton = page.getByRole("button", { name: "Create", exact: true });
+
       await expect(async () => {
-        await page
-          .getByRole("textbox", { name: "Organization name" })
-          .fill("E2E Browser Organization");
-        await page
-          .getByRole("textbox", { name: "Organization slug (optional)" })
-          .fill("e2e-browser-org");
-        await page
-          .getByRole("textbox", { name: "Owner user ID" })
-          .fill(TEST_MEMBER_ID);
-        await expect(
-          page.getByRole("button", { name: "Create", exact: true }),
-        ).toBeEnabled({ timeout: 1_000 });
+        // Force real input transitions on every attempt. If the first fill
+        // raced hydration, re-filling an unchanged DOM value would not update
+        // React's controlled state and the Create button would stay disabled.
+        await nameInput.fill("");
+        await slugInput.fill("");
+        await ownerInput.fill("");
+        await nameInput.fill("E2E Browser Organization");
+        await slugInput.fill("e2e-browser-org");
+        await ownerInput.fill(TEST_MEMBER_ID);
+        await expect(createButton).toBeEnabled({ timeout: 1_000 });
       }).toPass({ timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS });
-      await page.getByRole("button", { name: "Create", exact: true }).click();
+
+      const created = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/admin/organizations",
+        { timeout: UI_AUDIT_MUTATION_TIMEOUT_MS },
+      );
+      await createButton.click();
+      expect((await created).status()).toBe(201);
       await expect(
         page.getByRole("link", { name: "E2E Browser Organization" }),
       ).toBeVisible({ timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS });
       break;
+    }
     case "admin-organization-detail": {
       const memberRow = page.getByRole("row").filter({ hasText: "E2E Reader Member" });
       await selectDropdownOption(page, "Member role", "Teacher");
@@ -1258,12 +1316,14 @@ export async function runUiAuditScenario({
   testInfo: TestInfo;
   scenario: Scenario;
 }): Promise<void> {
+  testInfo.setTimeout(UI_AUDIT_SCENARIO_TIMEOUT_MS);
   const logs = installAuditCapture(page);
   let caughtError: unknown = null;
 
   try {
     await applyPresentation(context, page, scenario.presentation);
     await signInForProfile(signIn, scenario.route.session);
+    await prewarmAuditDependencies(page, scenario.route);
     await runScenario(page, scenario);
 
     const fatal = fatalMessages(logs);

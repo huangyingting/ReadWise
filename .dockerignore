@@ -1,6 +1,7 @@
 # Dependencies & build output
 node_modules
 .next
+.next-e2e
 out
 build
 
@@ -14,8 +15,24 @@ build
 
 # Database files (use a mounted volume at runtime)
 *.db
+**/*.db
+*.db.bak
+*.db.bak-*
 *.db-journal
+**/*.db-journal
+*.db-shm
+**/*.db-shm
+*.db-wal
+**/*.db-wal
 prisma/dev.db
+prisma/provider-dbs
+backups
+
+# Private local content and generated runtime state
+.media
+.scraper-state
+.translation-lab
+provider-db-translations
 
 # Test & coverage artifacts
 coverage

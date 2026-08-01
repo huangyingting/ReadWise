@@ -44,6 +44,12 @@ async function prewarmJsonRoute(page: Page, method: "get" | "post", url: string,
   await page.request.post(url, { data, maxRetries: 1, timeout: 120_000 });
 }
 
+async function prewarmAssignmentRoutes(page: Page, classroomId: string) {
+  await prewarmJsonRoute(page, "get", `/api/classrooms/${classroomId}/article-options`);
+  await prewarmJsonRoute(page, "get", `/api/classrooms/${classroomId}/student-candidates`);
+  await prewarmJsonRoute(page, "post", `/api/classrooms/${classroomId}/assignments`, {});
+}
+
 async function readDownloadUtf8(download: Download): Promise<string> {
   const stream = await download.createReadStream();
   if (!stream) throw new Error("download stream unavailable");
@@ -120,6 +126,8 @@ test("teacher assignment created from the classroom UI persists after reload", a
   page,
 }) => {
   const { classroom } = await signInSeededTeacher(context);
+  const assignmentsEndpoint = `/api/classrooms/${classroom.id}/assignments`;
+  await prewarmAssignmentRoutes(page, classroom.id);
 
   await page.goto(`/teacher/classrooms/${classroom.id}`);
   await expect(page.getByRole("heading", { name: "E2E Reading Group" })).toBeVisible();
@@ -130,7 +138,14 @@ test("teacher assignment created from the classroom UI persists after reload", a
     .getByRole("button", { name: /E2E Critical Reading Smoke Article/ })
     .click();
   await page.getByLabel("Instructions (optional)").fill("Read and summarize the article.");
+  const created = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === assignmentsEndpoint,
+    { timeout: 120_000 },
+  );
   await page.getByRole("button", { name: "Assign article" }).click();
+  expect((await created).status()).toBe(201);
   const assignmentRow = page
     .locator("li")
     .filter({ hasText: "E2E Critical Reading Smoke Article" })
@@ -260,6 +275,8 @@ test("teacher assignment deletion requires confirmation and persists after reloa
   page,
 }) => {
   const { classroom } = await signInSeededTeacher(context);
+  const assignmentsEndpoint = `/api/classrooms/${classroom.id}/assignments`;
+  await prewarmAssignmentRoutes(page, classroom.id);
 
   await page.goto(`/teacher/classrooms/${classroom.id}`);
   await expect(page.getByRole("heading", { name: "E2E Reading Group" })).toBeVisible();
@@ -269,7 +286,14 @@ test("teacher assignment deletion requires confirmation and persists after reloa
   await page
     .getByRole("button", { name: /E2E Critical Reading Smoke Article/ })
     .click();
+  const created = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === assignmentsEndpoint,
+    { timeout: 120_000 },
+  );
   await page.getByRole("button", { name: "Assign article" }).click();
+  expect((await created).status()).toBe(201);
   const deleteButton = page.getByRole("button", {
     name: "Delete assignment E2E Critical Reading Smoke Article",
   });

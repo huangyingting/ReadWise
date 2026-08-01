@@ -321,7 +321,9 @@ test.describe("a11y: documented keyboard and live-region gaps", () => {
     try {
       await page.getByRole("button", { name: "Mark reading done" }).click();
       await expect(
-        page.getByRole("status").filter({ hasText: /offline|sync/i }),
+        page.getByRole("status").filter({
+          hasText: "Today's reading is saved and will sync automatically.",
+        }),
       ).toBeVisible();
     } finally {
       await context.setOffline(false);

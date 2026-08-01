@@ -96,9 +96,16 @@ test.describe("visual regression baseline", () => {
   });
 
   test("teacher surface", async ({ readerPage: page }) => {
+    const archivedClassroomsWarmup = await page.request.get(
+      "/api/classrooms?archived=true",
+      { timeout: 120_000 },
+    );
+    expect(archivedClassroomsWarmup.status()).toBeLessThan(500);
     await page.goto("/teacher");
     await expect(page.getByRole("heading", { name: "Teaching" })).toBeVisible();
-    await expect(page.getByText("No archived classrooms", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("No archived classrooms", { exact: true }),
+    ).toBeVisible({ timeout: 60_000 });
     await stabilize(page);
     // The baseline targets <main>, not the global app chrome. Once the teacher
     // surface became taller than the viewport, Playwright scrolled <main> to

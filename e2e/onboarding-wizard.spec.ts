@@ -28,6 +28,10 @@ test("completes the five-step onboarding wizard and reaches the welcome screen",
   page,
 }) => {
   await signIn({ onboarded: false });
+  const welcomeWarmup = await page.request.get("/welcome", {
+    timeout: 120_000,
+  });
+  expect(welcomeWarmup.status()).toBeLessThan(500);
   await page.goto("/onboarding");
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -142,10 +146,18 @@ test("completes the five-step onboarding wizard and reaches the welcome screen",
   // Submit — keyboard Enter activates Finish; assert the user leaves /onboarding for /welcome
   // ──────────────────────────────────────────────────────────────────────────
 
+  const completionResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/onboarding",
+    { timeout: 120_000 },
+  );
   await page.keyboard.press("Enter");
+  expect((await completionResponse).status()).toBe(200);
 
-  // Wait for the API POST to complete and router.push("/welcome") to fire
-  await expect(page).toHaveURL(/\/welcome$/, { timeout: 30_000 });
+  // The committed mutation and the cold Server Component render have separate
+  // budgets so a slow route render cannot masquerade as a failed submission.
+  await expect(page).toHaveURL(/\/welcome$/, { timeout: 60_000 });
 
   // Welcome tour first step is the reliable marker that the post-onboarding
   // screen rendered correctly for an authenticated, now-onboarded user

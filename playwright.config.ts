@@ -14,7 +14,7 @@ const chromiumExecutable =
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? defaultChromiumExecutable;
 const e2eNodeOptions = [
   process.env.NODE_OPTIONS,
-  "--max-old-space-size=8192",
+  "--max-old-space-size=10240",
 ]
   .filter(Boolean)
   .join(" ");
@@ -44,9 +44,11 @@ const e2eEnv = {
   AZURE_STORAGE_KEY: "",
   READWISE_DISABLE_LISTING_CACHE: "1",
   NEXT_DIST_DIR: ".next-e2e",
-  // The 627-case suite keeps one webpack dev server alive for over an hour.
+  // The 667-case suite keeps one webpack dev server alive for over an hour.
   // Next restarts dev servers at 80% of V8's heap limit, which otherwise drops
   // whichever Playwright navigation happens to be in flight late in the run.
+  // Ten GiB keeps that threshold above the observed long-run working set while
+  // remaining below the dedicated audit host's physical-memory ceiling.
   NODE_OPTIONS: e2eNodeOptions,
 };
 
