@@ -3,8 +3,9 @@
  *
  * A single seam — {@link captureError} — that every server/worker/client error
  * path funnels through. It:
- *   - computes a stable {@link fingerprint} (name + normalized message + top
- *     stack frame) so the same error groups together across occurrences,
+ *   - computes a stable {@link fingerprint} (name + controlled machine reason
+ *     + top stack location) so the same error groups together across
+ *     occurrences,
  *   - enriches with release/version, environment, route, request id and (when
  *     safe) user id, pulling the request id from the ambient logger context,
  *   - REDACTS content: it never logs article text, selected text, or prompts,
@@ -22,6 +23,7 @@
  * implementation.
  */
 import { createLogger, getRequestContext } from "./logger";
+import { controlledErrorName, controlledMachineReason } from "./error-policy";
 import { isSensitiveMetadataKey, redactSensitiveValue } from "@/lib/security/redaction";
 import { recordErrorCaptured } from "@/lib/metrics";
 import {
@@ -39,6 +41,8 @@ export type ErrorSeverity = "fatal" | "error" | "warning" | "info";
 export type ErrorContext = {
   source?: ErrorSource;
   severity?: ErrorSeverity;
+  /** Controlled, content-free machine code used for grouping and diagnostics. */
+  machineReason?: string;
   /** Route group (low cardinality) the error occurred on, when known. */
   route?: string;
   /** Override the request id (defaults to the ambient logger context). */
@@ -123,19 +127,18 @@ function normalizeMessage(message: string): string {
     .slice(0, 200);
 }
 
-/** Extract the top "at ..." stack frame (file/function), location only. */
+/** Extract only the top stack-frame filename, never the exception prose/path. */
 function topFrame(stack: string | undefined): string {
   if (!stack) return "";
-  const line = stack
-    .split("\n")
-    .map((l) => l.trim())
-    .find((l) => l.startsWith("at "));
-  if (!line) return "";
-  // Drop absolute path noise + line:col numbers; keep function + file basename.
-  return line
-    .replace(/\(?(?:[A-Za-z]:)?\/[^)]*\/([^/):]+)(:\d+:\d+)?\)?/, "$1")
-    .replace(/:\d+:\d+/g, "")
-    .slice(0, 200);
+  for (const rawLine of stack.split("\n")) {
+    const line = rawLine.trim();
+    if (!line.startsWith("at ")) continue;
+    const location = line.match(
+      /(?:file:\/\/)?(?:[A-Za-z]:)?[^()\s]*[\\/]([^\\/():\s]+):\d+:\d+\)?$/,
+    );
+    if (location?.[1]) return `at ${location[1]}`.slice(0, 200);
+  }
+  return "";
 }
 
 /**
@@ -143,7 +146,7 @@ function topFrame(stack: string | undefined): string {
  * and ids are masked in the message so occurrences with varying ids collapse.
  */
 export function fingerprint(error: { name?: string; message?: string; stack?: string }): string {
-  const name = (error.name || "Error").slice(0, 60);
+  const name = controlledErrorName(error.name);
   const message = normalizeMessage(error.message || "");
   const frame = topFrame(error.stack);
   return `${name}|${message}|${frame}`;
@@ -159,7 +162,7 @@ const defaultSink: ErrorSink = (record) => {
     fingerprint: record.fingerprint,
     errorName: record.name,
     errorMessage: record.message,
-    stack: record.stack,
+    errorLocation: record.stack,
     source: record.source,
     severity: record.severity,
     route: record.route,
@@ -264,15 +267,18 @@ export function captureError(
 ): CapturedError {
   const err = toError(error);
   const ambient = getRequestContext();
-  const print = fingerprint(err);
+  const name = controlledErrorName(err.name);
+  const message = controlledMachineReason(context.machineReason);
+  const safeStack = topFrame(err.stack) || undefined;
+  const print = fingerprint({ name, message, stack: err.stack });
   const occurrences = (occurrenceCounts.get(print) ?? 0) + 1;
   occurrenceCounts.set(print, occurrences);
 
   const base: Omit<CapturedError, "alert"> = {
     fingerprint: print,
-    name: err.name || "Error",
-    message: redactSensitiveValue(err.message || "").slice(0, 500),
-    stack: err.stack ? redactSensitiveValue(err.stack).slice(0, 4000) : undefined,
+    name,
+    message,
+    stack: safeStack,
     source: context.source ?? "unknown",
     severity: context.severity ?? "error",
     route: context.route ?? ambient?.path,

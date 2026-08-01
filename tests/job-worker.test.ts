@@ -216,6 +216,130 @@ test("runJobWorker stops when the queue is empty in once mode", async () => {
   assert.equal(stats.completed, 0);
 });
 
+test("runJobWorker aborts and awaits sibling loops when the job loop crashes", async () => {
+  const { runJobWorker } = await import("@/lib/worker");
+  let discoverySignal: AbortSignal | undefined;
+  let backfillSignal: AbortSignal | undefined;
+  let discoveryStopped = false;
+  let backfillStopped = false;
+  let markDiscoveryReady!: () => void;
+  let markBackfillReady!: () => void;
+  const discoveryReady = new Promise<void>((resolve) => { markDiscoveryReady = resolve; });
+  const backfillReady = new Promise<void>((resolve) => { markBackfillReady = resolve; });
+
+  const waitForAbort = (
+    signal: AbortSignal | undefined,
+    onAbort: () => void,
+  ): Promise<void> => new Promise((resolve) => {
+    if (signal?.aborted) {
+      onAbort();
+      resolve();
+      return;
+    }
+    signal?.addEventListener("abort", () => {
+      onAbort();
+      resolve();
+    }, { once: true });
+  });
+
+  await assert.rejects(
+    () => runJobWorker({
+      logger: silentLogger,
+      discovery: {
+        fetchPage: async () => { throw new Error("should not fetch"); },
+        claimDueDiscoverySource: async () => null,
+        sleep: async (_ms: number, signal?: AbortSignal) => {
+          discoverySignal = signal;
+          markDiscoveryReady();
+          await waitForAbort(signal, () => { discoveryStopped = true; });
+        },
+      } as never,
+      backfill: {
+        listRunnableBackfillRunIds: async () => [],
+        sleep: async (_ms, signal) => {
+          backfillSignal = signal;
+          markBackfillReady();
+          await waitForAbort(signal, () => { backfillStopped = true; });
+        },
+      },
+      deps: {
+        claimNextJob: async () => {
+          await Promise.all([discoveryReady, backfillReady]);
+          throw new Error("job database unavailable");
+        },
+      },
+    }),
+    { message: "job database unavailable" },
+  );
+
+  assert.equal(discoverySignal?.aborted, true);
+  assert.equal(backfillSignal?.aborted, true);
+  assert.equal(discoveryStopped, true);
+  assert.equal(backfillStopped, true);
+});
+
+test("runJobWorker forwards the configured lock TTL to job and discovery claims", async () => {
+  const { runJobWorker } = await import("@/lib/worker");
+  let jobLockTtlMs: number | undefined;
+  let discoveryLockTtlMs: number | undefined;
+
+  await runJobWorker({
+    once: true,
+    lockTtlMs: 123_456,
+    logger: silentLogger,
+    discovery: {
+      fetchPage: async () => { throw new Error("should not fetch"); },
+      claimDueDiscoverySource: async (
+        _workerId: string,
+        options?: { lockTtlMs?: number },
+      ) => {
+        discoveryLockTtlMs = options?.lockTtlMs;
+        return null;
+      },
+    } as never,
+    deps: {
+      claimNextJob: async (_workerId, options) => {
+        jobLockTtlMs = options?.lockTtlMs;
+        return null;
+      },
+    },
+  });
+
+  assert.equal(jobLockTtlMs, 123_456);
+  assert.equal(discoveryLockTtlMs, 123_456);
+});
+
+test("runJobWorker replaces an unsafe lock TTL before job and discovery claims", async () => {
+  const { runJobWorker } = await import("@/lib/worker");
+  let jobLockTtlMs: number | undefined;
+  let discoveryLockTtlMs: number | undefined;
+
+  await runJobWorker({
+    once: true,
+    lockTtlMs: 0,
+    logger: silentLogger,
+    discovery: {
+      fetchPage: async () => { throw new Error("should not fetch"); },
+      claimDueDiscoverySource: async (
+        _workerId: string,
+        options?: { lockTtlMs?: number },
+      ) => {
+        discoveryLockTtlMs = options?.lockTtlMs;
+        return null;
+      },
+    } as never,
+    deps: {
+      claimNextJob: async (_workerId, options) => {
+        jobLockTtlMs = options?.lockTtlMs;
+        return null;
+      },
+    },
+  });
+
+  assert.equal(jobLockTtlMs, 600_000);
+  assert.equal(discoveryLockTtlMs, 600_000);
+});
+
 test("runWorkerLoop delegates claimed jobs and aggregates executor outcomes", async () => {
   const { runWorkerLoop: runLoop } = await import("@/lib/worker");
   const queue = [job({ id: "completed" }), job({ id: "dead-letter" })];

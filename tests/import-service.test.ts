@@ -326,12 +326,17 @@ test("url-import: 429 when no duplicate and quota is full", async () => {
 
 test("url-import: 422 when scraper throws", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
-  await assert.rejects(() =>
+  const caught = await captureImportError(() =>
     importArticleFromUrl(urlImportArgs({
       deps: makeUrlDeps({
-        scrape: async () => { throw new Error("Network error"); },
+        scrape: async () => { throw new Error("Network error with private article sentence"); },
       }),
     })),
+  );
+  assert.equal((caught as { status?: number }).status, 422);
+  assert.equal(
+    (caught as { message?: string }).message,
+    "Scrape failed. The article could not be fetched.",
   );
   assert.equal(createCalled, false);
 });

@@ -39,12 +39,15 @@ test("captureError produces a grouped record with fingerprint + context", () => 
   restores.push(setErrorSink((r) => captured.push(r)));
 
   const record = runWithRequestContext({ requestId: "req-123", userId: "user-9", path: "/api/x" }, () =>
-    captureError(new Error("kaboom"), { source: "server" }),
+    captureError(new Error("kaboom"), {
+      source: "server",
+      machineReason: "test_failure",
+    }),
   );
 
   assert.equal(record.name, "Error");
-  assert.equal(record.message, "kaboom");
-  assert.ok(record.fingerprint.startsWith("Error|kaboom"));
+  assert.equal(record.message, "test_failure");
+  assert.ok(record.fingerprint.startsWith("Error|test_failure"));
   assert.equal(record.source, "server");
   assert.equal(record.requestId, "req-123");
   assert.equal(record.userId, "user-9");
@@ -54,6 +57,40 @@ test("captureError produces a grouped record with fingerprint + context", () => 
   // Sink received the same record.
   assert.equal(captured.length, 1);
   assert.equal(captured[0].fingerprint, record.fingerprint);
+});
+
+test("captureError never exposes unclassified exception prose", () => {
+  const captured: CapturedError[] = [];
+  restores.push(setErrorSink((record) => captured.push(record)));
+
+  const privateProse = "ordinary private article sentence from a provider";
+  const record = captureError(new Error(privateProse), { source: "server" });
+
+  assert.equal(record.message, "unexpected_error");
+  assert.doesNotMatch(record.fingerprint, /ordinary private article sentence/);
+  assert.doesNotMatch(record.stack ?? "", /ordinary private article sentence/);
+  assert.doesNotMatch(JSON.stringify(captured), /ordinary private article sentence/);
+});
+
+test("captureError preserves an explicitly controlled machine reason", () => {
+  const record = captureError(new Error("private provider response"), {
+    source: "worker",
+    machineReason: "provider_failure",
+  });
+  assert.equal(record.message, "provider_failure");
+  assert.doesNotMatch(record.stack ?? "", /private provider response/);
+});
+
+test("captureError rejects unbounded or prose-like machine reasons", () => {
+  const privateProse = "ordinary private article sentence";
+  for (const machineReason of [privateProse, `x${"a".repeat(80)}`, "UPPER_CASE"]) {
+    const record = captureError(new Error("provider response"), {
+      source: "server",
+      machineReason,
+    });
+    assert.equal(record.message, "unexpected_error");
+    assert.doesNotMatch(JSON.stringify(record), /ordinary private article sentence/);
+  }
 });
 
 test("errors with varying ids/numbers collapse to one fingerprint", () => {
@@ -68,6 +105,7 @@ test("captureError redacts content and scrubs PII/secret-looking context", () =>
 
   captureError(new Error("failure for user me@example.com token ABCDEF0123456789ABCDEF0123456"), {
     source: "server",
+    machineReason: "provider_failure",
     extra: {
       articleContent: "the full article body that must never be logged",
       prompt: "system prompt text",
@@ -81,10 +119,8 @@ test("captureError redacts content and scrubs PII/secret-looking context", () =>
   });
 
   const record = captured[0];
-  // Message-level scrubbing: email + long token masked.
-  assert.match(record.message, /\[email\]/);
-  assert.match(record.message, /\[token\]/);
-  assert.doesNotMatch(record.message, /me@example\.com/);
+  assert.equal(record.message, "provider_failure");
+  assert.doesNotMatch(JSON.stringify(record), /me@example\.com|ABCDEF0123456789/);
   // Content + secret keys redacted; nested object replaced; safe fields kept.
   assert.equal(record.extra?.articleContent, "[redacted]");
   assert.equal(record.extra?.prompt, "[redacted]");
@@ -172,6 +208,6 @@ test("default sink does not throw without a provider configured", () => {
 test("captureError tolerates non-Error throwables", () => {
   restores.push(setErrorSink(() => {}));
   const record = captureError("a plain string failure", { source: "server" });
-  assert.equal(record.message, "a plain string failure");
+  assert.equal(record.message, "unexpected_error");
   assert.ok(record.fingerprint.length > 0);
 });

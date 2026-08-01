@@ -7,10 +7,6 @@ export { azureStorageConfig } from "@/lib/runtime-config/storage";
 
 const log = createLogger("storage");
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 function statusCodeFromError(err: unknown): number | undefined {
   return err instanceof Object && "statusCode" in err
     ? (err as { statusCode?: number }).statusCode
@@ -69,9 +65,9 @@ export class AzureBlobMediaStorage implements MediaStorage {
       const container = serviceClient.getContainerClient(cfg.container);
       await container.createIfNotExists();
       return container;
-    } catch (err) {
+    } catch {
       log.warn("storage.azure_container_unavailable", {
-        error: errorMessage(err),
+        machineReason: "container_unavailable",
       });
       return null;
     }
@@ -117,8 +113,8 @@ export class AzureBlobMediaStorage implements MediaStorage {
     } catch (err: unknown) {
       if (statusCodeFromError(err) === 404) return null;
       log.warn("storage.azure_get_failed", {
-        storageKey,
-        error: errorMessage(err),
+        machineReason: "storage_read_failed",
+        statusCode: statusCodeFromError(err),
       });
       return null;
     }
@@ -132,8 +128,8 @@ export class AzureBlobMediaStorage implements MediaStorage {
       await blobClient.deleteIfExists();
     } catch (err) {
       log.warn("storage.azure_delete_failed", {
-        storageKey,
-        error: errorMessage(err),
+        machineReason: "storage_delete_failed",
+        statusCode: statusCodeFromError(err),
       });
     }
   }

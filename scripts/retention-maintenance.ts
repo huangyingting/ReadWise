@@ -6,7 +6,7 @@ import { aiLedgerRetentionDays } from "@/lib/runtime-config/ai";
 import { analyticsRetentionDays } from "@/lib/runtime-config/analytics";
 import { auditLogRetentionDays } from "@/lib/runtime-config/security";
 import { jobTerminalRetentionDays } from "@/lib/jobs/retention";
-import { isMain, parseFlag, parsePositiveInt, runCli } from "./lib/cli";
+import { isMain, parseFlag, parsePositiveInt, runCli, shouldDryRun } from "./lib/cli";
 
 const HELP = `Usage: npm run maintenance:retention -- [--dry-run|--execute] [day overrides]\n\nRuns all retention helpers for analytics events, AI invocation ledger rows,\naudit logs, and terminal jobs. Defaults to dry-run/count mode. Use --execute\nto delete matched rows. Output is metadata-only JSON counts.\n\nOptions:\n  --dry-run                 Count rows only (default)\n  --execute                 Delete matched rows after counting\n  --analytics-days <days>   Override ANALYTICS_RETENTION_DAYS for this run\n  --ai-days <days>          Override AI_LEDGER_RETENTION_DAYS for this run\n  --audit-days <days>       Override AUDIT_LOG_RETENTION_DAYS for this run\n  --jobs-days <days>        Override JOB_TERMINAL_RETENTION_DAYS for this run\n  --help, -h                Show this help\n`;
 
@@ -41,7 +41,7 @@ type CliIo = {
 function parseOptions(argv: string[]): RetentionOptions | "help" {
   if (parseFlag(argv, "--help", "-h")) return "help";
   return {
-    dryRun: !parseFlag(argv, "--execute"),
+    dryRun: shouldDryRun(argv),
     analyticsDays: parsePositiveInt(argv, "--analytics-days", analyticsRetentionDays()),
     aiDays: parsePositiveInt(argv, "--ai-days", aiLedgerRetentionDays()),
     auditDays: parsePositiveInt(argv, "--audit-days", auditLogRetentionDays()),

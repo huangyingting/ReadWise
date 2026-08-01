@@ -1,9 +1,11 @@
-import { prisma } from "@/lib/prisma";
 import {
   runJobWorker,
   createConsoleLogger,
   type JobWorkerOptions,
 } from "@/lib/worker";
+import { DEFAULT_LOCK_TTL_MS, MIN_LOCK_TTL_MS } from "@/lib/jobs/types";
+import { fetchProductionDiscoveryPage } from "@/lib/scraper/incremental/production-discovery";
+import { syncCanaryDiscoverySources } from "@/lib/scraper/incremental/canary-registry";
 import { isAiConfigured } from "@/lib/ai";
 import { isSpeechConfigured } from "@/lib/speech";
 import { isSupportedLanguage } from "@/lib/translation";
@@ -23,12 +25,27 @@ const DEFAULT_ARGS: Args = {
   once: false,
   tts: false,
   translateLangs: [],
-  lockTtlMs: 600000,
+  lockTtlMs: DEFAULT_LOCK_TTL_MS,
   help: false,
 };
 
-function parseNonNegativeMs(value: string | undefined): number {
-  return Math.max(0, Number(value) || 0);
+function parseNonNegativeMs(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
+}
+
+function parseLockTtlMs(value: string | undefined): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= MIN_LOCK_TTL_MS
+    ? parsed
+    : DEFAULT_ARGS.lockTtlMs;
+}
+
+function optionValue(argv: string[], index: number): string | undefined {
+  const value = argv[index + 1];
+  if (value === undefined) return undefined;
+  if (value.startsWith("-") && !Number.isFinite(Number(value))) return undefined;
+  return value;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -36,21 +53,30 @@ function parseArgs(argv: string[]): Args {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     switch (arg) {
-      case "--interval":
-        args.intervalMs = parseNonNegativeMs(argv[++i]);
+      case "--interval": {
+        const value = optionValue(argv, i);
+        if (value !== undefined) i++;
+        args.intervalMs = parseNonNegativeMs(value, DEFAULT_ARGS.intervalMs);
         break;
-      case "--lock-ttl":
-        args.lockTtlMs = parseNonNegativeMs(argv[++i]);
+      }
+      case "--lock-ttl": {
+        const value = optionValue(argv, i);
+        if (value !== undefined) i++;
+        args.lockTtlMs = parseLockTtlMs(value);
         break;
+      }
       case "--once":
         args.once = true;
         break;
       case "--tts":
         args.tts = true;
         break;
-      case "--translate":
-        addUniqueFromCsv(args.translateLangs, argv[++i] ?? "");
+      case "--translate": {
+        const value = optionValue(argv, i);
+        if (value !== undefined) i++;
+        addUniqueFromCsv(args.translateLangs, value ?? "");
         break;
+      }
       case "-h":
       case "--help":
         args.help = true;
@@ -70,8 +96,8 @@ function printHelp(): void {
 Continuously drains the durable Job table and enriches articles with AI content
 (difficulty, tags, vocabulary, quiz, optional translation + TTS) via the
 idempotent processor, retrying transient failures with persisted backoff. Stops
-safely on SIGINT/SIGTERM (Ctrl-C) after finishing the current job, and resumes
-remaining work on restart.
+safely on SIGINT/SIGTERM (Ctrl-C) by asking current work to abort cooperatively;
+unfinished durable work is reclaimed after its lease expires.
 
 Usage:
   npm run worker                 Drain the persistent Job table (poll forever)
@@ -79,7 +105,7 @@ Usage:
 
 Options:
   --interval <ms>       Idle wait between polls when empty (default 5000)
-  --lock-ttl <ms>       Stale-lock recovery threshold (default 600000)
+  --lock-ttl <ms>       Stale-lock recovery threshold (default 600000; minimum 60000)
   --once                Process the queue until empty, then stop
   --tts                 Also generate text-to-speech narration (slow)
   --translate <codes>   Pre-generate translations (comma-separated, e.g. es,fr)
@@ -108,6 +134,8 @@ function buildJobWorkerOptions(
     signal: controller.signal,
     logger,
     process: { tts: args.tts, translateLangs: args.translateLangs },
+    discovery: { fetchPage: fetchProductionDiscoveryPage },
+    backfill: true,
   };
 }
 
@@ -135,6 +163,9 @@ async function main(): Promise<number> {
   const controller = new AbortController();
   const logger = createConsoleLogger();
   registerShutdownSignals(controller, logger);
+
+  const registry = await syncCanaryDiscoverySources();
+  logger.info("discovery source registry synced", { sources: registry.synced });
 
   await runJobWorker(buildJobWorkerOptions(args, controller, logger));
   return 0;

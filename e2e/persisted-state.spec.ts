@@ -38,10 +38,10 @@ async function openAssignmentSheet(page: Page) {
 
 async function prewarmJsonRoute(page: Page, method: "get" | "post", url: string, data?: unknown) {
   if (method === "get") {
-    await page.request.get(url, { timeout: 120_000 });
+    await page.request.get(url, { maxRetries: 1, timeout: 120_000 });
     return;
   }
-  await page.request.post(url, { data, timeout: 120_000 });
+  await page.request.post(url, { data, maxRetries: 1, timeout: 120_000 });
 }
 
 async function readDownloadUtf8(download: Download): Promise<string> {
@@ -66,8 +66,15 @@ test("bookmark and named-list membership persist after reload", async ({
   );
 
   const saveButton = page.getByRole("button", { name: "Save to reading list" });
+  const savedResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/bookmarks/toggle",
+    { timeout: 120_000 },
+  );
   await saveButton.click();
   await expect(saveButton).toHaveAttribute("aria-pressed", "true");
+  await expect((await savedResponse).status()).toBe(200);
 
   const created = await page.request.post("/api/lists", {
     data: { name: "E2E Saved Set" },

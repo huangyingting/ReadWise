@@ -50,17 +50,16 @@ store. Each queued mutation row is:
 
 ```ts
 {
-  id: number,               // auto-increment, also the FIFO key
+  clientMutationId: string, // idempotency key and IndexedDB primary key
   type: string,             // logical mutation kind (e.g. "progress", "highlight.update")
   endpoint: string,         // URL to POST/PATCH/DELETE
   method: string,
-  body: unknown,            // JSON payload
-  clientMutationId: string, // idempotency key (see below)
+  payload: unknown,         // JSON payload
   dedupeKey?: string,       // collapses superseded mutations (e.g. "progress:<articleId>")
-  status: "pending" | "inflight" | "failed",
+  status: "pending" | "syncing" | "failed" | "conflict",
   retryCount: number,
-  createdAt: number,
-  updatedAt: number,
+  createdAt: string,        // ISO timestamp used for FIFO ordering
+  lastError?: string,       // controlled HTTP/network/validation reason only
 }
 ```
 
@@ -87,6 +86,10 @@ throw; `flushOfflineQueue()` drains the queue with retry/backoff;
 `registerOfflineSync()` wires the `online` event + the service-worker
 `sync` message; `subscribeSyncState()/getSyncState()` expose
 `{ online, pending, syncing }` to the UI.
+
+IndexedDB `lastError` never receives exception or response prose. It contains
+only client-generated, controlled delivery diagnostics such as `network_error`,
+`HTTP 503`, or the fixed invalid-payload reason.
 
 ### Idempotency
 
@@ -296,7 +299,7 @@ removes the cached copy on a `404` (deleted article).
 
 ### Privacy purge on sign-out / account deletion
 
-`purgeOfflineUserData()` (in `offline-mutations.ts`) clears the IndexedDB stores
+`purgeOfflineUserData()` (in `offline/sync-runtime.ts`) clears the IndexedDB stores
 **and** messages the service worker to drop private caches. It runs **before**
 client sign-out flows and from the account-deletion flow (`AccountDangerZone`),
 so private/offline content never lingers after a user leaves. Server-side,

@@ -73,7 +73,6 @@ export type AiRunnerError = {
   durationMs: number;
   errorKind: AiErrorKind;
   status?: number;
-  errorMessage?: string;
   /** Total provider attempts made (including the first attempt). */
   attemptsMade: number;
 };
@@ -186,7 +185,6 @@ export async function runAiRequest(
       durationMs: response.durationMs,
       errorKind: error.kind,
       status: error.status,
-      errorMessage: error.status ? `HTTP ${error.status}` : error.message,
       attemptsMade: attempt + 1,
     };
   }
@@ -196,7 +194,6 @@ export async function runAiRequest(
     outcome: "error",
     durationMs: lastDurationMs,
     errorKind: "unknown",
-    errorMessage: "exhausted retries",
     attemptsMade: maxRetries + 1,
   };
 }

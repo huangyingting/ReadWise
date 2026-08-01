@@ -320,10 +320,6 @@ function qualityInput(article: ScrapedArticle): QualityInput {
   };
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 async function harvestPositives(): Promise<string[]> {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -350,10 +346,8 @@ async function harvestPositives(): Promise<string[]> {
         }
       }
       console.log(`  [+] ${provider.key}: kept ${kept} article excerpt(s)`);
-    } catch (err) {
-      console.log(
-        `  [!] ${provider.key}: discovery failed (${errorMessage(err)}) — skipped`,
-      );
+    } catch {
+      console.log(`  [!] ${provider.key}: discovery failed — skipped`);
     }
   }
   return out;

@@ -245,7 +245,7 @@ export function useFloatingPosition(
     window.addEventListener("scroll", scheduleLayout, true);
     visualViewport?.addEventListener("resize", scheduleLayout);
     visualViewport?.addEventListener("scroll", scheduleLayout);
-    scheduleLayout();
+    applyLayout();
 
     return () => {
       if (animationFrameRef.current !== null) {

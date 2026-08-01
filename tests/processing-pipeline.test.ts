@@ -343,7 +343,8 @@ test("processor records failed feature steps and withholds publishing", async ()
   assert.equal(updatedArticles.length, 0);
   const failed = result?.steps.find((step) => step.step === "tags");
   assert.equal(failed?.status, "failed");
-  assert.match(failed?.detail ?? "", /tags failed/);
+  assert.equal(failed?.detail, "processing_step_failed");
+  assert.doesNotMatch(failed?.detail ?? "", /tags failed/);
   assert.ok(stateWrites.some((write) => write.kind === "finish" && write.status === "failed"));
 });
 

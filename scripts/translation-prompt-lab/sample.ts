@@ -55,7 +55,7 @@ export type Corpus = {
   articles: SampledArticle[];
 };
 
-function openSqlite(pathValue: string): SqliteDatabase {
+export function openSqlite(pathValue: string): SqliteDatabase {
   const require = createRequire(import.meta.url);
   const Database = require("better-sqlite3") as new (
     path: string,
@@ -64,16 +64,16 @@ function openSqlite(pathValue: string): SqliteDatabase {
   return new Database(pathValue, { readonly: true, fileMustExist: true });
 }
 
-function providerDbFiles(): string[] {
-  if (!existsSync(PROVIDER_DB_DIR)) return [];
-  return readdirSync(PROVIDER_DB_DIR, { withFileTypes: true })
+export function providerDbFiles(providerDbDir = PROVIDER_DB_DIR): string[] {
+  if (!existsSync(providerDbDir)) return [];
+  return readdirSync(providerDbDir, { withFileTypes: true })
     .filter((entry) => entry.isFile() && extname(entry.name) === ".db")
-    .map((entry) => join(PROVIDER_DB_DIR, entry.name))
+    .map((entry) => join(providerDbDir, entry.name))
     .sort();
 }
 
 /** Truncates plain text to at most `maxChars`, cutting at the last full paragraph. */
-function truncateAtParagraph(text: string, maxChars: number): string {
+export function truncateAtParagraph(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text.trim();
   const slice = text.slice(0, maxChars);
   const lastParagraphBreak = slice.lastIndexOf("\n\n");
@@ -95,7 +95,7 @@ function truncateAtParagraph(text: string, maxChars: number): string {
   return slice.trim();
 }
 
-function paragraphCount(text: string): number {
+export function paragraphCount(text: string): number {
   return text
     .split(/\n{2,}/)
     .map((p) => p.trim())
@@ -114,7 +114,7 @@ function paragraphCount(text: string): number {
  * and rejoins its `blocks` (one per rendered reader block, in DOM order)
  * with `\n\n` to reconstruct real paragraph breaks.
  */
-function readerParagraphText(html: string): string {
+export function readerParagraphText(html: string): string {
   return articleHtmlToReaderBlocks(html).blocks.join("\n\n");
 }
 
@@ -123,7 +123,7 @@ function readerParagraphText(html: string): string {
  * Uses a deterministic offset (hash of db name) so repeated runs are stable
         const plain = readerParagraphText(row.content);
  */
-function sampleFromDb(pathValue: string, perCategory: number, maxChars: number): SampledArticle[] {
+export function sampleFromDb(pathValue: string, perCategory: number, maxChars: number): SampledArticle[] {
   const providerDb = pathValue.split("/").pop()!.replace(/\.db$/, "");
   const db = openSqlite(pathValue);
   const out: SampledArticle[] = [];
@@ -208,7 +208,7 @@ export function buildLongestCorpus(n: number, dbFilter: string | null): Corpus {
   return { generatedAt: new Date().toISOString(), mode: "longest", perCategory: 0, maxChars: -1, articles };
 }
 
-function summarize(corpus: Corpus): void {
+export function summarize(corpus: Corpus): void {
   const byCategory = new Map<string, number>();
   const byDb = new Map<string, number>();
   const charCounts: number[] = [];
@@ -227,7 +227,7 @@ function summarize(corpus: Corpus): void {
   }
 }
 
-type Args = {
+export type SampleArgs = {
   perCategory: number;
   maxChars: number;
   longest: number | null;
@@ -236,8 +236,8 @@ type Args = {
   help: boolean;
 };
 
-function parseArgs(argv: string[]): Args {
-  const args: Args = {
+export function parseArgs(argv: string[]): SampleArgs {
+  const args: SampleArgs = {
     perCategory: parsePositiveInt(argv, "--per-category", 2),
     maxChars: parsePositiveInt(argv, "--max-chars", 1600),
     longest: argv.includes("--longest") ? parsePositiveInt(argv, "--longest", 3) : null,
@@ -257,7 +257,7 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     console.log(
@@ -276,6 +276,10 @@ async function main(): Promise<number> {
   return 0;
 }
 
-if (isMain(import.meta.url)) {
-  runScript(main, "sample failed");
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    runScript(main, "sample failed");
+  }
 }
+
+runAsCli();

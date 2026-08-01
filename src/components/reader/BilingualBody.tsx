@@ -28,6 +28,7 @@ import {
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { t } from "@/lib/i18n";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 
 const BILINGUAL_PREFS_KEY = STORAGE_KEYS.BILINGUAL_PREFS;
 const BILINGUAL_TRANSLATION_SELECTOR = ".bilingual-translation";
@@ -129,23 +130,15 @@ export default function BilingualBody({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/reader/${articleId}/translate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lang: targetLang }),
-          signal,
-        });
-        if (!res.ok) {
-          const d = (await res.json().catch(() => null)) as {
-            error?: string;
-          } | null;
-          throw new Error(d?.error ?? "Translation failed");
-        }
-        const data = (await res.json()) as TranslationData;
+        const data = await postJson<TranslationData>(
+          `/api/reader/${articleId}/translate`,
+          { lang: targetLang },
+          { signal, timeoutMs: TRANSLATION_TIMEOUT_MS },
+        );
         setTranslation(data);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(err instanceof Error ? err.message : "Translation failed");
+        setError(clientErrorMessage(err, "Translation failed"));
         setTranslation(null);
       } finally {
         setLoading(false);

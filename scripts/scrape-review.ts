@@ -239,8 +239,8 @@ function parseOrder(value: string | undefined): Order {
   return value === "oldest" || value === "random" ? value : "newest";
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+function errorMessage(_err: unknown): string {
+  return "scrape_review_failed";
 }
 
 function printHelp(): void {
@@ -561,9 +561,9 @@ async function startReviewServer(
         feedbackFile,
         mode,
       });
-    } catch (err) {
-      console.error(err);
-      sendJson(res, 500, { error: errorMessage(err) });
+    } catch {
+      console.error("Scrape review request failed.");
+      sendJson(res, 500, { error: "scrape_review_failed" });
     }
   });
 
@@ -916,7 +916,7 @@ export const __scrapeReviewTest = {
 
 if (isMain(import.meta.url)) {
   main().catch(async (err: unknown) => {
-    console.error(err);
+    console.error(errorMessage(err));
     await closeBrowser();
     process.exit(1);
   });

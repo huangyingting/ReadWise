@@ -1,6 +1,14 @@
 import { processArticle } from "@/lib/processing/processor";
 import { createLogger } from "@/lib/observability/logger";
-import { claimNextJob, completeJob, failJob, heartbeatJob, startJob, type JobType } from "@/lib/jobs";
+import {
+  claimNextJob,
+  completeJob,
+  failJob,
+  heartbeatJob,
+  startJob,
+  type JobType,
+} from "@/lib/jobs";
+import { DEFAULT_LOCK_TTL_MS, MIN_LOCK_TTL_MS } from "@/lib/jobs/types";
 import { createClaimedJobExecutor } from "./claimed-execution";
 import type { ClaimedJobExecutionDeps } from "./claimed-execution";
 import { sleep } from "./sleep";
@@ -35,6 +43,22 @@ export type { DiscoveryLoopOptions, DiscoveryLoopDeps, DiscoveryLoopStats } from
 export { runBackfillLoop } from "./backfill-loop";
 export type { BackfillLoopOptions, BackfillLoopDeps, BackfillLoopStats } from "./backfill-loop";
 
+/**
+ * Smallest shared job/discovery lease accepted by the worker runtime.
+ * Discovery performs a bounded 15-second network request before committing,
+ * while job heartbeats have a 1-second scheduling floor; shorter leases can be
+ * reclaimed before their owner has a realistic chance to renew or release.
+ */
+export const MIN_WORKER_LOCK_TTL_MS = MIN_LOCK_TTL_MS;
+
+function safeWorkerLockTtlMs(lockTtlMs: number | undefined): number | undefined {
+  if (lockTtlMs === undefined) return undefined;
+  if (!Number.isFinite(lockTtlMs) || lockTtlMs < MIN_WORKER_LOCK_TTL_MS) {
+    return DEFAULT_LOCK_TTL_MS;
+  }
+  return lockTtlMs;
+}
+
 /** Generates a stable-ish worker identity for lock ownership + tracing. */
 export function generateWorkerId(): string {
   const rand = Math.random().toString(36).slice(2, 8);
@@ -44,6 +68,25 @@ export function generateWorkerId(): string {
 /** Default logger: structured JSON lines (scope "worker") via {@link createLogger}. */
 export function createConsoleLogger(): WorkerLogger {
   return createLogger("worker");
+}
+
+function createRuntimeController(parentSignal?: AbortSignal): {
+  controller: AbortController;
+  detach: () => void;
+} {
+  const controller = new AbortController();
+  const abort = () => controller.abort(parentSignal?.reason);
+
+  if (parentSignal?.aborted) {
+    abort();
+  } else {
+    parentSignal?.addEventListener("abort", abort, { once: true });
+  }
+
+  return {
+    controller,
+    detach: () => parentSignal?.removeEventListener("abort", abort),
+  };
 }
 
 function buildHandlers(options: JobWorkerOptions, processFn: typeof processArticle): Partial<Record<JobType, JobHandler>> {
@@ -81,15 +124,18 @@ function buildClaimedJobExecutionDeps(options: JobWorkerOptions): ClaimedJobExec
 export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobWorkerStats> {
   const workerId = options.workerId ?? generateWorkerId();
   const logger = options.logger ?? createConsoleLogger();
+  const lockTtlMs = safeWorkerLockTtlMs(options.lockTtlMs);
   const processFn = options.deps?.processArticle ?? processArticle;
   const handlers = buildHandlers(options, processFn);
+  const runtime = createRuntimeController(options.signal);
+  const runtimeSignal = runtime.controller.signal;
   const executeClaimedJob = createClaimedJobExecutor(
     {
       workerId,
       handlers,
       logger,
-      lockTtlMs: options.lockTtlMs,
-      signal: options.signal,
+      lockTtlMs,
+      signal: runtimeSignal,
       process: options.process,
     },
     buildClaimedJobExecutionDeps(options),
@@ -113,8 +159,9 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
         workerId,
         {
           pollIntervalMs: options.pollIntervalMs,
+          lockTtlMs,
           once: options.once,
-          signal: options.signal,
+          signal: runtimeSignal,
         },
         logger,
         options.discovery,
@@ -132,37 +179,52 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
         {
           pollIntervalMs: options.pollIntervalMs,
           once: options.once,
-          signal: options.signal,
+          signal: runtimeSignal,
         },
         logger,
         options.backfill === true ? {} : options.backfill,
       )
     : null;
 
-  const stats = await runWorkerLoop(
+  const jobPass = runWorkerLoop(
     workerId,
     executeClaimedJob,
     {
       pollIntervalMs: options.pollIntervalMs,
-      lockTtlMs: options.lockTtlMs,
+      lockTtlMs,
       types: options.types,
       once: options.once,
-      signal: options.signal,
+      signal: runtimeSignal,
     },
     logger,
     buildWorkerLoopDeps(options),
   );
+  const passes: Promise<unknown>[] = [jobPass];
+  if (discoveryPass) passes.push(discoveryPass);
+  if (backfillPass) passes.push(backfillPass);
 
-  if (discoveryPass) {
-    const discoveryStats = await discoveryPass;
-    logger.info("discovery scheduling pass stopped", { ...discoveryStats });
+  try {
+    const [stats, discoveryStats, backfillStats] = await Promise.all([
+      jobPass,
+      discoveryPass ?? Promise.resolve(null),
+      backfillPass ?? Promise.resolve(null),
+    ] as const);
+
+    if (discoveryStats) {
+      logger.info("discovery scheduling pass stopped", { ...discoveryStats });
+    }
+
+    if (backfillStats) {
+      logger.info("backfill driver pass stopped", { ...backfillStats });
+    }
+
+    logger.info("job worker stopped", { ...stats });
+    return stats;
+  } catch (err) {
+    runtime.controller.abort();
+    await Promise.allSettled(passes);
+    throw err;
+  } finally {
+    runtime.detach();
   }
-
-  if (backfillPass) {
-    const backfillStats = await backfillPass;
-    logger.info("backfill driver pass stopped", { ...backfillStats });
-  }
-
-  logger.info("job worker stopped", { ...stats });
-  return stats;
 }

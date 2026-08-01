@@ -10,7 +10,7 @@
  * surface. Every value here is a sanitized id, status, count, timestamp, or reason
  * CATEGORY — never a URL, body, secret, or article content.
  */
-import { ApiResponseError } from "@/lib/client-fetch";
+import { ApiResponseError, clientErrorMessage } from "@/lib/client-fetch";
 import type {
   CandidateReviewAction,
   CandidateReviewIllegalReason,
@@ -270,7 +270,7 @@ export function classifyReviewMutationError(err: unknown): ReviewMutationError {
   if (err instanceof ApiResponseError) {
     return reviewMutationErrorFrom(err.status, err.cause, err.message);
   }
-  const message = err instanceof Error ? err.message : "Review action failed.";
+  const message = clientErrorMessage(err, "Review action failed.");
   return reviewMutationErrorFrom(null, null, message);
 }
 

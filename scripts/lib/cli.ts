@@ -55,16 +55,14 @@ export function isMain(importMetaUrl: string): boolean {
 /**
  * Runs a CLI main function that returns an exit code.
  * Disconnects Prisma and exits with the returned code on success,
- * or exits with code 1 after printing the error on failure.
+ * or exits with code 1 after printing a controlled reason on failure.
  */
 export function runCli(main: () => Promise<number>, deps: CliRuntimeDeps = {}): void {
   const disconnect = deps.disconnect ?? disconnectPrisma;
   const error = deps.error ?? console.error;
   const exit = deps.exit ?? process.exit;
 
-  main()
-    .then((code) => exitAfterDisconnect(code, disconnect, exit))
-    .catch((err: unknown) => exitAfterCliError(err, { disconnect, error, exit }));
+  void runCliLifecycle(main, { disconnect, error, exit });
 }
 
 async function disconnectPrisma(): Promise<void> {
@@ -75,7 +73,7 @@ async function disconnectPrisma(): Promise<void> {
 /**
  * Runs a CLI main function that does not use Prisma directly.
  * Exits with the returned code (or 0 if none is returned),
- * or exits with code 1 after printing the error on failure.
+ * or exits with code 1 after printing a fixed label on failure.
  *
  * @param label  Optional prefix for error messages, e.g. `"eval failed"`.
  */
@@ -95,22 +93,27 @@ export function runScript(
     });
 }
 
-async function exitAfterDisconnect(
-  code: number,
-  disconnect: NonNullable<CliRuntimeDeps["disconnect"]>,
-  exit: ExitFn,
-): Promise<never> {
-  await disconnect();
-  exit(code);
-}
-
-async function exitAfterCliError(
-  err: unknown,
+async function runCliLifecycle(
+  main: () => Promise<number>,
   deps: Required<CliRuntimeDeps>,
 ): Promise<never> {
-  deps.error(err);
-  await deps.disconnect();
-  deps.exit(1);
+  let exitCode: number;
+
+  try {
+    exitCode = await main();
+  } catch {
+    deps.error("cli_failed");
+    exitCode = 1;
+  }
+
+  try {
+    await deps.disconnect();
+  } catch {
+    deps.error("cli_cleanup_failed");
+    exitCode = 1;
+  }
+
+  return deps.exit(exitCode);
 }
 
 function scriptExitCode(code: number | void): number {
@@ -118,15 +121,11 @@ function scriptExitCode(code: number | void): number {
 }
 
 function reportScriptError(
-  err: unknown,
+  _err: unknown,
   label: string | undefined,
   error: NonNullable<ScriptRuntimeDeps["error"]>,
 ): void {
-  if (label) {
-    error(`${label}:`, err);
-  } else {
-    error(err);
-  }
+  error(label ?? "script_failed");
 }
 
 // ── Argument parsing helpers ───────────────────────────────────────────────
@@ -139,6 +138,14 @@ function reportScriptError(
  */
 export function parseFlag(argv: string[], ...flags: string[]): boolean {
   return argv.some((a) => flags.includes(a));
+}
+
+/**
+ * Resolves the shared destructive-CLI mode. Commands default to dry-run, and an
+ * explicit `--dry-run` always wins if both mode flags are supplied.
+ */
+export function shouldDryRun(argv: string[]): boolean {
+  return parseFlag(argv, "--dry-run") || !parseFlag(argv, "--execute");
 }
 
 /**
@@ -216,7 +223,7 @@ export function registerShutdownSignals(
       runtime.exit(130);
     }
     signalled = true;
-    logger.info(`received ${sig} — stopping after current article…`);
+    logger.info(`received ${sig} — requesting cooperative shutdown…`);
     controller.abort();
   };
   runtime.on("SIGINT", () => onSignal("SIGINT"));

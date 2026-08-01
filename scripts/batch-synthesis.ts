@@ -348,10 +348,6 @@ function validateArgs(args: Args, argv = process.argv.slice(2)): string | null {
   return null;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 async function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
   if (signal.aborted || ms <= 0) return;
   await new Promise<void>((resolve) => {
@@ -386,10 +382,10 @@ async function runLoop(args: Args, deps: RunLoopDeps): Promise<number> {
       logger.log(
         `Loop pass ${pass} complete: selected=${result.selected} submitted=${result.submitted} persisted=${result.persisted}`,
       );
-    } catch (error) {
+    } catch {
       consecutiveErrors++;
       logger.error(
-        `Loop pass ${pass} failed (${consecutiveErrors}/${args.maxErrors}): ${errorMessage(error)}`,
+        `Loop pass ${pass} failed (${consecutiveErrors}/${args.maxErrors}).`,
       );
       if (consecutiveErrors >= args.maxErrors) return 1;
     }

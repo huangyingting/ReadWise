@@ -23,6 +23,8 @@ export const TERMINAL_STATUSES: JobStatus[] = [JobStatus.COMPLETED, JobStatus.DE
 const MINUTE_MS = 60 * 1000;
 const DEFAULT_LOCK_TTL_MINUTES = 10;
 
+/** Minimum shared worker lease that safely covers bounded discovery work. */
+export const MIN_LOCK_TTL_MS = MINUTE_MS;
 /** Default lock lease (ms). A lock older than this is considered stale. */
 export const DEFAULT_LOCK_TTL_MS = DEFAULT_LOCK_TTL_MINUTES * MINUTE_MS;
 

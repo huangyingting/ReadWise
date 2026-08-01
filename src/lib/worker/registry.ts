@@ -48,15 +48,6 @@ function pushReminderPayload(job: Job): PushReminderJobPayload {
   };
 }
 
-function failedStepSummary(
-  steps: Array<{ step: string; status: string; detail?: string | null }>,
-): string {
-  return steps
-    .filter((step) => step.status === "failed")
-    .map((step) => `${step.step}: ${step.detail ?? "unknown"}`)
-    .join("; ");
-}
-
 /**
  * Registry mapping JobType → JobHandler. Supports testable registration and
  * override of individual handlers.
@@ -94,7 +85,10 @@ export function makeArticleHandler(processFn: typeof processArticle): JobHandler
     const payload = articlePayload(job);
     const articleId = payload.articleId;
     if (!articleId) {
-      throw new JobError("job payload missing articleId", { kind: "validation" });
+      throw new JobError("job payload missing articleId", {
+        kind: "validation",
+        reason: "invalid_article_job",
+      });
     }
 
     const result = await processFn(articleId, {
@@ -102,11 +96,16 @@ export function makeArticleHandler(processFn: typeof processArticle): JobHandler
       translateLangs: payload.translateLangs ?? ctx.process?.translateLangs,
     });
     if (result === null) {
-      throw new JobError(`article ${articleId} not found`, { kind: "missing" });
+      throw new JobError("article not found", {
+        kind: "missing",
+        reason: "article_not_found",
+      });
     }
     if (!result.ok) {
-      const failedSteps = failedStepSummary(result.steps);
-      throw new JobError(`processing failed (${failedSteps || "unknown"})`, { kind: "provider" });
+      throw new JobError("article processing failed", {
+        kind: "provider",
+        reason: "processing_failed",
+      });
     }
     ctx.logger.info("article job processed", {
       jobId: job.id,
@@ -122,10 +121,13 @@ export function makePushReminderHandler(
   return async (job: Job, ctx: { logger: WorkerLogger }) => {
     const payload = pushReminderPayload(job);
     if (!payload.userId) {
-      throw new JobError("job payload missing userId", { kind: "validation" });
+      throw new JobError("job payload missing userId", {
+        kind: "validation",
+        reason: "invalid_push_job",
+      });
     }
 
-    const result = await sendReminder(payload.userId);
+    const result = await sendReminder(payload.userId, { idempotencyKey: job.id });
     ctx.logger.info("push reminder job processed", {
       jobId: job.id,
       userId: payload.userId,
@@ -232,7 +234,11 @@ function defaultScheduleConfig(): IngestScheduleConfig {
  */
 function ingestClassificationToJobError(classification: IngestClassification): JobError {
   const permanent = classification.disposition !== "retry";
-  return new JobError(classification.reason, { kind: "provider", permanent });
+  return new JobError("candidate ingest failed", {
+    kind: "provider",
+    permanent,
+    reason: classification.reason,
+  });
 }
 
 /**
@@ -259,11 +265,17 @@ export function makeCandidateIngestHandler(
   return async (job: Job, ctx: { logger: WorkerLogger }) => {
     const parsed = parseCandidateIngestPayload(job.payload);
     if (!parsed) {
-      throw new JobError("article ingest payload missing candidateId", { kind: "validation" });
+      throw new JobError("article ingest payload missing candidateId", {
+        kind: "validation",
+        reason: "invalid_ingest_job",
+      });
     }
     const candidate = await loadCandidate(parsed.candidateId);
     if (!candidate) {
-      throw new JobError(`crawl candidate ${parsed.candidateId} not found`, { kind: "missing" });
+      throw new JobError("crawl candidate not found", {
+        kind: "missing",
+        reason: "candidate_not_found",
+      });
     }
     if (
       candidate.observedInBaseline ||

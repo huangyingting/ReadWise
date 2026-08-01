@@ -3,12 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Check } from "lucide-react";
 import { getJson, postJson } from "@/lib/client-fetch";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Textarea } from "@/components/ui/Textarea";
-import { Field } from "@/components/ui/Field";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { useMutation } from "@/hooks/useMutation";
 import { useFilteredFetch } from "@/hooks/useFilteredFetch";
 import AssignmentAudienceSelector from "./AssignmentAudienceSelector";
@@ -209,9 +204,16 @@ export default function AssignArticleForm({
           },
         );
         if (result.failed.length > 0) {
+          const failedArticleIds = new Set(
+            result.failed.map((failure) => failure.articleId),
+          );
+          setSelected((current) =>
+            current.filter((article) => failedArticleIds.has(article.id)),
+          );
           setStatus(
             `Assigned ${result.created.length}, ${result.failed.length} could not be assigned.`,
           );
+          return false;
         }
       }
       resetForm();
@@ -237,7 +239,7 @@ export default function AssignArticleForm({
       busyLabel="Assigning…"
       buttonSize="md"
     >
-      <Field label="Find article" error={error ?? searchError ?? undefined}>
+      <Field label="Find article" error={searchError ?? undefined}>
         <Input
           value={query}
           onChange={(e) => {
@@ -367,6 +369,14 @@ export default function AssignArticleForm({
           maxLength={INSTRUCTIONS_MAX_LENGTH}
         />
       </Field>
+      {error ? (
+        <p
+          role="alert"
+          className="m-0 text-[length:var(--text-sm)] text-danger-text"
+        >
+          {error}
+        </p>
+      ) : null}
       {status ? (
         <p aria-live="polite" className="m-0 text-[length:var(--text-sm)] text-text-muted">
           {status}

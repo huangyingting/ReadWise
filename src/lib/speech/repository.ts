@@ -9,7 +9,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
-import { redactSensitiveValue } from "@/lib/security/redaction";
 import { getMediaStorage, type PutMediaResult } from "@/lib/storage";
 import type { SpeechWord } from "./timing";
 import {
@@ -137,10 +136,10 @@ async function deleteUploadedSpeechBlob(
 ): Promise<void> {
   try {
     await storage.delete(storageKey);
-  } catch (err) {
+  } catch {
     log.error("speech.storage_cleanup_failed", {
       articleId,
-      error: redactSensitiveValue(err instanceof Error ? err.message : String(err)),
+      machineReason: "storage_cleanup_failed",
     });
   }
 }
@@ -178,7 +177,7 @@ export async function saveSpeechResult(params: {
   if (!storage) {
     log.error("speech.storage_unavailable", {
       articleId,
-      error: "No local or Azure media storage backend is available",
+      machineReason: "storage_unavailable",
     });
     return false;
   }
@@ -191,10 +190,10 @@ export async function saveSpeechResult(params: {
       keyHint: "speech",
       keyScope: articleId,
     });
-  } catch (err) {
+  } catch {
     log.error("speech.storage_write_failed", {
       articleId,
-      error: err instanceof Error ? err.message : String(err),
+      machineReason: "storage_write_failed",
     });
     return false;
   }
@@ -229,11 +228,11 @@ export async function saveSpeechResult(params: {
         },
       });
     });
-  } catch (err) {
+  } catch {
     await deleteUploadedSpeechBlob(storage, put.storageKey, articleId);
     log.error("speech.persistence_failed", {
       articleId,
-      error: redactSensitiveValue(err instanceof Error ? err.message : String(err)),
+      machineReason: "speech_persistence_failed",
     });
     return false;
   }

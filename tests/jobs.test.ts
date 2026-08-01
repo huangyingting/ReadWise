@@ -106,28 +106,33 @@ test("sequential claims hand out distinct jobs", async () => {
   assert.deepEqual([first!.id, second!.id].sort(), ["j1", "j2"]);
 });
 
-test("transient failure increments attempts and schedules a backoff retry", async () => {
+test("transient failure persists a controlled reason and schedules a backoff retry", async () => {
   const { failJob, JobStatus } = await import("@/lib/jobs");
   const before = secondsAgo(1);
   seed({ id: "j1", status: JobStatus.RUNNING, attempts: 0, maxAttempts: 5, runAfter: before, lockedBy: "w" });
   const now = new Date();
-  const updated = await failJob("j1", "w", new Error("provider timeout"), { now });
+  const updated = await failJob("j1", "w", new Error("private article sentence"), { now });
   assert.equal(updated!.status, JobStatus.FAILED);
   assert.equal(updated!.attempts, 1);
-  assert.equal(updated!.lastError, "provider timeout");
+  assert.equal(updated!.lastError, "provider_failure");
   assert.ok((updated!.runAfter as Date).getTime() > now.getTime(), "runAfter pushed into the future");
   assert.equal(updated!.lockedBy, null, "lock released");
   assert.equal((updated!.errorHistory as unknown[]).length, 1);
+  assert.doesNotMatch(JSON.stringify(updated!.errorHistory), /private article sentence/);
 });
 
 test("permanent failure dead-letters immediately regardless of attempts", async () => {
   const { failJob, JobError, JobStatus } = await import("@/lib/jobs");
   seed({ id: "j1", status: JobStatus.RUNNING, attempts: 0, maxAttempts: 5, lockedBy: "w" });
-  const updated = await failJob("j1", "w", new JobError("article gone", { kind: "missing" }));
+  const updated = await failJob(
+    "j1",
+    "w",
+    new JobError("private article title", { kind: "missing" }),
+  );
   assert.equal(updated!.status, JobStatus.DEAD_LETTER);
   assert.equal(updated!.attempts, 1);
   assert.ok(updated!.deadLetteredAt instanceof Date);
-  assert.equal(updated!.lastError, "article gone");
+  assert.equal(updated!.lastError, "resource_missing");
 });
 
 test("exhausting maxAttempts moves the job to DEAD_LETTER", async () => {
@@ -192,12 +197,12 @@ test("retryJob re-queues a dead-lettered job", async () => {
   assert.equal(requeued!.deadLetteredAt, null);
 });
 
-test("cancelJob dead-letters with a reason", async () => {
+test("cancelJob dead-letters with a controlled admin reason", async () => {
   const { cancelJob, JobStatus } = await import("@/lib/jobs");
   seed({ id: "j1", status: JobStatus.PENDING });
-  const cancelled = await cancelJob("j1", { reason: "no longer needed" });
+  const cancelled = await cancelJob("j1", { reason: "cancelled_by_admin" });
   assert.equal(cancelled!.status, JobStatus.DEAD_LETTER);
-  assert.equal(cancelled!.lastError, "no longer needed");
+  assert.equal(cancelled!.lastError, "cancelled_by_admin");
 });
 
 test("classifyJobError distinguishes permanent from transient", async () => {
@@ -208,6 +213,13 @@ test("classifyJobError distinguishes permanent from transient", async () => {
   assert.equal(
     classifyJobError(new JobError("force", { kind: "provider", permanent: true })).permanent,
     true,
+  );
+  assert.equal(classifyJobError(new Error("private prose")).reason, "provider_failure");
+  assert.equal(
+    classifyJobError(
+      new JobError("private provider response", { kind: "provider", reason: "http_5xx" }),
+    ).reason,
+    "http_5xx",
   );
 });
 

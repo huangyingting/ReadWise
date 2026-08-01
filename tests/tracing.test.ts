@@ -8,6 +8,8 @@ import {
   setSpanAttributes,
   sanitizeAttributes,
   activeTraceId,
+  recordSpanError,
+  markSpanError,
 } from "@/lib/observability/tracing";
 
 // These tests run with NO OpenTelemetry SDK registered, so the OTel API is a
@@ -42,6 +44,37 @@ test("withSpan re-throws when the callback throws (does not swallow errors)", as
     }),
     /boom/,
   );
+});
+
+test("recordSpanError never exports exception prose to tracing providers", () => {
+  const exceptions: unknown[] = [];
+  const statuses: unknown[] = [];
+  const span = {
+    recordException: (exception: unknown) => exceptions.push(exception),
+    setStatus: (status: unknown) => statuses.push(status),
+  };
+  const privateProse = "ordinary private article sentence from a provider";
+
+  recordSpanError(span as never, new Error(privateProse));
+
+  assert.deepEqual(exceptions, [{ name: "Error", message: "unexpected_error" }]);
+  assert.deepEqual(statuses, [{ code: 2, message: "unexpected_error" }]);
+  assert.doesNotMatch(JSON.stringify({ exceptions, statuses }), /ordinary private article sentence/);
+});
+
+test("markSpanError accepts only controlled machine reasons", () => {
+  const statuses: unknown[] = [];
+  const span = {
+    setStatus: (status: unknown) => statuses.push(status),
+  };
+
+  markSpanError(span as never, "db_query_failed");
+  markSpanError(span as never, "ordinary private article sentence");
+
+  assert.deepEqual(statuses, [
+    { code: 2, message: "db_query_failed" },
+    { code: 2, message: "unexpected_error" },
+  ]);
 });
 
 test("sanitizeAttributes keeps only allow-listed, content-free keys", () => {

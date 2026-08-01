@@ -153,7 +153,6 @@ async function enforceAiBudget(
   });
   await logLedger("fallback", {
     fallbackReason: "quota_exceeded",
-    errorMessage: `quota_exceeded:${decision.scope}`,
   });
   return false;
 }
@@ -286,7 +285,7 @@ export async function chatCompleteWithMeta(
       // TypeScript needs explicit narrowing here since the union is not narrowed
       // automatically after three discriminated checks.
       if (result.outcome !== "error") return null;
-      const { durationMs, errorKind, status, errorMessage, attemptsMade } = result;
+      const { durationMs, errorKind, status, attemptsMade } = result;
       const errorStatus = status ?? (errorKind === "timeout" ? "timeout" : "network");
       recordAiCall({ feature, outcome: "error", status: errorStatus, durationMs });
       log.warn("ai.error", {
@@ -300,7 +299,6 @@ export async function chatCompleteWithMeta(
       await logLedger("error", {
         latencyMs: durationMs,
         fallbackReason: aiFallbackReasonForErrorKind(errorKind),
-        errorMessage,
       });
       setSpanAttributes(span, {
         "readwise.outcome": "error",

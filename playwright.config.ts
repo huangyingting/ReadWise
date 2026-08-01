@@ -12,6 +12,12 @@ const defaultChromiumExecutable = path.join(
 );
 const chromiumExecutable =
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? defaultChromiumExecutable;
+const e2eNodeOptions = [
+  process.env.NODE_OPTIONS,
+  "--max-old-space-size=8192",
+]
+  .filter(Boolean)
+  .join(" ");
 
 const e2eEnv = {
   DATABASE_URL: databaseUrl,
@@ -24,8 +30,24 @@ const e2eEnv = {
   AZURE_OPENAI_API_VERSION: "",
   AZURE_SPEECH_KEY: "",
   AZURE_SPEECH_REGION: "",
+  VAPID_PUBLIC_KEY: "",
+  VAPID_PRIVATE_KEY: "",
+  VAPID_SUBJECT: "",
+  GOOGLE_CLIENT_ID: "",
+  GOOGLE_CLIENT_SECRET: "",
+  AZURE_AD_CLIENT_ID: "",
+  AZURE_AD_CLIENT_SECRET: "",
+  AZURE_AD_TENANT_ID: "",
+  MEDIA_STORAGE: "local",
+  AZURE_STORAGE_CONNECTION_STRING: "",
+  AZURE_STORAGE_ACCOUNT: "",
+  AZURE_STORAGE_KEY: "",
   READWISE_DISABLE_LISTING_CACHE: "1",
   NEXT_DIST_DIR: ".next-e2e",
+  // The 627-case suite keeps one webpack dev server alive for over an hour.
+  // Next restarts dev servers at 80% of V8's heap limit, which otherwise drops
+  // whichever Playwright navigation happens to be in flight late in the run.
+  NODE_OPTIONS: e2eNodeOptions,
 };
 
 for (const [key, value] of Object.entries(e2eEnv)) {

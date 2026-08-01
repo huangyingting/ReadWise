@@ -15,7 +15,7 @@
  * It reads only the status and the already-sanitized message — never a URL,
  * body, secret, or article content.
  */
-import { ApiResponseError } from "@/lib/client-fetch";
+import { ApiResponseError, clientErrorMessage } from "@/lib/client-fetch";
 
 /** The discriminated fetch-error state for an admin client island. */
 export type AdminFetchErrorState =
@@ -45,6 +45,5 @@ export function classifyAdminFetchError(err: unknown): AdminFetchErrorState {
   if (err instanceof ApiResponseError) {
     return adminFetchErrorState(err.status, err.message);
   }
-  const message = err instanceof Error ? err.message : GENERIC_MESSAGE;
-  return adminFetchErrorState(null, message);
+  return adminFetchErrorState(null, clientErrorMessage(err, GENERIC_MESSAGE));
 }

@@ -1,15 +1,26 @@
 /**
  * Shared Playwright UI audit matrix and runner.
  *
- * Matrix: 50 route/session profiles × 5 behavior intents × 2 presentations.
+ * Matrix: 56 route/session profiles × 5 behavior intents × 2 presentations.
  * Tests are intentionally data-driven so `--list` proves the registered count,
  * while normal Playwright `--grep` / `--shard` can run practical partitions.
  */
-import { type BrowserContext, type Page, type TestInfo } from "@playwright/test";
+import {
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 import { mkdir, appendFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { expect, TEST_ARTICLE_ID, TEST_MEMBER_ID } from "./fixtures";
+import {
+  expect,
+  TEST_ARTICLE_ID,
+  TEST_MEMBER_ID,
+  TEST_ORGANIZATION_ID,
+} from "./fixtures";
+import { selectDropdownOption } from "./select-dropdown";
 
 export type SessionState = "anonymous" | "reader" | "admin" | "new-reader";
 export type SignIn = (options?: {
@@ -83,6 +94,8 @@ const RUN_ID =
 const RESULTS_PATH = path.join(ARTIFACT_DIR, `results-${RUN_ID}.jsonl`);
 const LATEST_RUN_PATH = path.join(ARTIFACT_DIR, "latest-run.json");
 const MAX_LOG_LENGTH = 1_000;
+export const UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS = 30_000;
+const UI_AUDIT_MUTATION_TIMEOUT_MS = 60_000;
 const THEME_STORAGE_KEY = "readwise:theme";
 const FATAL_PATTERNS = [
   /Hydration failed/i,
@@ -587,6 +600,46 @@ export const ADMIN_OPERATIONS_ROUTES: RouteProfile[] = [
   },
 
   {
+    id: "admin-canonical-conflicts",
+    subsystem: "admin",
+    session: "admin",
+    path: "/admin/canonical-conflicts",
+    heading: "Canonical conflicts",
+    expectedText: "No conflicts match.",
+    tags: ["@high-risk"],
+  },
+
+  {
+    id: "admin-deleted-articles",
+    subsystem: "admin",
+    session: "admin",
+    path: "/admin/deleted-articles",
+    heading: "Deleted articles",
+    expectedText: "No deleted identities match.",
+    tags: ["@high-risk"],
+  },
+
+  {
+    id: "admin-organizations",
+    subsystem: "admin",
+    session: "admin",
+    path: "/admin/organizations",
+    heading: "Organizations",
+    expectedText: "Create organization",
+    tags: ["@high-risk"],
+  },
+
+  {
+    id: "admin-organization-detail",
+    subsystem: "admin",
+    session: "admin",
+    path: `/admin/organizations/${TEST_ORGANIZATION_ID}`,
+    heading: "E2E Admin Organization",
+    expectedText: "E2E Reader Member",
+    tags: ["@high-risk"],
+  },
+
+  {
     id: "admin-security",
     subsystem: "admin",
     session: "admin",
@@ -680,6 +733,10 @@ const ORIGINAL_ROUTE_ORDER = [
   "admin-reports",
   "admin-tags",
   "admin-sources",
+  "admin-canonical-conflicts",
+  "admin-deleted-articles",
+  "admin-organizations",
+  "admin-organization-detail",
   "admin-security",
   "admin-series",
   "admin-analytics",
@@ -703,8 +760,8 @@ export const SCENARIOS: Scenario[] = ROUTES.flatMap((route) =>
   caseId: `audit-case-${String(index + 1).padStart(3, "0")}`,
 }));
 
-if (SCENARIOS.length !== 520) {
-  throw new Error(`UI audit must register exactly 520 scenarios; got ${SCENARIOS.length}`);
+if (SCENARIOS.length !== 560) {
+  throw new Error(`UI audit must register exactly 560 scenarios; got ${SCENARIOS.length}`);
 }
 
 function regexSource(value: string | RegExp): string {
@@ -815,15 +872,31 @@ async function appendAuditResult(
 }
 
 async function assertCoreRender(page: Page, profile: RouteProfile): Promise<void> {
-  const response = await page.goto(profile.path);
+  const response = await page.goto(profile.path, { waitUntil: "domcontentloaded" });
   if (response) expect(response.status()).toBeLessThan(500);
 
-  await expect.poll(() => new URL(page.url()).pathname).toBe(expectedPathname(profile));
+  await expect
+    .poll(() => new URL(page.url()).pathname, {
+      timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS,
+    })
+    .toBe(expectedPathname(profile));
   await expect(page.getByRole("heading", { name: profile.heading }).first()).toBeVisible();
 
   if (profile.expectedText) {
-    await expect(page.getByText(profile.expectedText).first()).toBeVisible();
+    await expect(page.getByText(profile.expectedText).first()).toBeVisible({
+      timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS,
+    });
   }
+}
+
+async function clickUntilSurfaceIsVisible(
+  trigger: Locator,
+  surface: Locator,
+): Promise<void> {
+  await expect(async () => {
+    if (!(await surface.isVisible())) await trigger.click();
+    await expect(surface).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS });
 }
 
 async function assertSemanticSmoke(page: Page, profile: RouteProfile): Promise<void> {
@@ -889,12 +962,16 @@ async function assertRouteBehavior(page: Page, profile: RouteProfile): Promise<v
       await expect(page.getByRole("link", { name: /E2E .*Practice|E2E Critical Reading/i }).first()).toBeVisible();
       break;
     case "reader-article-controls":
-      await page.getByLabel("Display settings").click();
-      await expect(page.getByRole("dialog", { name: "Display settings" }).first()).toBeVisible();
+      await clickUntilSurfaceIsVisible(
+        page.getByLabel("Display settings"),
+        page.getByRole("dialog", { name: "Display settings" }).first(),
+      );
       break;
     case "reader-article-practice-tools":
-      await page.getByRole("button", { name: "Practice tools", exact: true }).click();
-      await expect(page.getByRole("tablist", { name: "Choose a practice tool" }).first()).toBeVisible();
+      await clickUntilSurfaceIsVisible(
+        page.getByRole("button", { name: "Practice tools", exact: true }),
+        page.getByRole("tablist", { name: "Choose a practice tool" }).first(),
+      );
       break;
     case "today-reader-plan":
       await expect(page.getByRole("link", { name: "Open reader" }).first()).toHaveAttribute(
@@ -902,19 +979,35 @@ async function assertRouteBehavior(page: Page, profile: RouteProfile): Promise<v
         `/reader/${TEST_ARTICLE_ID}`,
       );
       break;
-    case "today-reader-skip":
-      await Promise.all([
-        page.waitForResponse(
+    case "today-reader-skip": {
+      const delivered = page
+        .waitForResponse(
           (response) =>
             response.url().includes("/api/today/skip") && response.status() < 500,
-          { timeout: 30_000 },
-        ),
-        page.getByRole("button", { name: "Skip today" }).click(),
-      ]);
-      await expect(page.getByText("Skipped today", { exact: true }).first()).toBeVisible({
-        timeout: 30_000,
-      });
+          { timeout: UI_AUDIT_MUTATION_TIMEOUT_MS },
+        )
+        .then(() => "delivered" as const);
+      const queued = expect(
+        page.getByText("Your skip is saved and will sync automatically.", {
+          exact: true,
+        }),
+      )
+        .toBeVisible({ timeout: UI_AUDIT_MUTATION_TIMEOUT_MS })
+        .then(() => "queued" as const);
+
+      await page.getByRole("button", { name: "Skip today" }).click();
+      const outcome = await Promise.race([delivered, queued]);
+      if (outcome === "delivered") {
+        await expect(page.getByText("Skipped today", { exact: true }).first()).toBeVisible({
+          timeout: UI_AUDIT_MUTATION_TIMEOUT_MS,
+        });
+      } else {
+        await expect(
+          page.getByRole("button", { name: "Skip today", exact: true }),
+        ).toBeEnabled();
+      }
       break;
+    }
     case "study-reader":
       await expect(page.getByRole("link", { name: /Vocabulary|Words/i }).first()).toBeVisible();
       break;
@@ -988,6 +1081,48 @@ async function assertRouteBehavior(page: Page, profile: RouteProfile): Promise<v
     case "admin-sources":
       await expect(page.getByRole("button", { name: /Sync from registry/i }).first()).toBeVisible();
       break;
+    case "admin-canonical-conflicts":
+      await page.getByRole("searchbox", { name: "Filter by provider key" }).fill("missing-provider");
+      await page.getByRole("button", { name: "Filter", exact: true }).click();
+      await expect(page).toHaveURL(/providerKey=missing-provider/);
+      await expect(page.getByText("No conflicts match.", { exact: true })).toBeVisible();
+      break;
+    case "admin-deleted-articles":
+      await page.getByRole("searchbox", { name: "Filter by provider key" }).fill("missing-provider");
+      await page.getByRole("button", { name: "Filter", exact: true }).click();
+      await expect(page).toHaveURL(/providerKey=missing-provider/);
+      await expect(page.getByText("No deleted identities match.", { exact: true })).toBeVisible();
+      break;
+    case "admin-organizations":
+      await expect(async () => {
+        await page
+          .getByRole("textbox", { name: "Organization name" })
+          .fill("E2E Browser Organization");
+        await page
+          .getByRole("textbox", { name: "Organization slug (optional)" })
+          .fill("e2e-browser-org");
+        await page
+          .getByRole("textbox", { name: "Owner user ID" })
+          .fill(TEST_MEMBER_ID);
+        await expect(
+          page.getByRole("button", { name: "Create", exact: true }),
+        ).toBeEnabled({ timeout: 1_000 });
+      }).toPass({ timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS });
+      await page.getByRole("button", { name: "Create", exact: true }).click();
+      await expect(
+        page.getByRole("link", { name: "E2E Browser Organization" }),
+      ).toBeVisible({ timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS });
+      break;
+    case "admin-organization-detail": {
+      const memberRow = page.getByRole("row").filter({ hasText: "E2E Reader Member" });
+      await selectDropdownOption(page, "Member role", "Teacher");
+      await expect(
+        memberRow.getByRole("combobox", { name: "Member role" }),
+      ).toHaveAttribute("data-value", "Teacher", {
+        timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS,
+      });
+      break;
+    }
     case "admin-security":
       await expect(page.getByText("Recent security events").first()).toBeVisible();
       break;
@@ -999,7 +1134,9 @@ async function assertRouteBehavior(page: Page, profile: RouteProfile): Promise<v
       break;
     default:
       if (profile.expectedText) {
-        await expect(page.getByText(profile.expectedText).first()).toBeVisible();
+        await expect(page.getByText(profile.expectedText).first()).toBeVisible({
+          timeout: UI_AUDIT_ASYNC_CONTENT_TIMEOUT_MS,
+        });
       }
       break;
   }

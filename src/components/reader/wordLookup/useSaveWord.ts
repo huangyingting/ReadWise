@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
 import type { DictionaryResult } from "@/lib/lexical/provider";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 import { extractContextSentence } from "./selectionHelpers";
 
 const SAVE_ENDPOINT = "/api/vocabulary/save";
@@ -26,10 +27,6 @@ function applyDefinitionDetails(
   if (firstDefinition?.example) {
     body.example = firstDefinition.example;
   }
-}
-
-function getUpdateError(err: unknown) {
-  return err instanceof Error ? err.message : DEFAULT_SAVE_ERROR;
 }
 
 /**
@@ -94,20 +91,12 @@ export function useSaveWord(
         body.articleId = articleId;
       }
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(d?.error ?? "Could not update study list");
-      }
+      await postJson(endpoint, body);
     } catch (err) {
       // Revert on error
       setWordSaved(isSaved);
       savedCacheRef.current.set(cacheKey(word), isSaved);
-      setSaveError(getUpdateError(err));
+      setSaveError(clientErrorMessage(err, DEFAULT_SAVE_ERROR));
     } finally {
       setSavePending(false);
     }

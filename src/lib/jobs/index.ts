@@ -21,6 +21,7 @@ export {
   RECLAIMABLE_STATUSES,
   ACTIVE_STATUSES,
   TERMINAL_STATUSES,
+  MIN_LOCK_TTL_MS,
   DEFAULT_LOCK_TTL_MS,
 } from "./types";
 export type { Job, ArticleJobPayload, ArticleIngestPayload, CandidateIngestPayload, PushReminderPayload, JobPayload } from "./types";

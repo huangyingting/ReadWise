@@ -90,11 +90,11 @@ export async function recordEvent(
         ...(input.occurredAt ? { occurredAt: input.occurredAt } : {}),
       },
     });
-  } catch (err) {
+  } catch {
     // Best-effort: an analytics write must never break a user action.
     logger.warn("analytics.write_failed", {
       type: input.type,
-      error: err instanceof Error ? err.message : String(err),
+      machineReason: "analytics_write_failed",
     });
   }
 }

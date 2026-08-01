@@ -9,7 +9,7 @@ echo "Validating database schema configuration..."
 node ./scripts/validate-database-schema-config.mjs
 
 echo "Running database migrations..."
-./node_modules/.bin/prisma migrate deploy --schema "$SCHEMA_PATH"
+node ./node_modules/prisma/build/index.js migrate deploy --schema "$SCHEMA_PATH"
 
 echo "Starting server..."
 exec node server.js

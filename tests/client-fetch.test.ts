@@ -9,6 +9,7 @@ import {
   requestJson,
   ApiResponseError,
   DEFAULT_TIMEOUT_MS,
+  clientErrorMessage,
 } from "@/lib/client-fetch";
 
 type FetchCall = { url: string; init: RequestInit };
@@ -89,6 +90,25 @@ test("non-OK response without an error body falls back to a status message", asy
       return true;
     },
   );
+});
+
+test("clientErrorMessage preserves controlled API messages", () => {
+  assert.equal(
+    clientErrorMessage(new ApiResponseError(422, "Choose at least one article."), "Try again"),
+    "Choose at least one article.",
+  );
+});
+
+test("clientErrorMessage hides arbitrary exception prose behind the fixed fallback", () => {
+  const fallback = "The request could not be completed. Please try again.";
+
+  assert.equal(
+    clientErrorMessage(new Error("provider response included private selected text"), fallback),
+    fallback,
+  );
+  assert.equal(clientErrorMessage(new DOMException("secret browser detail"), fallback), fallback);
+  assert.equal(clientErrorMessage("private thrown value", fallback), fallback);
+  assert.equal(clientErrorMessage(new ApiResponseError(500, ""), fallback), fallback);
 });
 
 test("a caller-supplied aborted signal aborts the request", async () => {

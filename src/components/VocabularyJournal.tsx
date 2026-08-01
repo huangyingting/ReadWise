@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { WordTableRow } from "@/components/vocabulary/WordTableRow";
 import { JournalPagination } from "@/components/vocabulary/JournalPagination";
-import { getJson, postJson } from "@/lib/client-fetch";
+import { clientErrorMessage, getJson, postJson } from "@/lib/client-fetch";
 import { useFilteredFetch } from "@/hooks/useFilteredFetch";
 
 export type WordEntry = {
@@ -231,7 +231,7 @@ export default function VocabularyJournal({
       // Re-fetch current page (may shrink)
       fetchWords({});
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not remove words");
+      setError(clientErrorMessage(err, "Could not remove words"));
     } finally {
       setBulkPending(false);
     }

@@ -25,6 +25,7 @@ import { assertSafeE2eDatabaseUrl } from "./db-guard";
 
 export const TEST_ARTICLE_ID = "e2e-critical-reader";
 export const TEST_MEMBER_ID = "e2e-reader-member";
+export const TEST_ORGANIZATION_ID = "e2e-admin-org";
 const FIXED_ARTICLE_PUBLISHED_AT = new Date("2026-01-15T12:00:00.000Z");
 
 export const ARTICLE_BODY = `
@@ -109,9 +110,19 @@ export async function resetE2eDatabase(): Promise<void> {
   assertSafeE2eDatabaseUrl();
 
   await prisma.$transaction([
+    prisma.auditLog.deleteMany(),
+    prisma.job.deleteMany(),
+    prisma.aiInvocation.deleteMany(),
+    prisma.rateLimitCounter.deleteMany(),
+    prisma.contentSource.deleteMany(),
+    prisma.crawlRun.deleteMany(),
+    prisma.scraperBudgetWindow.deleteMany(),
+    prisma.hostnameGovernorState.deleteMany(),
+    prisma.backfillRun.deleteMany(),
     prisma.todayComprehensionFeedback.deleteMany(),
     prisma.todaySession.deleteMany(),
     prisma.assignmentCompletion.deleteMany(),
+    prisma.assignmentTarget.deleteMany(),
     prisma.assignment.deleteMany(),
     prisma.classroomMembership.deleteMany(),
     prisma.classroom.deleteMany(),
@@ -130,6 +141,7 @@ export async function resetE2eDatabase(): Promise<void> {
     prisma.articleMastery.deleteMany(),
     prisma.wordMastery.deleteMany(),
     prisma.learnerCoachMemory.deleteMany(),
+    prisma.studyPlanSnapshot.deleteMany(),
     prisma.articleDifficultyFeedback.deleteMany(),
     prisma.grammarExplanation.deleteMany(),
     prisma.pronunciationAttempt.deleteMany(),
@@ -149,6 +161,12 @@ export async function resetE2eDatabase(): Promise<void> {
     prisma.vocabularyItem.deleteMany(),
     prisma.articleSpeech.deleteMany(),
     prisma.articleTag.deleteMany(),
+    prisma.articleContentVersion.deleteMany(),
+    prisma.canonicalConflict.deleteMany(),
+    prisma.discoveryObservation.deleteMany(),
+    prisma.urlAlias.deleteMany(),
+    prisma.crawlCandidate.deleteMany(),
+    prisma.discoverySource.deleteMany(),
     prisma.tag.deleteMany(),
     prisma.article.deleteMany(),
     prisma.profile.deleteMany(),
@@ -246,6 +264,23 @@ export async function seedE2eMember(): Promise<void> {
       email: "e2e-reader-member@example.com",
       role: "Reader",
       ...onboardedProfileCreateData(),
+    },
+  });
+}
+
+/** Seeds the deterministic tenant used by the platform-admin organization audit. */
+export async function seedE2eOrganization(): Promise<void> {
+  await prisma.organization.create({
+    data: {
+      id: TEST_ORGANIZATION_ID,
+      name: "E2E Admin Organization",
+      slug: "e2e-admin-organization",
+      memberships: {
+        create: {
+          userId: TEST_MEMBER_ID,
+          role: "Member",
+        },
+      },
     },
   });
 }

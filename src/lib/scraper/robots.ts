@@ -180,11 +180,10 @@ async function loadRules(
   try {
     const text = await fetchText(robotsTxtUrl(origin));
     rules = parseRobots(text, userAgent);
-  } catch (err) {
+  } catch {
     // Fail open: no robots.txt (or fetch error) means crawling is allowed.
     log.debug("robots.fetch_failed", {
-      origin,
-      error: err instanceof Error ? err.message : String(err),
+      machineReason: "robots_fetch_failed",
     });
     rules = EMPTY_RULES;
   }

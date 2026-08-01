@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { validateRuntimeConfig } from "@/lib/runtime-config/runtime";
 
 const STORAGE_ENV_KEYS = [
+  "PRISMA_SCHEMA_PATH",
   "MEDIA_STORAGE",
   "MEDIA_STORAGE_DIR",
   "AZURE_STORAGE_CONNECTION_STRING",
@@ -21,6 +22,7 @@ let savedEnv: Partial<Record<(typeof STORAGE_ENV_KEYS)[number], string | undefin
 
 function setRequiredEnv() {
   process.env.DATABASE_URL = "file:./dev.db";
+  process.env.PRISMA_SCHEMA_PATH = "prisma/schema.prisma";
   process.env.NEXTAUTH_SECRET = "12345678901234567890123456789012";
   process.env.NEXTAUTH_URL = "http://localhost:3000";
 }

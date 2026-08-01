@@ -150,7 +150,6 @@ test("recordAiInvocation marks non-success outcomes as fallback", async () => {
     feature: "quiz",
     status: "error",
     fallbackReason: "server_error",
-    errorMessage: "HTTP 500",
   });
   await recordAiInvocation({
     feature: "quiz",
@@ -162,10 +161,21 @@ test("recordAiInvocation marks non-success outcomes as fallback", async () => {
     assert.equal(rec.fallback, true, `status ${String(rec.status)} should set fallback=true`);
     assertMetadataOnly(rec);
   }
-  assert.equal(created[1].errorMessage, "HTTP 500");
+  assert.equal(created[1].errorMessage, null);
   assert.equal(created[0].fallbackReason, "provider_unconfigured");
   assert.equal(created[1].fallbackReason, "server_error");
   assert.equal(created[2].fallbackReason, "empty_response");
+});
+
+test("recordAiInvocation never persists arbitrary provider error prose", async () => {
+  const { recordAiInvocation } = await import("@/lib/ai/ledger");
+  await recordAiInvocation({
+    feature: "quiz",
+    status: "error",
+    fallbackReason: "server_error",
+    errorMessage: "provider echoed a private article sentence",
+  } as Parameters<typeof recordAiInvocation>[0] & { errorMessage: string });
+  assert.equal(created[0].errorMessage, null);
 });
 
 test("recordAiInvocation drops unknown fallback reasons instead of persisting free text", async () => {

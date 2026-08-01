@@ -84,7 +84,7 @@ export async function runJobAction(
       if (isTerminal) {
         return conflict(`Cannot cancel a ${job.status} job`);
       }
-      const updated = await cancelJob(jobId, { reason: "cancelled by admin" });
+      const updated = await cancelJob(jobId, { reason: "cancelled_by_admin" });
       if (!updated) return conflict(`Cannot cancel a ${job.status} job (status changed)`);
       return actionOk(updated, previousStatus, action);
     }

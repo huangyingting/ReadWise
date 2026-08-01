@@ -3,7 +3,11 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ApiResponseError, requestJson } from "@/lib/client-fetch";
+import {
+  ApiResponseError,
+  clientErrorMessage,
+  requestJson,
+} from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
@@ -83,7 +87,7 @@ export default function AdminArticleIngest() {
       }
       setState({
         status: "error",
-        message: err instanceof Error ? err.message : "Ingest failed",
+        message: clientErrorMessage(err, "Ingest failed"),
       });
     }
   }

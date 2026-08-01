@@ -169,10 +169,10 @@ async function dryRunUrl(url: string): Promise<SaveOutcome> {
       return { status: "skipped", reason: "dry-run", sourceUrl: url };
     }
     return { status: "failed", reason: "extract failed", sourceUrl: url };
-  } catch (err) {
+  } catch {
     return {
       status: "failed",
-      reason: err instanceof Error ? err.message : String(err),
+      reason: "article_fetch_failed",
       sourceUrl: url,
     };
   }
@@ -211,8 +211,8 @@ async function runProvider(provider: Provider, limit: number, dryRun: boolean): 
   let discoverError: string | null = null;
   try {
     urls = await discoverProviderUrls(provider, limit);
-  } catch (err) {
-    discoverError = err instanceof Error ? err.message : String(err);
+  } catch {
+    discoverError = "crawl_discovery_failed";
   }
   const discoveredCount = urls.length;
   let alreadyHave = 0;
@@ -247,10 +247,8 @@ async function runProvider(provider: Provider, limit: number, dryRun: boolean): 
         durationMs: Date.now() - startedAt,
         error: discoverError,
       });
-    } catch (err) {
-      console.warn(
-        `  ! could not record crawl health: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    } catch {
+      console.warn("  ! could not record crawl health.");
     }
   }
 

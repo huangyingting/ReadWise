@@ -3,7 +3,7 @@ import {
   reconcileUnclaimedRescrapeRegen,
   RECONCILE_DEFAULT_LIMIT,
 } from "@/lib/scraper/incremental/rescrape-regen-reconcile";
-import { isMain, parseFlag, parsePositiveInt, runCli } from "./lib/cli";
+import { isMain, parseFlag, parsePositiveInt, runCli, shouldDryRun } from "./lib/cli";
 
 const HELP = `Usage: npm run maintenance:rescrape-regen -- [--dry-run|--execute] [--limit <n>]\n\nReconciles stamped-but-unclaimed force-rescrape derived regeneration (#1132):\nACTIVE content versions whose derivedRegenerationRequestedAt is set but that have\nno rescrape-regen:<versionId> claim step (a lost enqueue after activation). It\nre-invokes the existing idempotent requestDerivedRegeneration for each, so a\nconcurrent runner + this sweep converge on exactly one claim + one rebuild.\nDefaults to dry-run/count mode. Output is metadata-only JSON (ids never logged).\n\nOptions:\n  --dry-run          Count the backlog only (default)\n  --execute          Re-drive up to --limit unclaimed versions\n  --limit <n>        Max versions to re-drive per run (default ${RECONCILE_DEFAULT_LIMIT})\n  --help, -h         Show this help\n`;
 
@@ -30,7 +30,7 @@ type CliIo = {
 function parseOptions(argv: string[]): ReconcileOptions | "help" {
   if (parseFlag(argv, "--help", "-h")) return "help";
   return {
-    dryRun: !parseFlag(argv, "--execute"),
+    dryRun: shouldDryRun(argv),
     limit: parsePositiveInt(argv, "--limit", RECONCILE_DEFAULT_LIMIT),
   };
 }

@@ -31,8 +31,9 @@ let responseBody: unknown;
 let requestError: Error | null;
 let requestCalls: RequestCall[];
 let queuedSpecs: QueuedSpec[];
+let allowPayload = true;
 
-before(() => {
+before(async () => {
   Object.defineProperty(globalThis, "navigator", {
     configurable: true,
     value: {
@@ -63,6 +64,15 @@ before(() => {
       submitMutation: async () => ({ sent: false, queued: true }),
     },
   });
+
+  const registry = await import("@/lib/offline/registry");
+  mock.module("@/lib/offline/registry", {
+    namedExports: {
+      ...registry,
+      isAllowedTodayPayload: (payload: Record<string, unknown>) =>
+        allowPayload && registry.isAllowedTodayPayload(payload),
+    },
+  });
 });
 
 after(() => {
@@ -79,6 +89,7 @@ beforeEach(() => {
   requestError = null;
   requestCalls = [];
   queuedSpecs = [];
+  allowPayload = true;
 });
 
 test("Today action delivery selects HTTP or queue without leaking adapter choice", async () => {
@@ -177,4 +188,30 @@ test("Today action delivery queues transient failures once and preserves permane
   );
   assert.equal(requestCalls.length, 2);
   assert.equal(queuedSpecs.length, 1);
+});
+
+test("Today action delivery rejects invalid context and disallowed payloads before I/O", async () => {
+  const { submitTodayAction } = await import("@/lib/offline/today-client");
+  const context = {
+    userId: "user-3",
+    localDate: "2026-07-18",
+    timezone: "UTC",
+  };
+
+  await assert.rejects(
+    submitTodayAction({ ...context, localDate: "2026-02-30" }, { type: "today.read-complete" }),
+    /Invalid Today action local date/,
+  );
+  await assert.rejects(
+    submitTodayAction({ ...context, timezone: "Private/Secret" }, { type: "today.read-complete" }),
+    /Invalid Today action timezone/,
+  );
+
+  allowPayload = false;
+  await assert.rejects(
+    submitTodayAction(context, { type: "today.word-review-complete" }),
+    /Disallowed field in Today action payload/,
+  );
+  assert.deepEqual(requestCalls, []);
+  assert.deepEqual(queuedSpecs, []);
 });

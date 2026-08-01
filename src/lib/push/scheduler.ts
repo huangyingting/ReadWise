@@ -25,6 +25,7 @@ import { reminder as reminderCopy } from "@/lib/copy/push";
 import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { isPushConfigured } from "./provider";
 import { type SubRow, sendToSubs, type PushPayload } from "./delivery";
+import { reminderNotificationTag } from "./notification-idempotency";
 
 const log = createLogger("push");
 
@@ -115,6 +116,7 @@ export async function sendDueReminders(): Promise<ReminderResult> {
   // stays generic (only a due-word count) — no article, word, or note content.
   const reminderContent = getReminderContent(isTodaySessionFeatureEnabled());
 
+  const notificationTag = reminderNotificationTag("srs", now);
   for (const userId of subscribedUserIds) {
     const pref: ReminderPreference = prefMap.get(userId) ?? {
       ...DEFAULT_REMINDER_PREFERENCE,
@@ -133,7 +135,7 @@ export async function sendDueReminders(): Promise<ReminderResult> {
     }
 
     const count = dueCountMap.get(userId) ?? 0;
-    const payload = buildReminderPayload(reminderContent, count);
+    const payload = buildReminderPayload(reminderContent, count, notificationTag);
     const delivered = await sendToSubs(subsByUser.get(userId) ?? [], JSON.stringify(payload));
     if (delivered > 0) result.sent++;
   }
@@ -151,7 +153,10 @@ export async function sendDueReminders(): Promise<ReminderResult> {
  * Sends the due-card reminder for a single user. Used by durable PUSH_REMINDER
  * jobs, while {@link sendDueReminders} remains the batch scheduler entry point.
  */
-export async function sendPushReminderForUser(userId: string): Promise<PushReminderUserResult> {
+export async function sendPushReminderForUser(
+  userId: string,
+  options: { idempotencyKey?: string } = {},
+): Promise<PushReminderUserResult> {
   if (!isPushConfigured()) {
     log.info("sendPushReminderForUser: VAPID unconfigured — no-op", { userId });
     return skippedUserReminder(userId, "unconfigured");
@@ -214,6 +219,7 @@ export async function sendPushReminderForUser(userId: string): Promise<PushRemin
   const payload = buildReminderPayload(
     getReminderContent(isTodaySessionFeatureEnabled()),
     dueCount,
+    reminderNotificationTag("srs", now, options.idempotencyKey),
   );
   const sent = await sendToSubs(subs, JSON.stringify(payload));
   return { userId, dueCount, sent, skipped: false, suppressed: false };
@@ -257,10 +263,15 @@ function getReminderContent(todaySession: boolean): ReminderContent {
   };
 }
 
-function buildReminderPayload(content: ReminderContent, count: number): PushPayload {
+function buildReminderPayload(
+  content: ReminderContent,
+  count: number,
+  tag: string,
+): PushPayload {
   return {
     title: content.title,
     body: content.body(count),
+    tag,
     url: content.url,
     icon: reminderCopy.icon,
   };

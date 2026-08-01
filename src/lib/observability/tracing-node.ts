@@ -98,19 +98,19 @@ export async function startTracing(): Promise<void> {
     const shutdown = () => {
       void sdk
         .shutdown()
-        .catch((err: unknown) =>
+        .catch(() =>
           log.warn("tracing.shutdown_failed", {
-            error: errorMessage(err),
+            machineReason: "tracing_shutdown_failed",
           }),
         );
     };
     process.once("SIGTERM", shutdown);
     process.once("SIGINT", shutdown);
-  } catch (err) {
+  } catch {
     // Never let a tracing init failure break the app.
     started = false;
     log.warn("tracing.init_failed", {
-      error: errorMessage(err),
+      machineReason: "tracing_init_failed",
     });
   }
 }

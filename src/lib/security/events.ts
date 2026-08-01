@@ -195,6 +195,7 @@ function escalateSecurityEvent(
     captureError(escalation, {
       source: "server",
       severity: toErrorSeverity(record.severity, spike),
+      machineReason: "security_event",
       route: record.route,
       requestId: record.requestId,
       userId: record.actorId,

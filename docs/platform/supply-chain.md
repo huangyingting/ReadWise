@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-07-31"
 description: "Documents dependency hygiene, vulnerability response, CI gates, and package-management boundaries. Captures current dependency review, lockfile expectations, advisory response, and upgrade verification workflow."
 ---
 
@@ -32,7 +32,7 @@ flowchart TD
 | Gate | Where | Severity | Blocking? |
 | --- | --- | --- | --- |
 | **Lockfile integrity** (`npm ci`) | `supply-chain` CI job | n/a | **Yes** — hard fail |
-| **npm audit** | `supply-chain` CI job | HIGH + CRITICAL | **Yes** — hard fail |
+| **Dependency audit** (`npm run audit:dependencies`) | `supply-chain` CI job | HIGH + CRITICAL | **Yes** — hard fail, with exact documented exceptions only |
 | **Dependency review** | `dependency-review` CI job (PRs only) | HIGH + CRITICAL | **Yes** — blocks PR merge |
 | **Dependabot security updates** | Automated PRs | all | PR opened automatically |
 
@@ -72,26 +72,36 @@ git commit -m "chore: sync package-lock.json"
 
 ### Current advisory state
 
-The OpenTelemetry 0.220/2.9 upgrade resolves the pre-existing HIGH advisory
-[GHSA-q7rr-3cgh-j5r3](https://github.com/advisories/GHSA-q7rr-3cgh-j5r3).
-As of 2026-07-10, `npm audit --audit-level=high` reports no HIGH or CRITICAL
-advisories (8 moderate advisories remain). The `supply-chain` job therefore
-enforces `npm audit` as a blocking gate.
+The production dependency graph currently has no HIGH or CRITICAL advisories.
+The `supply-chain` job runs `npm run audit:dependencies`, which evaluates both
+the production and full `npm audit` JSON reports. Production findings always
+fail. Full-graph findings also fail unless every blocking path resolves to an
+exact exception below and the lockfile proves its additional constraints.
+
+The only active exception is for the dev-only `brace-expansion@1.1.18`
+backport. That release contains the upstream CVE-2026-14257 expansion-length
+bound, but npm's advisory range still categorizes the 1.x line as affected. The
+audit wrapper accepts that advisory only when every reported
+`brace-expansion` node is both dev-only and exactly version 1.1.18. It rejects
+any production occurrence, older version, different advisory, broken advisory
+chain, malformed report, or failed audit command.
 
 ### Triaging a new advisory
 
-1. Run `npm audit --json | npx better-npm-audit` (or read the raw JSON) to
+1. Run `npm audit --json` and `npm audit --omit=dev --json` to
    identify the vulnerable package and its dependency path.
 2. Check whether a non-breaking fix is available: `npm audit fix --dry-run`.
 3. If fixable, apply it: `npm audit fix` (without `--force`) and commit the
-   updated `package-lock.json`.
+   updated `package-lock.json`. Run `npm run audit:dependencies` to verify both
+   graphs.
 4. If **not fixable** (breaking change, no upstream fix, or false positive):
    - Open a GitHub issue labelled `security` describing the advisory, the
      dependency path, and why immediate upgrade is not feasible.
    - Document the exception in this file under [Exception log](#exception-log).
-   - The blocking `npm audit` gate covers the full installed graph; new ones
-     discovered by `dependency-review` also block PRs that add or upgrade the
-     affected package.
+   - Add a narrow, test-covered rule to `scripts/audit-dependencies.ts` only
+     when automated enforcement can prove the exception's package, version,
+     dependency scope, and advisory identity. New findings discovered by
+     `dependency-review` also block PRs that add or upgrade the affected package.
 
 ---
 
@@ -202,5 +212,4 @@ affected package, the reason for deferral, and a target remediation date.
 
 | Advisory | Package | Severity | Reason for deferral | Target |
 | --- | --- | --- | --- | --- |
-| _None_ | — | — | No active HIGH/CRITICAL exceptions as of 2026-07-10. | — |
-
+| [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) | `brace-expansion@1.1.18` | High | Dev-only transitive dependency; 1.1.18 contains the CVE-2026-14257 length-bound backport while npm's range still marks all 1.x releases. The CI wrapper proves exact version and dev-only scope. | Remove as soon as npm corrects the advisory range or ESLint's plugins move to a non-affected major; review by 2026-08-14. |

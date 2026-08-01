@@ -187,7 +187,7 @@ test("failJob moves an exhausted job to the dead-letter queue", { skip: !enabled
   const failed = await failJob(claimed.id, "worker-dlq", new JobError("provider exploded", { kind: "provider" }));
   assertPresent(failed, "failJob should return the updated job");
   assert.equal(failed.status, JobStatus.DEAD_LETTER, "exhausted attempts must dead-letter");
-  assert.equal(failed.lastError, "provider exploded");
+  assert.equal(failed.lastError, "provider_failure");
   assert.ok(failed.deadLetteredAt, "deadLetteredAt should be set");
 
   const dlq = await listDeadLetterJobs();

@@ -54,6 +54,10 @@ test("LISTING_KEYS.published preserves the exact cache key", () => {
   assert.deepEqual(lc.LISTING_KEYS.published, ["articles:published"]);
 });
 
+test("LISTING_KEYS.publishedSitemap has a distinct content-free cache key", () => {
+  assert.deepEqual(lc.LISTING_KEYS.publishedSitemap, ["articles:published-sitemap"]);
+});
+
 test("LISTING_KEYS.categoryPage preserves the exact cache key", () => {
   assert.deepEqual(lc.LISTING_KEYS.categoryPage, ["articles:category-page"]);
 });

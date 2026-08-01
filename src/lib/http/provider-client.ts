@@ -203,7 +203,7 @@ export async function providerFetch(
         host,
         attempt,
         durationMs,
-        error: String(err),
+        machineReason: "provider_fetch_failed",
       });
       throw err;
     }

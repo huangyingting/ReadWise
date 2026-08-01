@@ -69,6 +69,62 @@ describe("Floating layout", () => {
     assert.equal(removed, true);
   });
 
+  test("resolves px and rem tokens and fails closed to the supplied fallback", () => {
+    const root = {} as HTMLElement;
+    let scope: HTMLElement;
+    const values = new Map<string, string>([
+      ["--pixel", " 12.5px "],
+      ["--root", "1.5rem"],
+      ["--missing", ""],
+      ["--invalid-root", "2rem"],
+    ]);
+    const view = {
+      getComputedStyle(element: Element) {
+        if (element === root) return { fontSize: "16px" };
+        if (element === scope) {
+          return {
+            getPropertyValue: (property: string) => values.get(property) ?? "",
+          };
+        }
+        return { height: "not-a-length" };
+      },
+    } as unknown as Window;
+    const probe = {
+      style: {},
+      remove: () => {},
+    } as unknown as HTMLElement;
+    const ownerDocument = {
+      defaultView: view,
+      documentElement: root,
+      createElement: () => probe,
+    } as unknown as Document;
+    scope = {
+      ownerDocument,
+      appendChild: (element: Node) => element,
+    } as unknown as HTMLElement;
+
+    assert.equal(resolveCssLengthPx(scope, "--pixel", 3), 12.5);
+    assert.equal(resolveCssLengthPx(scope, "--root", 3), 24);
+    assert.equal(resolveCssLengthPx(scope, "--missing", 3), 3);
+
+    const noView = {
+      ownerDocument: { defaultView: null },
+    } as unknown as HTMLElement;
+    assert.equal(resolveCssLengthPx(noView, "--pixel", 7), 7);
+
+    (view.getComputedStyle as (element: Element) => unknown) = (element: Element) => {
+      if (element === root) return { fontSize: "invalid" };
+      if (element === scope) {
+        return { getPropertyValue: () => values.get("--invalid-root") };
+      }
+      return { height: "not-a-length" };
+    };
+    assert.equal(resolveCssLengthPx(scope, "--invalid-root", 9), 9);
+
+    values.set("--computed", "calc(1px + 2%)");
+    assert.equal(resolveCssLengthPx(scope, "--computed", 11), 11);
+  });
+
   test("clamps a right-side tooltip without changing its preferred side", () => {
     const layout = computeFloatingLayout({
       anchorRect: { top: 40, right: 95, bottom: 60, left: 85 },

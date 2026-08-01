@@ -131,6 +131,8 @@ export type FetchCoreInit = {
   method?: string;
   headers?: Record<string, string>;
   body?: string;
+  /** Optional caller cancellation, composed with the built-in request timeout. */
+  signal?: AbortSignal;
 };
 
 type FetchResponse = Awaited<ReturnType<typeof undiciFetch>>;
@@ -224,6 +226,12 @@ async function performSafeFetch<T>(
   const host = spanHostFor(url);
   return withSpan("scraper.fetch", { "readwise.provider": "scraper", "readwise.host": host }, async () => {
     const controller = new AbortController();
+    const abortFromCaller = () => controller.abort(init.signal?.reason);
+    if (init.signal?.aborted) {
+      abortFromCaller();
+    } else {
+      init.signal?.addEventListener("abort", abortFromCaller, { once: true });
+    }
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       let currentUrl = url;
@@ -279,6 +287,7 @@ async function performSafeFetch<T>(
       }
     } finally {
       clearTimeout(timer);
+      init.signal?.removeEventListener("abort", abortFromCaller);
     }
   });
 }
@@ -458,6 +467,7 @@ function discoveryInitToCoreInit(init: DiscoveryFetchInit): FetchCoreInit {
   return {
     ...(init.method !== undefined ? { method: init.method } : {}),
     ...(init.body !== undefined ? { body: init.body } : {}),
+    ...(init.signal !== undefined ? { signal: init.signal } : {}),
     headers,
   };
 }

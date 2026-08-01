@@ -191,6 +191,16 @@ test("getClassroomProgressData maps student with null name and email", async () 
   assert.deepEqual(result.students[0], { userId: "s3", name: null, email: null });
 });
 
+test("getClassroomProgressData preserves a student whose user relation is unavailable", async () => {
+  memberRowStub = [{ userId: "orphan", user: null }];
+  const { getClassroomProgressData } = await classroomProgress();
+  const result = await getClassroomProgressData("c1");
+  assert.ok(result);
+  assert.deepEqual(result.students, [
+    { userId: "orphan", name: null, email: null },
+  ]);
+});
+
 // ---- assignment mapping ----------------------------------------------------
 
 test("getClassroomProgressData maps assignment rows to ClassroomProgressAssignment shape", async () => {

@@ -7,7 +7,7 @@
  * ineligible + blockers, stale). No React/DOM/network. Every value is a sanitized
  * count, rate, enum, or reason CATEGORY — never a credential, URL, or content.
  */
-import { ApiResponseError } from "@/lib/client-fetch";
+import { ApiResponseError, clientErrorMessage } from "@/lib/client-fetch";
 import type { BadgeVariant } from "@/lib/scraper/incremental/candidate-review-ui";
 
 // ---------------------------------------------------------------------------
@@ -206,6 +206,6 @@ export function classifyTrustMutationError(err: unknown): TrustMutationError {
   if (err instanceof ApiResponseError) {
     return trustMutationErrorFrom(err.status, err.cause, err.message);
   }
-  const message = err instanceof Error ? err.message : "Trust action failed.";
+  const message = clientErrorMessage(err, "Trust action failed.");
   return trustMutationErrorFrom(null, null, message);
 }

@@ -85,6 +85,23 @@ docker run \
   readwise:postgres
 ```
 
+The web image is the default Docker target. Build the matching worker target
+with the same schema argument, then start it after the web tier reports ready:
+
+```bash
+docker build --target worker \
+  --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
+  -t readwise-worker:postgres .
+docker run --rm \
+  -e PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
+  -e DATABASE_URL="postgresql://<user>:<password>@<host>:5432/<database>?schema=public" \
+  readwise-worker:postgres
+```
+
+The worker target validates the database/schema pairing but deliberately does
+not deploy migrations; the web release entrypoint owns migration deployment so
+multiple worker replicas cannot race release ordering.
+
 For a local SQLite container, explicitly override both values:
 
 ```bash
@@ -278,4 +295,3 @@ The following files must not be committed as source-of-truth:
 All patterns above are already covered by `.gitignore`. If a new tool produces
 database-derived artefacts (e.g. schema dumps, ER diagrams, introspection
 output), add them to `.gitignore` before committing.
-

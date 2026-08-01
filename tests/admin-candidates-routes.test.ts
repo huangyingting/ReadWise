@@ -363,3 +363,45 @@ test("POST batch returns a partial-batch result with per-item outcomes and a sum
   assert.equal(auditCalls.length, 1);
   assert.equal(auditCalls[0]?.targetId, "ok-1");
 });
+
+test("POST batch returns stale and not-found item shapes without auditing", async () => {
+  outcomeById["stale-1"] = {
+    ok: false,
+    reason: "stale",
+    action: "approve",
+    candidateId: "stale-1",
+    status: "NEEDS_REVIEW",
+  };
+  outcomeById["missing-1"] = {
+    ok: false,
+    reason: "not-found",
+    action: "approve",
+    candidateId: "missing-1",
+  };
+  const POST = await importBatch();
+  const res = await POST(
+    jsonPost("http://test/api/admin/candidates/review", {
+      action: "approve",
+      ids: ["stale-1", "missing-1"],
+    }),
+    undefined,
+  );
+
+  assert.equal(res.status, 200);
+  const data = await readJson<{
+    results: Array<Record<string, unknown>>;
+    summary: { total: number; applied: number; noop: number; failed: number };
+  }>(res);
+  assert.deepEqual(data.results, [
+    {
+      candidateId: "stale-1",
+      ok: false,
+      reason: "stale",
+      stale: true,
+      status: "NEEDS_REVIEW",
+    },
+    { candidateId: "missing-1", ok: false, reason: "not-found" },
+  ]);
+  assert.deepEqual(data.summary, { total: 2, applied: 0, noop: 0, failed: 2 });
+  assert.deepEqual(auditCalls, []);
+});

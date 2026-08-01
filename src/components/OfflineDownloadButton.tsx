@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Download, Check, Trash2, WifiOff } from "lucide-react";
 import { Button, PanelError, Tooltip } from "@/components/ui";
+import { clientErrorMessage, getJson } from "@/lib/client-fetch";
 import {
   saveOfflineArticle,
   removeOfflineArticle,
@@ -30,14 +31,6 @@ type ErrorMode = "availability" | "download";
 
 function offlineArticleUrl(articleId: string, meta = false): string {
   return `/api/reader/${articleId}/offline${meta ? "?meta=1" : ""}`;
-}
-
-async function readDownloadError(res: Response): Promise<string> {
-  const data = (await res.json().catch(() => null)) as {
-    error?: string;
-  } | null;
-
-  return data?.error ?? "Download failed";
 }
 
 export default function OfflineDownloadButton({
@@ -123,15 +116,13 @@ export default function OfflineDownloadButton({
         return;
       }
 
-      const res = await fetch(offlineArticleUrl(articleId));
-      if (!res.ok) {
-        throw new Error(await readDownloadError(res));
-      }
-      const data = (await res.json()) as Omit<OfflineArticle, "savedAt">;
+      const data = await getJson<Omit<OfflineArticle, "savedAt">>(
+        offlineArticleUrl(articleId),
+      );
       await saveOfflineArticle(data);
       setState("saved");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Download failed");
+      setError(clientErrorMessage(err, "Download failed"));
       setErrorMode("download");
       setState("error");
     }

@@ -24,6 +24,11 @@ import {
   type Span,
 } from "@opentelemetry/api";
 import { getRequestId } from "./logger";
+import {
+  controlledErrorName,
+  controlledMachineReason,
+  UNEXPECTED_ERROR_REASON,
+} from "./error-policy";
 
 /** Service/instrumentation scope name used for every span we create. */
 export const TRACER_NAME = "readwise";
@@ -138,16 +143,19 @@ export function setSpanAttributes(span: Span, attrs: Attributes): void {
   span.setAttributes(sanitizeAttributes(attrs));
 }
 
-/** Record an exception + ERROR status on a span (message only, no content). */
+/** Record an exception + ERROR status without exporting exception prose/stack. */
 export function recordSpanError(span: Span, err: unknown): void {
-  const message = err instanceof Error ? err.message : String(err);
-  if (err instanceof Error) span.recordException(err);
-  span.setStatus({ code: SpanStatusCode.ERROR, message });
+  const name = controlledErrorName(err instanceof Error ? err.name : undefined);
+  span.recordException({ name, message: UNEXPECTED_ERROR_REASON });
+  span.setStatus({ code: SpanStatusCode.ERROR, message: UNEXPECTED_ERROR_REASON });
 }
 
-/** Mark a span as failed without recording exception text that may contain private content. */
-export function markSpanError(span: Span, message = "operation failed"): void {
-  span.setStatus({ code: SpanStatusCode.ERROR, message });
+/** Mark a span as failed using only a validated, content-free machine reason. */
+export function markSpanError(span: Span, machineReason?: string): void {
+  span.setStatus({
+    code: SpanStatusCode.ERROR,
+    message: controlledMachineReason(machineReason),
+  });
 }
 
 /** The active trace id (32-hex) for log/trace correlation, or undefined. */

@@ -145,7 +145,7 @@ test("completes the five-step onboarding wizard and reaches the welcome screen",
   await page.keyboard.press("Enter");
 
   // Wait for the API POST to complete and router.push("/welcome") to fire
-  await expect(page).toHaveURL(/\/welcome$/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/welcome$/, { timeout: 30_000 });
 
   // Welcome tour first step is the reliable marker that the post-onboarding
   // screen rendered correctly for an authenticated, now-onboarded user

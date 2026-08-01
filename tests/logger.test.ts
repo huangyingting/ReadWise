@@ -179,7 +179,7 @@ test("createLogger redacts URL credentials and query tokens in metadata", async 
   assert.equal(rawLine.includes("abcdefghijklmnopqrstuvwxyz123456"), false);
 });
 
-test("createLogger scrubs token-like values from Error objects and strings", async () => {
+test("createLogger redacts unstructured Error objects and detail strings", async () => {
   process.env.LOG_LEVEL = "info";
   const { createLogger } = await import("@/lib/observability/logger");
   const token = "abcdefghijklmnopqrstuvwxyz123456";
@@ -193,8 +193,8 @@ test("createLogger scrubs token-like values from Error objects and strings", asy
   const rawLine = lines.at(-1) ?? "";
   const parsed = parseLastLogLine(lines);
   assert.equal(rawLine.includes(token), false);
-  assert.equal(parsed.error, "provider rejected bearer [token]");
-  assert.equal(parsed.detail, "retry used [token]");
+  assert.equal(parsed.error, "[redacted]");
+  assert.equal(parsed.detail, "[redacted]");
 });
 
 test("createLogger leaves safe metadata unchanged while scrubbing recursively", async () => {
@@ -214,6 +214,23 @@ test("createLogger leaves safe metadata unchanged while scrubbing recursively", 
   assert.equal(parsed.ok, true);
   assert.equal(parsed.status, "queued");
   assert.deepEqual(parsed.nested, { reason: "scheduled", priority: 2 });
+});
+
+test("createLogger preserves controlled machine reasons and rejects arbitrary prose", async () => {
+  process.env.LOG_LEVEL = "info";
+  const { createLogger } = await import("@/lib/observability/logger");
+  const lines = await captureConsole(() => {
+    const log = createLogger("privacy");
+    log.warn("controlled failure", {
+      machineReason: "dictionary_provider_fetch_failed",
+    });
+    log.warn("uncontrolled failure", {
+      machineReason: "Provider failed while reading private article text",
+    });
+  });
+
+  assert.equal(parseLogLine(lines[0]).machineReason, "dictionary_provider_fetch_failed");
+  assert.equal(parseLogLine(lines[1]).machineReason, "unexpected_error");
 });
 
 // ---- LOG_LEVEL filtering -------------------------------------------------

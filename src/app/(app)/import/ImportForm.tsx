@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ApiResponseError, postJson } from "@/lib/client-fetch";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 import { Card, CardBody } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -33,10 +33,7 @@ function createImportBody(mode: Mode, url: string, title: string, text: string) 
 }
 
 function getImportErrorMessage(err: unknown): string {
-  if (err instanceof ApiResponseError) {
-    return err.message || "Import failed. Please try again.";
-  }
-  return "Network error. Please try again.";
+  return clientErrorMessage(err, "Network error. Please try again.");
 }
 
 export default function ImportForm() {

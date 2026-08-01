@@ -122,6 +122,23 @@ test("isSensitiveMetadataKey: safe keys are not redacted", () => {
     "status",
     "targetId",
     "targetType",
+    "errorCode",
+    "errorKind",
+    "errorName",
+    "errorType",
+  ]);
+});
+
+test("isSensitiveMetadataKey: unstructured error fields are redacted", () => {
+  assertSensitiveMetadataKeys([
+    "error",
+    "lastError",
+    "errorMessage",
+    "errorDescription",
+    "stack",
+    "stackTrace",
+    "detail",
+    "failureDetail",
   ]);
 });
 
@@ -246,7 +263,7 @@ test("errors: scrubContext now redacts email, url, key, pass, pwd keys", async (
   assert.equal(out?.action, "translate");
 });
 
-test("errors: scrubContext redacts raw URLs even under non-sensitive error keys", async () => {
+test("errors: scrubContext redacts unstructured error fields entirely", async () => {
   const { scrubContext } = await import("@/lib/observability/errors");
 
   const out = scrubContext({
@@ -254,7 +271,7 @@ test("errors: scrubContext redacts raw URLs even under non-sensitive error keys"
     reason: "invalid_url",
   });
 
-  assert.equal(out?.error, "Invalid URL: https://example.com/import?[redacted]");
+  assert.equal(out?.error, "[redacted]");
   assert.equal(out?.reason, "invalid_url");
   assert.doesNotMatch(JSON.stringify(out), /user:pass|shortSecret/);
 });

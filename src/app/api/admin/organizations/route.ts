@@ -3,7 +3,7 @@ import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
 import { CAPABILITIES } from "@/lib/rbac";
 import { object, string, optional, queryInt, queryString } from "@/lib/validation";
 import { prisma } from "@/lib/prisma";
-import { addMember, createOrganization } from "@/lib/org";
+import { createOrganization } from "@/lib/org";
 import { listOrganizations } from "@/lib/admin/organizations";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
@@ -12,8 +12,8 @@ import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
  *
  * Gated on `organizations.manage` (global `Admin` only). The list is the
  * platform-wide oversight surface; create seeds the target user as the org's
- * first OrgAdmin by REUSING the existing tenant commands (`createOrganization`
- * + `addMember`) — it does not re-implement tenant logic.
+ * first OrgAdmin by reusing the transactional `createOrganization` tenant
+ * command — it does not re-implement tenant logic.
  */
 
 function organizationsQuery(params: URLSearchParams) {
@@ -59,11 +59,10 @@ export const POST = createCapabilityHandler(
     if (!owner) {
       throw new ApiError(404, "Owner user not found");
     }
-    const { organization } = await createOrganization(
+    const { organization, membership } = await createOrganization(
       { name: body.name, slug: body.slug },
       owner.id,
     );
-    const membership = await addMember(organization.id, owner.id, "OrgAdmin");
     await recordAuditFromRequest({
       req,
       session,

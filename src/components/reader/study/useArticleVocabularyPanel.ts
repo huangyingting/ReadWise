@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { postJson } from "@/lib/client-fetch";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 
 export type VocabularyItem = {
   word: string;
@@ -30,10 +30,6 @@ export type UseArticleVocabularyPanelResult = {
   toggleSaved: (item: VocabularyItem) => void;
   retry: () => void;
 };
-
-function getErrorMessage(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
-}
 
 function getSavedMutationEndpoint(saved: boolean): string {
   return saved ? "/api/vocabulary/unsave" : "/api/vocabulary/save";
@@ -70,7 +66,7 @@ export function useArticleVocabularyPanel(
       setFallback(data.fallback);
       setLoaded(true);
     } catch (err) {
-      setError(getErrorMessage(err, VOCABULARY_LOAD_ERROR));
+      setError(clientErrorMessage(err, VOCABULARY_LOAD_ERROR));
     } finally {
       setLoading(false);
     }
@@ -101,7 +97,7 @@ export function useArticleVocabularyPanel(
           );
         })
         .catch((err: unknown) => {
-          setError(getErrorMessage(err, VOCABULARY_UPDATE_ERROR));
+          setError(clientErrorMessage(err, VOCABULARY_UPDATE_ERROR));
         })
         .finally(() => {
           setPending(null);

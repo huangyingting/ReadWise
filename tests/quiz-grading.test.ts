@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { gradeQuizAnswers } from "@/lib/quiz-grading";
+import { gradeQuizAnswers, QuizGradingError } from "@/lib/quiz-grading";
 import type { QuizQuestion } from "@/lib/quiz";
 
 const QUESTIONS: QuizQuestion[] = [
@@ -103,5 +103,9 @@ test("throws on a duplicate question index", () => {
 });
 
 test("throws on an empty quiz", () => {
-  assert.throws(() => gradeQuizAnswers([], []), /No quiz questions/);
+  assert.throws(
+    () => gradeQuizAnswers([], []),
+    (err: unknown) =>
+      err instanceof QuizGradingError && /No quiz questions/.test(err.message),
+  );
 });

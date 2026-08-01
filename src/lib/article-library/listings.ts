@@ -64,6 +64,45 @@ const cachedListPublishedArticles = createCachedListing(
   LISTING_TAGS.articles,
 );
 
+const PUBLISHED_ARTICLE_SITEMAP_SELECT = {
+  id: true,
+  publishedAt: true,
+  updatedAt: true,
+  createdAt: true,
+} as const satisfies Prisma.ArticleSelect;
+
+export type PublishedArticleSitemapEntry = Prisma.ArticleGetPayload<{
+  select: typeof PUBLISHED_ARTICLE_SITEMAP_SELECT;
+}>;
+
+/**
+ * Returns only the public article metadata needed by the sitemap. Keeping this
+ * read model content-free prevents article bodies from entering Next's data
+ * cache when a large sitemap is generated.
+ */
+export function listPublishedArticleSitemapEntries(
+  limit = 1000,
+): Promise<PublishedArticleSitemapEntry[]> {
+  return cachedListPublishedArticleSitemapEntries(limit);
+}
+
+function listPublishedArticleSitemapEntriesUncached(
+  limit = 1000,
+): Promise<PublishedArticleSitemapEntry[]> {
+  return prisma.article.findMany({
+    where: publicListableArticleWhere(),
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    select: PUBLISHED_ARTICLE_SITEMAP_SELECT,
+    take: limit,
+  });
+}
+
+const cachedListPublishedArticleSitemapEntries = createCachedListing(
+  listPublishedArticleSitemapEntriesUncached,
+  LISTING_KEYS.publishedSitemap,
+  LISTING_TAGS.articles,
+);
+
 /**
  * Filters articles to those at or below `maxLevel` (appropriate, not too hard)
  * and sorts them easiest-first by difficulty. Articles without an assessed

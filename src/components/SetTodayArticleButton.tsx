@@ -19,7 +19,7 @@
 
 import { useState } from "react";
 import { CalendarCheck, CalendarPlus, Check } from "lucide-react";
-import { ApiResponseError, postJson } from "@/lib/client-fetch";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 import { Button, IconButton, Tooltip } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
@@ -48,7 +48,7 @@ function getInlineLabel(status: Status): string {
 }
 
 function getErrorMessage(err: unknown): string {
-  return err instanceof ApiResponseError && err.message ? err.message : DEFAULT_ERROR;
+  return clientErrorMessage(err, DEFAULT_ERROR);
 }
 
 export default function SetTodayArticleButton({

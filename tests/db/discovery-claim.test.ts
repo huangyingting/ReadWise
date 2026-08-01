@@ -245,6 +245,5 @@ test("a failing run escalates backoff, records a redacted error, and releases th
   assert.equal(after?.backoffLevel, 1);
   assert.equal(after?.consecutiveFailures, 1);
   assert.ok(after?.backoffUntil && after.backoffUntil.getTime() > NOW.getTime());
-  assert.ok(after?.lastError, "a redacted error must be recorded");
-  assert.ok(!after?.lastError?.includes("token=abc123"), "the query string must be redacted");
+  assert.equal(after?.lastError, "discovery_source_failed");
 });

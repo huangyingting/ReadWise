@@ -268,7 +268,7 @@ export async function recordAuditLog(
       action: data.action,
       targetType: data.targetType,
       targetId: data.targetId,
-      error: err instanceof Error ? err.message : String(err),
+      machineReason: "audit_write_failed",
     });
     throw err;
   }

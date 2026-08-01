@@ -146,6 +146,13 @@ const p = (
   observedInBaseline: extra.observedInBaseline ?? false,
 });
 
+test("selectMergeWinner rejects an empty participant set", () => {
+  assert.throws(
+    () => selectMergeWinner([]),
+    /requires at least one participant/,
+  );
+});
+
 test("selectMergeWinner: single participant wins with no losers", () => {
   const d = selectMergeWinner([p("a", "2026-01-01T00:00:00Z")]);
   assert.deepEqual(d, { kind: "merge", winnerId: "a", loserIds: [] });

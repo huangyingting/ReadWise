@@ -89,10 +89,6 @@ function resolveUrlImportDeps(
   };
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 function duplicateImportResult(article: { id: string }): ImportResult {
   return { status: 200, id: article.id, duplicate: true };
 }
@@ -104,8 +100,8 @@ async function scrapeOrThrow(
   let scraped;
   try {
     scraped = await scrape(rawUrl);
-  } catch (err) {
-    throw new ApiError(422, `Scrape failed: ${errorMessage(err)}`);
+  } catch {
+    throw new ApiError(422, "Scrape failed. The article could not be fetched.");
   }
 
   if (!scraped) {

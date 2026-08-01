@@ -75,6 +75,7 @@ const MODULES: ModuleConfig[] = [
       "JobError",
       "JobStatus",
       "JobType",
+      "MIN_LOCK_TTL_MS",
       "RECLAIMABLE_STATUSES",
       "RETRY_POLICIES",
       "ROLLBACK_CANCELLED_REASON",

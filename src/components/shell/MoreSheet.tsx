@@ -10,6 +10,7 @@ import { Badge, Button, Sheet } from "@/components/ui";
 import { SECONDARY_NAV, isActivePath, filterNavForUser } from "./nav-items";
 import ThemeToggle from "./ThemeToggle";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
+import { purgeOfflineUserData } from "@/lib/offline/sync-runtime";
 import type { ShellUser } from "./types";
 
 interface MoreSheetProps {
@@ -49,9 +50,10 @@ export default function MoreSheet({
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const isAdmin = user.role === "Admin";
 
-  function handleSignOut() {
+  async function handleSignOut() {
     onClose();
-    void signOut({ callbackUrl: "/" });
+    await purgeOfflineUserData();
+    await signOut({ callbackUrl: "/" });
   }
 
   return (

@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useRef, useState } from "react";
-import { postJson } from "@/lib/client-fetch";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 import type { SpeechWord } from "@/lib/speech/timing";
 
 interface UseNarrationApiOptions {
@@ -50,10 +50,6 @@ function speechEndpoint(articleId: string): string {
   return `/api/reader/${articleId}/speech`;
 }
 
-function getWarmErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : "Could not load narration";
-}
-
 export function useNarrationApi({
   onLoaded,
   onFallback,
@@ -78,7 +74,7 @@ export function useNarrationApi({
       } catch (err) {
         // Allow a retry on failure.
         hasWarmedRef.current = false;
-        setWarmError(getWarmErrorMessage(err));
+        setWarmError(clientErrorMessage(err, "Could not load narration"));
       } finally {
         setIsWarming(false);
       }

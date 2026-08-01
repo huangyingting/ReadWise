@@ -78,7 +78,8 @@ zero-discovery streak. Every recorded crawl also emits ingestion metrics and a
 bounded `CrawlRun` history row with source/mode/duration/count/error summaries.
 `CrawlRun` metadata is privacy-safe operational data only: it must not include
 URLs, article text, prompts, selected text, definitions, translations, or
-user-private content. See [`admin-operations.md`](../operations/admin-operations.md)
+user-private content. Failure prose is mapped to controlled `crawl_*` machine
+reasons before persistence. See [`admin-operations.md`](../operations/admin-operations.md)
 for the operator view.
 
 ### robots.txt & crawl restrictions
@@ -136,4 +137,3 @@ editorial intent.
    review history and the audit log.
 4. If the request is later withdrawn, restore to `active` and re-publish via the
    review panel if appropriate.
-

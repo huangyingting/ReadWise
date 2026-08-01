@@ -14,7 +14,7 @@ import { Prisma, JobStatus, type Job } from "@prisma/client";
 import { createLogger } from "@/lib/observability/logger";
 import { recordJobQueueEvent } from "@/lib/metrics";
 import { retryPolicyFor, jobBackoffDelay, type RetryPolicy } from "./retry-policy";
-import { classifyJobError, type JobErrorKind } from "./errors";
+import { classifyJobError, jobFailureReason, type JobErrorKind } from "./errors";
 import { ACTIVE_STATUSES, TERMINAL_STATUSES } from "./types";
 
 const log = createLogger("jobs");
@@ -140,7 +140,7 @@ export async function failJob(
     at: now.toISOString(),
     attempt: attempts,
     kind: classified.kind,
-    message: classified.message,
+    message: classified.reason,
   });
   const exhausted = attempts >= job.maxAttempts;
 
@@ -150,7 +150,7 @@ export async function failJob(
       data: {
         status: JobStatus.DEAD_LETTER,
         attempts,
-        lastError: classified.message,
+        lastError: classified.reason,
         errorHistory,
         failedAt: now,
         deadLetteredAt: now,
@@ -165,7 +165,7 @@ export async function failJob(
       type: job.type,
       attempts,
       reason: permanent ? `permanent:${classified.kind}` : "attempts_exhausted",
-      lastError: classified.message,
+      lastError: classified.reason,
     });
     return prisma.job.findUnique({ where: { id: jobId } });
   }
@@ -176,7 +176,7 @@ export async function failJob(
     data: {
       status: JobStatus.FAILED,
       attempts,
-      lastError: classified.message,
+      lastError: classified.reason,
       errorHistory,
       runAfter: new Date(now.getTime() + delay),
       failedAt: now,
@@ -191,7 +191,7 @@ export async function failJob(
     type: job.type,
     attempt: attempts,
     nextRetryInMs: delay,
-    error: classified.message,
+    failureReason: classified.reason,
   });
   return prisma.job.findUnique({ where: { id: jobId } });
 }
@@ -228,14 +228,17 @@ export async function retryJob(jobId: string, opts: TransitionOptions = {}): Pro
  */
 export async function cancelJob(
   jobId: string,
-  opts: TransitionOptions & { reason?: string } = {},
+  opts: TransitionOptions & { reason?: "cancelled_by_admin" } = {},
 ): Promise<Job | null> {
   const now = transitionNow(opts);
+  const reason = opts.reason === "cancelled_by_admin"
+    ? opts.reason
+    : "cancelled_by_admin";
   const res = await prisma.job.updateMany({
     where: { id: jobId, status: { in: CANCELLABLE_STATUSES } },
     data: {
       status: JobStatus.DEAD_LETTER,
-      lastError: opts.reason ?? "cancelled by admin",
+      lastError: reason,
       deadLetteredAt: now,
       ...releaseLockData(),
       updatedAt: now,
@@ -307,7 +310,7 @@ function parseErrorHistoryEntry(value: Prisma.JsonValue): ErrorHistoryEntry | nu
     at,
     attempt,
     kind,
-    message,
+    message: jobFailureReason(kind),
   };
 }
 

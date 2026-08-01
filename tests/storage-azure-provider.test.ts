@@ -3,11 +3,12 @@ process.env.LOG_LEVEL = "error";
 import { before, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 
+let loggerEntries: Array<{ event: string; meta?: Record<string, unknown> }> = [];
 const logger = {
   debug: () => {},
-  error: () => {},
+  error: (event: string, meta?: Record<string, unknown>) => loggerEntries.push({ event, meta }),
   info: () => {},
-  warn: () => {},
+  warn: (event: string, meta?: Record<string, unknown>) => loggerEntries.push({ event, meta }),
 };
 
 type AzureMode = "ok" | "container-fails" | "download-no-stream" | "download-error" | "delete-error";
@@ -38,16 +39,16 @@ before(() => {
     getContainerClient(_container: string) {
       return {
         createIfNotExists: async () => {
-          if (mode === "container-fails") throw new Error("container unavailable");
+          if (mode === "container-fails") throw new Error("container unavailable with private article sentence");
         },
         getBlockBlobClient: (key: string) => ({
           deleteIfExists: async () => {
-            if (mode === "delete-error") throw new Error("delete failed");
+            if (mode === "delete-error") throw new Error("delete failed with private article sentence");
             deletedKeys.push(key);
           },
           download: async () => {
             if (mode === "download-no-stream") return {};
-            if (mode === "download-error") throw new Error("download failed");
+            if (mode === "download-error") throw new Error("download failed with private article sentence");
             return {
               readableStreamBody: (async function* () {
                 yield Buffer.from("first");
@@ -79,6 +80,7 @@ beforeEach(() => {
   credentialArgs = null;
   uploaded = [];
   deletedKeys = [];
+  loggerEntries = [];
 });
 
 async function createAzureStorage(
@@ -143,5 +145,15 @@ test("AzureBlobMediaStorage downloads chunks and degrades on read/delete/contain
         keyHint: "speech",
       }),
     /container unavailable/i,
+  );
+  assert.doesNotMatch(JSON.stringify(loggerEntries), /private article sentence/);
+  assert.ok(
+    loggerEntries.some((entry) => entry.meta?.machineReason === "storage_read_failed"),
+  );
+  assert.ok(
+    loggerEntries.some((entry) => entry.meta?.machineReason === "storage_delete_failed"),
+  );
+  assert.ok(
+    loggerEntries.some((entry) => entry.meta?.machineReason === "container_unavailable"),
   );
 });

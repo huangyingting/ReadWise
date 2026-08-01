@@ -168,7 +168,7 @@ test("image remote patterns cover expected OAuth CDNs", () => {
   }
 });
 
-test("server external packages include OpenTelemetry SDK and Azure Blob", () => {
+test("server external packages include platform SDKs and the Node-only classifier", () => {
   assert.ok(
     SERVER_EXTERNAL_PACKAGES.includes("@opentelemetry/sdk-node"),
     "OTel SDK must be externalized",
@@ -176,5 +176,9 @@ test("server external packages include OpenTelemetry SDK and Azure Blob", () => 
   assert.ok(
     SERVER_EXTERNAL_PACKAGES.includes("@azure/storage-blob"),
     "Azure Blob Storage SDK must be externalized",
+  );
+  assert.ok(
+    SERVER_EXTERNAL_PACKAGES.includes("natural"),
+    "Natural must be externalized so unused optional native classifiers are not bundled",
   );
 });

@@ -190,13 +190,13 @@ async function runStep(
       fallbackReason,
     });
     return { step, status, detail, fallbackReason };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await finishStep(articleId, persistAs, "failed", { lastError: message });
+  } catch {
+    const failureReason = "processing_step_failed";
+    await finishStep(articleId, persistAs, "failed", { failureReason });
     return {
       step,
       status: "failed",
-      detail: message,
+      detail: failureReason,
     };
   }
 }

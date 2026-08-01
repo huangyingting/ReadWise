@@ -3,6 +3,7 @@ import { recordWorkerJob } from "@/lib/metrics";
 import { withSpan } from "@/lib/observability/tracing";
 import {
   completeJob,
+  classifyJobError,
   DEFAULT_LOCK_TTL_MS,
   failJob,
   heartbeatJob,
@@ -42,10 +43,6 @@ export type ClaimedJobExecutionDeps = {
   failJob?: typeof failJob;
 };
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function defaultHeartbeatIntervalMs(lockTtlMs: number): number {
   return Math.max(1000, Math.floor(lockTtlMs / 2));
 }
@@ -74,7 +71,11 @@ function startHeartbeat(
         return;
       }
     } catch (error) {
-      logger.warn("heartbeat error", { jobId, workerId, error: errorMessage(error) });
+      logger.warn("heartbeat error", {
+        jobId,
+        workerId,
+        failureReason: "heartbeat_failed",
+      });
       if (!handlerAbort.signal.aborted) {
         handlerAbort.abort();
       }
@@ -138,6 +139,7 @@ export function createClaimedJobExecutor(
       if (!handler) {
         throw new JobError(`no handler registered for job type ${job.type}`, {
           kind: "validation",
+          reason: "handler_not_registered",
         });
       }
 
@@ -202,6 +204,7 @@ export function createClaimedJobExecutor(
         return { outcome: "stopped" };
       }
 
+      const classified = classifyJobError(error);
       const updated = await failFn(job.id, options.workerId, error);
       if (!updated) {
         recordWorkerJob({ outcome: "aborted", attempts, durationMs: Date.now() - startedAt });
@@ -211,16 +214,22 @@ export function createClaimedJobExecutor(
 
       const deadLettered = updated.status === JobStatus.DEAD_LETTER;
       recordWorkerJob({ outcome: "failed", attempts, durationMs: Date.now() - startedAt });
-      captureError(error, {
+      const reportableError = new JobError(classified.reason, {
+        kind: classified.kind,
+        permanent: classified.permanent,
+        reason: classified.reason,
+      });
+      captureError(reportableError, {
         source: "worker",
         severity: deadLettered ? "fatal" : "warning",
+        machineReason: classified.reason,
         extra: { jobId: job.id, jobType: job.type, attempts, deadLettered },
       });
       options.logger.warn("job handler failed", {
         jobId: job.id,
         type: job.type,
         deadLettered,
-        error: errorMessage(error),
+        failureReason: classified.reason,
       });
       return { outcome: "failed", deadLettered };
     } finally {

@@ -55,10 +55,18 @@ test("normalizeDatabaseUrl accepts Prisma URLs and normalizes file paths", () =>
 
 test("scrape-review takes the Postgres client branch for Postgres URLs", async () => {
   const { __scrapeReviewTest } = await import("../scripts/scrape-review");
-  assert.throws(
-    () => __scrapeReviewTest.createPrismaClient("postgresql://user:pass@localhost:5432/readwise?schema=review"),
-    /adapter-pg|provider `sqlite`/,
-  );
+  const create = () =>
+    __scrapeReviewTest.createPrismaClient(
+      "postgresql://user:pass@localhost:5432/readwise?schema=review",
+    );
+
+  if (process.env.PRISMA_SCHEMA_PATH === "prisma/postgresql/schema.prisma") {
+    const client = create();
+    assert.equal(typeof client.$disconnect, "function");
+    await client.$disconnect();
+  } else {
+    assert.throws(create, /adapter-pg|provider `sqlite`/);
+  }
 });
 
 test("scrape-review main detection returns false for invalid import URLs", async () => {

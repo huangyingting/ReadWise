@@ -39,6 +39,13 @@ export type UrlIntakeOutcome =
     });
 
 const DUPLICATE_SOURCE_URL_REASON = "duplicate sourceUrl";
+const INTAKE_FAILURE_REASON: Record<UrlIntakeFailureKind, string> = {
+  disabled: "scraper_disabled",
+  scrape: "article_fetch_failed",
+  extract: "article_extraction_failed",
+  quality: "article_quality_failed",
+  save: "article_persistence_failed",
+};
 
 /** Fetches and parses a single article URL. Returns null when extraction fails or scraper is disabled. */
 export async function scrapeUrl(url: string): Promise<ScrapedArticle | null> {
@@ -109,17 +116,17 @@ export async function scrapeAndSave(
   audit?: SaveAuditFactory,
 ): Promise<UrlIntakeOutcome> {
   if (!isScraperFeatureEnabled()) {
-    return failedIntakeOutcome("disabled", "scraper is disabled", url);
+    return failedIntakeOutcome("disabled", INTAKE_FAILURE_REASON.disabled, url);
   }
 
   let article: ScrapedArticle | null;
   try {
     article = await scrapeUrl(url);
-  } catch (err) {
-    return failedIntakeOutcome("scrape", errorMessage(err), url);
+  } catch {
+    return failedIntakeOutcome("scrape", INTAKE_FAILURE_REASON.scrape, url);
   }
   if (!article) {
-    return failedIntakeOutcome("extract", "could not extract article content", url);
+    return failedIntakeOutcome("extract", INTAKE_FAILURE_REASON.extract, url);
   }
 
   try {
@@ -127,12 +134,12 @@ export async function scrapeAndSave(
     if (isUnrecoverableQualityReject(article, quality)) {
       return failedIntakeOutcome(
         "quality",
-        `content quality check failed (score=${quality.score})`,
+        INTAKE_FAILURE_REASON.quality,
         url,
       );
     }
-  } catch (err) {
-    return failedIntakeOutcome("quality", errorMessage(err), url);
+  } catch {
+    return failedIntakeOutcome("quality", INTAKE_FAILURE_REASON.quality, url);
   }
 
   try {
@@ -140,8 +147,8 @@ export async function scrapeAndSave(
     return outcome.status === "failed"
       ? { ...outcome, failure: "save" }
       : outcome;
-  } catch (err) {
-    return failedIntakeOutcome("save", errorMessage(err), url);
+  } catch {
+    return failedIntakeOutcome("save", INTAKE_FAILURE_REASON.save, url);
   }
 }
 
@@ -164,11 +171,6 @@ function isUnrecoverableQualityReject(
   quality: ReturnType<typeof checkContentQuality>,
 ): boolean {
   return quality.grade === "reject" && !isRecoverableQualityReject(article, quality);
-}
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return String(err);
 }
 
 /** True for a Prisma unique-constraint violation (P2002). */

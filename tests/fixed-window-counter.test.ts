@@ -10,29 +10,44 @@ let lastCreate: Record<string, unknown> | null = null;
 let sweepThrows = false;
 
 before(() => {
+  const rateLimitCounter = {
+    upsert: async (args: {
+      where: { bucketKey_windowStart: { bucketKey: string; windowStart: Date } };
+      create: Record<string, unknown>;
+    }) => {
+      upsertCalls += 1;
+      if (databaseThrows) throw new Error("database unavailable");
+      lastCreate = args.create;
+      const window = args.where.bucketKey_windowStart;
+      const key = `${window.bucketKey}:${window.windowStart.getTime()}`;
+      const count = (countByWindow.get(key) ?? 0) + 1;
+      countByWindow.set(key, count);
+      return { count };
+    },
+    deleteMany: async () => {
+      if (sweepThrows) throw new Error("sweep unavailable");
+      return { count: 0 };
+    },
+  };
+  type FakeClient = {
+    rateLimitCounter: typeof rateLimitCounter;
+    $transaction: <R>(run: (tx: FakeClient) => Promise<R>) => Promise<R>;
+  };
+  const client: FakeClient = {
+    rateLimitCounter,
+    $transaction: async <R>(run: (tx: typeof client) => Promise<R>): Promise<R> => {
+      const beforeTransaction = new Map(countByWindow);
+      try {
+        return await run(client);
+      } catch (error) {
+        countByWindow = beforeTransaction;
+        throw error;
+      }
+    },
+  };
   mock.module("@/lib/prisma", {
     namedExports: {
-      prisma: {
-        rateLimitCounter: {
-          upsert: async (args: {
-            where: { bucketKey_windowStart: { bucketKey: string; windowStart: Date } };
-            create: Record<string, unknown>;
-          }) => {
-            upsertCalls += 1;
-            if (databaseThrows) throw new Error("database unavailable");
-            lastCreate = args.create;
-            const window = args.where.bucketKey_windowStart;
-            const key = `${window.bucketKey}:${window.windowStart.getTime()}`;
-            const count = (countByWindow.get(key) ?? 0) + 1;
-            countByWindow.set(key, count);
-            return { count };
-          },
-          deleteMany: async () => {
-            if (sweepThrows) throw new Error("sweep unavailable");
-            return { count: 0 };
-          },
-        },
-      },
+      prisma: client,
     },
   });
 });
@@ -142,4 +157,123 @@ test("opportunistic sweep failures never surface from consumption", async (t) =>
     fallbackWindowAnchor: "epoch",
   }));
   await Promise.resolve();
+});
+
+test("database batch reservations commit together and roll back on a blocked dimension", async () => {
+  process.env.RATE_LIMIT_STORE = "database";
+  const { consumeFixedWindowBatch } = await import("@/lib/security/fixed-window-counter");
+  const input = {
+    reservations: [
+      { key: "account", limit: 2 },
+      { key: "address", limit: 1 },
+    ],
+    windowMs: 1_000,
+    nowMs: 1_250,
+    fallbackWindowAnchor: "epoch" as const,
+  };
+
+  const first = await consumeFixedWindowBatch(input);
+  assert.equal(first.allowed, true);
+  assert.deepEqual([...first.counts], [["account", 1], ["address", 1]]);
+
+  const blocked = await consumeFixedWindowBatch(input);
+  assert.deepEqual(blocked, {
+    allowed: false,
+    blocked: { key: "address", limit: 1, count: 2 },
+    counts: new Map([["address", 2]]),
+  });
+  assert.equal(countByWindow.get("account:1000"), 1, "earlier increments roll back");
+  assert.equal(countByWindow.get("address:1000"), 1, "blocked increment rolls back");
+});
+
+test("memory batch preflight never partially consumes a blocked reservation", async () => {
+  const { consumeFixedWindowBatch } = await import("@/lib/security/fixed-window-counter");
+  const base = {
+    windowMs: 1_000,
+    nowMs: 500,
+    fallbackWindowAnchor: "first-hit" as const,
+  };
+
+  const first = await consumeFixedWindowBatch({
+    ...base,
+    reservations: [
+      { key: "account", limit: 1 },
+      { key: "address", limit: 2 },
+    ],
+  });
+  assert.equal(first.allowed, true);
+  assert.deepEqual([...first.counts], [["account", 1], ["address", 1]]);
+
+  const blocked = await consumeFixedWindowBatch({
+    ...base,
+    reservations: [
+      { key: "account", limit: 1 },
+      { key: "address", limit: 2 },
+    ],
+  });
+  assert.deepEqual(blocked, {
+    allowed: false,
+    blocked: { key: "account", limit: 1, count: 2 },
+    counts: new Map([["account", 2]]),
+  });
+
+  const addressOnly = await consumeFixedWindowBatch({
+    ...base,
+    reservations: [{ key: "address", limit: 2 }],
+  });
+  assert.equal(addressOnly.allowed, true);
+  assert.equal(addressOnly.counts.get("address"), 2);
+});
+
+test("batch reservations fall back exactly once when the shared store fails", async () => {
+  process.env.RATE_LIMIT_STORE = "database";
+  databaseThrows = true;
+  const { consumeFixedWindowBatch } = await import("@/lib/security/fixed-window-counter");
+
+  const result = await consumeFixedWindowBatch({
+    reservations: [{ key: "fallback-batch", limit: 2 }],
+    windowMs: 1_000,
+    nowMs: Date.now(),
+    fallbackWindowAnchor: "first-hit",
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.counts.get("fallback-batch"), 1);
+  assert.equal(upsertCalls, 1);
+});
+
+test("empty batches, expired memory windows, and epoch reporting are deterministic", async (t) => {
+  const {
+    consumeFixedWindow,
+    consumeFixedWindowBatch,
+    fixedWindowStart,
+  } = await import("@/lib/security/fixed-window-counter");
+  t.mock.method(Math, "random", () => 0);
+
+  const empty = await consumeFixedWindowBatch({
+    reservations: [],
+    windowMs: 1_000,
+    fallbackWindowAnchor: "epoch",
+  });
+  assert.deepEqual(empty, { allowed: true, counts: new Map() });
+
+  assert.equal(await consumeFixedWindow({
+    key: "old",
+    windowMs: 1_000,
+    nowMs: 100,
+    fallbackWindowAnchor: "first-hit",
+  }), 1);
+  assert.equal(await consumeFixedWindow({
+    key: "sweep-trigger",
+    windowMs: 1_000,
+    nowMs: 3_500,
+    fallbackWindowAnchor: "first-hit",
+  }), 1);
+  assert.equal(await consumeFixedWindow({
+    key: "old",
+    windowMs: 1_000,
+    nowMs: 3_500,
+    fallbackWindowAnchor: "first-hit",
+  }), 1);
+  assert.equal(fixedWindowStart(3_499, 1_000), 3_000);
 });

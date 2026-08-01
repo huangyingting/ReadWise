@@ -318,13 +318,14 @@ test("replay: a 409 marks the mutation conflict and emits content-free analytics
 test("replay: a network error increments retryCount and stays pending (back-off)", async () => {
   const m = todayMut("today.word-review-complete", undefined, { retryCount: 1 });
   const r = recorder(async () => {
-    throw new Error("network down");
+    throw new Error("network failed while sending a private selected sentence");
   });
   const outcome = await todayMutationReplayHandler(m, r.deps);
   assert.equal(outcome, "retry");
   assert.equal(r.updated.length, 1);
   assert.equal(r.updated[0].patch.status, "pending");
   assert.equal(r.updated[0].patch.retryCount, 2);
+  assert.equal(r.updated[0].patch.lastError, "network_error");
   assert.equal(r.removed.length, 0);
   assert.equal(r.conflicts.length, 0);
 });

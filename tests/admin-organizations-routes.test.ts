@@ -8,8 +8,9 @@
  *   plus capability gating (401 unauth, 403 insufficient capability) on each.
  *
  * Mocks: @/lib/api-auth (capability gate via the shared fullAuthExports helper),
- * @/lib/admin/organizations (list + detail read model), @/lib/org (createOrganization
- * + addMember reuse), and @/lib/prisma (owner-existence lookup) — no DB.
+ * @/lib/admin/organizations (list + detail read model), @/lib/org (transactional
+ * createOrganization plus a guard spy for redundant addMember calls), and
+ * @/lib/prisma (owner-existence lookup) — no DB.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -233,8 +234,13 @@ test("POST create seeds the owner as the first OrgAdmin and returns 201", async 
   const body = await readJson<{ ok: boolean; organization: { id: string }; membership: { role: string } }>(res);
   assert.equal(body.ok, true);
   assert.equal(body.organization.id, "org-created");
+  assert.equal(body.membership.role, "OrgAdmin");
   assert.deepEqual(createOrgCalls[0], { input: { name: "Acme", slug: "acme" }, userId: "user-9" });
-  assert.deepEqual(addMemberCalls[0], { orgId: "org-created", userId: "user-9", role: "OrgAdmin" });
+  assert.equal(
+    addMemberCalls.length,
+    0,
+    "createOrganization already creates the first OrgAdmin membership",
+  );
   assert.equal(auditCalls.at(-1)?.action, "admin.organization.create");
   assert.equal(auditCalls.at(-1)?.targetType, "organization");
   assert.equal(auditCalls.at(-1)?.targetId, "org-created");

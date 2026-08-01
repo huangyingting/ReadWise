@@ -232,7 +232,7 @@ export function synthesize(
             settle(null);
           }
         },
-        (errorMessage) => {
+        () => {
           if (settled) {
             closeSynthesizer();
             return;
@@ -241,18 +241,18 @@ export function synthesize(
           log.error("speech.synthesis_failure", {
             articleId,
             reason: "error_callback",
-            error: String(errorMessage),
+            machineReason: "synthesis_callback_failed",
             durationMs: Date.now() - start,
           });
           settle(null);
         },
       );
-    } catch (err) {
+    } catch {
       closeSynthesizer();
       log.error("speech.synthesis_failure", {
         articleId,
         reason: "exception",
-        error: String(err),
+        machineReason: "synthesis_exception",
         durationMs: Date.now() - start,
       });
       settle(null);

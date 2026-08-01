@@ -69,7 +69,7 @@ async function measurePrismaQuery<T>(
     return await run();
   } catch (error) {
     outcome = "error";
-    markSpanError(span, "db.query failed");
+    markSpanError(span, "db_query_failed");
     throw error;
   } finally {
     const durationMs = performance.now() - startedAt;

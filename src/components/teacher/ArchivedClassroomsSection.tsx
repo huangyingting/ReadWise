@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getJson, patchJson } from "@/lib/client-fetch";
+import { clientErrorMessage, getJson, patchJson } from "@/lib/client-fetch";
 import {
   Button,
   Card,
@@ -78,7 +78,7 @@ export default function ArchivedClassroomsSection() {
       setClassrooms((current) => current.filter((classroom) => classroom.id !== classroomId));
       router.refresh();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Couldn’t unarchive classroom.");
+      setActionError(clientErrorMessage(err, "Couldn’t unarchive classroom."));
     } finally {
       setPendingId(null);
     }

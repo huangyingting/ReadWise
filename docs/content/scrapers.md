@@ -261,9 +261,9 @@ any existing provider module are required.
 Also inspect the provider's recent crawl-run summaries in the admin content
 sources UI or `GET /api/admin/sources/<providerKey>/crawl-runs`. The history is
 bounded per provider and stores only operational metadata: source, mode,
-duration, coarse outcome, counts, and a sanitized error message. It must never
-contain URLs, article text, prompts, selected text, definitions, translations, or
-user-private content.
+duration, coarse outcome, counts, and a controlled `crawl_*` failure reason. It
+must never contain exception prose, URLs, article text, prompts, selected text,
+definitions, translations, or user-private content.
 
 **Step 2 – Check robots.txt:**
 ```sh
@@ -440,4 +440,3 @@ Key patterns for scraper tests:
 - For extractor unit tests (`bbc-rss.test.ts`, etc.), call the extractor function
   directly with a mock fetch — no need to go through `discoverProviderUrls`.
 - Use inline XML/JSON fixture strings rather than fixture files to keep tests self-contained.
-

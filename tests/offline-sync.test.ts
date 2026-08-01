@@ -179,12 +179,12 @@ test("flushQueue flags failed after exhausting retries", async () => {
 test("flushQueue treats a thrown send (network error) as retryable", async () => {
   const queue = [mut({ clientMutationId: "m1", retryCount: 0 })];
   const { deps, updated } = recordingDeps(queue, async () => {
-    throw new Error("network down");
+    throw new Error("network failed while sending a private selected sentence");
   });
   const result = await flushQueue(deps);
   assert.equal(result.retried, 1);
   assert.equal(updated[0].patch.status, "pending");
-  assert.equal(updated[0].patch.lastError, "network down");
+  assert.equal(updated[0].patch.lastError, "network_error");
 });
 
 test("flushQueue skips already-permanently-failed mutations (idempotent re-flush)", async () => {

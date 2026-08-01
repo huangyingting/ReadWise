@@ -203,11 +203,11 @@ export async function saveProgress(
   // affect the caller's return value or forward-only semantics).
   try {
     await recordReadingActivity(userId, articleId, opts.timezone ?? undefined);
-  } catch (err) {
+  } catch {
     log.error("activity recording failed", {
       userId,
       articleId,
-      err: err instanceof Error ? err.message : String(err),
+      machineReason: "activity_recording_failed",
     });
   }
 

@@ -1,8 +1,8 @@
 ---
 type: "testing"
 status: "current"
-last_updated: "2026-07-19"
-description: "Documents CI quality gates, native coverage, test tiers, isolated Playwright configuration, UI audit sharding/artifacts, generated-doc drift checks, and release-readiness automation."
+last_updated: "2026-07-31"
+description: "Documents CI quality gates, production container builds, native coverage, test tiers, isolated Playwright configuration, UI audit sharding/artifacts, generated-doc drift checks, and release-readiness automation."
 ---
 
 # Continuous Integration & release readiness
@@ -28,13 +28,14 @@ flowchart TD
 | Job (check name) | What it runs | Local command |
 | --- | --- | --- |
 | **Fast checks (typecheck + lint)** | `tsc --noEmit` + `eslint .` + API catalog drift check | `npm run typecheck && npm run lint` |
-| **Unit tests + native coverage** | Node built-in test runner (`tests/**`) plus the 98% native Node line-coverage gate | `npm test && npm run coverage:node -- --summary-only --threshold 98` |
+| **Unit tests** | DB-free Node built-in test runner (`tests/**`) | `npm test` |
 | **Build** | Production Next.js build | `npm run build` |
-| **PostgreSQL Migrate / Integration** | PG migrate + integration tests | `npm run test:db` |
-| **Supply-chain hygiene** | Lockfile integrity + blocking `npm audit` HIGH/CRITICAL gate | `npm ci --ignore-scripts && npm audit --audit-level=high` |
+| **Container builds (web + worker)** | PostgreSQL production web and worker Docker targets, including non-root runtime checks | `docker build --target runner --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma . && docker build --target worker --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma .` |
+| **PostgreSQL integration + native coverage** | PG migrate/integration, a complete PostgreSQL coverage run, a migrated SQLite provider-adapter supplement, and the merged 98% gate | See [Native Node coverage gate](#native-node-coverage-gate) |
+| **Supply-chain hygiene** | Lockfile integrity + fail-closed production/full dependency audit | `npm ci --ignore-scripts && npm run audit:dependencies` |
 | **Dependency review** | New-dep vulnerability scan (PRs only; blocks on HIGH/CRITICAL) | — (GitHub Advisory DB) |
 | **E2E smoke (Playwright)** | Small browser smoke slice (`e2e/smoke.spec.ts`) | `npm run test:e2e:smoke` |
-| **Full UI audit (Playwright)** | 500-case audit, sharded in CI when enabled | `npm run test:e2e:ui-audit:full -- --shard=1/4` |
+| **Full UI audit (Playwright)** | 560-case audit, sharded in CI when enabled | `npm run test:e2e:ui-audit:full -- --shard=1/4` |
 | **CI summary** | Pass/fail digest in the run summary | — |
 
 For the supply-chain and dependency hygiene policy, severity table, and how to
@@ -60,19 +61,21 @@ to a few seconds, so the signal clarity is worth the small extra cost.
 
 ## What runs when
 
-| Event | Fast checks | Unit + coverage | Build | DB integration | Supply-chain / dependency review | E2E smoke | Full UI audit |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| **Pull request → `main`** | ✅ | ✅ | ✅ | ✅ | ✅ (both) | — | — |
-| **Pull request → `dev`** | ✅ | ✅ | ✅ | ✅ | ✅ (both) | — | — |
-| **Push to `main`** (post-merge) | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | — |
-| **Push to `dev`** (post-merge) | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | — |
-| **Nightly schedule** (`0 6 * * *` UTC) | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | ✅ (4 shards) |
-| **Manual `workflow_dispatch`** | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | Optional (`full_ui_audit`) |
+| Event | Fast checks | Unit tests | Build | Containers | DB integration + coverage | Supply-chain / dependency review | E2E smoke | Full UI audit |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| **Pull request → `main`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (both) | — | — |
+| **Pull request → `dev`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (both) | — | — |
+| **Push to `main`** (post-merge) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | — |
+| **Push to `dev`** (post-merge) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | — |
+| **Nightly schedule** (`0 6 * * *` UTC) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | ✅ (4 shards) |
+| **Manual `workflow_dispatch`** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (supply-chain) | ✅ | Optional (`full_ui_audit`) |
 
-- **Required per-PR gates:** fast checks, unit tests + native coverage, build,
-  PostgreSQL migrate/integration, supply-chain lockfile integrity, and dependency
-  review. `npm audit` blocks when the installed graph contains HIGH/CRITICAL
-  advisories; dependency review separately blocks PRs that add or update
+- **Required per-PR gates:** fast checks, unit tests, host build, PostgreSQL
+  web/worker container builds, PostgreSQL migrate/integration + native coverage,
+  supply-chain lockfile integrity, and dependency review. The dependency audit
+  blocks when the production graph contains any HIGH/CRITICAL advisory and when
+  the full graph contains any unapproved HIGH/CRITICAL advisory; dependency
+  review separately blocks PRs that add or update
   HIGH/CRITICAL vulnerable packages. These gates apply to PRs targeting both
   `main` and `dev`.
 - **E2E is tiered off PRs.** Browser runs are slower and more prone to flakiness,
@@ -81,7 +84,7 @@ to a few seconds, so the signal clarity is worth the small extra cost.
   are excluded from pull-request events, they can **never block a merge**. A
   failure on `main` or `dev` is visible (not silenced) so it gets noticed, but it
   does not gate PRs.
-- **Full UI audit is opt-in outside the nightly.** The 500-case audit runs on the
+- **Full UI audit is opt-in outside the nightly.** The 560-case audit runs on the
   nightly schedule and on manual `workflow_dispatch` only when `full_ui_audit` is
   set to true. CI splits it into four shards.
 
@@ -96,7 +99,7 @@ If it ever starts flaking on `main` or `dev`, fix it or, as a last resort, gate
 it behind `workflow_dispatch`/`schedule` only — do **not** add it to the required
 PR checks.
 
-The 500-case UI audit is separate from smoke:
+The 560-case UI audit is separate from smoke:
 
 ```bash
 # Small frequent signal
@@ -136,7 +139,7 @@ The route-family UI audit specs (`e2e/ui-audit-public-auth.spec.ts`,
 `e2e/ui-audit-admin-operations.spec.ts`) write machine-readable audit output under
 `test-results/ui-audit/` by default, including:
 
-- `catalog.json` — the registered 500-case matrix.
+- `catalog.json` — the registered 560-case matrix.
 - `latest-run.json` — the active run id and relative artifact paths.
 - `results-<run-id>.jsonl` — one result record per executed scenario.
 
@@ -155,17 +158,79 @@ UI_AUDIT_ARTIFACT_DIR=test-results/ui-audit-debug npm run test:e2e:ui-audit:high
 
 ## Native Node coverage gate
 
-The **native Node coverage gate** runs inside **Unit tests + native coverage** on
-every pull request, push to `main`, nightly run, and manual run:
+The **native Node coverage gate** runs inside **PostgreSQL integration + native
+coverage** on every pull request, push to `main`, nightly run, and manual run.
+CI captures two complete native reports before evaluating them:
+
+1. The full Node suite with PostgreSQL integration enabled.
+2. The migrated SQLite discovery-claim integration test for the serialized
+   adapter that cannot execute under a PostgreSQL-generated Prisma client.
+
+The same gate can consume both reports with repeated `--input` options:
 
 ```bash
-npm run coverage:node -- --summary-only --threshold 98
+npm run coverage:node -- \
+  --summary-only \
+  --threshold 98 \
+  --input /tmp/coverage-postgresql.txt \
+  --input /tmp/coverage-sqlite.txt
+```
+
+Each report must be captured with a Prisma client generated for the same
+provider as its `DATABASE_URL`. Generating the SQLite client and then pointing it
+at PostgreSQL (or the reverse) fails before tests start; reusing an unmigrated
+SQLite file can also produce a misleading adapter failure. The following is the
+complete local sequence used by CI, assuming the PostgreSQL test database is
+already running:
+
+```bash
+POSTGRES_COVERAGE_URL='postgresql://readwise:readwise-test-password@127.0.0.1:55432/readwise_test?schema=public'
+
+# PostgreSQL client, schema, migrations, integration tests, and full report.
+DATABASE_URL="$POSTGRES_COVERAGE_URL" \
+  PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
+  npm run prisma:generate:pg
+DATABASE_URL="$POSTGRES_COVERAGE_URL" \
+  PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
+  npm run prisma:migrate:pg
+NODE_ENV=test RUN_DB_INTEGRATION=1 \
+  DATABASE_URL="$POSTGRES_COVERAGE_URL" \
+  PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
+  npm run coverage:report -- --test-concurrency=1 --test "tests/**/*.test.ts" \
+  > /tmp/coverage-postgresql.txt
+
+# Fresh, migrated SQLite supplement for the generic serialized claim adapter.
+SQLITE_COVERAGE_PATH="$(mktemp /tmp/readwise-coverage-XXXXXX.db)"
+SQLITE_COVERAGE_URL="file:$SQLITE_COVERAGE_PATH"
+DATABASE_URL="$SQLITE_COVERAGE_URL" PRISMA_SCHEMA_PATH=prisma/schema.prisma \
+  npx prisma generate --schema prisma/schema.prisma
+DATABASE_URL="$SQLITE_COVERAGE_URL" PRISMA_SCHEMA_PATH=prisma/schema.prisma \
+  npx prisma migrate deploy --schema prisma/schema.prisma
+NODE_ENV=test RUN_DB_INTEGRATION=1 \
+  DATABASE_URL="$SQLITE_COVERAGE_URL" PRISMA_SCHEMA_PATH=prisma/schema.prisma \
+  npm run coverage:report -- --test-concurrency=1 \
+  --test tests/db/discovery-claim.test.ts > /tmp/coverage-sqlite.txt
+
+npm run coverage:node -- \
+  --summary-only \
+  --threshold 98 \
+  --input /tmp/coverage-postgresql.txt \
+  --input /tmp/coverage-sqlite.txt
+
+rm -f "$SQLITE_COVERAGE_PATH"
+
+# Restore the client required by the next local task (SQLite shown here).
+DATABASE_URL=file:./dev.db PRISMA_SCHEMA_PATH=prisma/schema.prisma \
+  npx prisma generate --schema prisma/schema.prisma
 ```
 
 The gate uses Node's native `--experimental-test-coverage` output, measures the
 configured source prefixes (`src/`, `scripts/`, and `eslint-rules/`), and fails
-the job when any measured file drops below **98% line coverage** or no coverage
-table is produced. It is blocking anywhere the `unit-tests` job is required.
+the job when any measured file drops below **98% line coverage**, no coverage
+table is produced, or the include filters match no measured file. When a file
+appears in both provider reports, the gate selects the higher complete-run row;
+it never combines partial line hits into a synthetic percentage. The static
+denominator and route inventory run over the union of measured files.
 
 ## API catalog drift gate
 
@@ -250,12 +315,17 @@ git diff --exit-code docs/platform/api-catalog.json docs/platform/api-catalog.md
 # Unit tests (DB-free; they mock @/lib/prisma)
 npm test
 
-# Native Node coverage gate (same threshold as CI)
-npm run coverage:node -- --summary-only --threshold 98
+# Capture provider reports and run the native coverage gate (same threshold as
+# CI) with the explicit generate/migrate/provider-switch sequence in the
+# Native Node coverage gate section above.
 
 # Build (migrate first so statically-generated routes have a schema)
 npx prisma migrate deploy
 rm -rf .next && npm run build
+
+# PostgreSQL production containers (same commands as the container-builds gate)
+docker build --target runner --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma -t readwise-ci-web:postgres .
+docker build --target worker --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma -t readwise-ci-worker:postgres .
 
 # PostgreSQL migrate / integration (needs a running PostgreSQL — see docs/platform/database.md)
 npm run test:db
@@ -287,4 +357,3 @@ rm -rf .next && npm run build
 CI follows this rule: the **Build** job runs `rm -rf .next` immediately before
 `npm run build` so a stale or cached `.next/` can never race the build. If a build
 fails in CI, the failure-diagnosis summary points back here.
-

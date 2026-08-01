@@ -17,7 +17,6 @@ import {
 
 const log = createLogger("speech");
 const DEFAULT_TIMING_PROVIDER = "azure";
-const MALFORMED_LEGACY_PAYLOAD_ERROR = "Malformed legacy timing payload";
 
 export type SpeechTimingMigrationResult = {
   scanned: number;
@@ -42,14 +41,13 @@ function takeOption(limit: number | undefined): { take: number } | object {
   return limit ? { take: limit } : {};
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function logMigrationFailure(articleId: string, error: unknown): void {
+function logMigrationFailure(
+  articleId: string,
+  machineReason: "malformed_legacy_timing" | "timing_migration_failed",
+): void {
   log.error("speech.timing_migration_failed", {
     articleId,
-    error: errorMessage(error),
+    machineReason,
   });
 }
 
@@ -100,7 +98,7 @@ export async function migrateArticleSpeechTimings(
     const payload = serializeLegacyWords(row.words, provider, target);
     if (!payload) {
       failed += 1;
-      logMigrationFailure(row.articleId, MALFORMED_LEGACY_PAYLOAD_ERROR);
+      logMigrationFailure(row.articleId, "malformed_legacy_timing");
       continue;
     }
 
@@ -110,9 +108,9 @@ export async function migrateArticleSpeechTimings(
         data: { words: payload },
       });
       migrated += 1;
-    } catch (err) {
+    } catch {
       failed += 1;
-      logMigrationFailure(row.articleId, err);
+      logMigrationFailure(row.articleId, "timing_migration_failed");
     }
   }
 
@@ -273,11 +271,11 @@ export async function repairSpeechTimingSpans(
         data: { words: newPayload },
       });
       repaired += 1;
-    } catch (err) {
+    } catch {
       failed += 1;
       log.error("speech.span_repair_failed", {
         articleId: row.articleId,
-        error: errorMessage(err),
+        machineReason: "span_repair_persistence_failed",
       });
     }
   }

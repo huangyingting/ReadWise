@@ -403,7 +403,8 @@ describe("Today push reminder payload is content-safe", () => {
     assert.equal(sendCalls.length, 1);
     const payload = JSON.parse(sendCalls[0].payload) as Record<string, string>;
     // Generic notification shape only — no per-content keys.
-    assert.deepEqual(Object.keys(payload).sort(), ["body", "icon", "title", "url"]);
+    assert.deepEqual(Object.keys(payload).sort(), ["body", "icon", "tag", "title", "url"]);
+    assert.match(payload.tag, /^readwise:srs:/);
     assert.equal(payload.url, "/today", "Today reminder deep-links to /today when enabled");
     // The body mentions a numeric due count, never any article/word content.
     assert.match(payload.body, /\b3\b/);

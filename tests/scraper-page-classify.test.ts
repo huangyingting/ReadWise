@@ -116,6 +116,17 @@ test("source ownership: unregistered host is never assigned an identity", () => 
   assert.equal(result.identity, null);
 });
 
+test("source ownership: an injected resolver may reject an otherwise registered provider", () => {
+  const result = classifyOne(
+    { url: UNDARK_ARTICLE },
+    context({ resolveProvider: () => null }),
+  );
+
+  assert.equal(result.outcome, "policy-rejected");
+  assert.equal(result.rejectionReason, "no-registered-provider");
+  assert.equal(result.identity, null);
+});
+
 // ---------------------------------------------------------------------------
 // Existing identity (precedence over mode/date in every mode)
 // ---------------------------------------------------------------------------

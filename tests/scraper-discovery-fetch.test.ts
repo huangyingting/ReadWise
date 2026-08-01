@@ -21,11 +21,12 @@ type Route = {
   headers?: Record<string, string>;
   body?: string;
   bodyBytes?: Uint8Array;
+  waitForAbort?: boolean;
 };
 
 let validated: string[] = [];
 let fetchCalls: string[] = [];
-let requestInits: Array<{ url: string; headers: Record<string, string> }> = [];
+let requestInits: Array<{ url: string; headers: Record<string, string>; signal?: AbortSignal }> = [];
 let routes: Record<string, Route> = {};
 let logs: Array<{ level: string; msg: string; meta: unknown }> = [];
 
@@ -96,12 +97,26 @@ before(() => {
       Agent: class {
         async close() {}
       },
-      fetch: async (input: unknown, init?: { headers?: Record<string, string> }): Promise<Response> => {
+      fetch: async (
+        input: unknown,
+        init?: { headers?: Record<string, string>; signal?: AbortSignal },
+      ): Promise<Response> => {
         const url = typeof input === "string" ? input : String(input);
         fetchCalls.push(url);
-        requestInits.push({ url, headers: { ...(init?.headers ?? {}) } });
+        requestInits.push({ url, headers: { ...(init?.headers ?? {}) }, signal: init?.signal });
         const r = routes[url];
         if (!r) throw new Error(`no route configured for ${url}`);
+        if (r.waitForAbort) {
+          return new Promise<Response>((_resolve, reject) => {
+            const rejectAbort = () => {
+              const error = new Error("aborted");
+              error.name = "AbortError";
+              reject(error);
+            };
+            if (init?.signal?.aborted) rejectAbort();
+            else init?.signal?.addEventListener("abort", rejectAbort, { once: true });
+          });
+        }
         return fakeResponse(r);
       },
     },
@@ -147,6 +162,22 @@ test("sends conditional request headers (If-None-Match / If-Modified-Since)", as
   assert.equal(requestInits.length, 1);
   assert.equal(requestInits[0].headers["if-none-match"], '"abc123"');
   assert.equal(requestInits[0].headers["if-modified-since"], "Wed, 21 Oct 2026 07:28:00 GMT");
+});
+
+test("caller cancellation aborts an in-flight discovery request", async () => {
+  const { fetchDiscoveryResponse } = await import("@/lib/scraper/fetch");
+  routes = { "https://safe.example/slow": { status: 200, waitForAbort: true } };
+  const controller = new AbortController();
+
+  const pending = fetchDiscoveryResponse("https://safe.example/slow", {
+    signal: controller.signal,
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  controller.abort();
+
+  await assert.rejects(pending, { name: "AbortError" });
+  assert.equal(requestInits.length, 1);
+  assert.equal(requestInits[0]?.signal?.aborted, true);
 });
 
 test("returns 304 as a typed no-body not-modified result (not a throw)", async () => {

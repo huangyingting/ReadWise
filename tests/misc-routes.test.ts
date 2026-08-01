@@ -34,7 +34,7 @@ let authState: AuthState = "ok";
 // level-recommendation stubs
 let levelRecommendation: Record<string, unknown> | null = defaultLevelRecommendation();
 
-// PII capture — captureError is called from client-errors route with scrubbed message
+// Privacy capture — captureError receives only the route's controlled synthetic error.
 let capturedErrors: { message: string }[] = [];
 let clientErrorsRateLimitLimited = false;
 
@@ -293,7 +293,7 @@ test("POST /api/client-errors keeps returning 204 when rate-limited", async () =
   assert.equal(capturedErrors.length, 0, "rate-limited requests should be silently absorbed");
 });
 
-test("POST /api/client-errors strips email PII before passing message to captureError", async () => {
+test("POST /api/client-errors discards email-bearing exception prose before captureError", async () => {
   const { POST } = (await import("@/app/api/client-errors/route")) as { POST: RouteHandler };
   await POST(
     jsonPost("http://test/api/client-errors", {
@@ -302,11 +302,12 @@ test("POST /api/client-errors strips email PII before passing message to capture
   );
   assert.ok(capturedErrors.length > 0, "captureError was called");
   const captured = capturedErrors[0].message;
-  assert.ok(!captured.includes("@secret.com"), "email address removed from message");
-  assert.ok(captured.includes("[email]"), "PII replaced with [email] placeholder");
+  assert.equal(captured, "client_error");
+  assert.ok(!captured.includes("@secret.com"), "email address never reaches captureError");
+  assert.ok(!captured.includes("[email]"), "discarded prose is not retained as a placeholder");
 });
 
-test("POST /api/client-errors strips long token-like strings from message", async () => {
+test("POST /api/client-errors discards token-bearing exception prose before captureError", async () => {
   const { POST } = (await import("@/app/api/client-errors/route")) as { POST: RouteHandler };
   await POST(
     jsonPost("http://test/api/client-errors", {
@@ -315,8 +316,12 @@ test("POST /api/client-errors strips long token-like strings from message", asyn
   );
   assert.ok(capturedErrors.length > 0, "captureError was called");
   const captured = capturedErrors[0].message;
-  assert.ok(!captured.includes("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9abc"), "token removed");
-  assert.ok(captured.includes("[token]"), "token replaced with [token] placeholder");
+  assert.equal(captured, "client_error");
+  assert.ok(
+    !captured.includes("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9abc"),
+    "token never reaches captureError",
+  );
+  assert.ok(!captured.includes("[token]"), "discarded prose is not retained as a placeholder");
 });
 
 // ===========================================================================

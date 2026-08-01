@@ -157,10 +157,10 @@ async function discoverViaExtractor(
   let candidates: UrlExtractorResult[];
   try {
     candidates = await provider.urlExtractor!({ limit, fetch: extractorFetch, fetchResponse });
-  } catch (err) {
+  } catch {
     log.warn("extractor.failed", {
       provider: provider.key,
-      error: err instanceof Error ? err.message : String(err),
+      machineReason: "provider_extractor_failed",
     });
     return [];
   }

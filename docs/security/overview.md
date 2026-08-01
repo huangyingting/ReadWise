@@ -333,6 +333,7 @@ permitted.
 | `isSensitiveMetadataKey(key)` | Returns `true` when a key name likely carries sensitive or user-private content. |
 | `redactSensitiveValue(value)` | Inline-masks embedded email addresses as `[email]` and long token-like values as `[token]`. |
 | `redactSensitiveObject(obj)` | Flat-object redactor: sensitive keys → `[redacted]`, nested objects → `[object]`, strings masked + capped at 200 chars. |
+| `safeMetadataForLog(input)` | Recursive structured-log sanitizer. A syntactically controlled `machineReason` is preserved; arbitrary values under that field become `unexpected_error`. |
 | `safeMetadataForPersistence(input)` | Recursive sanitiser for persistent storage: redacts sensitive keys, scrubs PII/tokens, caps depth (3 levels), key count (25), array size (20), and string length (200 chars). |
 
 Import redaction helpers from `@/lib/security/redaction` or `@/lib/security`
@@ -342,9 +343,10 @@ directly. Deprecated compatibility aliases have been removed.
 
 Any key whose name (case-insensitive substring match) contains one of:
 `authorization`, `body`, `completion`, `content`, `cookie`, `credential`,
-`definition`, `email`, `example`, `explanation`, `key`, `pass`, `phrase`,
-`prompt`, `pwd`, `response`, `secret`, `select`, `sentence`, `session`,
-`text`, `token`, `translation`, `url`.
+`definition`, `detail`, `email`, `example`, `explanation`, `key`, `pass`,
+`phrase`, `prompt`, `pwd`, `response`, `secret`, `select`, `sentence`,
+`session`, `stack`, `text`, `token`, `translation`, `url`, and unstructured
+error fields. Controlled error code/name/kind/type fields remain available.
 
 This superset covers keys from all three prior per-module lists (audit, errors,
 analytics) — the regression test in `tests/redaction.test.ts` validates that no
@@ -356,7 +358,7 @@ path narrows the superset.
 | --- | --- |
 | `src/lib/security/audit.ts` | `isSensitiveMetadataKey` + `redactSensitiveValue` for `sanitizeAuditMetadata` |
 | `src/lib/observability/errors.ts` | `isSensitiveMetadataKey` + `redactSensitiveValue` for `scrubContext` (used by security events) |
+| `src/lib/observability/logger.ts` | `safeMetadataForLog` for logger base and per-call metadata |
 | `src/lib/analytics/events/sanitize.ts` | `isSensitiveMetadataKey` for `sanitizeEventProperties` (drops sensitive keys) |
-| `src/lib/ai/ledger.ts` | `redactSensitiveValue` for error messages before persistence |
+| `src/lib/ai/ledger.ts` | Persists controlled `fallbackReason`; provider/exception prose is discarded |
 | `src/lib/security/events.ts` | via `scrubContext` from `@/lib/observability/errors` |
-

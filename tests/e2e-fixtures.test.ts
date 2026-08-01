@@ -11,15 +11,20 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import { Prisma } from "@prisma/client";
 
 // Track calls into the mock prisma client.
 let transactionCalled = false;
 let lastCreateArgs: Record<string, unknown> | null = null;
 let createCallCount = 0;
+let deletedDelegates: string[] = [];
 
-function makeTableMock() {
+function makeTableMock(delegateName: string) {
   return {
-    deleteMany: () => Promise.resolve({ count: 0 }),
+    deleteMany: () => {
+      deletedDelegates.push(delegateName);
+      return Promise.resolve({ count: 0 });
+    },
     create: async (args: { data?: Record<string, unknown> }) => {
       lastCreateArgs = args?.data ?? null;
       createCallCount++;
@@ -30,7 +35,7 @@ function makeTableMock() {
   };
 }
 
-const tableMock = makeTableMock();
+const tableMocks = new Map<string, ReturnType<typeof makeTableMock>>();
 
 const mockPrismaClient = new Proxy({} as Record<string, unknown>, {
   get(_target, prop: string | symbol) {
@@ -40,6 +45,11 @@ const mockPrismaClient = new Proxy({} as Record<string, unknown>, {
         return Promise.all(ops);
       };
     }
+    if (typeof prop !== "string") return undefined;
+    const existing = tableMocks.get(prop);
+    if (existing) return existing;
+    const tableMock = makeTableMock(prop);
+    tableMocks.set(prop, tableMock);
     return tableMock;
   },
 });
@@ -54,6 +64,7 @@ beforeEach(() => {
   transactionCalled = false;
   lastCreateArgs = null;
   createCallCount = 0;
+  deletedDelegates = [];
 });
 
 // ── Exported constants ────────────────────────────────────────────────────
@@ -174,6 +185,19 @@ test("resetE2eDatabase calls prisma.$transaction with all deleteMany operations"
     const { resetE2eDatabase } = await import("@/lib/testing/e2e-fixtures");
     await resetE2eDatabase();
     assert.ok(transactionCalled, "prisma.$transaction should be called");
+    const expectedDelegates = Prisma.dmmf.datamodel.models
+      .map(({ name }) => `${name[0]!.toLowerCase()}${name.slice(1)}`)
+      .sort();
+    assert.deepEqual(
+      [...new Set(deletedDelegates)].sort(),
+      expectedDelegates,
+      "the full reset must delete every Prisma model",
+    );
+    assert.equal(
+      deletedDelegates.length,
+      expectedDelegates.length,
+      "the full reset must delete each Prisma model exactly once",
+    );
   } finally {
     process.env.DATABASE_URL = orig;
     process.env.PLAYWRIGHT_DATABASE_URL = origPlaywright;
@@ -269,6 +293,25 @@ test("seedE2eMember creates a Reader member with fixed synthetic ID and onboarde
     profile!.create!.completedAt instanceof Date,
     "completedAt must be a Date (onboarding complete)",
   );
+});
+
+test("seedE2eOrganization creates a deterministic tenant with the fixture member", async () => {
+  createCallCount = 0;
+  const {
+    seedE2eOrganization,
+    TEST_MEMBER_ID,
+    TEST_ORGANIZATION_ID,
+  } = await import("@/lib/testing/e2e-fixtures");
+
+  await seedE2eOrganization();
+
+  assert.equal(createCallCount, 1, "one organization.create call expected");
+  assert.equal(lastCreateArgs?.id, TEST_ORGANIZATION_ID);
+  assert.equal(lastCreateArgs?.name, "E2E Admin Organization");
+  assert.equal(lastCreateArgs?.slug, "e2e-admin-organization");
+  assert.deepEqual(lastCreateArgs?.memberships, {
+    create: { userId: TEST_MEMBER_ID, role: "Member" },
+  });
 });
 
 // ── seedTeacherClassroom ──────────────────────────────────────────────────

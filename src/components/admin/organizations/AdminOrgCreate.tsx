@@ -15,8 +15,8 @@ import {
  * Client island: create an organization from the platform-admin surface (#1163).
  *
  * Posts `{ name, slug?, ownerUserId }` to `POST /api/admin/organizations`, which
- * reuses the existing tenant `createOrganization` + `addMember` commands to seed
- * the owner as the first OrgAdmin. On success it refreshes the server list.
+ * reuses the transactional tenant `createOrganization` command to seed the owner
+ * as the first OrgAdmin. On success it refreshes the server list.
  */
 export default function AdminOrgCreate() {
   const { busy, error, run } = useAdminAction<"create">();

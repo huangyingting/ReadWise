@@ -277,6 +277,23 @@ test("summarizeSourceHealth flags failing sources with reasons", async () => {
   assert.deepEqual(healthy.reasons, []);
 });
 
+test("summarizeSourceHealth explains recent failure and zero-discovery degradation", async () => {
+  const { summarizeSourceHealth } = await import("@/lib/scraper/sources");
+  const summary = summarizeSourceHealth({
+    healthStatus: "degraded",
+    consecutiveFailures: 1,
+    consecutiveZeroDiscovery: 1,
+    lastError: null,
+    lastCrawledAt: new Date(),
+  });
+
+  assert.equal(summary.flagged, false);
+  assert.deepEqual(summary.reasons, [
+    "1 recent failed run(s)",
+    "1 recent run(s) found no articles",
+  ]);
+});
+
 test("syncContentSources creates one row per registry provider, idempotently", async () => {
   const { syncContentSources } = await import("@/lib/scraper/sources");
   const { PROVIDERS } = await import("@/lib/scraper/providers");
@@ -323,8 +340,33 @@ test("recordCrawlRun upserts a row and computes failing health after repeated fa
 
   assert.equal(row.consecutiveFailures, 3);
   assert.equal(row.healthStatus, "failing");
-  assert.equal(row.lastError, "boom");
+  assert.equal(row.lastError, "crawl_run_failed");
   assert.ok(row.lastCrawledAt instanceof Date);
+});
+
+test("recordCrawlRun classifies a productive error-free crawl as successful", async () => {
+  const { recordCrawlRun } = await import("@/lib/scraper/sources");
+
+  await recordCrawlRun("huffpost", {
+    discovered: 2,
+    scraped: 1,
+    failed: 0,
+    duplicates: 1,
+    rejected: 0,
+    error: null,
+  });
+
+  assert.equal(crawlRuns.at(-1)?.outcome, "success");
+});
+
+test("sanitizeCrawlRunError maps auth and persistence prose to fixed machine codes", async () => {
+  const { sanitizeCrawlRunError } = await import("@/lib/scraper/sources");
+
+  assert.equal(sanitizeCrawlRunError("provider returned 401 unauthorized"), "crawl_auth_failed");
+  assert.equal(
+    sanitizeCrawlRunError("database constraint prevented persistence"),
+    "crawl_persistence_failed",
+  );
 });
 
 test("recordCrawlRun stores bounded privacy-safe history and lists recent runs", async () => {
@@ -344,7 +386,7 @@ test("recordCrawlRun stores bounded privacy-safe history and lists recent runs",
         source: "admin trigger",
         mode: "single provider",
         durationMs: 12.7,
-        error: "failed fetching https://private.example/article body omitted",
+        error: "failed fetching https://private.example/article private article sentence",
       },
       new Date(`2026-01-01T00:00:${String(i).padStart(2, "0")}Z`),
     );
@@ -356,6 +398,5 @@ test("recordCrawlRun stores bounded privacy-safe history and lists recent runs",
   assert.equal(recent[0].source, "admin-trigger");
   assert.equal(recent[0].mode, "single-provider");
   assert.equal(recent[0].durationMs, 13);
-  assert.equal(recent[0].error?.includes("https://private.example"), false);
-  assert.match(recent[0].error ?? "", /\[url\]/);
+  assert.equal(recent[0].error, "crawl_fetch_failed");
 });

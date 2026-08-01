@@ -77,6 +77,7 @@ Personal imports use `ownedArticleWhere(userId)` and are not public-cacheable.
 Key listing surfaces:
 
 - latest public articles (`listPublishedArticles`),
+- content-free public sitemap metadata (`listPublishedArticleSitemapEntries`),
 - category pages (`listCategoryPage`),
 - level/topic picks fallback (`listPicksPage`),
 - personal imports (`listPersonalArticlesPage`).
@@ -160,4 +161,3 @@ Important coverage includes `tests/article-access.test.ts`,
 `tests/admin-articles*.test.ts`, `tests/articles.test.ts`,
 `tests/articles-search.test.ts`, `tests/search-sql-predicate.test.ts`, and
 content policy/moderation route tests.
-

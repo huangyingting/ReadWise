@@ -26,7 +26,7 @@ let failSpeechUpdateIds: Set<string>;
 let workerMetrics: unknown[];
 let capturedWorkerErrors: unknown[];
 let loggerErrors: unknown[];
-let pushReminderCalls: string[];
+let pushReminderCalls: Array<{ userId: string; idempotencyKey?: string }>;
 let pushReminderResult: {
   dueCount: number;
   sent: number;
@@ -36,12 +36,34 @@ let pushReminderResult: {
 };
 
 class MockJobError extends Error {
-  readonly kind?: string;
-  constructor(message: string, opts?: { kind?: string }) {
+  readonly kind: string;
+  readonly permanent: boolean;
+  readonly reason: string;
+  constructor(
+    message: string,
+    opts?: { kind?: string; permanent?: boolean; reason?: string },
+  ) {
     super(message);
     this.name = "JobError";
-    this.kind = opts?.kind;
+    this.kind = opts?.kind ?? "unknown";
+    this.permanent = opts?.permanent ?? ["validation", "missing", "permission"].includes(this.kind);
+    this.reason = opts?.reason ?? `${this.kind}_failure`;
   }
+}
+
+function classifyMockJobError(error: unknown): {
+  kind: string;
+  permanent: boolean;
+  reason: string;
+} {
+  if (error instanceof MockJobError) {
+    return {
+      kind: error.kind,
+      permanent: error.permanent,
+      reason: error.reason,
+    };
+  }
+  return { kind: "provider", permanent: false, reason: "provider_failure" };
 }
 
 const MockJobType = {
@@ -165,8 +187,11 @@ before(() => {
   });
   mock.module("@/lib/push/scheduler", {
     namedExports: {
-      sendPushReminderForUser: async (userId: string) => {
-        pushReminderCalls.push(userId);
+      sendPushReminderForUser: async (
+        userId: string,
+        options?: { idempotencyKey?: string },
+      ) => {
+        pushReminderCalls.push({ userId, idempotencyKey: options?.idempotencyKey });
         return { userId, ...pushReminderResult };
       },
     },
@@ -174,6 +199,7 @@ before(() => {
   mock.module("@/lib/jobs", {
     namedExports: {
       claimNextJob: async () => null,
+      classifyJobError: classifyMockJobError,
       completeJob: async () => null,
       failJob: async () => null,
       heartbeatJob: async () => true,
@@ -338,7 +364,7 @@ test("worker registry handlers validate payloads, processor results, and push re
   }));
   await assert.rejects(
     () => failedHandler({ id: "job-4", payload: { articleId: "a1" } } as never, { logger: workerLogger }),
-    /processing failed \(tags: unknown\)/,
+    /article processing failed/,
   );
 
   const defaults = createDefaultRegistry(async () => ({ articleId: "a1", title: "A1", ok: true, published: false, steps: [] }));
@@ -346,7 +372,9 @@ test("worker registry handlers validate payloads, processor results, and push re
     { id: "push-job", payload: { userId: "user-1" } } as never,
     { logger: workerLogger },
   );
-  assert.deepEqual(pushReminderCalls, ["user-1"]);
+  assert.deepEqual(pushReminderCalls, [
+    { userId: "user-1", idempotencyKey: "push-job" },
+  ]);
   assert.ok(logs.some((entry) => JSON.stringify(entry).includes("push-job")));
 
   pushReminderResult = {
@@ -360,7 +388,10 @@ test("worker registry handlers validate payloads, processor results, and push re
     { id: "push-unconfigured", payload: { userId: "user-2" } } as never,
     { logger: workerLogger },
   );
-  assert.deepEqual(pushReminderCalls, ["user-1", "user-2"]);
+  assert.deepEqual(pushReminderCalls, [
+    { userId: "user-1", idempotencyKey: "push-job" },
+    { userId: "user-2", idempotencyKey: "push-unconfigured" },
+  ]);
   assert.ok(JSON.stringify(logs).includes("unconfigured"));
 
   const pushReminderHandler = makePushReminderHandler();
@@ -509,6 +540,9 @@ test("worker loop handles aborts, missing handlers, retry/dead-letter accounting
     },
   );
   assert.equal(stats.deadLettered, 1);
+  const capturedFailure = capturedWorkerErrors.at(-1) as { err: Error };
+  assert.equal(capturedFailure.err.message, "provider_failure");
+  assert.doesNotMatch(capturedFailure.err.message, /final failure/);
 
   stats = await runWorkerLoop(
     "worker-a",
@@ -551,7 +585,8 @@ test("worker loop handles aborts, missing handlers, retry/dead-letter accounting
       }),
     /database down/,
   );
-  assert.ok(JSON.stringify(loggerErrors).includes("database down"));
+  assert.ok(JSON.stringify(loggerErrors).includes("job_loop_failed"));
+  assert.ok(!JSON.stringify(loggerErrors).includes("database down"));
 
   const startedStopped: unknown[] = [];
   const workerClaims: unknown[] = [];

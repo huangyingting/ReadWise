@@ -26,6 +26,7 @@ import { resolve, join } from "node:path";
 import {
   canDemote,
   canPromote,
+  classifyTrustMutationError,
   formatRate,
   hasOldItemFalsePositive,
   trustBlockerLabel,
@@ -40,6 +41,7 @@ import {
   type SourceTrustSnapshot,
   type SourceTrustWarning,
 } from "@/lib/scraper/incremental/source-trust-ui";
+import { ApiResponseError } from "@/lib/client-fetch";
 import type {
   SourceTrustBlocker as BackendBlocker,
   SourceTrustWarning as BackendWarning,
@@ -217,6 +219,23 @@ test("trustMutationErrorFrom classifies version-mismatch, busy, ineligible, stal
   assert.equal(trustMutationErrorFrom(401, {}, "x").kind, "auth");
   assert.equal(trustMutationErrorFrom(403, {}, "x").kind, "auth");
   assert.equal(trustMutationErrorFrom(500, {}, "x").kind, "generic");
+});
+
+test("classifyTrustMutationError preserves controlled API errors and hides arbitrary prose", () => {
+  const apiError = Object.assign(new ApiResponseError(409, "Refresh this source."), {
+    cause: { reason: "version-mismatch" },
+  });
+  assert.deepEqual(classifyTrustMutationError(apiError), {
+    kind: "versionMismatch",
+    message: "Refresh this source.",
+  });
+
+  const generic = classifyTrustMutationError(new Error("private article body"));
+  assert.deepEqual(generic, {
+    kind: "generic",
+    message: "Trust action failed.",
+  });
+  assert.doesNotMatch(generic.message, /private article body/);
 });
 
 // ---------------------------------------------------------------------------

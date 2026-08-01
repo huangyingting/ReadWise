@@ -2,16 +2,12 @@
 
 import { useState } from "react";
 import { signOut } from "next-auth/react";
-import { deleteJson } from "@/lib/client-fetch";
+import { clientErrorMessage, deleteJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 import { buttonVariants } from "@/components/ui/Button";
 import { purgeOfflineUserData } from "@/lib/offline/sync-runtime";
 
 const ACCOUNT_DELETION_ERROR = "Deletion failed";
-
-function accountDeletionErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : ACCOUNT_DELETION_ERROR;
-}
 
 export default function AccountDangerZone() {
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -26,7 +22,7 @@ export default function AccountDangerZone() {
       await purgeOfflineUserData();
       await signOut({ callbackUrl: "/signin" });
     } catch (err) {
-      setDeleteError(accountDeletionErrorMessage(err));
+      setDeleteError(clientErrorMessage(err, ACCOUNT_DELETION_ERROR));
     } finally {
       setDeleteBusy(false);
     }

@@ -332,10 +332,14 @@ function build<B, P, Q, S extends Session | null>(
             // redacted, alertable), log internals, return a generic response in
             // production. The ambient request context supplies requestId/userId.
             recordSpanError(span, err);
-            captureError(err, { source: "server", severity: "error", route: routeGroup });
+            captureError(err, {
+              source: "server",
+              severity: "error",
+              machineReason: "request_unhandled_error",
+              route: routeGroup,
+            });
             log.error("request.unhandled_error", {
-              error: err instanceof Error ? err.message : String(err),
-              stack: err instanceof Error ? err.stack : undefined,
+              machineReason: "request_unhandled_error",
               durationMs: Date.now() - startedAt,
             });
             const message = process.env.NODE_ENV === "production"

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { submitMutation, newClientMutationId } from "@/lib/offline/sync-runtime";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 
 export type QuizQuestion = {
   question: string;
@@ -147,23 +148,12 @@ export function useArticleQuizPanel(
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reader/${articleId}/quiz`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(data?.error ?? QUIZ_LOAD_ERROR);
-      }
-      const data = (await res.json()) as QuizResponse;
+      const data = await postJson<QuizResponse>(`/api/reader/${articleId}/quiz`, {});
       setQuestions(data.questions);
       setFallback(data.fallback);
       setLoaded(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : QUIZ_LOAD_ERROR);
+      setError(clientErrorMessage(err, QUIZ_LOAD_ERROR));
     } finally {
       setLoading(false);
     }

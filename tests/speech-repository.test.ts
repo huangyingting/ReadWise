@@ -24,20 +24,36 @@ import type { MediaStorage, PutMediaInput, PutMediaResult } from "@/lib/storage"
 type UpsertArgs = { where: Record<string, unknown>; update: Record<string, unknown>; create: Record<string, unknown>; select?: Record<string, unknown> };
 
 let storageImpl: MediaStorage | null = null;
-let mediaAssetFindRow: { storageKey: string; mimeType: string; voice: string | null } | null = null;
+let articleSpeechFindRow: { mediaAssetId: string | null } | null = null;
+let mediaAssetFindRow: { storageKey: string | null; mimeType: string; voice: string | null } | null = null;
 let mediaAssetUpsertArgs: UpsertArgs | null = null;
 let articleSpeechUpsertArgs: UpsertArgs | null = null;
 let transactionThrows: Error | null = null;
+let loggerEntries: Array<{ event: string; meta?: Record<string, unknown> }> = [];
 
 function resetState(): void {
   storageImpl = null;
+  articleSpeechFindRow = null;
   mediaAssetFindRow = null;
   mediaAssetUpsertArgs = null;
   articleSpeechUpsertArgs = null;
   transactionThrows = null;
+  loggerEntries = [];
 }
 
 before(() => {
+  mock.module("@/lib/observability/logger", {
+    namedExports: {
+      createLogger: () => ({
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: (event: string, meta?: Record<string, unknown>) => {
+          loggerEntries.push({ event, meta });
+        },
+      }),
+    },
+  });
   mock.module("@/lib/storage", {
     namedExports: {
       getMediaStorage: () => storageImpl,
@@ -47,6 +63,9 @@ before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
+        articleSpeech: {
+          findUnique: async () => articleSpeechFindRow,
+        },
         mediaAsset: {
           findUnique: async () => mediaAssetFindRow,
         },
@@ -256,6 +275,54 @@ test("resolveStoredSpeechMediaMetadata does not load audio bytes", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// getArticleSpeechAudio
+// ---------------------------------------------------------------------------
+
+test("getArticleSpeechAudio returns null for missing speech and media rows", async () => {
+  const { getArticleSpeechAudio } = await loadRepo();
+
+  assert.equal(await getArticleSpeechAudio("missing-speech"), null);
+
+  articleSpeechFindRow = { mediaAssetId: "missing-media" };
+  assert.equal(await getArticleSpeechAudio("missing-media"), null);
+});
+
+test("getArticleSpeechAudio treats unavailable or missing storage bytes as a cache miss", async () => {
+  const { getArticleSpeechAudio } = await loadRepo();
+  articleSpeechFindRow = { mediaAssetId: "media-1" };
+
+  mediaAssetFindRow = { storageKey: null, mimeType: "audio/mpeg", voice: null };
+  assert.equal(await getArticleSpeechAudio("no-storage-key"), null);
+
+  mediaAssetFindRow = {
+    storageKey: "speech/unconfigured",
+    mimeType: "audio/mpeg",
+    voice: null,
+  };
+  assert.equal(await getArticleSpeechAudio("no-storage-provider"), null);
+
+  storageImpl = makeStorage({ get: async () => null });
+  assert.equal(await getArticleSpeechAudio("missing-blob"), null);
+});
+
+test("getArticleSpeechAudio returns stored bytes with their canonical MIME type", async () => {
+  const { getArticleSpeechAudio } = await loadRepo();
+  const audio = Buffer.from("stored narration");
+  articleSpeechFindRow = { mediaAssetId: "media-1" };
+  mediaAssetFindRow = {
+    storageKey: "speech/stored",
+    mimeType: "audio/ogg",
+    voice: "en-US-Test",
+  };
+  storageImpl = makeStorage({ get: async () => audio });
+
+  assert.deepEqual(await getArticleSpeechAudio("article-1"), {
+    mimeType: "audio/ogg",
+    bytes: audio,
+  });
+});
+
+// ---------------------------------------------------------------------------
 // saveSpeechResult
 // ---------------------------------------------------------------------------
 
@@ -329,13 +396,15 @@ test("saveSpeechResult skips persistence when the storage write throws", async (
   const { saveSpeechResult } = await loadRepo();
   storageImpl = makeStorage({
     put: async () => {
-      throw new Error("blob unavailable");
+      throw new Error("blob unavailable with private article sentence");
     },
   });
 
   const saved = await saveSpeechResult(SAVE_PARAMS);
 
   assert.equal(saved, false);
+  assert.doesNotMatch(JSON.stringify(loggerEntries), /private article sentence/);
+  assert.equal(loggerEntries.at(-1)?.meta?.machineReason, "storage_write_failed");
   assert.equal(mediaAssetUpsertArgs, null, "media asset upsert is never reached after a put failure");
   assert.equal(articleSpeechUpsertArgs, null, "speech row upsert is skipped after a put failure");
 });
@@ -343,7 +412,7 @@ test("saveSpeechResult skips persistence when the storage write throws", async (
 test("saveSpeechResult deletes the uploaded blob and returns false when the DB transaction fails", async () => {
   const { saveSpeechResult } = await loadRepo();
   const deletedKeys: string[] = [];
-  transactionThrows = new Error("transaction unavailable");
+  transactionThrows = new Error("transaction unavailable with private article sentence");
   storageImpl = makeStorage({
     put: async () => ({ storageKey: "speech/orphaned", sizeBytes: 5, checksum: "cafef00d" }),
     delete: async (key) => {
@@ -355,6 +424,25 @@ test("saveSpeechResult deletes the uploaded blob and returns false when the DB t
 
   assert.equal(saved, false);
   assert.deepEqual(deletedKeys, ["speech/orphaned"]);
+  assert.doesNotMatch(JSON.stringify(loggerEntries), /private article sentence/);
+  assert.equal(loggerEntries.at(-1)?.meta?.machineReason, "speech_persistence_failed");
   assert.equal(mediaAssetUpsertArgs, null, "media asset upsert should not commit after tx failure");
   assert.equal(articleSpeechUpsertArgs, null, "speech row upsert should not commit after tx failure");
+});
+
+test("saveSpeechResult preserves graceful fallback when orphan cleanup also fails", async () => {
+  const { saveSpeechResult } = await loadRepo();
+  transactionThrows = new Error("transaction unavailable");
+  storageImpl = makeStorage({
+    put: async () => ({ storageKey: "speech/orphaned", sizeBytes: 5, checksum: "cafef00d" }),
+    delete: async () => {
+      throw new Error("storage unavailable");
+    },
+  });
+
+  assert.equal(await saveSpeechResult(SAVE_PARAMS), false);
+  assert.deepEqual(
+    loggerEntries.map((entry) => entry.meta?.machineReason),
+    ["storage_cleanup_failed", "speech_persistence_failed"],
+  );
 });

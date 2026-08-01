@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { chunkArticleText } from "./chunk";
 import { mapWithConcurrency } from "./concurrency";
 import { allVariants, variantById, variantsForProfile, type PromptVariant } from "./prompts";
+import { ALL_PROFILES, type TranslationProfile } from "./categories";
 import type { Corpus, SampledArticle } from "./sample";
 import { chatCompleteWithRetry } from "./vllm-client";
 import { isMain, parseString, parsePositiveInt, runScript, warnUnknown } from "../lib/cli";
@@ -83,7 +84,7 @@ export type RunReport = {
   runs: TranslationRun[];
 };
 
-function paragraphCount(text: string): number {
+export function paragraphCount(text: string): number {
   return text
     .split(/\n{2,}/)
     .map((p) => p.trim())
@@ -100,11 +101,11 @@ function paragraphCount(text: string): number {
  * estimate. Under-budgeting here is what causes truncated
  * (`finish_reason: "length"`) output.
  */
-function outputTokenBudget(chunkCharCount: number): number {
+export function outputTokenBudget(chunkCharCount: number): number {
   return Math.min(4096, Math.max(768, chunkCharCount + 256));
 }
 
-async function translateOne(
+export async function translateOne(
   article: SampledArticle,
   variant: PromptVariant,
   chunkInputTokens: number,
@@ -152,20 +153,20 @@ async function translateOne(
       error: null,
       durationMs: Date.now() - started,
     };
-  } catch (err) {
+  } catch {
     return {
       ...base,
       chunkCount: 0,
       translation: null,
       outputParagraphCount: 0,
       outputCharCount: 0,
-      error: err instanceof Error ? err.message : String(err),
+      error: "translation_run_failed",
       durationMs: Date.now() - started,
     };
   }
 }
 
-function resolveVariants(spec: string): PromptVariant[] {
+export function resolveVariants(spec: string): PromptVariant[] {
   if (spec === "all") return allVariants();
   const ids = spec.split(",").map((s) => s.trim()).filter(Boolean);
   const resolved: PromptVariant[] = [];
@@ -175,9 +176,12 @@ function resolveVariants(spec: string): PromptVariant[] {
       resolved.push(byId);
       continue;
     }
-    // Allow bare profile names ("news") to mean "all variants for that profile".
-    const byProfile = variantsForProfile(id as PromptVariant["profile"]);
-    if (byProfile.length > 0) resolved.push(...byProfile);
+    // Allow known bare profile names ("news") to mean all variants for that
+    // profile. Unknown values must not manufacture an invalid prompt whose
+    // systemPrompt is undefined.
+    if (ALL_PROFILES.includes(id as TranslationProfile)) {
+      resolved.push(...variantsForProfile(id as TranslationProfile));
+    }
   }
   return resolved;
 }
@@ -220,7 +224,7 @@ export async function runTranslations(
   };
 }
 
-type Args = {
+export type TranslateArgs = {
   corpus: string;
   variants: string;
   out: string;
@@ -229,8 +233,8 @@ type Args = {
   help: boolean;
 };
 
-function parseArgs(argv: string[]): Args {
-  const args: Args = {
+export function parseArgs(argv: string[]): TranslateArgs {
+  const args: TranslateArgs = {
     corpus: parseString(argv, "--corpus") ?? DEFAULT_CORPUS,
     variants: parseString(argv, "--variants") ?? "all",
     out: parseString(argv, "--out") ?? DEFAULT_OUT,
@@ -257,7 +261,7 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     console.log(
@@ -284,6 +288,10 @@ async function main(): Promise<number> {
   return errorCount > 0 ? 1 : 0;
 }
 
-if (isMain(import.meta.url)) {
-  runScript(main, "translate failed");
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    runScript(main, "translate failed");
+  }
 }
+
+runAsCli();

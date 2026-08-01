@@ -66,10 +66,6 @@ function initialStats(): BackfillLoopStats {
   };
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 function applyOutcome(stats: BackfillLoopStats, outcome: AdvanceBackfillResult): void {
   if (!outcome.ok) return;
   if (outcome.kind === "advanced") {
@@ -131,7 +127,11 @@ export async function runBackfillLoop(
             break;
           }
           stats.failed += 1;
-          logger.error("backfill run advance failed", { workerId, runId, error: errorMessage(err) });
+          logger.error("backfill run advance failed", {
+            workerId,
+            runId,
+            failureReason: "backfill_advance_failed",
+          });
         }
       }
 
@@ -143,7 +143,7 @@ export async function runBackfillLoop(
     if (isAbort(err)) {
       stats.stoppedBySignal = true;
     } else {
-      logger.error("backfill loop crashed", { error: errorMessage(err) });
+      logger.error("backfill loop crashed", { failureReason: "backfill_loop_failed" });
       throw err;
     }
   }

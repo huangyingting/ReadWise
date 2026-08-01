@@ -139,10 +139,10 @@ function sweepExpiredDatabaseCounters(client: CounterClient): void {
     .catch(() => {});
 }
 
-function tripDatabaseCircuit(err: unknown): void {
+function tripDatabaseCircuit(_err: unknown): void {
   databaseDisabledUntil = Date.now() + FAILURE_COOLDOWN_MS;
   log.warn("fixed_window_counter.database_unavailable", {
-    error: err instanceof Error ? err.message : String(err),
+    machineReason: "counter_database_unavailable",
     cooldownMs: FAILURE_COOLDOWN_MS,
   });
 }

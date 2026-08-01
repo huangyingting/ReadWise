@@ -14,7 +14,12 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { deleteJson, getJson, postJson } from "@/lib/client-fetch";
+import {
+  clientErrorMessage,
+  deleteJson,
+  getJson,
+  postJson,
+} from "@/lib/client-fetch";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,10 +81,6 @@ function createUserTransient(
     content,
     createdAt,
   };
-}
-
-function getErrorMessage(err: unknown) {
-  return err instanceof Error ? err.message : "Something went wrong.";
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +171,7 @@ export function useTutorConversation(
           {
             kind: "error",
             id: createTransientId("error"),
-            content: getErrorMessage(err),
+            content: clientErrorMessage(err, "Something went wrong."),
             question: q,
           },
         ]);

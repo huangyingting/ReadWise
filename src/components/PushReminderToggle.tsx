@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { postJson } from "@/lib/client-fetch";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 import { Switch } from "@/components/ui/Switch";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { ui as pushUi } from "@/lib/copy/push";
@@ -58,10 +58,6 @@ async function getSubscriptionState(): Promise<Extract<ToggleState, "idle" | "su
   } catch {
     return "idle";
   }
-}
-
-function errorMessage(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
 }
 
 /**
@@ -137,7 +133,7 @@ export default function PushReminderToggle() {
       });
       setState("subscribed");
     } catch (err: unknown) {
-      setError(errorMessage(err, pushUi.subscribeError));
+      setError(clientErrorMessage(err, pushUi.subscribeError));
       setState("idle");
     }
   }, [vapidKey]);
@@ -156,7 +152,7 @@ export default function PushReminderToggle() {
       }
       setState("idle");
     } catch (err: unknown) {
-      setError(errorMessage(err, pushUi.unsubscribeError));
+      setError(clientErrorMessage(err, pushUi.unsubscribeError));
       setState("subscribed");
     }
   }, []);

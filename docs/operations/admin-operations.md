@@ -75,7 +75,7 @@ and supports multiple workers safely.
 | `attempts`, `maxAttempts` | Retry accounting. |
 | `priority`, `runAfter` | Scheduling controls; higher priority runs first among ready jobs. |
 | `lockedBy`, `lockedAt` | Worker lock owner and lease timestamp. |
-| `lastError`, `errorHistory` | Bounded error history for operators. |
+| `lastError`, `errorHistory` | Controlled failure-reason codes and bounded reason history for operators. |
 | `dedupeKey` | Optional idempotency key; active duplicate work returns the existing row. |
 | `startedAt`, `completedAt`, `failedAt`, `deadLetteredAt` | Lifecycle timestamps. |
 
@@ -157,7 +157,9 @@ When a failure is permanent **or** `attempts >= maxAttempts`, `failJob` writes
 sets `runAfter`, and emits a `retry` metric.
 
 Up to 25 error-history entries are retained in `errorHistory` (JSONB) for
-operator inspection. Older entries are dropped automatically.
+operator inspection. Each entry stores the error kind and a controlled,
+content-free reason code; exception/provider prose is never persisted. Older
+entries are dropped automatically.
 
 ### Admin actions
 
@@ -167,7 +169,7 @@ transitions:
 | Action | Allowed statuses | Effect |
 | --- | --- | --- |
 | `retry` | `FAILED`, `DEAD_LETTER` | Re-queue as `PENDING`, reset attempts/error/lock/timestamps. |
-| `cancel` | non-terminal (`PENDING`, `CLAIMED`, `RUNNING`, `FAILED`) | Move to `DEAD_LETTER` with `cancelled by admin`. |
+| `cancel` | non-terminal (`PENDING`, `CLAIMED`, `RUNNING`, `FAILED`) | Move to `DEAD_LETTER` with `cancelled_by_admin`. |
 | `archive` | `COMPLETED`, `DEAD_LETTER` | Hard-delete the job row. |
 
 The jobs page also surfaces counts by status/type, stuck jobs, recent failures,
@@ -459,15 +461,16 @@ pending → running → generated | skipped | fallback | failed
 | `generated` | Step completed successfully and produced content. |
 | `skipped` | Step was bypassed (content already exists, feature not enabled, etc.). |
 | `fallback` | Step ran but used a fallback path (e.g. AI enrichment unavailable and no cache was written). |
-| `failed` | Step threw an error; `lastError` has a short message. |
+| `failed` | Step threw an error; `lastError` has the controlled `processing_step_failed` reason. |
 
 Key implementation constraints:
 - Writes are **best-effort** — a step-state write failure never breaks the
   actual enrichment. Failures are logged as warnings (mirrors the audit/AI-ledger
   pattern).
 - **Metadata only** — step key, status, attempt count, timestamps, model name,
-  prompt version, and a short clamped error message (≤ 500 chars). Prompt text
-  and article content are never stored in step rows.
+  prompt version, fallback reason, and a controlled failure reason. Exception
+  text, provider responses, prompts, and article content are never stored in
+  step rows.
 - `beginStep` upserts: it resets `completedAt`/`lastError` so the row always
   reflects the current run, not a previous one.
 - `finishStep` upserts: a `skipped` step that never went through `beginStep` is
@@ -594,6 +597,10 @@ Scripts use a shared harness in `scripts/lib/cli.ts`:
 `runCli`, `isMain`, `registerShutdownSignals`, `addUniqueFromCsv`, `warnUnknown`.
 Shutdown signal registration (`SIGINT`/`SIGTERM`) also lives here so all
 long-running scripts stop cleanly on the same signal semantics as the worker.
+Top-level rejections retain non-zero exit codes but print only a fixed script
+label or the controlled `cli_failed` / `cli_cleanup_failed` / `script_failed`
+reason; raw exception objects and provider or content prose never reach CLI
+logs.
 
 ## Operations dashboard contracts
 
@@ -734,8 +741,9 @@ Each recorded crawl also emits ingestion metrics and stores a bounded recent
 `CrawlRun` summary for provider-drift triage. `/admin/sources` shows the latest
 runs per provider; `GET /api/admin/sources/<providerKey>/crawl-runs?limit=N`
 returns the same privacy-safe summaries for tooling. Summaries include source,
-mode, duration, outcome, counts, and a sanitized error only — never URLs, article
-text, prompts, selected text, definitions, translations, or private content.
+mode, duration, outcome, counts, and a controlled `crawl_*` failure reason only
+— never URLs, article text, prompts, selected text, definitions, translations,
+exception prose, or private content.
 
 ### Provider trigger — explicit incremental mode (#1097)
 

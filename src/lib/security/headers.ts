@@ -94,9 +94,10 @@ export const IMAGE_REMOTE_PATTERNS: readonly { protocol: "https"; hostname: stri
 /**
  * Packages that must remain external to the webpack bundle.
  *
- * The OpenTelemetry SDK and Azure Blob Storage SDK are server-only and rely on
- * native require-in-the-middle instrumentation / platform SDKs that must not
- * be bundled into the browser or Edge runtime.
+ * The platform SDKs are server-only and rely on native require-in-the-middle
+ * instrumentation or Node APIs. Natural is also Node-only; keeping its package
+ * external prevents webpack from traversing unused classifier modules that
+ * reference optional native training dependencies.
  */
 export const SERVER_EXTERNAL_PACKAGES: readonly string[] = [
   "@opentelemetry/sdk-node",
@@ -104,4 +105,5 @@ export const SERVER_EXTERNAL_PACKAGES: readonly string[] = [
   "@opentelemetry/resources",
   "@opentelemetry/sdk-trace-base",
   "@azure/storage-blob",
+  "natural",
 ];

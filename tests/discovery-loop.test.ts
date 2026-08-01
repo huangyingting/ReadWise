@@ -125,3 +125,66 @@ test("an already-aborted signal stops the loop before any claim", async () => {
   assert.equal(stats.stoppedBySignal, true);
   assert.deepEqual(ran, []);
 });
+
+test("a governed deferral is tallied without claiming more work in once mode", async () => {
+  const { runDiscoveryLoop } = await import("@/lib/worker/discovery-loop");
+  const ran: string[] = [];
+  const deps = makeDeps(
+    [claimed("paused")],
+    () => ({
+      status: "deferred",
+      reason: "concurrency",
+      nextRunAt: new Date("2026-07-31T12:00:00.000Z"),
+    }),
+    ran,
+  );
+
+  const stats = await runDiscoveryLoop("worker-x", { once: true }, silentLogger, deps);
+
+  assert.deepEqual(ran, ["paused"]);
+  assert.equal(stats.deferred, 1);
+});
+
+test("an abort from idle sleep stops continuous polling", async () => {
+  const [{ runDiscoveryLoop }, { AbortError }] = await Promise.all([
+    import("@/lib/worker/discovery-loop"),
+    import("@/lib/worker/sleep"),
+  ]);
+  const ran: string[] = [];
+  const deps = makeDeps([null], () => ({ status: "lease-lost" }), ran);
+  deps.sleep = async () => {
+    throw new AbortError();
+  };
+
+  const stats = await runDiscoveryLoop("worker-x", {}, silentLogger, deps);
+
+  assert.equal(stats.polls, 1);
+  assert.equal(stats.stoppedBySignal, true);
+});
+
+test("a fatal claim failure is sanitized, logged, and rethrown", async () => {
+  const { runDiscoveryLoop } = await import("@/lib/worker/discovery-loop");
+  const failure = new Error("private provider response");
+  const errors: Array<{ message: string; meta?: Record<string, unknown> }> = [];
+  const logger = {
+    info: () => {},
+    warn: () => {},
+    error: (message: string, meta?: Record<string, unknown>) => errors.push({ message, meta }),
+  };
+  const deps = makeDeps([], () => ({ status: "lease-lost" }), []);
+  deps.claimDueDiscoverySource = async () => {
+    throw failure;
+  };
+
+  await assert.rejects(
+    runDiscoveryLoop("worker-x", { once: true }, logger, deps),
+    (error) => error === failure,
+  );
+  assert.deepEqual(errors, [
+    {
+      message: "discovery loop crashed",
+      meta: { failureReason: "discovery_loop_failed" },
+    },
+  ]);
+  assert.doesNotMatch(JSON.stringify(errors), /private provider response/);
+});

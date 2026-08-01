@@ -103,18 +103,22 @@ test("finishStep skipped creates a row with zero attempts", async () => {
   assert.equal(args.update.status, "skipped");
 });
 
-test("finishStep failed persists the (clamped) error message", async () => {
+test("finishStep failed persists only the controlled failure reason", async () => {
   const { finishStep } = await import("@/lib/processing/state");
-  await finishStep("article-1", "vocabulary", "failed", { lastError: "boom" });
+  await finishStep("article-1", "vocabulary", "failed", {
+    failureReason: "processing_step_failed",
+  });
 
   const args = lastUpsertArgs();
   assert.equal(args.update.status, "failed");
-  assert.equal(args.update.lastError, "boom");
+  assert.equal(args.update.lastError, "processing_step_failed");
 });
 
 test("finishStep only stores lastError for failed steps", async () => {
   const { finishStep } = await import("@/lib/processing/state");
-  await finishStep("article-1", "tags", "fallback", { lastError: "ignored" });
+  await finishStep("article-1", "tags", "fallback", {
+    failureReason: "processing_step_failed",
+  });
 
   const args = lastUpsertArgs();
   assert.equal(args.update.status, "fallback");

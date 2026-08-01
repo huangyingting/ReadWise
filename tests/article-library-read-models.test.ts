@@ -432,6 +432,14 @@ test("article listing helpers paginate, rank by level, and list personal imports
 
   await listings.listPublishedArticles(3);
   assert.equal(articleFindManyArgs.at(-1)?.take, 3);
+  await listings.listPublishedArticleSitemapEntries(1000);
+  assert.deepEqual(articleFindManyArgs.at(-1)?.select, {
+    id: true,
+    publishedAt: true,
+    updatedAt: true,
+    createdAt: true,
+  });
+  assert.equal(articleFindManyArgs.at(-1)?.take, 1000);
   await listings.listPersonalArticles("user-1", 4);
   assert.equal(articleFindManyArgs.at(-1)?.take, 4);
   const personal = await listings.listPersonalArticlesPage("user-1", { offset: -1, limit: 99 });

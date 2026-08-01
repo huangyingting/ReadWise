@@ -38,6 +38,8 @@ type WorkerOptions = {
   signal: AbortSignal;
   logger: unknown;
   process: ProcessOpts;
+  discovery?: { fetchPage?: unknown };
+  backfill?: boolean;
 };
 
 const processPath = fileURLToPath(new URL("../scripts/process.ts", import.meta.url));
@@ -59,6 +61,7 @@ let reminderCalls: number;
 let loggerEntries: LoggerEntry[];
 let workerCalls: unknown[];
 let workerLoggerEntries: Array<{ level: "info" | "warn" | "error"; args: unknown[] }>;
+let discoverySyncCalls: number;
 let disconnects: number;
 
 function resetState(): void {
@@ -77,6 +80,7 @@ function resetState(): void {
   loggerEntries = [];
   workerCalls = [];
   workerLoggerEntries = [];
+  discoverySyncCalls = 0;
   disconnects = 0;
 }
 
@@ -278,6 +282,25 @@ mock.module("@/lib/worker", {
   },
 });
 
+mock.module("@/lib/scraper/incremental/production-discovery", {
+  namedExports: {
+    fetchProductionDiscoveryPage: async () => ({
+      items: [],
+      continuation: null,
+      boundaryReached: true,
+    }),
+  },
+});
+
+mock.module("@/lib/scraper/incremental/canary-registry", {
+  namedExports: {
+    syncCanaryDiscoverySources: async () => {
+      discoverySyncCalls++;
+      return { synced: 3 };
+    },
+  },
+});
+
 const processScript = await importAsEntrypoint<typeof import("../scripts/process")>(
   "../scripts/process",
   processPath,
@@ -446,7 +469,7 @@ test("worker main covers help, translation validation, provider warnings, and wo
     "--interval",
     "7",
     "--lock-ttl",
-    "9",
+    "60000",
     "--tts",
     "--translate",
     "es,fr",
@@ -458,8 +481,11 @@ test("worker main covers help, translation validation, provider warnings, and wo
   assert.equal(workerCalls.length, 1);
   const opts = workerCalls[0] as WorkerOptions;
   assert.equal(opts.pollIntervalMs, 7);
-  assert.equal(opts.lockTtlMs, 9);
+  assert.equal(opts.lockTtlMs, 60000);
   assert.equal(opts.once, true);
   assert.equal(opts.signal.aborted, false);
   assert.deepEqual(opts.process, { tts: true, translateLangs: ["es", "fr"] });
+  assert.equal(typeof opts.discovery?.fetchPage, "function");
+  assert.equal(opts.backfill, true);
+  assert.equal(discoverySyncCalls, 1);
 });

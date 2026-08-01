@@ -52,9 +52,11 @@ export function ensurePushInit(): boolean {
   try {
     webpush.setVapidDetails(cfg.subject, cfg.publicKey, cfg.privateKey);
     rememberPushInit(key);
-  } catch (err) {
+  } catch {
     resetPushInit();
-    log.warn("invalid VAPID configuration — push disabled", { error: String(err) });
+    log.warn("invalid VAPID configuration — push disabled", {
+      machineReason: "invalid_vapid_configuration",
+    });
     return false;
   }
   return true;
@@ -62,12 +64,12 @@ export function ensurePushInit(): boolean {
 
 /** Returns true when VAPID env vars are present, accepted by web-push, and push is enabled. */
 export function isPushConfigured(): boolean {
-  return isPushFeatureEnabled() && pushConfig.isConfigured() && ensurePushInit();
+  return isPushFeatureEnabled() && ensurePushInit();
 }
 
 /** The VAPID public key (safe to expose to clients), or null when unconfigured or disabled. */
 export function vapidPublicKey(): string | null {
-  if (!isPushFeatureEnabled()) return null;
+  if (!isPushFeatureEnabled() || !ensurePushInit()) return null;
   return readVapidConfig()?.publicKey ?? null;
 }
 

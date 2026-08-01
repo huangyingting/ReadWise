@@ -173,7 +173,7 @@ flowchart TD
 
 | Model | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `AiInvocation` (feature, model, promptVersion, status, latencyMs, token counts, estimatedCostUsd, errorMessage, userId?, articleId?) | AI | **operational** (metadata only — prompts/responses never stored) | ⛔ | **Not cascading** — `userId`/`articleId` are plain string refs. Call `deleteAiInvocationsForUser` or run `privacy:erase-ledgers` explicitly when erasing a user's data | Not applicable | Configurable via `AI_LEDGER_RETENTION_DAYS` (default 365 days). Prune with `pruneOldAiInvocations` or `npm run maintenance:retention -- --execute` | `errorMessage` is scrubbed via `redactSensitiveValue` before persistence; safe. Other fields (feature, status, counts) are safe |
+| `AiInvocation` (feature, model, promptVersion, status, fallbackReason, latencyMs, token counts, estimatedCostUsd, userId?, articleId?) | AI | **operational** (metadata only — prompts/responses never stored) | ⛔ | **Not cascading** — `userId`/`articleId` are plain string refs. Call `deleteAiInvocationsForUser` or run `privacy:erase-ledgers` explicitly when erasing a user's data | Not applicable | Configurable via `AI_LEDGER_RETENTION_DAYS` (default 365 days). Prune with `pruneOldAiInvocations` or `npm run maintenance:retention -- --execute` | Provider/exception prose is not persisted. `fallbackReason` is normalized to a controlled enum; other fields (feature, status, counts) are metadata only |
 
 > **#712-A resolved:** `pruneOldAiInvocations` (time-based retention, env:
 > `AI_LEDGER_RETENTION_DAYS`, default 365 days) and `deleteAiInvocationsForUser`
@@ -228,8 +228,8 @@ flowchart TD
 
 | Model | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `Job` (type, status, payload, attempts, errors, lockedBy, timestamps) | Operations | **operational** | ⛔ | **Not cascading** — `payload` ids are plain string refs; jobs survive entity deletion | Not applicable | Terminal rows (`COMPLETED`, `DEAD_LETTER`) prunable via `pruneTerminalJobs` (`src/lib/jobs/retention.ts`, env: `JOB_TERMINAL_RETENTION_DAYS`, default 90 days) | `lastError` / `errorHistory` may contain error text; apply redaction before surfacing in UI |
-| `ArticleProcessingStep` (step, status, modelName, promptVersion, lastError) | Operations / AI | **operational** | ⛔ | Cascade via article (`ArticleProcessingStep.articleId`) | Cascade via article | Deleted with article | `lastError` is metadata only; must not contain prompt/response content per schema comment |
+| `Job` (type, status, payload, attempts, errors, lockedBy, timestamps) | Operations | **operational** | ⛔ | **Not cascading** — `payload` ids are plain string refs; jobs survive entity deletion | Not applicable | Terminal rows (`COMPLETED`, `DEAD_LETTER`) prunable via `pruneTerminalJobs` (`src/lib/jobs/retention.ts`, env: `JOB_TERMINAL_RETENTION_DAYS`, default 90 days) | `lastError` and every `errorHistory` message are controlled, content-free reason codes; exception/provider prose is not persisted |
+| `ArticleProcessingStep` (step, status, modelName, promptVersion, lastError) | Operations / AI | **operational** | ⛔ | Cascade via article (`ArticleProcessingStep.articleId`) | Cascade via article | Deleted with article | `lastError` is the controlled `processing_step_failed` reason only; prompt, response, provider, and exception prose is not persisted |
 
 > **#712-C resolved:** `pruneTerminalJobs` added in `src/lib/jobs/retention.ts`.
 > Deletes `COMPLETED` and `DEAD_LETTER` rows where `updatedAt < cutoff`. Default
@@ -276,13 +276,13 @@ flowchart TD
 
 | Store | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| IndexedDB `readwise-offline` — article cache (article content, metadata) | Reader / Offline | **personal + sensitive** | ⛔ — client-side only | Cleared by service-worker cache eviction, browser storage pressure, or SW upgrade; NOT cleared by server-side account deletion | Not applicable | Until SW cache version bump (`SW_CACHE_VERSION`) or browser eviction | `content` is article text; must not be transmitted to server outside authenticated API calls |
-| IndexedDB `readwise-offline` — mutation queue (pending progress/highlight/quiz sync payloads) | Reader / Offline | **personal** | ⛔ — client-side only | Not cleared by server-side account deletion | Not applicable | Until flushed or permanently failed (`MAX_MUTATION_RETRIES = 5` retries) | Payloads are JSON bodies for API endpoints; do not log body content |
+| IndexedDB `readwise-offline` — article cache (article content, metadata) | Reader / Offline | **personal + sensitive** | ⛔ — client-side only | Cleared by the client before ordinary sign-out and after successful account deletion; also subject to browser storage pressure and versioned cache eviction | Not applicable | Until explicit client purge, SW cache version bump (`SW_CACHE_VERSION`), or browser eviction | `content` is article text; must not be transmitted to server outside authenticated API calls |
+| IndexedDB `readwise-offline` — mutation queue (pending progress/highlight/quiz sync payloads) | Reader / Offline | **personal** | ⛔ — client-side only | Cleared by the client before ordinary sign-out and after successful account deletion | Not applicable | Until delivered, explicitly purged, or retained as `failed`/`conflict` for user-visible resolution | Payloads are JSON bodies for API endpoints; do not log body content. `lastError` contains controlled client-generated status/reason codes only |
 
-> **Gap #711-F:** Server-side account deletion does not clear client-side
-> IndexedDB stores. If a device is subsequently accessed by a different user
-> (shared device), residual offline data may be visible. The PWA service worker
-> must clear the offline cache on sign-out. Track as a follow-up.
+> **Gap #711-F resolved:** `purgeOfflineUserData()` clears both IndexedDB stores
+> and asks the service worker to purge private caches. Every shell sign-out
+> control awaits this purge before ending the session, and `AccountDangerZone`
+> runs it after successful server-side account deletion.
 
 ---
 
@@ -296,7 +296,7 @@ flowchart TD
 | 711-D | Object-storage bytes not purged on `MediaAsset` DB cascade | Medium | ✅ Resolved (#711) — best-effort purge in `deleteOwnAccount` and `deleteMember` |
 | 711-E | Membership, classroom, assignment completion not in export | Low | ✅ Resolved (#711) — added to export |
 | 1013 | `StudyPlanSnapshot` not in export bundle | Low | ✅ Resolved (#1013) — added to export with ordered metadata-only fields |
-| 711-F | Client-side IndexedDB not cleared on server-side account deletion | Medium | Follow-up — PWA service worker must clear offline cache on sign-out; tracked separately |
+| 711-F | Client-side IndexedDB not cleared on sign-out/account deletion | Medium | ✅ Resolved — all shell sign-out and account-deletion flows call `purgeOfflineUserData()` before ending the client session |
 | 712-A | `AiInvocation` has no retention window or per-user erasure helper | High | ✅ Resolved (#712) — `pruneOldAiInvocations` + `deleteAiInvocationsForUser` in `src/lib/ai/retention.ts` |
 | 712-B | `AuditLog` has no retention window | Medium | ✅ Resolved (#712) — `pruneOldAuditLogs` in `src/lib/security/audit.ts` (default 730 d, configurable via `AUDIT_LOG_RETENTION_DAYS`) |
 | 712-C | `Job` dead-letter rows not automatically pruned | Low | ✅ Resolved (#712) — `pruneTerminalJobs` in `src/lib/jobs/retention.ts` (default 90 d, configurable via `JOB_TERMINAL_RETENTION_DAYS`) |
@@ -323,4 +323,3 @@ callers bear responsibility** for not passing raw values in the first place:
 | AI context sentences | `SavedWord.contextSentence` | Sensitive keys `sentence`, `context` |
 | Definitions / explanations | `VocabularyItem.explanation`, `GrammarExplanation.explanation` | Sensitive keys `definition`, `explanation` |
 | Translations | `Translation.content`, `SentenceTranslation.translation` | Sensitive keys `translation`, `content` |
-

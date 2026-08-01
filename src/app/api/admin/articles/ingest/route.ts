@@ -12,14 +12,21 @@ import { ingestBody } from "@/lib/admin/articles/schemas";
 type FailedUrlIntake = Extract<UrlIntakeOutcome, { status: "failed" }>;
 
 function intakeError(outcome: FailedUrlIntake): ApiError {
-  if (outcome.failure === "extract") {
-    return new ApiError(
-      422,
-      "Could not extract article content from that URL (body too short or unsupported format).",
-    );
+  switch (outcome.failure) {
+    case "disabled":
+      return new ApiError(422, "Scraping is currently disabled.");
+    case "extract":
+      return new ApiError(
+        422,
+        "Could not extract article content from that URL (body too short or unsupported format).",
+      );
+    case "quality":
+      return new ApiError(422, "The article did not pass content quality checks.");
+    case "save":
+      return new ApiError(422, "Save failed. The article could not be persisted.");
+    case "scrape":
+      return new ApiError(422, "Scrape failed. The article could not be fetched.");
   }
-  const prefix = outcome.failure === "save" ? "Save failed" : "Scrape failed";
-  return new ApiError(422, `${prefix}: ${outcome.reason}`);
 }
 
 async function duplicateArticleResponse(sourceUrl: string): Promise<NextResponse> {

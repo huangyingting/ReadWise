@@ -22,6 +22,8 @@
  *   - {@link safeMetadataForPersistence} — recursive object sanitizer (audit, ledger, etc.)
  */
 
+import { controlledMachineReason } from "@/lib/observability/error-policy";
+
 /**
  * Matches any key name that could carry secrets, PII, or user-private content.
  * Evaluated as a substring match (case-insensitive) so compound names such as
@@ -29,13 +31,15 @@
  *
  * Sensitive-key superset covered:
  *   authorization, body, completion, content, cookie, credential,
- *   definition, email, example, explanation, key (→ apiKey, secretKey, api_key),
- *   pass (→ password, passphrase, passwd), phrase, prompt, pwd,
- *   response, secret, select (→ selection, selected, selectedText),
- *   sentence, session, text, token, translation, url
+ *   definition, detail, email, example, explanation,
+ *   key (→ apiKey, secretKey, api_key), pass (→ password, passphrase, passwd),
+ *   phrase, prompt, pwd, response, secret,
+ *   select (→ selection, selected, selectedText), sentence, session, stack,
+ *   text, token, translation, url, and unstructured error fields. Controlled
+ *   code/name/kind/type fields remain available for content-free diagnostics.
  */
 export const SENSITIVE_KEY_RE =
-  /(authorization|body|completion|content|cookie|credential|definition|email|example|explanation|key|pass|phrase|prompt|pwd|response|secret|select|sentence|session|text|token|translation|url)/i;
+  /(authorization|body|completion|content|cookie|credential|definition|detail|email|example|explanation|key|pass|phrase|prompt|pwd|response|secret|select|sentence|session|stack|text|token|translation|url|error$|error(?:message|description|detail|stack))/i;
 
 const REDACTED = "[redacted]";
 const EMAIL_REDACTED = "[email]";
@@ -174,11 +178,18 @@ function sanitizeLogValue(value: unknown, depth: number): unknown {
   if (typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = isSensitiveMetadataKey(k) ? REDACTED : sanitizeLogValue(v, depth + 1);
+      out[k] = sanitizeLogEntry(k, v, depth + 1);
     }
     return out;
   }
   return undefined;
+}
+
+function sanitizeLogEntry(key: string, value: unknown, depth: number): unknown {
+  if (key === "machineReason") {
+    return controlledMachineReason(typeof value === "string" ? value : undefined);
+  }
+  return isSensitiveMetadataKey(key) ? REDACTED : sanitizeLogValue(value, depth);
 }
 
 /**
@@ -192,7 +203,7 @@ export function safeMetadataForLog(
   if (!input) return undefined;
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
-    out[key] = isSensitiveMetadataKey(key) ? REDACTED : sanitizeLogValue(value, 0);
+    out[key] = sanitizeLogEntry(key, value, 0);
   }
   return out;
 }

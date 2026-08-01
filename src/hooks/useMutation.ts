@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ApiResponseError } from "@/lib/client-fetch";
+import { clientErrorMessage } from "@/lib/client-fetch";
 
 export interface MutationRunOptions<T> {
   /** Called with the result after a successful run, before `refreshOnSuccess`. */
@@ -24,21 +24,12 @@ export interface UseMutationState {
   ) => Promise<T | undefined>;
 }
 
-function mutationErrorMessage(
-  err: unknown,
-  fallbackMessage: string,
-): string {
-  if (err instanceof ApiResponseError || err instanceof Error) {
-    return err.message;
-  }
-  return fallbackMessage;
-}
-
 /**
  * Unified mutation leaf: manages busy + error state for a single async
- * operation. Maps ApiResponseError (and generic Error) to the error string the
- * component can display directly. Does NOT log operation inputs to avoid
- * leaking private user content (article text, prompts, credentials).
+ * operation. Preserves controlled ApiResponseError messages while mapping
+ * arbitrary exceptions to a fixed fallback. Does NOT log operation inputs or
+ * exception prose to avoid leaking private user content (article text,
+ * prompts, credentials).
  *
  * `run` accepts options:
  *   - `onSuccess(result)`    — side effect after a successful run.
@@ -74,7 +65,7 @@ export function useMutation(
         return result;
       } catch (err) {
         setError(
-          mutationErrorMessage(
+          clientErrorMessage(
             err,
             options?.fallbackMessage ?? fallbackMessage,
           ),

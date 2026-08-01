@@ -37,6 +37,7 @@ const ALL_CORRECT_ANSWERS: SubmittedAnswer[] = [
 
 let quizQuestions: StubQuestion[] = [];
 let quizFallback = false;
+let quizAttemptCreateError: Error | null = null;
 
 // ---------------------------------------------------------------------------
 // Module mocks (registered once before any imports of the modules under test)
@@ -60,6 +61,7 @@ before(() => {
             data: Record<string, unknown>;
             select: Record<string, unknown>;
           }) => {
+            if (quizAttemptCreateError) throw quizAttemptCreateError;
             const data = args.data as {
               userId: string;
               articleId: string;
@@ -110,6 +112,7 @@ beforeEach(() => {
     { question: "Q3", options: ["a", "b", "c"], correctIndex: 2 },
   ];
   quizFallback = false;
+  quizAttemptCreateError = null;
 });
 
 function quizRouteContext(id = "a1"): QuizRouteContext {
@@ -191,6 +194,22 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
       quizRouteContext(),
     );
     assert.equal(res.status, 400);
+  });
+
+  test("→ persistence failures use a controlled response message", async () => {
+    quizAttemptCreateError = new Error(
+      "database failure included private quiz or provider detail",
+    );
+    const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
+    const res = await POST(
+      quizAttemptRequest(ALL_CORRECT_ANSWERS),
+      quizRouteContext(),
+    );
+
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.equal(body.error, "Invalid attempt data");
+    assert.doesNotMatch(JSON.stringify(body), /private quiz|provider detail|database failure/);
   });
 
   test("→ server-grades all-correct answers (scorePct 100)", async () => {

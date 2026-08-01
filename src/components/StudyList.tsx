@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { BookOpen, Volume2 } from "lucide-react";
-import { postJson } from "@/lib/client-fetch";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui";
@@ -17,10 +17,6 @@ export type StudyWord = {
 
 function hasSpeechSynthesis(): boolean {
   return "speechSynthesis" in window;
-}
-
-function getErrorMessage(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
 }
 
 export default function StudyList({
@@ -70,7 +66,7 @@ export default function StudyList({
       await postJson("/api/vocabulary/unsave", { word: word.word });
       setItems((prev) => prev.filter((it) => it.id !== word.id));
     } catch (err) {
-      setError(getErrorMessage(err, "Could not remove word"));
+      setError(clientErrorMessage(err, "Could not remove word"));
     } finally {
       setPending(null);
     }

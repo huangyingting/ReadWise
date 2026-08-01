@@ -222,8 +222,8 @@ function normalizeUrl(raw: string): string | null {
   }
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+function errorMessage(_err: unknown): string {
+  return "visited_record_read_failed";
 }
 
 function relativeRepoPath(filePath: string): string {

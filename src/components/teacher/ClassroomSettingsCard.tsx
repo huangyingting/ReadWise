@@ -2,7 +2,12 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ApiResponseError, deleteJson, patchJson } from "@/lib/client-fetch";
+import {
+  ApiResponseError,
+  clientErrorMessage,
+  deleteJson,
+  patchJson,
+} from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 import {
   Button,
@@ -40,8 +45,7 @@ function classroomEndpoint(classroomId: string): string {
 }
 
 function lifecycleErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error) return error.message;
-  return fallback;
+  return clientErrorMessage(error, fallback);
 }
 
 function deleteErrorMessage(error: unknown): string {

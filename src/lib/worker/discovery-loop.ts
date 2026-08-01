@@ -38,10 +38,6 @@ function initialStats(): DiscoveryLoopStats {
   return { polls: 0, claimed: 0, committed: 0, failed: 0, leaseLost: 0, deferred: 0, stoppedBySignal: false };
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 /**
  * Sibling scheduling pass driven by the SAME worker runtime (NOT a second
  * daemon): polls {@link claimDueDiscoverySource}, and for each claimed source
@@ -110,7 +106,7 @@ export async function runDiscoveryLoop(
     if (isAbort(err)) {
       stats.stoppedBySignal = true;
     } else {
-      logger.error("discovery loop crashed", { error: errorMessage(err) });
+      logger.error("discovery loop crashed", { failureReason: "discovery_loop_failed" });
       throw err;
     }
   }

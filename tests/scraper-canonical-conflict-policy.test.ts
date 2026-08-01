@@ -18,8 +18,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { CanonicalConflictStatus } from "@prisma/client";
 
-import { classifyConflictKind } from "@/lib/scraper/incremental/canonical-conflict-policy";
+import {
+  classifyConflictKind,
+  decideConflictResolution,
+  decideTypeBResolution,
+} from "@/lib/scraper/incremental/canonical-conflict-policy";
 
 const WORKTREE = resolve(import.meta.dirname, "..");
 
@@ -46,4 +51,70 @@ test("resolver + query derive kind from the SAME classifyConflictKind helper (ag
   // Both call it against `incumbentCandidateId` rather than re-implementing the rule.
   assert.match(commit, /classifyConflictKind\(conflict\.incumbentCandidateId\)/);
   assert.match(query, /classifyConflictKind\(row\.incumbentCandidateId\)/);
+});
+
+test("resolved and dismissed Type-A conflicts are idempotent no-ops", () => {
+  const input = {
+    survivingArticleId: "article-1",
+    participantArticleIds: ["article-1", "article-2"],
+  };
+
+  assert.deepEqual(
+    decideConflictResolution({ ...input, status: CanonicalConflictStatus.RESOLVED }),
+    {
+      kind: "noop",
+      reason: "already-resolved",
+      status: CanonicalConflictStatus.RESOLVED,
+    },
+  );
+  assert.deepEqual(
+    decideConflictResolution({ ...input, status: CanonicalConflictStatus.DISMISSED }),
+    {
+      kind: "noop",
+      reason: "already-dismissed",
+      status: CanonicalConflictStatus.DISMISSED,
+    },
+  );
+});
+
+test("Type-B resolution rejects terminal and structurally invalid conflicts", () => {
+  const base = {
+    canonical: "incumbent" as const,
+    incumbentCandidateId: "incumbent-1",
+    incumbentExists: true,
+    challengerCandidateId: "challenger-1",
+  };
+
+  assert.deepEqual(
+    decideTypeBResolution({ ...base, status: CanonicalConflictStatus.DISMISSED }),
+    {
+      kind: "noop",
+      reason: "already-dismissed",
+      status: CanonicalConflictStatus.DISMISSED,
+    },
+  );
+  assert.deepEqual(
+    decideTypeBResolution({
+      ...base,
+      status: CanonicalConflictStatus.OPEN,
+      incumbentCandidateId: null,
+    }),
+    {
+      kind: "illegal",
+      reason: "wrong-conflict-type",
+      status: CanonicalConflictStatus.OPEN,
+    },
+  );
+  assert.deepEqual(
+    decideTypeBResolution({
+      ...base,
+      status: CanonicalConflictStatus.OPEN,
+      incumbentExists: false,
+    }),
+    {
+      kind: "illegal",
+      reason: "incumbent-candidate-missing",
+      status: CanonicalConflictStatus.OPEN,
+    },
+  );
 });

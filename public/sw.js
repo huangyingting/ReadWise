@@ -234,7 +234,7 @@ self.addEventListener("fetch", (event) => {
 
 /**
  * push event: display the notification sent by the server.
- * Payload JSON shape: { title, body, url?, icon? }
+ * Payload JSON shape: { title, body, tag?, url?, icon? }
  */
 self.addEventListener("push", (event) => {
   let data = { title: "ReadWise", body: "You have words to review!", url: "/study" };
@@ -246,6 +246,7 @@ self.addEventListener("push", (event) => {
 
   const options = {
     body: data.body,
+    tag: data.tag,
     icon: data.icon ?? "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
     data: { url: data.url ?? "/study" },

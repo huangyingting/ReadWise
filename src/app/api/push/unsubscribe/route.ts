@@ -1,5 +1,4 @@
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { isPushConfigured } from "@/lib/push/provider";
 import {
   enforceRateLimitPolicy,
   sessionUserRateLimitPolicy,
@@ -8,14 +7,6 @@ import { unsubscribeBody } from "@/lib/push/schemas";
 import { unsubscribePush } from "@/lib/push/commands";
 
 const PUSH_UNSUBSCRIBE_RATE_LIMIT = sessionUserRateLimitPolicy("lookup");
-
-const PUSH_NOT_CONFIGURED_MESSAGE = "Push notifications are not configured on this server.";
-
-function assertPushConfigured(log: { info: (message: string) => void }): void {
-  if (isPushConfigured()) return;
-  log.info("push/unsubscribe: push not configured — returning 503");
-  throw new ApiError(503, PUSH_NOT_CONFIGURED_MESSAGE);
-}
 
 function unsubscribeLogMetadata(userId: string, endpoint: string) {
   return { userId, endpointLen: endpoint.length };
@@ -26,12 +17,12 @@ function unsubscribeLogMetadata(userId: string, endpoint: string) {
  *
  * Removes the push subscription for the given endpoint.
  * No-op when the endpoint is not found (idempotent).
+ * This local cleanup remains available when VAPID delivery is unconfigured so
+ * users can remove subscriptions during provider outages or key rotation.
  */
 export const POST = createHandler(
   { body: unsubscribeBody },
   async ({ session, body, log }) => {
-    assertPushConfigured(log);
-
     const userId = session.user.id;
     const { endpoint } = body;
 

@@ -14,7 +14,7 @@
  * via `import type` (erased at runtime), so the UI stays type-safe; only the Date
  * fields are widened to the ISO strings the JSON API actually serializes.
  */
-import { ApiResponseError } from "@/lib/client-fetch";
+import { ApiResponseError, clientErrorMessage } from "@/lib/client-fetch";
 import type { DeletedCandidateDto } from "@/lib/scraper/incremental/deleted-article-recovery";
 
 /** The shared `Badge` tone union — kept local so this module stays free of the
@@ -172,7 +172,7 @@ export function classifyRecoverError(err: unknown): RecoverError {
   if (err instanceof ApiResponseError) {
     return recoverErrorFrom(err.status, err.cause, err.message);
   }
-  const message = err instanceof Error ? err.message : "Recovery failed.";
+  const message = clientErrorMessage(err, "Recovery failed.");
   return recoverErrorFrom(null, null, message);
 }
 

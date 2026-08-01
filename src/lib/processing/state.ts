@@ -14,7 +14,7 @@
  *     move on (mirrors the audit/AI-ledger pattern).
  *   - METADATA ONLY. We persist the step name, status, attempts, timestamps,
  *     model name, an optional prompt version, a safe fallback reason enum, and a
- *     SHORT error message. Prompt content is never stored.
+ *     controlled failure reason. Provider/error text is never stored.
  *   - One row per (articleId, step). For translations, the step is scoped to the
  *     target language ("translation:es") so each language has its own timeline.
  */
@@ -23,10 +23,6 @@ import { createLogger } from "@/lib/observability/logger";
 import { FEATURE_KEYS, type FeatureKey } from "./registry";
 
 const log = createLogger("processing-state");
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 /**
  * Canonical feature steps tracked by the pipeline.
@@ -46,17 +42,7 @@ export const PROCESSING_STEP_STATUSES = [
 ] as const;
 export type ProcessingStepStatus = (typeof PROCESSING_STEP_STATUSES)[number];
 
-/** Truncates an error message so the column never stores prompt-sized blobs. */
-const MAX_ERROR_LENGTH = 500;
 const MAX_FALLBACK_REASON_LENGTH = 80;
-function clampError(message: string | null | undefined): string | null {
-  if (!message) return null;
-  const trimmed = message.trim();
-  if (!trimmed) return null;
-  return trimmed.length <= MAX_ERROR_LENGTH
-    ? trimmed
-    : `${trimmed.slice(0, MAX_ERROR_LENGTH - 1)}…`;
-}
 
 function clampFallbackReason(reason: string | null | undefined): string | null {
   if (!reason) return null;
@@ -114,11 +100,11 @@ export async function beginStep(articleId: string, step: string): Promise<void> 
         lastError: null,
       },
     });
-  } catch (err) {
+  } catch {
     log.warn("processing_state.begin_failed", {
       articleId,
       step,
-      error: errorMessage(err),
+      failureReason: "state_write_failed",
     });
   }
 }
@@ -127,7 +113,7 @@ export type FinishStepOptions = {
   modelName?: string | null;
   promptVersion?: string | null;
   fallbackReason?: string | null;
-  lastError?: string | null;
+  failureReason?: "processing_step_failed";
 };
 
 function completionTimeForStatus(
@@ -153,7 +139,9 @@ export async function finishStep(
   opts: FinishStepOptions = {},
 ): Promise<void> {
   const now = new Date();
-  const lastError = status === "failed" ? clampError(opts.lastError) : null;
+  const lastError = status === "failed"
+    ? opts.failureReason ?? "processing_step_failed"
+    : null;
   const fallbackReason =
     status === "fallback" ? clampFallbackReason(opts.fallbackReason) : null;
   const completedAt = completionTimeForStatus(status, now);
@@ -180,12 +168,12 @@ export async function finishStep(
         lastError,
       },
     });
-  } catch (err) {
+  } catch {
     log.warn("processing_state.finish_failed", {
       articleId,
       step,
       status,
-      error: errorMessage(err),
+      failureReason: "state_write_failed",
     });
   }
 }
@@ -199,10 +187,10 @@ export async function getArticleProcessingSteps(
       where: { articleId },
       orderBy: { step: "asc" },
     })) as StepRow[];
-  } catch (err) {
+  } catch {
     log.warn("processing_state.read_failed", {
       articleId,
-      error: errorMessage(err),
+      failureReason: "state_read_failed",
     });
     return [];
   }

@@ -86,8 +86,9 @@ export class CanaryFetchError extends Error {
 export async function fetchCanaryDocument(
   config: CanaryAdapterConfig,
   deps: CanaryAdapterDeps,
+  signal?: AbortSignal,
 ): Promise<{ body: string | null; validators: DiscoveryPageResult["validators"] }> {
-  const result = await deps.fetchResponse(config.documentUrl);
+  const result = await deps.fetchResponse(config.documentUrl, { signal });
   switch (result.outcome) {
     case "ok":
       return {
@@ -140,8 +141,8 @@ export function buildCanaryFetcher(
   mapBody: (body: string, config: CanaryAdapterConfig) => DiscoveryPageItem[],
 ): DiscoveryPageFetcher {
   const cap = config.maxItems ?? DEFAULT_CANARY_ITEM_CAP;
-  return async (_input: { source: DiscoverySource; signal?: AbortSignal }): Promise<DiscoveryPageResult> => {
-    const { body, validators } = await fetchCanaryDocument(config, deps);
+  return async (input: { source: DiscoverySource; signal?: AbortSignal }): Promise<DiscoveryPageResult> => {
+    const { body, validators } = await fetchCanaryDocument(config, deps, input.signal);
     if (body === null) return emptyCanaryPage(validators);
     const items = mapBody(body, config).slice(0, cap);
     return {

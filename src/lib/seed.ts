@@ -173,9 +173,9 @@ async function discoverProviderArticles(
   let discoverError: string | null = null;
   try {
     urls = await deps.discover(provider, limit);
-  } catch (err) {
-    discoverError = errorMessage(err);
-    logger.error(`Discovery failed for ${provider.name}: ${discoverError}`);
+  } catch {
+    discoverError = "crawl_discovery_failed";
+    logger.error(`Discovery failed for ${provider.name}.`);
   }
   logger.info(`Found ${urls.length} article URL(s) from ${provider.name}.`);
   return { urls, discoverError };
@@ -202,10 +202,8 @@ async function recordProviderCrawl(
 ): Promise<void> {
   try {
     await deps.recordCrawl(provider.key, outcome);
-  } catch (err) {
-    logger.warn(
-      `Could not record crawl health for ${provider.name}: ${errorMessage(err)}`,
-    );
+  } catch {
+    logger.warn(`Could not record crawl health for ${provider.name}.`);
   }
 }
 
@@ -236,26 +234,26 @@ async function scrapeOne(
   let outcome: SaveOutcome;
   try {
     outcome = await deps.scrapeAndSave(url);
-  } catch (err) {
+  } catch {
     stats.failed++;
-    logger.error(`✗ scrape failed: ${url} — ${errorMessage(err)}`);
+    logger.error("✗ scrape failed.");
     return { articleId: null, scrapeOutcome: "failed" };
   }
 
   if (outcome.status === "saved") {
     stats.saved++;
-    logger.info(`✓ saved draft: ${outcome.article.title}`);
+    logger.info(`✓ saved draft: ${outcome.id}`);
     return { articleId: outcome.id, scrapeOutcome: "saved" };
   }
 
   if (outcome.status === "skipped") {
     stats.duplicates++;
-    logger.info(`• already exists: ${url}`);
+    logger.info("• article already exists.");
     return { articleId: await deps.resolveArticleId(url), scrapeOutcome: "duplicate" };
   }
 
   stats.failed++;
-  logger.warn(`✗ could not scrape ${url}: ${outcome.reason}`);
+  logger.warn("✗ could not scrape article.");
   return { articleId: null, scrapeOutcome: "failed" };
 }
 
@@ -270,9 +268,9 @@ async function enrichOne(
   let result: ArticleProcessResult | null;
   try {
     result = await deps.process(articleId, opts);
-  } catch (err) {
+  } catch {
     stats.failed++;
-    logger.error(`✗ enrichment threw for ${articleId}: ${errorMessage(err)}`);
+    logger.error(`✗ enrichment failed for ${articleId}.`);
     return false;
   }
 
@@ -286,13 +284,9 @@ async function enrichOne(
   if (result.published) stats.published++;
   if (!result.ok) {
     stats.failed++;
-    logger.warn(`⚠ enrichment had failures for "${result.title}"`);
+    logger.warn(`⚠ enrichment had failures for ${articleId}.`);
   } else {
-    logger.info(`✓ enriched "${result.title}" (published=${result.published})`);
+    logger.info(`✓ enriched ${articleId} (published=${result.published})`);
   }
   return true;
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

@@ -119,6 +119,19 @@ test("reap --execute reaps and reports the tally", async () => {
   assert.deepEqual(errors, []);
 });
 
+test("reap keeps dry-run safety when both mode flags are present", async () => {
+  const { reapOrphanNarrationMain } = await import("../scripts/reap-orphan-narration");
+  const { io, logs } = captureIo();
+
+  await reapOrphanNarrationMain(["--execute", "--dry-run"], io);
+  const payload = JSON.parse(logs[0]!) as { dryRun: boolean; executed: boolean };
+
+  assert.equal(payload.dryRun, true);
+  assert.equal(payload.executed, false);
+  assert.equal(countArgs.length, 1);
+  assert.deepEqual(reapArgs, []);
+});
+
 test("reap forwards --grace-minutes and --limit to the sweep", async () => {
   const { reapOrphanNarrationMain } = await import("../scripts/reap-orphan-narration");
   const { io } = captureIo();

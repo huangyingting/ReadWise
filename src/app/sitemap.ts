@@ -1,12 +1,13 @@
 import type { MetadataRoute } from "next";
-import { listPublishedArticles } from "@/lib/article-library";
+import {
+  listPublishedArticleSitemapEntries,
+  type PublishedArticleSitemapEntry,
+} from "@/lib/article-library";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ??
   process.env.NEXTAUTH_URL ??
   "http://localhost:3000";
-
-type PublishedArticle = Awaited<ReturnType<typeof listPublishedArticles>>[number];
 
 function getStaticRoutes(): MetadataRoute.Sitemap {
   return [
@@ -32,14 +33,14 @@ async function getPublishedArticlesSafely() {
   // Gracefully skip article routes when the database is unavailable (e.g.
   // during a cold build without a live database connection).
   try {
-    return await listPublishedArticles(1000);
+    return await listPublishedArticleSitemapEntries(1000);
   } catch {
     // DB unavailable at build time — return only static routes.
     return [];
   }
 }
 
-function getArticleRoute(article: PublishedArticle): MetadataRoute.Sitemap[number] {
+function getArticleRoute(article: PublishedArticleSitemapEntry): MetadataRoute.Sitemap[number] {
   return {
     url: `${siteUrl}/reader/${article.id}`,
     // publishedAt may come back as a serialized string from unstable_cache.

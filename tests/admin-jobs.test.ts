@@ -48,7 +48,7 @@ before(() => {
             const status = args.data.status;
             if (status === "PENDING") {
               retryCalls.push(args.where.id);
-            } else if (status === "DEAD_LETTER" && args.data.lastError === "cancelled by admin") {
+            } else if (status === "DEAD_LETTER" && args.data.lastError === "cancelled_by_admin") {
               cancelCalls.push(args.where.id);
             }
             return { id: args.where.id, status: status ?? "PENDING", type: "ARTICLE_PROCESS" };
@@ -57,7 +57,7 @@ before(() => {
             const status = args.data.status;
             if (status === "PENDING") {
               retryCalls.push((args.where?.id as string) ?? "unknown");
-            } else if (status === "DEAD_LETTER" && args.data.lastError === "cancelled by admin") {
+            } else if (status === "DEAD_LETTER" && args.data.lastError === "cancelled_by_admin") {
               cancelCalls.push((args.where?.id as string) ?? "unknown");
             }
             return { count: 1 };

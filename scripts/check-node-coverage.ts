@@ -28,7 +28,7 @@ export type CoverageFailure = CoverageRow & {
 export type CliOptions = {
   threshold: number;
   includePrefixes: string[];
-  inputFile: string | null;
+  inputFiles: string[];
   inputFromStdin: boolean;
   showReport: boolean;
   skipStatic: boolean;
@@ -83,10 +83,10 @@ type StaticDenominatorDeps = {
 };
 
 type CoverageGateDeps = {
-  readCoverageInput?: (
-    inputFile: string | null,
+  readCoverageInputs?: (
+    inputFiles: string[],
     inputFromStdin: boolean,
-  ) => string | null;
+  ) => string[] | null;
   runNativeCoverage?: (
     testArgs: string[],
     showReport: boolean,
@@ -195,6 +195,24 @@ export function parseNodeCoverageText(text: string): CoverageRow[] {
   return rows;
 }
 
+/**
+ * Merges complete native-coverage reports without synthesizing line hits across
+ * partial runs. For a file present in multiple reports, the single row with the
+ * highest line percentage wins; files unique to one provider remain in the
+ * union. This lets SQLite- and PostgreSQL-specific adapters contribute their
+ * own complete evidence without fabricating a percentage neither run achieved.
+ */
+export function mergeCoverageRows(reports: CoverageRow[][]): CoverageRow[] {
+  const byFile = new Map<string, CoverageRow>();
+  for (const rows of reports) {
+    for (const row of rows) {
+      const current = byFile.get(row.file);
+      if (!current || row.linePct > current.linePct) byFile.set(row.file, row);
+    }
+  }
+  return [...byFile.values()].sort((a, b) => a.file.localeCompare(b.file));
+}
+
 function isIncludedCoverageRow(row: CoverageRow, includePrefixes: string[]): boolean {
   return includePrefixes.some((prefix) => row.file.startsWith(prefix));
 }
@@ -215,7 +233,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
   const opts: CliOptions = {
     threshold: DEFAULT_THRESHOLD,
     includePrefixes: [...DEFAULT_INCLUDE_PREFIXES],
-    inputFile: null,
+    inputFiles: [],
     inputFromStdin: false,
     showReport: true,
     skipStatic: false,
@@ -253,11 +271,11 @@ export function parseCliArgs(argv: string[]): CliOptions {
       continue;
     }
     if (arg === "--input") {
-      opts.inputFile = argv[++i];
+      opts.inputFiles.push(argv[++i]);
       continue;
     }
     if (arg.startsWith("--input=")) {
-      opts.inputFile = arg.slice("--input=".length);
+      opts.inputFiles.push(arg.slice("--input=".length));
       continue;
     }
     if (arg === "--stdin") {
@@ -280,6 +298,9 @@ export function parseCliArgs(argv: string[]): CliOptions {
   }
   if (opts.includePrefixes.length === 0 || opts.includePrefixes.some((p) => !p)) {
     throw new Error("at least one non-empty --include prefix is required");
+  }
+  if (opts.inputFiles.some((path) => !path)) {
+    throw new Error("--input requires a non-empty path");
   }
   return opts;
 }
@@ -304,24 +325,25 @@ function writeIfPresent(
   if (chunk) stream.write(chunk);
 }
 
-export function readCoverageInput(
-  inputFile: string | null,
+export function readCoverageInputs(
+  inputFiles: string[],
   inputFromStdin: boolean,
   fs: CoverageInputFs = {
     existsSync,
     readFileSync: readFileSync as CoverageInputFs["readFileSync"],
   },
-): string | null {
-  if (inputFile) {
+): string[] | null {
+  const inputs: string[] = [];
+  for (const inputFile of inputFiles) {
     if (!fs.existsSync(inputFile)) throw new Error(`coverage input not found: ${inputFile}`);
-    return fs.readFileSync(inputFile, "utf8");
+    inputs.push(fs.readFileSync(inputFile, "utf8"));
   }
 
   if (inputFromStdin) {
-    return fs.readFileSync(0, "utf8");
+    inputs.push(fs.readFileSync(0, "utf8"));
   }
 
-  return null;
+  return inputs.length > 0 ? inputs : null;
 }
 
 export function runNativeCoverage(
@@ -384,17 +406,26 @@ export function runCoverageGate(argv: string[], deps: CoverageGateDeps = {}): nu
   const output = deps.output ?? console;
   try {
     const opts = parseCliArgs(argv);
-    const input = (deps.readCoverageInput ?? readCoverageInput)(
-      opts.inputFile,
+    const inputs = (deps.readCoverageInputs ?? readCoverageInputs)(
+      opts.inputFiles,
       opts.inputFromStdin,
     );
     const run =
-      input === null
+      inputs === null
         ? (deps.runNativeCoverage ?? runNativeCoverage)(opts.testArgs, opts.showReport)
-        : { text: input, status: 0 };
-    const rows = parseNodeCoverageText(run.text);
+        : { text: "", status: 0 };
+    const reportTexts = inputs ?? [run.text];
+    const rows = mergeCoverageRows(reportTexts.map(parseNodeCoverageText));
     if (rows.length === 0) {
       output.error("Coverage gate failed: no native Node coverage table was found.");
+      return run.status || 1;
+    }
+
+    const measured = rows.filter((row) => isIncludedCoverageRow(row, opts.includePrefixes));
+    if (measured.length === 0) {
+      output.error(
+        `Coverage gate failed: no measured files matched the configured include prefixes (${opts.includePrefixes.join(", ")}).`,
+      );
       return run.status || 1;
     }
 

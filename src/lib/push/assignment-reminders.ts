@@ -31,6 +31,7 @@ import {
 } from "@/lib/classroom/targeting";
 import { isPushConfigured } from "./provider";
 import { type SubRow, sendToSubs, type PushPayload } from "./delivery";
+import { reminderNotificationTag } from "./notification-idempotency";
 
 const log = createLogger("push");
 
@@ -100,6 +101,7 @@ export async function sendAssignmentReminderToStudent(
   const payload: PushPayload = {
     title: reminderAssignment.title,
     body: reminderAssignment.body(dueCount),
+    tag: reminderNotificationTag("assignment", now),
     url: reminderAssignment.url,
     icon: reminderAssignment.icon,
   };
@@ -114,11 +116,13 @@ export async function sendAssignmentNudgeToStudent(
     return skippedStudentReminder(studentId, "unconfigured");
   }
 
+  const now = new Date();
   const pending = await countOpenAssignmentsForStudent(studentId);
   const count = Math.max(pending, 1);
   const payload: PushPayload = {
     title: reminderAssignment.nudgeTitle,
     body: reminderAssignment.nudgeBody(count),
+    tag: reminderNotificationTag("assignment-nudge", now),
     url: reminderAssignment.url,
     icon: reminderAssignment.icon,
   };
@@ -270,6 +274,7 @@ export async function sendDueAssignmentReminders(): Promise<AssignmentReminderRe
     suppressed: 0,
   };
 
+  const notificationTag = reminderNotificationTag("assignment", now);
   for (const studentId of subscribedStudentIds) {
     const pref: ReminderPreference = prefMap.get(studentId) ?? {
       ...DEFAULT_REMINDER_PREFERENCE,
@@ -291,6 +296,7 @@ export async function sendDueAssignmentReminders(): Promise<AssignmentReminderRe
     const payload: PushPayload = {
       title: reminderAssignment.title,
       body: reminderAssignment.body(count),
+      tag: notificationTag,
       url: reminderAssignment.url,
       icon: reminderAssignment.icon,
     };

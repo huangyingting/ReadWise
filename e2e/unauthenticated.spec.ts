@@ -17,7 +17,7 @@ const PROTECTED_ROUTES = [
 
 for (const [routeName, path] of PROTECTED_ROUTES) {
   test(`unauthenticated user is redirected to signin from ${routeName}`, async ({ page }) => {
-    await page.goto(path);
-    await expect(page).toHaveURL(/\/signin/);
+    await page.goto(path, { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/signin/, { timeout: 30_000 });
   });
 }

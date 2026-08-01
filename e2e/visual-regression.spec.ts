@@ -31,6 +31,13 @@ async function stabilize(page: Page) {
   await page.evaluate(() => document.fonts.ready);
 }
 
+async function isolateMainFromStickyChrome(page: Page) {
+  const appHeader = page.getByRole("banner").first();
+  await appHeader.evaluate((element) => {
+    (element as HTMLElement).style.position = "static";
+  });
+}
+
 test.describe("visual regression baseline", () => {
   test.skip(
     !RUN_VISUAL_REGRESSION,
@@ -91,7 +98,12 @@ test.describe("visual regression baseline", () => {
   test("teacher surface", async ({ readerPage: page }) => {
     await page.goto("/teacher");
     await expect(page.getByRole("heading", { name: "Teaching" })).toBeVisible();
+    await expect(page.getByText("No archived classrooms", { exact: true })).toBeVisible();
     await stabilize(page);
+    // The baseline targets <main>, not the global app chrome. Once the teacher
+    // surface became taller than the viewport, Playwright scrolled <main> to
+    // capture it and the sticky banner painted over the page heading.
+    await isolateMainFromStickyChrome(page);
 
     await expect(page.locator("main")).toHaveScreenshot(
       "teacher-desktop.png",

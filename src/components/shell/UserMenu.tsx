@@ -8,6 +8,7 @@ import { cn, focusRing } from "@/lib/cn";
 import { Avatar, Button, IconButton, Popover } from "@/components/ui";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import { useKeyboardShortcut } from "@/lib/use-keyboard-shortcut";
+import { purgeOfflineUserData } from "@/lib/offline/sync-runtime";
 import type { ShellUser } from "./types";
 
 const FIRST_MENU_ITEM_SELECTOR = '[role="menuitem"]';
@@ -61,9 +62,10 @@ export default function UserMenu({ user }: { user: ShellUser }) {
     setShortcutsOpen(true);
   }
 
-  function signOutToHome() {
+  async function signOutToHome() {
     setOpen(false);
-    void signOut({ callbackUrl: "/" });
+    await purgeOfflineUserData();
+    await signOut({ callbackUrl: "/" });
   }
 
   return (

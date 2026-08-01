@@ -59,7 +59,12 @@ let importUrlResult: { id: string; status: number };
 let importTextArgs: unknown[];
 let personalPage: { articles: unknown[]; hasMore: boolean };
 let clientLogMeta: Record<string, unknown> | null;
-let capturedErrors: Array<{ message: string; stack?: string; route?: string }>;
+let capturedErrors: Array<{
+  message: string;
+  stack?: string;
+  route?: string;
+  machineReason?: string;
+}>;
 let rateLimitThrows: boolean;
 const adminProviders: Array<{ key: string; name: string }> = [];
 let discoveredUrls: string[];
@@ -437,8 +442,13 @@ before(() => {
   });
   mock.module("@/lib/observability/errors", {
     namedExports: {
-      captureError: (err: Error, ctx: { route?: string }) => {
-        capturedErrors.push({ message: err.message, stack: err.stack, route: ctx.route });
+      captureError: (err: Error, ctx: { route?: string; machineReason?: string }) => {
+        capturedErrors.push({
+          message: err.message,
+          stack: err.stack,
+          route: ctx.route,
+          machineReason: ctx.machineReason,
+        });
       },
     },
   });
@@ -714,11 +724,14 @@ test("client error route scrubs text, strips URLs, captures errors, and absorbs 
     req,
   } as never);
   assert.equal(res.status, 204);
-  assert.equal(clientLogMeta?.clientMessage, "Failure for [email] with [token]");
-  assert.equal(clientLogMeta?.clientStack, "stack [token]");
-  assert.equal(clientLogMeta?.clientUrl, "https://example.test/path");
-  assert.equal(capturedErrors[0].message, "Failure for [email] with [token]");
-  assert.equal(capturedErrors[0].route, "https://example.test/path");
+  assert.deepEqual(clientLogMeta, {
+    failureReason: "client_error",
+    clientSource: "window",
+    route: "/other",
+  });
+  assert.equal(capturedErrors[0].message, "client_error");
+  assert.equal(capturedErrors[0].machineReason, "client_error");
+  assert.equal(capturedErrors[0].route, "/other");
 
   res = await POST({
     body: { message: "Broken", source: "window", url: "/local/path?secret=1#hash" },
@@ -726,7 +739,7 @@ test("client error route scrubs text, strips URLs, captures errors, and absorbs 
     req,
   } as never);
   assert.equal(res.status, 204);
-  assert.equal(clientLogMeta?.clientUrl, "/local/path");
+  assert.equal(clientLogMeta?.route, "/other");
 
   rateLimitThrows = true;
   capturedErrors = [];

@@ -235,12 +235,12 @@ function loadLocalDictionary(filePath: string): Map<string, DictionaryEntry> {
       entryCount: dictionary.size,
     });
     return dictionary;
-  } catch (err) {
+  } catch {
     const empty = new Map<string, DictionaryEntry>();
     localDictionaryCache.set(filePath, empty);
     log.warn("lexical.local_dictionary_load_failed", {
       dictionary: path.basename(filePath),
-      error: String(err),
+      machineReason: "local_dictionary_load_failed",
     });
     return empty;
   }
@@ -291,8 +291,10 @@ export class FreeDictionaryProvider implements DictionaryProvider {
         return null;
       }
       data = await res.json();
-    } catch (err) {
-      log.warn("lexical.provider.fetch_error", { error: String(err) });
+    } catch {
+      log.warn("lexical.provider.fetch_error", {
+        machineReason: "dictionary_provider_fetch_failed",
+      });
       return null;
     }
 

@@ -5,11 +5,13 @@ import {
   resetE2eDatabase,
   seedE2eArticles,
   seedE2eMember,
+  seedE2eOrganization,
 } from "@/lib/testing/e2e-fixtures";
 
 export {
   TEST_ARTICLE_ID,
   TEST_MEMBER_ID,
+  TEST_ORGANIZATION_ID,
   createUserWithSession,
   createSessionForUser,
   seedDueFlashcard,
@@ -24,6 +26,7 @@ export async function seedSmokeData(): Promise<void> {
   await resetE2eDatabase();
   await seedE2eArticles();
   await seedE2eMember();
+  await seedE2eOrganization();
 }
 
 export async function addSessionCookie(

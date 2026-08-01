@@ -386,25 +386,29 @@ See also [`docs/platform/database-runbooks.md`](../platform/database-runbooks.md
 ### PB-6 — Push notification delivery failure
 
 **Signals**
-- `PUSH_REMINDER` jobs failing or dead-lettering.
+- `PUSH_REMINDER` jobs failing or dead-lettering before delivery starts.
 - `readwise_job_queue_events_total{event="dead_letter",type="push_reminder"}` rising.
 - Users report not receiving reminder notifications.
 
 **Triage**
 
 1. Open `/admin/jobs` → filter by type `PUSH_REMINDER`.
-2. Inspect `errorHistory` on dead-letter jobs — look for push provider HTTP
-   errors (authentication failure, invalid device token, provider unavailable).
+2. Inspect the controlled `errorHistory` reason and structured push logs.
+   Per-subscription provider failures are best effort and update subscription
+   health; they do not fail the whole reminder job after another subscription
+   may already have succeeded.
 3. Check push notification provider credentials are configured and valid. See
    [`docs/platform/push-notifications.md`](../platform/push-notifications.md).
 
 **Mitigation**
 
 - **Provider auth failure:** Rotate push credentials and redeploy.
-- **Invalid device tokens:** These are permanent errors — dead-lettering is
-  correct. The system will attempt to clean up invalid tokens. Do not retry.
-- **Provider outage:** Wait for the provider to recover. Retry `DEAD_LETTER`
-  `PUSH_REMINDER` jobs after recovery (up to 3 attempts in the retry policy).
+- **Invalid device tokens:** The delivery path prunes `404`/`410` subscriptions.
+  Do not retry those endpoints.
+- **Provider outage:** Wait for the provider to recover. New scheduled reminders
+  will try again. Retry a `DEAD_LETTER` `PUSH_REMINDER` only when it failed
+  before provider delivery began; browser notification tags collapse retries
+  of the same durable job.
 - **Notification is time-sensitive (reading reminders):** Missed reminders are
   generally acceptable to drop rather than delivering late. Discuss with product
   before bulk-retrying stale reminders.
@@ -561,4 +565,3 @@ reviews are recommended when the incident was novel or recurring.
 - **Database runbooks:** [`docs/platform/database-runbooks.md`](../platform/database-runbooks.md)
 - **SLI/SLO implementation:** `src/lib/observability/slo-catalog.ts`
 - **Metrics recorders:** `src/lib/metrics/recorders/`
-

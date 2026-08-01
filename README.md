@@ -396,6 +396,24 @@ a managed PostgreSQL database and follow
 [`docs/platform/database.md`](./docs/platform/database.md#docker-image-with-postgresql-schema)
 to keep the generated client, runtime schema, and `DATABASE_URL` aligned.
 
+Build the dedicated background-worker/maintenance artifact from the same source
+and schema selection. Start it only after the web tier has applied migrations and
+reports ready:
+
+```bash
+docker build --target worker \
+  --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
+  -t readwise-worker:postgres .
+docker run --rm \
+  -e DATABASE_URL="postgresql://<user>:<password>@<host>:5432/<database>?schema=public" \
+  -e PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
+  readwise-worker:postgres
+```
+
+The worker target defaults to `npm run worker`; supplying a command instead runs
+maintenance from the same production runtime, for example
+`npm run maintenance:retention` (count-only unless `--execute` is explicit).
+
 ### Health probes
 
 | Endpoint | Purpose | Notes |

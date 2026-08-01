@@ -25,6 +25,7 @@ let mockSubs: {
 
 let sendCalls: { endpoint: string; payload: string }[] = [];
 let sendShouldFail: number | false = false;
+let healthWriteShouldFail = false;
 
 let deletedSubIds: string[][] = [];
 let deletedManyEndpoints: string[][] = [];
@@ -87,6 +88,7 @@ before(() => {
           deleteMany: async (args: {
             where?: { id?: { in?: string[] }; endpoint?: string; userId?: string };
           }) => {
+            if (healthWriteShouldFail) throw new Error("health write failed");
             if (args.where?.id?.in) {
               deletedSubIds.push(args.where.id.in);
               mockSubs = mockSubs.filter((s) => !args.where?.id?.in?.includes(s.id));
@@ -101,6 +103,7 @@ before(() => {
             where?: { id?: { in?: string[] } };
             data: Record<string, unknown>;
           }) => {
+            if (healthWriteShouldFail) throw new Error("health write failed");
             updatedManyCalls.push({ ids: args.where?.id?.in, data: args.data });
             return { count: args.where?.id?.in?.length ?? 0 };
           },
@@ -130,6 +133,7 @@ beforeEach(() => {
   mockSubs = [];
   sendCalls = [];
   sendShouldFail = false;
+  healthWriteShouldFail = false;
   deletedSubIds = [];
   deletedManyEndpoints = [];
   updatedManyCalls = [];
@@ -193,6 +197,15 @@ describe("isPushConfigured", () => {
 
 describe("vapidPublicKey", () => {
   test("returns null when unconfigured", async () => {
+    const { vapidPublicKey } = await import("@/lib/push/provider");
+    assert.equal(vapidPublicKey(), null);
+  });
+
+  test("returns null when web-push rejects the configured VAPID details", async () => {
+    enablePush();
+    process.env.VAPID_PUBLIC_KEY = "BDifferentRejectedPublicKey";
+    setVapidThrows = true;
+
     const { vapidPublicKey } = await import("@/lib/push/provider");
     assert.equal(vapidPublicKey(), null);
   });
@@ -273,6 +286,18 @@ describe("sendPushToUser", () => {
 // ---------------------------------------------------------------------------
 
 describe("delivery tracking and resilient pruning (RW-045)", () => {
+  test("health bookkeeping failure cannot retry an already delivered notification", async () => {
+    enablePush();
+    mockSubs = [pushSub({ id: "s1", endpoint: "https://push.example.com/ok" })];
+    healthWriteShouldFail = true;
+    const { sendPushToUser } = await import("@/lib/push/delivery");
+
+    const sent = await sendPushToUser("u1", { title: "T", body: "B" });
+
+    assert.equal(sent, 1);
+    assert.equal(sendCalls.length, 1);
+  });
+
   test("successful send resets failureCount and stamps lastSuccessAt", async () => {
     enablePush();
     mockSubs = [

@@ -59,7 +59,7 @@ export type EvaluatedRun = {
 
 const CJK_RE = /[\u4e00-\u9fff]/g;
 
-function computeHeuristics(source: SampledArticle, run: TranslationRun): Heuristics {
+export function computeHeuristics(source: SampledArticle, run: TranslationRun): Heuristics {
   const text = run.translation ?? "";
   const nonWhitespace = text.replace(/\s+/g, "");
   const cjkCount = (text.match(CJK_RE) ?? []).length;
@@ -93,7 +93,7 @@ const JUDGE_SYSTEM_PROMPT =
   'Respond with ONLY a single JSON object, no other text: ' +
   '{"adequacy": <1-5>, "fluency": <1-5>, "terminology": <1-5>, "register": <1-5>, "issues": ["..."]}';
 
-function buildJudgeUser(source: SampledArticle, translation: string): string {
+export function buildJudgeUser(source: SampledArticle, translation: string): string {
   return (
     `Category: ${source.category}\n\n` +
     `English source:\n${source.text}\n\n` +
@@ -101,7 +101,7 @@ function buildJudgeUser(source: SampledArticle, translation: string): string {
   );
 }
 
-function parseJudgeJson(raw: string): JudgeScore {
+export function parseJudgeJson(raw: string): JudgeScore {
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("judge response contained no JSON object");
   const parsed = JSON.parse(match[0]) as Partial<JudgeScore>;
@@ -119,7 +119,7 @@ function parseJudgeJson(raw: string): JudgeScore {
   };
 }
 
-async function judgeOne(source: SampledArticle, translation: string): Promise<JudgeScore> {
+export async function judgeOne(source: SampledArticle, translation: string): Promise<JudgeScore> {
   const result = await chatCompleteWithRetry(
     [
       { role: "system", content: JUDGE_SYSTEM_PROMPT },
@@ -147,8 +147,8 @@ export async function evaluateRuns(corpus: Corpus, report: RunReport): Promise<E
     if (run.translation) {
       try {
         judge = await judgeOne(source, run.translation);
-      } catch (err) {
-        judgeError = err instanceof Error ? err.message : String(err);
+      } catch {
+        judgeError = "translation_judge_failed";
       }
     } else {
       judgeError = "no translation to judge (translate.ts run errored)";
@@ -167,7 +167,7 @@ export async function evaluateRuns(corpus: Corpus, report: RunReport): Promise<E
   return out;
 }
 
-type VariantSummary = {
+export type VariantSummary = {
   variantId: string;
   n: number;
   paragraphMatchRate: number;
@@ -210,7 +210,7 @@ export function summarizeByVariant(evaluated: EvaluatedRun[]): VariantSummary[] 
   return summaries.sort((a, b) => a.variantId.localeCompare(b.variantId));
 }
 
-function printSummaryTable(summaries: VariantSummary[]): void {
+export function printSummaryTable(summaries: VariantSummary[]): void {
   const header = [
     "variant",
     "n",
@@ -242,10 +242,10 @@ function printSummaryTable(summaries: VariantSummary[]): void {
   for (const row of rows) console.log(line(row));
 }
 
-type Args = { corpus: string; translations: string; detailOut: string; summaryOut: string; help: boolean };
+export type EvaluateArgs = { corpus: string; translations: string; detailOut: string; summaryOut: string; help: boolean };
 
-function parseArgs(argv: string[]): Args {
-  const args: Args = {
+export function parseArgs(argv: string[]): EvaluateArgs {
+  const args: EvaluateArgs = {
     corpus: parseString(argv, "--corpus") ?? DEFAULT_CORPUS,
     translations: parseString(argv, "--translations") ?? DEFAULT_TRANSLATIONS,
     detailOut: parseString(argv, "--detail-out") ?? DEFAULT_DETAIL_OUT,
@@ -263,7 +263,7 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     console.log(
@@ -291,6 +291,10 @@ async function main(): Promise<number> {
   return 0;
 }
 
-if (isMain(import.meta.url)) {
-  runScript(main, "evaluate failed");
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    runScript(main, "evaluate failed");
+  }
 }
+
+runAsCli();

@@ -17,16 +17,16 @@
  *   4. computes + persists the next `nextRunAt` and RELEASES the lease under the
  *      same guarded (lease + version) update.
  *
- * Failure isolation: ANY error is caught, converted to a REDACTED metadata-only
- * `lastError`, escalates the failure backoff, and still releases the lease so one
- * failing provider can never stop the loop or block other sources. The handler
- * NEVER throws to the loop and NEVER enqueues body work.
+ * Failure isolation: provider/data errors are caught, converted to a REDACTED
+ * metadata-only `lastError`, escalate the failure backoff, and still release the
+ * lease so one failing provider can never stop the loop or block other sources.
+ * Cooperative shutdown aborts release the lease without counting as provider
+ * failures, then propagate so the worker loop can stop cleanly. The handler
+ * never enqueues body work.
  */
 import { DiscoverySourceHealth, DiscoverySourceLifecycleMode, type DiscoverySource } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { redactUrlForLog } from "@/lib/scraper/url-redaction";
-
 import { commitDiscoveryPage } from "./page-commit";
 import type { DiscoveryPageResult } from "./page-commit";
 import { commitFrontierState } from "./frontier-commit";
@@ -39,7 +39,7 @@ import type { ClaimedDiscoverySource } from "./discovery-claim";
 import type { AdmissionDecision } from "./rate-governor";
 
 const SECOND_MS = 1000;
-const MAX_LAST_ERROR_LENGTH = 500;
+const MACHINE_REASON_RE = /^[a-z0-9][a-z0-9_:-]{0,79}$/;
 
 export type WorkerLoggerLike = {
   info: (message: string, meta?: Record<string, unknown>) => void;
@@ -91,11 +91,24 @@ export type DiscoveryRunOutcome =
   | { status: "deferred"; reason: string; nextRunAt: Date | null }
   | { status: "failed"; errorKind: string };
 
-/** Renders an error as bounded, secret-free metadata (never a raw URL/query). */
+/** Renders an error as a controlled, content-free machine reason. */
 export function redactErrorForSource(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
-  const redacted = raw.replace(/https?:\/\/\S+/g, (match) => redactUrlForLog(match));
-  return redacted.slice(0, MAX_LAST_ERROR_LENGTH);
+  if (
+    error instanceof Error &&
+    error.name === "CanaryFetchError" &&
+    "reason" in error &&
+    typeof error.reason === "string" &&
+    MACHINE_REASON_RE.test(error.reason)
+  ) {
+    return error.reason;
+  }
+  return "discovery_source_failed";
+}
+
+function discoveryErrorKind(error: unknown): "CanaryFetchError" | "Error" {
+  return error instanceof Error && error.name === "CanaryFetchError"
+    ? "CanaryFetchError"
+    : "Error";
 }
 
 /**
@@ -138,6 +151,16 @@ function nextRunAtAfterSuccess(source: DiscoverySource, boundaryReached: boolean
     scheduleCron: source.scheduleCron,
     backoffLevel: 0,
   });
+}
+
+function cooperativeAbort(error: unknown, signal?: AbortSignal): Error | null {
+  if (!signal?.aborted && (!(error instanceof Error) || error.name !== "AbortError")) {
+    return null;
+  }
+  if (error instanceof Error && error.name === "AbortError") return error;
+  const abort = new Error("aborted");
+  abort.name = "AbortError";
+  return abort;
 }
 
 async function finalizeSuccess(
@@ -217,9 +240,10 @@ async function finalizeDeferred(
 }
 
 /**
- * Runs one bounded page for a freshly-claimed discovery source. Never throws:
- * a failing source is isolated (backoff + redacted error, lease released) so the
- * loop and other sources are unaffected.
+ * Runs one bounded page for a freshly-claimed discovery source. Provider/data
+ * failures are isolated (backoff + redacted error, lease released) so the loop
+ * and other sources are unaffected. Cooperative shutdown propagates AbortError
+ * after releasing the lease.
  */
 export async function runClaimedDiscoverySource(
   claimed: ClaimedDiscoverySource,
@@ -338,11 +362,16 @@ export async function runClaimedDiscoverySource(
       caughtUp: completion.caughtUp,
     };
   } catch (error) {
+    const abort = cooperativeAbort(error, signal);
+    if (abort) {
+      await releaseSource(source, {}, now);
+      throw abort;
+    }
     logger.warn("discovery source run failed", {
       sourceId: source.id,
-      error: redactErrorForSource(error),
+      failureReason: redactErrorForSource(error),
     });
     await finalizeFailure(source, error, now);
-    return { status: "failed", errorKind: error instanceof Error ? error.name : "Error" };
+    return { status: "failed", errorKind: discoveryErrorKind(error) };
   }
 }

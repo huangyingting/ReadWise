@@ -14,7 +14,7 @@
  * `import type` (erased at runtime), so the UI stays type-safe; only the Date
  * fields are widened to the ISO strings the JSON API actually serializes.
  */
-import { ApiResponseError } from "@/lib/client-fetch";
+import { ApiResponseError, clientErrorMessage } from "@/lib/client-fetch";
 import type {
   CanonicalConflictDetailDto,
   CanonicalConflictDto,
@@ -289,7 +289,7 @@ export function classifyConflictResolveError(err: unknown): ConflictResolveError
   if (err instanceof ApiResponseError) {
     return conflictResolveErrorFrom(err.status, err.cause, err.message);
   }
-  const message = err instanceof Error ? err.message : "Resolution failed.";
+  const message = clientErrorMessage(err, "Resolution failed.");
   return conflictResolveErrorFrom(null, null, message);
 }
 

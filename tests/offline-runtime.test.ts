@@ -489,6 +489,36 @@ test("offline conflict helpers cover empty anchors and one-sided note merges", a
   });
 });
 
+test("queueing acknowledges durable storage without waiting for service-worker readiness", async () => {
+  const runtime = await import("@/lib/offline/sync-runtime");
+
+  makeNavigator({
+    onLine: false,
+    serviceWorker: {
+      ready: new Promise(() => {}),
+    },
+  });
+
+  const outcome = await Promise.race([
+    runtime.queueMutation({
+      type: "progress",
+      endpoint: "/api/progress",
+      body: { percent: 42 },
+      clientMutationId: "service-worker-not-ready",
+    }),
+    new Promise<"timed-out">((resolve) => {
+      setTimeout(() => resolve("timed-out"), 500);
+    }),
+  ]);
+  const pending = runtime.getSyncState().pending;
+
+  makeNavigator({ onLine: false });
+  await runtime.purgeOfflineUserData();
+
+  assert.deepEqual(outcome, { sent: false, queued: true });
+  assert.equal(pending, 1);
+});
+
 test("sync runtime submits mutations, updates subscribers, flushes queues, and purges device data", async () => {
   const store = await import("@/lib/offline/mutation-store");
   const runtime = await import("@/lib/offline/sync-runtime");

@@ -298,8 +298,7 @@ test("scrapeAndSave returns failed when content quality grade is reject", async 
   const outcome = await scrapeAndSave("https://www.noemamag.com/article");
   assert.equal(outcome.status, "failed");
   if (outcome.status === "failed") {
-    assert.match(outcome.reason, /quality/);
-    assert.match(outcome.reason, /score=15/);
+    assert.equal(outcome.reason, "article_quality_failed");
     assert.equal(outcome.failure, "quality");
   }
 });
@@ -393,7 +392,8 @@ test("scrapeAndSave captures unexpected thrown errors as a failed outcome", asyn
   const outcome = await scrapeAndSave("https://www.noemamag.com/article");
   assert.equal(outcome.status, "failed");
   if (outcome.status === "failed") {
-    assert.match(outcome.reason, /unexpected db failure/);
+    assert.equal(outcome.reason, "article_persistence_failed");
+    assert.doesNotMatch(outcome.reason, /unexpected db failure/);
     assert.equal(outcome.failure, "save");
   }
 });
@@ -405,16 +405,15 @@ test("scrapeAndSave returns skipped outcome when duplicate sourceUrl is found du
   assert.equal(outcome.status, "skipped");
 });
 
-test("scrapeAndSave captures non-Error thrown values as a failed outcome using String()", async () => {
-  // Exercises errorMessage's String(err) branch (line 112 of index.ts).
+test("scrapeAndSave replaces non-Error thrown values with a controlled failure reason", async () => {
   txCreateStub = async (): Promise<{ id: string }> => {
-    throw "plain string error"; // intentionally a non-Error to cover String(err) branch
+    throw "private article sentence";
   };
   const { scrapeAndSave } = await import("@/lib/scraper");
   const outcome = await scrapeAndSave("https://www.noemamag.com/article");
   assert.equal(outcome.status, "failed");
   if (outcome.status === "failed") {
-    assert.equal(outcome.reason, "plain string error");
+    assert.equal(outcome.reason, "article_persistence_failed");
     assert.equal(outcome.failure, "save");
   }
 });

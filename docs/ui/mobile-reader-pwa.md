@@ -126,7 +126,7 @@ When the user navigates to `/reader/:id` while offline the SW intercepts the req
 
 ### Offline mutation queue
 
-While offline, reading-progress updates, highlights, and notes are enqueued in IndexedDB (`mutations` object store). When connectivity is restored the SW fires a `sync` event with tag `readwise-mutations`, which signals the client to flush the queue via `src/lib/offline-sync.ts`. Mutations use full-jitter exponential back-off and are dropped after five retries (permanent 4xx errors) or on sign-out (cache purge message).
+While offline, reading-progress updates, highlights, and notes are enqueued in IndexedDB (`mutations` object store). When connectivity is restored the SW fires a `sync` event with tag `readwise-mutations`, which signals the client to flush the queue via `src/lib/offline-sync.ts`. Mutations use full-jitter exponential back-off and remain in a terminal `failed` state after five retries (or immediately after a permanent 4xx error) until the queue is purged on sign-out/account deletion. Stored failure diagnostics are controlled client-generated reason/status codes, never response or exception prose.
 
 ---
 
@@ -215,4 +215,3 @@ npm run test:e2e:smoke
 ```
 
 See also `e2e/offline-pwa.spec.ts` for broader offline/library/progress/notes coverage, and `e2e/accessibility.spec.ts` for WCAG automated checks.
-

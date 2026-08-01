@@ -53,11 +53,11 @@ const DEFAULT_CONCURRENCY = 32; // see docs/ai/provider-db-translation-prompts.m
 
 type ArticleRow = { id: string; title: string; content: string; category: string | null };
 
-function contentHash(title: string, content: string): string {
+export function contentHash(title: string, content: string): string {
   return createHash("sha256").update(title).update("\u0000").update(content).digest("hex");
 }
 
-async function translateTitle(title: string, systemPrompt: string, temperature: number): Promise<string> {
+export async function translateTitle(title: string, systemPrompt: string, temperature: number): Promise<string> {
   if (!title.trim()) return "";
   const result = await chatCompleteWithRetry(
     [
@@ -77,7 +77,7 @@ async function translateTitle(title: string, systemPrompt: string, temperature: 
 }
 
 /** Heuristic QA gate — mirrors evaluate.ts's checks, flags rather than blocks. */
-function qaFlags(content: string, sourceCharCount: number, sourceBlockCount: number): string[] {
+export function qaFlags(content: string, sourceCharCount: number, sourceBlockCount: number): string[] {
   const flags: string[] = [];
   if (!content.trim()) flags.push("empty-output");
   if (/```/.test(content)) flags.push("markdown-fence");
@@ -103,7 +103,7 @@ function qaFlags(content: string, sourceCharCount: number, sourceBlockCount: num
   return flags;
 }
 
-type RunOptions = {
+export type RunOptions = {
   providerDb: string;
   lang: string;
   limit: number | null;
@@ -115,7 +115,7 @@ type RunOptions = {
   outDir: string;
 };
 
-type RunStats = {
+export type RunStats = {
   total: number;
   translated: number;
   skippedUnchanged: number;
@@ -150,6 +150,15 @@ export async function runTranslateArticles(options: RunOptions): Promise<RunStat
 
     const stats: RunStats = { total: limited.length, translated: 0, skippedUnchanged: 0, errors: 0, flagged: 0, repairedChunks: 0 };
     let done = 0;
+    const reportProgress = () => {
+      done++;
+      if (done % 25 === 0 || done === limited.length) {
+        console.log(
+          `[${done}/${limited.length}] translated=${stats.translated} skipped=${stats.skippedUnchanged} ` +
+            `errors=${stats.errors} flagged=${stats.flagged} repairedChunks=${stats.repairedChunks}`,
+        );
+      }
+    };
 
     await mapWithConcurrency(
       limited,
@@ -160,11 +169,13 @@ export async function runTranslateArticles(options: RunOptions): Promise<RunStat
           const existing = getExistingHash(store, options.providerDb, row.id, options.lang);
           if (existing === hash) {
             stats.skippedUnchanged++;
+            reportProgress();
             return;
           }
         }
         if (options.dryRun) {
           stats.translated++;
+          reportProgress();
           return;
         }
         const started = Date.now();
@@ -220,13 +231,7 @@ export async function runTranslateArticles(options: RunOptions): Promise<RunStat
           stats.errors++;
           recordError(store!, options.providerDb, row.id, options.lang, lastErr instanceof Error ? lastErr.message : String(lastErr));
         }
-        done++;
-        if (done % 25 === 0 || done === limited.length) {
-          console.log(
-            `[${done}/${limited.length}] translated=${stats.translated} skipped=${stats.skippedUnchanged} ` +
-              `errors=${stats.errors} flagged=${stats.flagged} repairedChunks=${stats.repairedChunks}`,
-          );
-        }
+        reportProgress();
       },
     );
 
@@ -237,7 +242,7 @@ export async function runTranslateArticles(options: RunOptions): Promise<RunStat
   }
 }
 
-type Args = {
+export type TranslateArticlesArgs = {
   db: string | null;
   lang: string;
   limit: number | null;
@@ -250,11 +255,11 @@ type Args = {
   help: boolean;
 };
 
-function parseArgs(argv: string[]): Args {
+export function parseArgs(argv: string[]): TranslateArticlesArgs {
   const categoriesRaw = parseString(argv, "--category");
   const articleIdsRaw = parseString(argv, "--article-id");
   const limitRaw = parseString(argv, "--limit");
-  const args: Args = {
+  const args: TranslateArticlesArgs = {
     db: parseString(argv, "--db"),
     lang: parseString(argv, "--lang") ?? DEFAULT_LANG,
     limit: limitRaw ? Math.max(1, Number(limitRaw) || 0) || null : null,
@@ -290,7 +295,7 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help || !args.db) {
     console.log(
@@ -317,6 +322,10 @@ async function main(): Promise<number> {
   return stats.errors > 0 ? 1 : 0;
 }
 
-if (isMain(import.meta.url)) {
-  runScript(main, "translate-articles failed");
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    runScript(main, "translate-articles failed");
+  }
 }
+
+runAsCli();

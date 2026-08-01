@@ -43,7 +43,6 @@ flowchart TD
 - `feature`, `model`, `promptVersion`, `status`, `fallback`, `fallbackReason`, `cacheHit`
 - optional `userId`, `articleId`, and `requestId`
 - latency, token counts, and estimated USD cost
-- short normalized error message
 
 The ledger never accepts full prompts, model responses, article text, selected
 text, definitions, credentials, or cookies. `recordAiInvocation` never throws;
@@ -115,7 +114,8 @@ HTTP/browser/storage cache hits.
 
 - Treat ledger rows like audit/analytics metadata: safe ids and counts only.
 - Never put prompt text, response text, article content, selected text, or user
-  private content into `feature`, `errorMessage`, or custom metadata.
+  private content into `feature` or custom metadata. Provider and exception
+  prose is not persisted; use the controlled `fallbackReason` taxonomy.
 - `userId` and `articleId` are plain strings, not foreign keys, so ledger history
   can survive entity deletion for operations reporting. Apply explicit retention
   or erasure policy when required.
@@ -143,4 +143,3 @@ HTTP/browser/storage cache hits.
 Relevant tests include `tests/ai-ledger.test.ts`, `tests/ai-budget.test.ts`,
 `tests/ai-cache-selection.test.ts`, `tests/ai-provider.test.ts`,
 `tests/ai-runner.test.ts`, and admin AI analytics route tests.
-

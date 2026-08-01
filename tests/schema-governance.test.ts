@@ -121,6 +121,29 @@ test("schema governance enforces one SQLite provider declaration", async () => {
   assert.match(report.schemas.diagnostics.join("\n"), /exactly 1 occurrence/);
 });
 
+test("schema governance reports personal-data export policy drift", async () => {
+  const root = await createSchemaRoot(`${VALID_BASE_SCHEMA}
+model User {
+  id                String   @id
+  unclassifiedData  Profile?
+}
+
+model Profile {
+  id String @id
+}
+`);
+  await generateSchemas(root);
+
+  const report = await inspectSchemaGovernance(root);
+
+  assert.equal(report.schemas.ok, false);
+  assert.match(
+    report.schemas.diagnostics.join("\n"),
+    /Personal-data export policy does not cover every Prisma User relation/,
+  );
+  assert.match(report.schemas.diagnostics.join("\n"), /User\.unclassifiedData/);
+});
+
 test("schema governance reports migrations missing from PostgreSQL", async () => {
   const root = await createSchemaRoot();
   await generateSchemas(root);

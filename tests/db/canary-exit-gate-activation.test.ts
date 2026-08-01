@@ -23,7 +23,7 @@
  * sweep only removes prefixed provider keys).
  */
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { afterEach, beforeEach, test } from "node:test";
 
 import { DiscoverySourceLifecycleMode } from "@prisma/client";
 
@@ -44,21 +44,30 @@ registerIntegrationCleanup();
 
 const { SHADOW, ACTIVE, PAUSED } = DiscoverySourceLifecycleMode;
 
-// Canary sources carry REAL (non-prefixed) provider keys, so the shared sweep
-// misses them — track their ids and delete them locally.
-const createdSourceIds = new Set<string>();
+const rssCanary = CANARIES.find((c) => c.channel === "rss")!;
 
-afterEach(async () => {
+// Canary sources carry REAL (non-prefixed) provider keys, so the shared sweep
+// misses them. Clean the exact test identity both before and after each case so
+// an interrupted run cannot leave a uniqueness collision for the next run.
+async function cleanRssCanary(): Promise<void> {
   if (!enabled) return;
-  const ids = [...createdSourceIds];
+  const sources = await prisma.discoverySource.findMany({
+    where: {
+      providerKey: rssCanary.providerKey,
+      sourceKey: rssCanary.sourceKey,
+      definitionVersion: rssCanary.definitionVersion,
+    },
+    select: { id: true },
+  });
+  const ids = sources.map(({ id: sourceId }) => sourceId);
   if (ids.length > 0) {
     await prisma.crawlCandidate.deleteMany({ where: { discoverySourceId: { in: ids } } });
     await prisma.discoverySource.deleteMany({ where: { id: { in: ids } } });
   }
-  createdSourceIds.clear();
-});
+}
 
-const rssCanary = CANARIES.find((c) => c.channel === "rss")!;
+beforeEach(cleanRssCanary);
+afterEach(cleanRssCanary);
 
 const passingGuard: ExitGateGuard = async () => ({ verdict: "pass", failing: [] });
 const failingGuard: ExitGateGuard = async () => ({
@@ -112,7 +121,6 @@ test("applyLifecycleAction('activate') on a real canary is FAIL-CLOSED without s
     leaseOwner: null,
     baselineCompletedAt: new Date("2026-07-01T00:00:00.000Z"),
   });
-  createdSourceIds.add(source.id);
 
   const result = await applyLifecycleAction(source.id, "activate");
 
@@ -135,12 +143,19 @@ test("the fail-closed canary guard itself reports the recovery gate failing", { 
     leaseOwner: null,
     baselineCompletedAt: new Date("2026-07-01T00:00:00.000Z"),
   });
-  createdSourceIds.add(source.id);
 
   const guard = canaryExitGateGuard(source.id, { now: new Date("2026-07-19T00:00:00.000Z") });
   const verdict = await guard();
   assert.equal(verdict.verdict, "fail");
   assert.ok(verdict.failing.length > 0);
+});
+
+test("the canary guard fails closed when the source is missing", { skip: !enabled }, async () => {
+  const guard = canaryExitGateGuard(id("missing-canary"));
+  assert.deepEqual(await guard(), {
+    verdict: "fail",
+    failing: ["no-old-item-false-positives"],
+  });
 });
 
 test("no NON-activate action reaches ACTIVE: resume on a paused canary lands in SHADOW", { skip: !enabled }, async () => {
@@ -152,7 +167,6 @@ test("no NON-activate action reaches ACTIVE: resume on a paused canary lands in 
     leaseOwner: null,
     baselineCompletedAt: new Date("2026-07-01T00:00:00.000Z"),
   });
-  createdSourceIds.add(source.id);
 
   const result = await applyLifecycleAction(source.id, "resume");
   assert.equal(result.ok, true);

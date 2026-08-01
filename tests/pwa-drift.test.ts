@@ -32,6 +32,12 @@ const PUBLIC = join(ROOT, "public");
 
 const sw = readFileSync(join(PUBLIC, "sw.js"), "utf8");
 const offlineReader = readFileSync(join(PUBLIC, "offline-reader.html"), "utf8");
+const userMenu = readFileSync(join(ROOT, "src/components/shell/UserMenu.tsx"), "utf8");
+const moreSheet = readFileSync(join(ROOT, "src/components/shell/MoreSheet.tsx"), "utf8");
+const serviceWorkerRegister = readFileSync(
+  join(ROOT, "src/components/ServiceWorkerRegister.tsx"),
+  "utf8",
+);
 
 // ---------------------------------------------------------------------------
 // service worker — cache version constants
@@ -91,6 +97,29 @@ test("sw.js purge-caches message type matches PURGE_CACHES_MESSAGE", () => {
     sw.includes(`"${PURGE_CACHES_MESSAGE}"`),
     `sw.js must reference purge-caches message type "${PURGE_CACHES_MESSAGE}"`,
   );
+});
+
+test("sw.js forwards server-controlled notification tags for retry collapse", () => {
+  assert.match(
+    sw,
+    /tag:\s*data\.tag/,
+    "push notifications must forward the stable server tag to showNotification",
+  );
+});
+
+test("every shell sign-out control purges offline private data before ending the session", () => {
+  for (const [name, source] of [["UserMenu", userMenu], ["MoreSheet", moreSheet]] as const) {
+    assert.match(
+      source,
+      /await purgeOfflineUserData\(\);\s*await signOut\(/,
+      `${name} must await the offline-data purge before signOut`,
+    );
+  }
+});
+
+test("service-worker registration failure logs no browser exception prose", () => {
+  assert.match(serviceWorkerRegister, /console\.error\("\[SW\] Registration failed"\)/);
+  assert.doesNotMatch(serviceWorkerRegister, /console\.error\([^)]*,\s*err/);
 });
 
 // ---------------------------------------------------------------------------

@@ -5,9 +5,10 @@ import { fileURLToPath } from "node:url";
 import {
   DEFAULT_INCLUDE_PREFIXES,
   coverageFailures,
+  mergeCoverageRows,
   parseCliArgs,
   parseNodeCoverageText,
-  readCoverageInput,
+  readCoverageInputs,
   runCoverageGate,
   runNativeCoverage,
 } from "../scripts/check-node-coverage";
@@ -127,7 +128,7 @@ test("coverage gate parses CLI options in space and equals forms", () => {
   ]), {
     threshold: 97.5,
     includePrefixes: ["src/", "scripts/", "eslint-rules/", "scripts/"],
-    inputFile: "report.txt",
+    inputFiles: ["report.txt"],
     inputFromStdin: true,
     showReport: false,
    skipStatic: false,
@@ -144,7 +145,7 @@ test("coverage gate parses CLI options in space and equals forms", () => {
   ]), {
    threshold: 99,
    includePrefixes: ["eslint-rules/", "src/"],
-   inputFile: "report.txt",
+   inputFiles: ["report.txt"],
    inputFromStdin: false,
    showReport: false,
    skipStatic: false,
@@ -154,6 +155,11 @@ test("coverage gate parses CLI options in space and equals forms", () => {
   assert.deepEqual(parseCliArgs(["--only-include", "scripts/lib/cli.ts"]).includePrefixes, [
     "scripts/lib/cli.ts",
   ]);
+
+  assert.deepEqual(
+    parseCliArgs(["--input", "postgres.txt", "--input=sqlite.txt"]).inputFiles,
+    ["postgres.txt", "sqlite.txt"],
+  );
 });
 
 test("coverage gate rejects invalid thresholds and include prefixes", () => {
@@ -163,21 +169,21 @@ test("coverage gate rejects invalid thresholds and include prefixes", () => {
   assert.throws(() => parseCliArgs(["--include"]), /include prefix/);
 });
 
-test("coverage gate reads input from files and stdin", () => {
+test("coverage gate reads repeated input files and stdin", () => {
   const fixturePath = fileURLToPath(
     new URL("./fixtures/coverage-gate/native-report.txt", import.meta.url),
   );
-  const fixtureText = readCoverageInput(fixturePath, false) ?? "";
+  const fixtureText = readCoverageInputs([fixturePath], false)?.[0] ?? "";
   assert.deepEqual(parseNodeCoverageText(fixtureText).map((row) => row.file), [
     "src/lib/fixture.ts",
   ]);
-  assert.equal(readCoverageInput(null, false), null);
+  assert.equal(readCoverageInputs([], false), null);
   assert.throws(
-    () => readCoverageInput("tests/fixtures/coverage-gate/missing-report.txt", false),
+    () => readCoverageInputs(["tests/fixtures/coverage-gate/missing-report.txt"], false),
     /coverage input not found/,
   );
 
-  const stdin = readCoverageInput(null, true, {
+  const stdin = readCoverageInputs([], true, {
     existsSync: () => false,
     readFileSync: (path, encoding) => {
       assert.equal(path, 0);
@@ -185,14 +191,80 @@ test("coverage gate reads input from files and stdin", () => {
       return PASSING_REPORT;
     },
   });
-  assert.equal(stdin, PASSING_REPORT);
+  assert.deepEqual(stdin, [PASSING_REPORT]);
+});
+
+test("coverage gate merges complete provider reports without combining partial lines", () => {
+  const postgresRows = parseCoverageRows([
+    "ℹ file                  | line % | branch % | funcs % | uncovered lines",
+    "ℹ src                   |        |          |         | ",
+    "ℹ  lib                  |        |          |         | ",
+    "ℹ   shared.ts           |  97.00 |   90.00 |   90.00 | 10-12",
+    "ℹ   postgres-only.ts    | 100.00 |  100.00 |  100.00 | ",
+  ]);
+  const sqliteRows = parseCoverageRows([
+    "ℹ file                  | line % | branch % | funcs % | uncovered lines",
+    "ℹ src                   |        |          |         | ",
+    "ℹ  lib                  |        |          |         | ",
+    "ℹ   shared.ts           |  99.00 |   70.00 |   80.00 | 20",
+    "ℹ   sqlite-only.ts      | 100.00 |  100.00 |  100.00 | ",
+  ]);
+
+  assert.deepEqual(mergeCoverageRows([postgresRows, sqliteRows]), [
+    { file: "src/lib/postgres-only.ts", linePct: 100, uncoveredLines: "" },
+    { file: "src/lib/shared.ts", linePct: 99, uncoveredLines: "20" },
+    { file: "src/lib/sqlite-only.ts", linePct: 100, uncoveredLines: "" },
+  ]);
+});
+
+test("coverage gate accepts repeated reports only when their merged rows pass", () => {
+  const { logs, errors, output } = captureOutput();
+  let requestedFiles: string[] = [];
+  const sqliteReport = PASSING_REPORT.replace(
+    "99.00 |   100.00 |  100.00",
+    "97.00 |   100.00 |  100.00",
+  );
+
+  const code = runCoverageGate([
+    "--input",
+    "postgres.txt",
+    "--input=sqlite.txt",
+    "--threshold=98",
+    "--skip-static",
+  ], {
+    readCoverageInputs: (inputFiles) => {
+      requestedFiles = inputFiles;
+      return [sqliteReport, PASSING_REPORT];
+    },
+    output,
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(requestedFiles, ["postgres.txt", "sqlite.txt"]);
+  assert.deepEqual(errors, []);
+  assert.match(logs[0] ?? "", /Coverage gate passed/);
+});
+
+test("coverage gate fails when include filters match zero measured files", () => {
+  const { errors, output } = captureOutput();
+  const code = runCoverageGate([
+    "--stdin",
+    "--only-include=src/lib/not-loaded.ts",
+    "--skip-static",
+  ], {
+    readCoverageInputs: () => [PASSING_REPORT],
+    output,
+  });
+
+  assert.equal(code, 1);
+  assert.match(errors.join("\n"), /no measured files matched/i);
 });
 
 test("coverage gate succeeds for parsed input coverage", () => {
   const { logs, errors, output } = captureOutput();
 
   const code = runCoverageGate(["--stdin", "--threshold", "98", "--skip-static"], {
-    readCoverageInput: () => PASSING_REPORT,
+    readCoverageInputs: () => [PASSING_REPORT],
     output,
   });
 
@@ -210,7 +282,7 @@ test("coverage gate fails and prints uncovered lines for low coverage", () => {
     "--only-include=scripts/",
     "--include=eslint-rules/",
   ], {
-    readCoverageInput: () => FAILING_REPORT,
+    readCoverageInputs: () => [FAILING_REPORT],
     output,
   });
 
@@ -300,7 +372,7 @@ test("coverage gate with static denominator detects synthetic 0% files", () => {
   const { logs, errors, output } = captureOutput();
 
   const code = runCoverageGate(["--stdin", "--threshold", "98"], {
-    readCoverageInput: () => PASSING_REPORT,
+    readCoverageInputs: () => [PASSING_REPORT],
     output,
     static: {
       rootDir: process.cwd(),
@@ -320,7 +392,7 @@ test("coverage gate static denominator reports missing debt file", () => {
   const { errors, output } = captureOutput();
 
   const code = runCoverageGate(["--stdin", "--threshold", "98"], {
-    readCoverageInput: () => PASSING_REPORT,
+    readCoverageInputs: () => [PASSING_REPORT],
     output,
     static: {
       rootDir: process.cwd(),
@@ -337,7 +409,7 @@ test("coverage gate --skip-static bypasses static denominator", () => {
   const { logs, errors, output } = captureOutput();
 
   const code = runCoverageGate(["--stdin", "--threshold", "98", "--skip-static"], {
-    readCoverageInput: () => PASSING_REPORT,
+    readCoverageInputs: () => [PASSING_REPORT],
     output,
   });
 

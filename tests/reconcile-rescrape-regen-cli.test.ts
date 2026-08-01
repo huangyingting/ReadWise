@@ -112,6 +112,19 @@ test("reconcile --execute re-drives and reports the tally", async () => {
   assert.deepEqual(errors, []);
 });
 
+test("reconcile keeps dry-run safety when both mode flags are present", async () => {
+  const { reconcileRescrapeRegenMain } = await import("../scripts/reconcile-rescrape-regen");
+  const { io, logs } = captureIo();
+
+  await reconcileRescrapeRegenMain(["--execute", "--dry-run"], io);
+  const payload = JSON.parse(logs[0]!) as { dryRun: boolean; executed: boolean };
+
+  assert.equal(payload.dryRun, true);
+  assert.equal(payload.executed, false);
+  assert.equal(countCalls, 1);
+  assert.deepEqual(reconcileArgs, []);
+});
+
 test("reconcile forwards --limit to the sweep", async () => {
   const { reconcileRescrapeRegenMain } = await import("../scripts/reconcile-rescrape-regen");
   const { io } = captureIo();

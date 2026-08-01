@@ -235,7 +235,10 @@ Order of operations for a standard release (no major schema change):
    blue/green mechanism.
 6. **Wait for the app to report ready** — poll `/api/ready` until `status:
    "ready"` or the platform's readiness probe clears.
-7. **Start or restart workers** — after the web tier is healthy.
+7. **Start or restart workers** — after the web tier is healthy. Container
+   deployments use the Dockerfile's `worker` target, built with the same
+   `PRISMA_SCHEMA_PATH` as the web image; its default command is
+   `npm run worker` and it does not deploy migrations.
 8. **Run smoke checks** (§4).
 9. **Record the release** in the team operations log: date, operator, commit
    SHA, migration version, environment, and backup artifact.
@@ -428,4 +431,3 @@ A release is declared healthy when:
 | Readiness probe | `curl --fail 'https://<host>/api/ready'` |
 | SLO status | `curl --fail 'https://<host>/api/admin/slo'` |
 | Worker single-cycle run | `npm run worker -- --once` |
-

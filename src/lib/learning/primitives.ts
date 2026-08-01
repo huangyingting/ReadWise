@@ -38,10 +38,6 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 /** Clamps a number into the inclusive 0–1 range (NaN → 0). */
 export function clamp01(value: number): number {
   if (!Number.isFinite(value)) return SCORE_MIN;
@@ -63,10 +59,10 @@ export async function bestEffortMastery<T>(
 ): Promise<T | null> {
   try {
     return await fn();
-  } catch (err) {
+  } catch {
     log.warn("mastery.side_effect_failed", {
       label,
-      error: errorMessage(err),
+      machineReason: "mastery_side_effect_failed",
     });
     return null;
   }

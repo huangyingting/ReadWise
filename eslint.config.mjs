@@ -22,7 +22,7 @@ const importBoundaryPlugin = {
 };
 
 const eslintConfig = [
-  { ignores: ["node_modules/", ".next/"] },
+  { ignores: ["node_modules/", ".next/", ".next-e2e/"] },
   ...nextCoreWebVitals,
 
   // Next 16's React Hooks plugin enables React Compiler-style checks that the

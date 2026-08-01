@@ -189,12 +189,15 @@ test("POST /api/push/unsubscribe removes the authenticated user's endpoint", asy
   ]);
 });
 
-test("POST /api/push/unsubscribe returns 503 when push is not configured", async () => {
+test("POST /api/push/unsubscribe still removes the endpoint when push is not configured", async () => {
   const POST = await unsubscribePost();
 
   pushEnabled = false;
   const res = await POST(unsubBody(), undefined);
 
-  assert.equal(res.status, 503);
-  assert.equal(deleteManyCalls.length, 0);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true });
+  assert.deepEqual(deleteManyCalls, [
+    { where: { endpoint: "https://push.example.com/sub", userId: "user-1" } },
+  ]);
 });

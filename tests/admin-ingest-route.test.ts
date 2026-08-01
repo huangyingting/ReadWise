@@ -28,7 +28,13 @@ let scrapeResult: Record<string, unknown> | null = {
 };
 let scrapeError: Error | null = null;
 
-let saveOutcome: { status: string; id?: string; sourceUrl?: string; reason?: string } = {
+let saveOutcome: {
+  status: string;
+  id?: string;
+  sourceUrl?: string;
+  failure?: string;
+  reason?: string;
+} = {
   status: "saved",
   id: "article-new",
 };
@@ -90,7 +96,7 @@ before(() => {
         if (saveOutcome.status === "failed") {
           return {
             ...saveOutcome,
-            failure: "save",
+            failure: saveOutcome.failure ?? "save",
             sourceUrl: url,
           };
         }
@@ -254,13 +260,13 @@ test("POST /api/admin/articles/ingest returns 409 for duplicate", async () => {
 // ---------------------------------------------------------------------------
 
 test("POST /api/admin/articles/ingest returns 422 when scrape throws", async () => {
-  scrapeError = new Error("Network timeout");
+  scrapeError = new Error("Network timeout after private article sentence");
   const POST = await loadPost();
   const res = await POST(ingestRequest({ url: "https://example.com/fail" }), undefined);
   assert.equal(res.status, 422);
   const body = await res.json();
   assert.match(body.error, /Scrape failed/);
-  assert.match(body.error, /Network timeout/);
+  assert.doesNotMatch(body.error, /private article sentence|Network timeout/);
 });
 
 test("POST /api/admin/articles/ingest returns 422 when scrape returns null", async () => {
@@ -281,24 +287,46 @@ test("POST /api/admin/articles/ingest returns 422 when save fails", async () => 
   assert.match(body.error, /Save failed/);
 });
 
+test("POST /api/admin/articles/ingest returns a controlled error when intake is disabled", async () => {
+  saveOutcome = { status: "failed", failure: "disabled" };
+  const POST = await loadPost();
+  const res = await POST(ingestRequest({ url: "https://example.com/article" }), undefined);
+
+  assert.equal(res.status, 422);
+  const body = await res.json();
+  assert.equal(body.error, "Scraping is currently disabled.");
+  assert.equal(typeof body.requestId, "string");
+});
+
+test("POST /api/admin/articles/ingest returns a controlled quality-rejection error", async () => {
+  saveOutcome = { status: "failed", failure: "quality" };
+  const POST = await loadPost();
+  const res = await POST(ingestRequest({ url: "https://example.com/article" }), undefined);
+
+  assert.equal(res.status, 422);
+  const body = await res.json();
+  assert.equal(body.error, "The article did not pass content quality checks.");
+  assert.equal(typeof body.requestId, "string");
+});
+
 // ---------------------------------------------------------------------------
-// Safe errors (error message is surfaced but wrapped)
+// Safe errors
 // ---------------------------------------------------------------------------
 
-test("POST /api/admin/articles/ingest wraps scrape error in 'Scrape failed:' prefix", async () => {
+test("POST /api/admin/articles/ingest replaces scrape exception prose with a controlled message", async () => {
   scrapeError = new Error("Connection refused");
   const POST = await loadPost();
   const res = await POST(ingestRequest({ url: "https://example.com/fail" }), undefined);
   assert.equal(res.status, 422);
   const body = await res.json();
-  assert.match(body.error, /^Scrape failed: Connection refused$/);
+  assert.equal(body.error, "Scrape failed. The article could not be fetched.");
 });
 
-test("POST /api/admin/articles/ingest surfaces non-Error scrape failures as strings", async () => {
-  scrapeError = "raw string error" as unknown as Error;
+test("POST /api/admin/articles/ingest does not surface non-Error scrape failures", async () => {
+  scrapeError = "private selected text" as unknown as Error;
   const POST = await loadPost();
   const res = await POST(ingestRequest({ url: "https://example.com/fail" }), undefined);
   assert.equal(res.status, 422);
   const body = await res.json();
-  assert.match(body.error, /Scrape failed: raw string error/);
+  assert.equal(body.error, "Scrape failed. The article could not be fetched.");
 });

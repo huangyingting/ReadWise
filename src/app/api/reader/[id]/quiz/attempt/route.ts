@@ -3,7 +3,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { recordQuizAttempt } from "@/lib/learning/quiz-mastery";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
-import { gradeQuizAnswers } from "@/lib/quiz-grading";
+import { gradeQuizAnswers, QuizGradingError } from "@/lib/quiz-grading";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { updateArticleMastery } from "@/lib/learning/article-mastery";
 import { recordLearnerEvidence } from "@/lib/learning/learner-evidence";
@@ -17,7 +17,7 @@ type QuizAttemptResult = Awaited<ReturnType<typeof recordQuizAttempt>>;
 type QuizAttemptRecord = QuizAttemptResult["attempt"];
 
 function badAttemptRequest(err: unknown, fallback: string): ApiError {
-  return new ApiError(400, err instanceof Error ? err.message : fallback);
+  return new ApiError(400, err instanceof QuizGradingError ? err.message : fallback);
 }
 
 function clientMutationIdFrom(body: QuizAttemptBody, req: Request): string | null {

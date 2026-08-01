@@ -82,6 +82,36 @@ test("gate: a governed defer reschedules to retryAt and does NOT fetch", async (
   assert.equal(releaseCalls[0]?.nextRunAt as unknown, retryAt);
 });
 
+test("gate: a defer without retryAt uses the source cadence for persistence", async () => {
+  releaseCalls.length = 0;
+  const { runClaimedDiscoverySource } = await import("@/lib/scraper/incremental/discovery-run");
+
+  const outcome = await runClaimedDiscoverySource(claimed(), silentLogger, {
+    now: () => NOW,
+    fetchPage: async () => {
+      throw new Error("must not fetch when deferred");
+    },
+    governor: {
+      reserve: async (): Promise<AdmissionDecision> => ({
+        decision: "defer",
+        reason: "concurrency",
+        retryAt: null,
+      }),
+    },
+  });
+
+  assert.deepEqual(outcome, {
+    status: "deferred",
+    reason: "concurrency",
+    nextRunAt: null,
+  });
+  assert.equal(
+    (releaseCalls[0]?.nextRunAt as Date).getTime(),
+    NOW.getTime() + 900_000,
+    "the durable schedule falls back to the configured poll cadence",
+  );
+});
+
 test("gate: a governed pause reschedules to the pause expiry and does NOT fetch", async () => {
   releaseCalls.length = 0;
   const { runClaimedDiscoverySource } = await import("@/lib/scraper/incremental/discovery-run");

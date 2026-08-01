@@ -45,6 +45,8 @@ function listingKey<T extends string>(key: T): readonly [T] {
 export const LISTING_KEYS = {
   /** Published article feed (homepage, browse). */
   published: listingKey("articles:published"),
+  /** Content-free metadata used to build the public article sitemap. */
+  publishedSitemap: listingKey("articles:published-sitemap"),
   /** Category/level-filtered article page. */
   categoryPage: listingKey("articles:category-page"),
   /** Personalized picks page (level + topic ranked). */

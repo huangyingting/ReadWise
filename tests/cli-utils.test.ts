@@ -59,6 +59,20 @@ before(() => {
       createConsoleLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
     },
   });
+  mock.module("@/lib/scraper/incremental/production-discovery", {
+    namedExports: {
+      fetchProductionDiscoveryPage: async () => ({
+        items: [],
+        continuation: null,
+        boundaryReached: true,
+      }),
+    },
+  });
+  mock.module("@/lib/scraper/incremental/canary-registry", {
+    namedExports: {
+      syncCanaryDiscoverySources: async () => ({ synced: 3 }),
+    },
+  });
   mock.module("@/lib/seed", {
     namedExports: {
       runSeed: async () => ({
@@ -276,10 +290,10 @@ describe("runCli", async () => {
     assert.deepEqual(calls, ["disconnect"]);
   });
 
-  test("prints errors, disconnects Prisma, and exits 1 on rejection", async () => {
+  test("prints a controlled reason, disconnects Prisma, and exits 1 on rejection", async () => {
     const calls: string[] = [];
     const errors: unknown[][] = [];
-    const expected = new Error("boom");
+    const expected = new Error("provider echoed private article text");
     const { done, exit } = captureExit();
 
     runCli(async () => {
@@ -294,7 +308,27 @@ describe("runCli", async () => {
 
     assert.equal(await done, 1);
     assert.deepEqual(calls, ["disconnect"]);
-    assert.deepEqual(errors, [[expected]]);
+    assert.deepEqual(errors, [["cli_failed"]]);
+  });
+
+  test("reports a disconnect failure and exits 1 without retrying cleanup", async () => {
+    const errors: unknown[][] = [];
+    const expected = new Error("disconnect failed with credential detail");
+    const { done, exit } = captureExit();
+    let disconnectCalls = 0;
+
+    runCli(async () => 0, {
+      disconnect: async () => {
+        disconnectCalls++;
+        if (disconnectCalls === 1) throw expected;
+      },
+      error: (...args) => errors.push(args),
+      exit,
+    });
+
+    assert.equal(await done, 1);
+    assert.equal(disconnectCalls, 1);
+    assert.deepEqual(errors, [["cli_cleanup_failed"]]);
   });
 });
 
@@ -313,9 +347,9 @@ describe("runScript", async () => {
     assert.equal(await done, 9);
   });
 
-  test("prints unlabelled errors and exits 1 on rejection", async () => {
+  test("prints a controlled reason for unlabelled rejections", async () => {
     const errors: unknown[][] = [];
-    const expected = new Error("script boom");
+    const expected = new Error("script failure included private selected text");
     const { done, exit } = captureExit();
 
     runScript(async () => {
@@ -326,12 +360,12 @@ describe("runScript", async () => {
     });
 
     assert.equal(await done, 1);
-    assert.deepEqual(errors, [[expected]]);
+    assert.deepEqual(errors, [["script_failed"]]);
   });
 
-  test("prefixes labelled errors and exits 1 on rejection", async () => {
+  test("prints only the fixed label for labelled rejections", async () => {
     const errors: unknown[][] = [];
-    const expected = new Error("script boom");
+    const expected = new Error("provider returned a private prompt");
     const { done, exit } = captureExit();
 
     runScript(async () => {
@@ -342,7 +376,7 @@ describe("runScript", async () => {
     });
 
     assert.equal(await done, 1);
-    assert.deepEqual(errors, [["worker failed:", expected]]);
+    assert.deepEqual(errors, [["worker failed"]]);
   });
 });
 
@@ -378,7 +412,7 @@ describe("registerShutdownSignals", async () => {
 
     handlers.SIGINT?.();
     assert.equal(controller.signal.aborted, true);
-    assert.deepEqual(info, ["received SIGINT — stopping after current article…"]);
+    assert.deepEqual(info, ["received SIGINT — requesting cooperative shutdown…"]);
     assert.deepEqual(warn, []);
     assert.deepEqual(exits, []);
 
@@ -520,6 +554,26 @@ describe("worker.ts parseArgs", async () => {
 
   test("--lock-ttl value", () => {
     assert.equal(parseArgs(["--lock-ttl", "300000"]).lockTtlMs, 300000);
+  });
+
+  test("missing and invalid timing values preserve safe defaults", () => {
+    assert.equal(parseArgs(["--interval"]).intervalMs, 5000);
+    assert.equal(parseArgs(["--interval", "not-a-number"]).intervalMs, 5000);
+    assert.equal(parseArgs(["--lock-ttl"]).lockTtlMs, 600000);
+    assert.equal(parseArgs(["--lock-ttl", "not-a-number"]).lockTtlMs, 600000);
+    assert.equal(parseArgs(["--lock-ttl", "0"]).lockTtlMs, 600000);
+    assert.equal(parseArgs(["--lock-ttl", "59999"]).lockTtlMs, 600000);
+    assert.equal(parseArgs(["--lock-ttl", "60000"]).lockTtlMs, 60000);
+  });
+
+  test("missing option values do not swallow following flags", () => {
+    const args = parseArgs(["--interval", "--once", "--lock-ttl", "--tts", "--translate", "--help"]);
+    assert.equal(args.intervalMs, 5000);
+    assert.equal(args.lockTtlMs, 600000);
+    assert.equal(args.once, true);
+    assert.equal(args.tts, true);
+    assert.deepEqual(args.translateLangs, []);
+    assert.equal(args.help, true);
   });
 
   test("--help sets help flag", () => {

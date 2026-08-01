@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-07-31"
 description: "Documents Web Push configuration, subscription lifecycle, reminder scheduler, and delivery-health boundaries. Captures current VAPID config, preference model, quiet hours, delivery pruning, push routes, and privacy rules."
 ---
 
@@ -27,6 +27,7 @@ flowchart TD
 | --- | --- | --- |
 | Provider setup | `src/lib/push/provider.ts` | Web Push/VAPID initialization and configuration check. |
 | Delivery | `src/lib/push/delivery.ts` | Fan-out to pre-loaded subscriptions and update delivery health. |
+| Retry collapse | `src/lib/push/notification-idempotency.ts` | Build content-free browser notification tags for durable and scheduled reminders. |
 | Scheduler | `src/lib/push/scheduler.ts` | Find due users and send one reminder per eligible user. |
 | Subscription health | `src/lib/push/subscription-health.ts` | Success/failure counters and dead-subscription pruning. |
 | Schemas | `src/lib/push/schemas.ts` | Route payload validation. |
@@ -74,6 +75,29 @@ N+1 queries. It then:
 Delivery returns the number of successful pushes. A failure to one subscription
 does not abort the rest of the batch.
 
+Delivery-health writes are best effort after provider delivery. A database
+failure while resetting a counter or pruning an endpoint is logged with the
+controlled `push_health_failed` reason, but it does not fail the reminder job:
+retrying the whole fan-out after an external send could duplicate successful
+notifications. A later send can repair the health state.
+
+## Retry and duplicate handling
+
+Web Push cannot provide transactional exactly-once delivery across the push
+service, database, and worker. The implementation therefore uses two bounded
+protections:
+
+- a durable `PUSH_REMINDER` job passes its stable job id into the payload tag,
+  so a retry of that job replaces the prior browser notification;
+- direct scheduled batches use a UTC-hour tag, so an ordinary replay in the
+  same scheduling window also replaces the prior notification.
+
+`public/sw.js` forwards the controlled payload `tag` to
+`showNotification()`. Tags contain only a reminder kind plus a validated job id
+or hour bucket; untrusted values fall back to the hour bucket. This is
+user-visible deduplication, not a claim of transactional exactly-once provider
+delivery.
+
 ## Reminder scheduling
 
 `sendDueReminders()` finds users with at least one due `SavedWord`, loads all of
@@ -99,8 +123,9 @@ The notification deep link and copy are gated by the Today Session feature flag
   link to `/today`;
 - when disabled, reminders keep the prior due-word copy and `/study` target.
 
-Either way the payload carries only generic copy plus a numeric due-word count —
-no article, word, definition, or note content.
+Either way the payload carries only generic copy, a numeric due-word count, and
+a content-free retry-collapse tag — no article, word, definition, or note
+content.
 
 ## Privacy
 
@@ -123,4 +148,3 @@ in push payloads; push services are third parties.
 Relevant coverage includes `tests/push.test.ts`, `tests/reminder-preferences.test.ts`,
 route tests for `src/app/api/push/**`, and worker/job tests for
 `PUSH_REMINDER` jobs.
-

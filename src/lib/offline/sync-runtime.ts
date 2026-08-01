@@ -21,6 +21,7 @@ import {
   isConflict,
   isPermanentlyFailed,
   MAX_MUTATION_RETRIES,
+  OFFLINE_NETWORK_ERROR,
   type FlushDeps,
   type FlushResult,
   type QueuedMutation,
@@ -199,10 +200,6 @@ function sendQueuedMutation(
   );
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 /**
  * Submit a mutation. When online, attempts immediate delivery; a 2xx/409 is a
  * success, a hard client error (4xx) is reported back without queuing (it would
@@ -258,7 +255,10 @@ export async function queueMutation(
     dedupeKey: spec.dedupeKey ?? null,
   });
   await refreshPending();
-  await requestBackgroundSync();
+  // The mutation is durable once IndexedDB and the pending-state refresh
+  // complete. Service-worker readiness is optional and may never settle, so it
+  // must not hold the caller's queued acknowledgement (or UI busy state) open.
+  void requestBackgroundSync();
   return { sent: false, queued: true };
 }
 
@@ -322,8 +322,8 @@ export async function todayMutationReplayHandler(
   let status: number;
   try {
     ({ status } = await deps.send(mutation));
-  } catch (err) {
-    return retryOrFail(mutation, deps, maxRetries, errorMessage(err));
+  } catch {
+    return retryOrFail(mutation, deps, maxRetries, OFFLINE_NETWORK_ERROR);
   }
 
   // 3. Success (incl. idempotent no-op) — drop from the queue.

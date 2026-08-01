@@ -46,7 +46,7 @@ const SYNTHETIC_PARAGRAPH =
   "and closer coordination between local teams and the central office. ";
 const SYNTHETIC_CHUNK = SYNTHETIC_PARAGRAPH.repeat(40); // ~6000 chars ≈ 1500 tokens
 
-type LevelResult = {
+export type LevelResult = {
   concurrency: number;
   requests: number;
   errors: number;
@@ -59,7 +59,7 @@ type LevelResult = {
   latencyMsMax: number;
 };
 
-type BenchReport = {
+export type BenchReport = {
   generatedAt: string;
   model: string;
   maxTokens: number;
@@ -70,13 +70,13 @@ type BenchReport = {
   notes: string[];
 };
 
-function percentile(sorted: number[], p: number): number {
+export function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   const idx = Math.min(sorted.length - 1, Math.floor(p * sorted.length));
   return sorted[idx]!;
 }
 
-function loadBenchInput(corpusPath: string | null): { text: string; systemPrompt: string; source: "corpus" | "synthetic" } {
+export function loadBenchInput(corpusPath: string | null): { text: string; systemPrompt: string; source: "corpus" | "synthetic" } {
   if (corpusPath && existsSync(corpusPath)) {
     const corpus = JSON.parse(readFileSync(corpusPath, "utf8")) as Corpus;
     const article = corpus.articles[0];
@@ -98,7 +98,7 @@ function loadBenchInput(corpusPath: string | null): { text: string; systemPrompt
   };
 }
 
-async function runLevel(
+export async function runLevel(
   level: number,
   requestCount: number,
   input: { text: string; systemPrompt: string },
@@ -192,7 +192,7 @@ export async function runBenchmark(
   };
 }
 
-type Args = {
+export type BenchArgs = {
   levels: number[];
   requestsPerLevel: number;
   corpus: string | null;
@@ -201,9 +201,9 @@ type Args = {
   help: boolean;
 };
 
-function parseArgs(argv: string[]): Args {
+export function parseArgs(argv: string[]): BenchArgs {
   const levelsRaw = parseString(argv, "--levels");
-  const args: Args = {
+  const args: BenchArgs = {
     levels: levelsRaw
       ? levelsRaw
           .split(",")
@@ -235,7 +235,7 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     console.log(
@@ -280,6 +280,10 @@ async function main(): Promise<number> {
   return 0;
 }
 
-if (isMain(import.meta.url)) {
-  runScript(main, "bench-concurrency failed");
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    runScript(main, "bench-concurrency failed");
+  }
 }
+
+runAsCli();

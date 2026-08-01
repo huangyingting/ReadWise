@@ -511,9 +511,9 @@ test("scrape.ts exercises file, URL, provider, main, and CLI cleanup paths", asy
     false,
   );
   assert.deepEqual(discoveryFailure, []);
-  assert.match(
-    JSON.stringify(recordCrawlCalls.at(-1)?.outcome),
-    /discovery failed/,
+  assert.equal(
+    (recordCrawlCalls.at(-1)?.outcome as { error?: unknown } | undefined)?.error,
+    "crawl_discovery_failed",
   );
 
   findExistingImpl = async () => {
@@ -709,9 +709,9 @@ test("scrape-review covers preview, DB loading, routing, server startup, and mai
   fetchHtmlImpl = async () => {
     throw new Error("fetch failed");
   };
-  assert.match(
+  assert.equal(
     (await scrapeReview.__scrapeReviewTest.previewUrl("https://example.com/error")).error,
-    /fetch failed/,
+    "scrape_review_failed",
   );
   await assert.rejects(
     () =>
@@ -890,7 +890,10 @@ test("scrape-undark covers state, discovery, scrape, DB, publish, and main paths
     /inside the repository/,
   );
   assert.equal(scrapeUndark.__scrapeUndarkTest.normalizeUrl("not a url"), null);
-  assert.equal(scrapeUndark.__scrapeUndarkTest.errorMessage("plain"), "plain");
+  assert.equal(
+    scrapeUndark.__scrapeUndarkTest.errorMessage("private article sentence"),
+    "visited_record_read_failed",
+  );
   assert.equal(scrapeUndark.__scrapeUndarkTest.isVisitedRecord({}), false);
 
   const record = await scrapeUndark.__scrapeUndarkTest.readVisited(visitedPath);

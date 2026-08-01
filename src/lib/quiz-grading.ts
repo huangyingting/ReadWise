@@ -20,24 +20,32 @@ type QuizGradeResult = {
   total: number;
 };
 
+/** Controlled client-validation failure raised only by this pure grader. */
+export class QuizGradingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QuizGradingError";
+  }
+}
+
 function assertAnswerCount(questions: QuizQuestion[], answers: SubmittedAnswer[]): void {
   if (questions.length === 0) {
-    throw new Error("No quiz questions to grade");
+    throw new QuizGradingError("No quiz questions to grade");
   }
   if (answers.length !== questions.length) {
-    throw new Error("Submitted answers do not match the quiz");
+    throw new QuizGradingError("Submitted answers do not match the quiz");
   }
 }
 
 function assertKnownQuestionIndex(index: number, totalQuestions: number): void {
   if (!Number.isInteger(index) || index < 0 || index >= totalQuestions) {
-    throw new Error("Unknown question index");
+    throw new QuizGradingError("Unknown question index");
   }
 }
 
 function assertUniqueQuestionIndex(index: number, seen: Set<number>): void {
   if (seen.has(index)) {
-    throw new Error("Duplicate answer for a question");
+    throw new QuizGradingError("Duplicate answer for a question");
   }
   seen.add(index);
 }
@@ -46,9 +54,10 @@ function assertUniqueQuestionIndex(index: number, seen: Set<number>): void {
  * Grades a set of client-submitted answers against the canonical cached quiz
  * questions for an article (the source of truth for `correctIndex`).
  *
- * Throws a plain `Error` (mapped to a 400 by the route) when the submission does
- * not line up with the cached quiz: empty quiz, wrong number of answers, an
- * out-of-range question index, or a duplicate answer for the same question.
+ * Throws a controlled {@link QuizGradingError} (mapped to a 400 by the route)
+ * when the submission does not line up with the cached quiz: empty quiz, wrong
+ * number of answers, an out-of-range question index, or a duplicate answer for
+ * the same question.
  */
 export function gradeQuizAnswers(
   questions: QuizQuestion[],

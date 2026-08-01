@@ -23,6 +23,8 @@ const log = createLogger("push");
 export interface PushPayload {
   title: string;
   body: string;
+  /** Browser notification replacement key used to collapse delivery retries. */
+  tag?: string;
   /** URL to open when the notification is clicked (deep-link). */
   url?: string;
   /** Optional icon URL (shown in the notification). */
@@ -53,6 +55,25 @@ function isExpiredStatus(status: number | undefined): boolean {
 
 function nextFailureCount(sub: SubRow): number {
   return (sub.failureCount ?? 0) + 1;
+}
+
+async function bestEffortHealthUpdate(
+  operation: "prune" | "success" | "failure",
+  ids: string[],
+  update: (ids: string[]) => Promise<void>,
+): Promise<void> {
+  if (ids.length === 0) return;
+  try {
+    await update(ids);
+  } catch {
+    // The external delivery has already been attempted. Retrying the whole job
+    // because bookkeeping failed would duplicate successful notifications.
+    log.error("push subscription health update failed", {
+      failureReason: "push_health_failed",
+      operation,
+      count: ids.length,
+    });
+  }
 }
 
 /**
@@ -99,16 +120,18 @@ export async function sendToSubs(subs: SubRow[], payloadStr: string): Promise<nu
           log.error("failed to send push notification", {
             subId: sub.id,
             status: status ?? null,
-            error: String(err),
+            machineReason: "push_delivery_failed",
           });
         }
       }
     }),
   );
 
-  await pruneDeadSubscriptions(deadIds);
-  await recordDeliverySuccess(successIds);
-  await recordTransientFailure(failIds);
+  await Promise.all([
+    bestEffortHealthUpdate("prune", deadIds, pruneDeadSubscriptions),
+    bestEffortHealthUpdate("success", successIds, recordDeliverySuccess),
+    bestEffortHealthUpdate("failure", failIds, recordTransientFailure),
+  ]);
 
   return sent;
 }

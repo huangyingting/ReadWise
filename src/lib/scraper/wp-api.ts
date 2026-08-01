@@ -82,10 +82,10 @@ export async function fetchNautilusUrls(
     let body: string;
     try {
       body = await fetchFn(nautilusApiUrl(page));
-    } catch (err) {
+    } catch {
       log.warn("nautilus.wp_api.fetch_failed", {
         page,
-        error: err instanceof Error ? err.message : String(err),
+        machineReason: "provider_api_fetch_failed",
       });
       break;
     }

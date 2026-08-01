@@ -117,12 +117,12 @@ export async function recordReadingWordExposures(
     if (exposedWords.length === 0) return 0;
 
     return recordExposureMatches(userId, articleId, exposedWords);
-  } catch (err) {
+  } catch {
     // Mastery bookkeeping is best-effort — never disrupt the reading flow.
     log.error("reading word-exposure recording failed", {
       userId,
       articleId,
-      err: err instanceof Error ? err.message : String(err),
+      machineReason: "reading_exposure_recording_failed",
     });
     return 0;
   }

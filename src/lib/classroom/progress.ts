@@ -39,7 +39,7 @@ export type ClassroomProgressData = {
 
 type ClassroomMemberRow = {
   userId: string;
-  user: { name: string | null; email: string | null };
+  user: { name: string | null; email: string | null } | null;
 };
 
 type ClassroomAssignmentRow = {
@@ -54,8 +54,8 @@ type ClassroomAssignmentRow = {
 function toProgressStudent(member: ClassroomMemberRow): ClassroomProgressStudent {
   return {
     userId: member.userId,
-    name: member.user.name,
-    email: member.user.email,
+    name: member.user?.name ?? null,
+    email: member.user?.email ?? null,
   };
 }
 

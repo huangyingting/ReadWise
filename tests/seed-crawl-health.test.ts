@@ -82,5 +82,5 @@ test("runSeed reports a discovery error in the crawl outcome", async () => {
 
   assert.equal(recordCrawl.length, 1);
   assert.equal(recordCrawl[0].outcome.discovered, 0);
-  assert.match(String(recordCrawl[0].outcome.error), /discovery blew up/);
+  assert.equal(recordCrawl[0].outcome.error, "crawl_discovery_failed");
 });

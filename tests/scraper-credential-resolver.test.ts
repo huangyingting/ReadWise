@@ -163,14 +163,15 @@ test("redactUrlForLog strips a signed URL's token query AND userinfo", () => {
   assert.ok(!redacted.includes("sig="));
 });
 
-test("redactErrorForSource redacts a signed URL embedded in an error message", () => {
+test("redactErrorForSource replaces signed-URL exception prose with a controlled reason", () => {
   const err = new Error(
     "HTTP 401 for https://provider.example/media/42?token=" + SENTINEL + "&sig=abc",
   );
   const redacted = redactErrorForSource(err);
+  assert.equal(redacted, "discovery_source_failed");
   assert.ok(!redacted.includes(SENTINEL));
   assert.ok(!redacted.includes("token="));
-  assert.ok(redacted.includes("[redacted]"));
+  assert.ok(!redacted.includes("[redacted]"));
 });
 
 test("the resolver seam NEVER logs the secret or Authorization header value", (t) => {

@@ -121,6 +121,51 @@ test("listOrganizations sorts the classrooms column by active classroom counts",
   assert.equal(result.organizations[1]?.classroomCount, 0);
 });
 
+test("listOrganizations normalizes search, name sort, and member-count sort", async () => {
+  countResult = 1;
+  findManyResult = [orgRow("org-1", "2026-07-01T00:00:00.000Z", 3)];
+  const { listOrganizations } = await queries();
+
+  const byName = await listOrganizations({ q: "  School  ", sort: "name", order: "asc" });
+  assert.equal(byName.query, "School");
+  assert.deepEqual(organizationFindManyCalls[0], {
+    where: {
+      OR: [
+        { name: { contains: "School" } },
+        { slug: { contains: "School" } },
+      ],
+    },
+    orderBy: [{ name: "asc" }, { createdAt: "desc" }],
+    skip: 0,
+    take: 20,
+    include: { _count: { select: { memberships: true } } },
+  });
+
+  organizationFindManyCalls.length = 0;
+  await listOrganizations({ sort: "members", order: "asc" });
+  const membersArgs = organizationFindManyCalls[0] as { orderBy: unknown };
+  assert.deepEqual(membersArgs.orderBy, [
+    { memberships: { _count: "asc" } },
+    { createdAt: "desc" },
+  ]);
+});
+
+test("classroom-count ties fall back to newest organization first", async () => {
+  findManyResult = [
+    orgRow("older", "2026-07-01T00:00:00.000Z"),
+    orgRow("newer", "2026-07-02T00:00:00.000Z"),
+  ];
+  groupByResult = [
+    { orgId: "older", _count: { _all: 1 } },
+    { orgId: "newer", _count: { _all: 1 } },
+  ];
+  const { listOrganizations } = await queries();
+
+  const result = await listOrganizations({ sort: "classrooms", order: "asc" });
+
+  assert.deepEqual(result.organizations.map((org) => org.id), ["newer", "older"]);
+});
+
 test("getOrganizationDetail lists and counts active classrooms only", async () => {
   const activeClassroom = {
     id: "class-active",
@@ -150,4 +195,44 @@ test("getOrganizationDetail lists and counts active classrooms only", async () =
   assert.equal(result?.memberCount, 4);
   assert.equal(result?.classroomCount, 1);
   assert.deepEqual(result?.classrooms.map((classroom) => classroom.id), ["class-active"]);
+});
+
+test("getOrganizationDetail maps authorized membership display fields", async () => {
+  const joinedAt = new Date("2026-07-04T00:00:00.000Z");
+  findUniqueResult = {
+    id: "org-members",
+    name: "Members",
+    slug: "members",
+    createdAt: new Date("2026-07-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-07-02T00:00:00.000Z"),
+    _count: { memberships: 1 },
+    memberships: [
+      {
+        userId: "user-1",
+        role: "ORG_ADMIN",
+        createdAt: joinedAt,
+        user: {
+          id: "user-1",
+          name: "Admin",
+          email: "admin@example.com",
+          image: null,
+        },
+      },
+    ],
+    classrooms: [],
+  };
+  const { getOrganizationDetail } = await detail();
+
+  const result = await getOrganizationDetail("org-members");
+
+  assert.deepEqual(result?.members, [
+    {
+      userId: "user-1",
+      role: "ORG_ADMIN",
+      name: "Admin",
+      email: "admin@example.com",
+      image: null,
+      joinedAt,
+    },
+  ]);
 });

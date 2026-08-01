@@ -42,10 +42,6 @@ function recordFailureStats(stats: JobWorkerStats, deadLettered: boolean): void 
   }
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 /**
  * Polls for work and delegates each claimed Job to the supplied executor until
  * the queue is drained or the signal fires.
@@ -108,7 +104,7 @@ export async function runWorkerLoop(
       stats.stoppedBySignal = true;
     } else {
       logger.error("job worker loop crashed", {
-        error: errorMessage(err),
+        failureReason: "job_loop_failed",
       });
       throw err;
     }

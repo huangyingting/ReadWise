@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-07-31"
 description: "Documents browser runtime error ingestion, aggregation, redaction, and alerting boundaries. Captures current client error route behavior, scrubbed metadata, rate limiting, aggregation, and alert thresholds."
 ---
 
@@ -15,8 +15,8 @@ public, rate-limited, best-effort, and privacy-scrubbed.
 
 ```mermaid
 flowchart TD
-    n0["Browser runtime error"] --> n1["Scrub private fields"]
-    n1["Scrub private fields"] --> n2["Apply rate limit"]
+    n0["Browser runtime error"] --> n1["Discard exception prose"]
+    n1["Discard exception prose"] --> n2["Apply rate limit"]
     n2["Apply rate limit"] --> n3["Ingest metadata"]
     n3["Ingest metadata"] --> n4["Aggregate fingerprints"]
     n4["Aggregate fingerprints"] --> n5["Alert on threshold"]
@@ -47,12 +47,20 @@ prevents reporting failures from breaking the user experience.
 
 ## Scrubbing and privacy
 
-The route performs defense-in-depth scrubbing before logging or aggregation:
+The route treats the browser payload as untrusted and persists none of its
+exception prose. The required `message` is accepted for backwards-compatible
+ingestion but discarded before logging and aggregation. The optional stack is
+used only to derive a safe top-frame filename through the backend error policy;
+the raw stack is not logged or exported.
+
+Defense-in-depth handling also ensures:
 
 - email-like values become `[email]`,
 - long token-like strings become `[token]`,
 - URL query strings and hashes are stripped,
-- `captureError` applies the backend redaction/fingerprinting rules again.
+- `captureError` applies the backend redaction/fingerprinting rules again,
+- structured `client.error` logs contain only a controlled failure reason,
+  client source, and low-cardinality route group.
 
 Never add article text, selected text, prompts, translations, definitions,
 cookies, authorization headers, or profile data to the client report body.
@@ -80,7 +88,7 @@ See [`overview.md`](./overview.md) for the broader error pipeline.
 
 ## Operational checks
 
-- Search logs for `client.error` to inspect raw sanitized reports.
+- Search logs for `client.error` to inspect controlled source and route metadata.
 - Search `error.captured` by fingerprint to group client and server occurrences.
 - Use the sanitized route/path to correlate with frontend deployments and recent
   UI changes.
@@ -91,4 +99,3 @@ See [`overview.md`](./overview.md) for the broader error pipeline.
 
 Route behavior is covered by observability/client-error route tests and the
 shared error-redaction tests in `tests/observability*.test.ts` where present.
-

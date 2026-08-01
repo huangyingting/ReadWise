@@ -215,7 +215,12 @@ test("runner: terminal error after exhausting retries (maxRetries=2 → 3 attemp
 });
 
 test("runner: non-retryable auth error → immediate terminal error, no retries", async () => {
-  fake.queue.push(terminalError({ kind: "auth", retryable: false, status: 401, message: "401" }));
+  fake.queue.push(terminalError({
+    kind: "auth",
+    retryable: false,
+    status: 401,
+    message: "provider echoed a private article sentence",
+  }));
   const retryCalls: unknown[] = [];
   const result = await runAiRequest(
     fake,
@@ -227,6 +232,7 @@ test("runner: non-retryable auth error → immediate terminal error, no retries"
   if (result.outcome !== "error") throw new Error("narrowing");
   assert.equal(result.errorKind, "auth");
   assert.equal(result.attemptsMade, 1);
+  assert.equal("errorMessage" in result, false);
   assert.equal(retryCalls.length, 0);
 });
 
@@ -247,7 +253,7 @@ test("runner: maxRetries=0 never retries; first failure is terminal", async () =
   assert.equal(retryCalls.length, 0);
 });
 
-test("runner: negative maxRetries returns the defensive exhausted-retries error", async () => {
+test("runner: negative maxRetries returns controlled defensive metadata", async () => {
   const result = await runAiRequest(
     fake,
     [{ role: "user", content: "hi" }],
@@ -256,7 +262,7 @@ test("runner: negative maxRetries returns the defensive exhausted-retries error"
   assert.equal(result.outcome, "error");
   if (result.outcome !== "error") throw new Error("narrowing");
   assert.equal(result.errorKind, "unknown");
-  assert.equal(result.errorMessage, "exhausted retries");
+  assert.equal("errorMessage" in result, false);
   assert.equal(result.attemptsMade, 0);
 });
 

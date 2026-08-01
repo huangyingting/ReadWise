@@ -36,6 +36,21 @@ export class ApiResponseError extends Error {
   }
 }
 
+/**
+ * Maps a caught client request error to text that is safe to render.
+ *
+ * API response messages come from the server's controlled error boundary and
+ * may carry useful validation guidance. Arbitrary exception messages can
+ * contain browser, provider, URL, or user-private details, so they never cross
+ * into rendered state.
+ */
+export function clientErrorMessage(err: unknown, fallbackMessage: string): string {
+  if (err instanceof ApiResponseError && err.message.length > 0) {
+    return err.message;
+  }
+  return fallbackMessage;
+}
+
 export interface ClientFetchOptions {
   /** Timeout in ms before the request is aborted. Defaults to {@link DEFAULT_TIMEOUT_MS}. */
   timeoutMs?: number;

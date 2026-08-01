@@ -28,7 +28,7 @@ export interface QueuedMutation {
   /** Number of delivery attempts so far. */
   retryCount: number;
   status: MutationStatus;
-  /** Last error message (for diagnostics / the sync indicator). */
+  /** Last controlled delivery status/reason code (never exception prose). */
   lastError?: string | null;
   /**
    * Optional collapse key. When set, enqueuing a new mutation with the same
@@ -40,6 +40,7 @@ export interface QueuedMutation {
 
 /** Maximum delivery attempts before a mutation is treated as permanently failed. */
 export const MAX_MUTATION_RETRIES = 5;
+export const OFFLINE_NETWORK_ERROR = "network_error";
 
 /** Exponential backoff base + cap (milliseconds). */
 export const BACKOFF_BASE_MS = 1_000;
@@ -152,10 +153,10 @@ async function sendQueuedMutation(
       outcome,
       errorMessage: outcome === "success" ? null : `HTTP ${status}`,
     };
-  } catch (err) {
+  } catch {
     return {
       outcome: "retry",
-      errorMessage: err instanceof Error ? err.message : String(err),
+      errorMessage: OFFLINE_NETWORK_ERROR,
     };
   }
 }

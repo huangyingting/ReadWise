@@ -494,7 +494,7 @@ test("enqueue payload guards and failJob history normalization keep JSON boundar
         at: "2026-01-01T00:00:00.000Z",
         attempt: 1,
         kind: "provider",
-        message: "old provider error",
+        message: "provider_failure",
       },
       { at: 123, attempt: 0, kind: "provider", message: "invalid" },
       { at: "2026-01-01T01:00:00.000Z", attempt: 2, kind: "invalid-kind", message: "invalid" },
@@ -508,13 +508,13 @@ test("enqueue payload guards and failJob history normalization keep JSON boundar
       at: "2026-01-01T00:00:00.000Z",
       attempt: 1,
       kind: "provider",
-      message: "old provider error",
+      message: "provider_failure",
     },
     {
       at: now.toISOString(),
       attempt: 2,
       kind: "provider",
-      message: "new provider error",
+      message: "provider_failure",
     },
   ]);
 
@@ -530,7 +530,7 @@ test("enqueue payload guards and failJob history normalization keep JSON boundar
       at: now.toISOString(),
       attempt: 1,
       kind: "provider",
-      message: "transient",
+      message: "provider_failure",
     },
   ]);
 });

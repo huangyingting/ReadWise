@@ -60,7 +60,7 @@ type ReminderPreference = {
   timezone: string | null;
 };
 
-type ReminderPayload = { body: string; icon: string; title: string; url: string };
+type ReminderPayload = { body: string; icon: string; tag: string; title: string; url: string };
 
 let mockSubs: MockSubscription[] = [];
 let mockAssignments: MockAssignment[] = [];
@@ -322,6 +322,7 @@ describe("sendDueAssignmentReminders", () => {
     assert.ok(payload.title, "should have a title");
     assert.ok(payload.body.includes("1 assignment"), `expected '1 assignment' in '${payload.body}'`);
     assert.equal(payload.url, "/assignments");
+    assert.match(payload.tag, /^readwise:assignment:/);
   });
 
   test("archived-classroom assignments are excluded from due reminder batches", async () => {

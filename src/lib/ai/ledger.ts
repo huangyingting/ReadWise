@@ -7,8 +7,8 @@
  *
  * Design principles (matching the codebase's graceful-fallback convention):
  *   - METADATA ONLY. Full prompts/responses are never stored. Only feature,
- *     model, status, token counts, latency, estimated cost, and a short error
- *     message are persisted.
+ *     model, status, controlled fallback reason, token counts, latency, and
+ *     estimated cost are persisted.
  *   - BEST-EFFORT. {@link recordAiInvocation} never throws — a ledger write
  *     failure must never break an AI feature. It logs a warning and moves on.
  *   - TEST-SAFE. Persistence is gated by {@link aiLedgerEnabled} so unit tests
@@ -22,7 +22,6 @@ import { prisma } from "@/lib/prisma";
 import { createLogger, getRequestContext, getRequestId } from "@/lib/observability/logger";
 import { aiCostConfig, aiLedgerEnabled, type AiCostRate } from "@/lib/runtime-config/ai";
 import { truncateStr } from "@/lib/primitives/pure";
-import { redactSensitiveValue } from "@/lib/security/redaction";
 import {
   normalizeAiFallbackReason,
   type AiFallbackReason,
@@ -60,7 +59,6 @@ export type AiInvocationInput = {
   totalTokens?: number | null;
   /** Pre-computed cost; when omitted it is estimated from tokens + model. */
   estimatedCostUsd?: number | null;
-  errorMessage?: string | null;
 };
 
 /** Minimal prisma surface needed by the ledger (composable with $transaction). */
@@ -68,7 +66,6 @@ export type LedgerClient = Pick<Prisma.TransactionClient, "aiInvocation">;
 
 const MAX_FEATURE_LEN = 120;
 const MAX_MODEL_LEN = 120;
-const MAX_ERROR_LEN = 1000;
 const UNKNOWN_FEATURE = "unknown";
 const SUCCESS_STATUS: AiInvocationStatus = "success";
 
@@ -165,9 +162,10 @@ function buildLedgerData(input: AiInvocationInput) {
     completionTokens: tokens.completionTokens,
     totalTokens: tokens.totalTokens,
     estimatedCostUsd,
-    errorMessage: input.errorMessage
-      ? truncateStr(redactSensitiveValue(input.errorMessage), MAX_ERROR_LEN)
-      : null,
+    // The legacy column remains nullable in the schema, but provider/exception
+    // prose is never accepted by this boundary. Controlled fallbackReason is
+    // the diagnostic field for new rows.
+    errorMessage: null,
   };
 }
 
@@ -189,7 +187,8 @@ export async function recordAiInvocation(
     logger.warn("ai_ledger.write_failed", {
       feature: input.feature,
       status: input.status,
-      error: err instanceof Error ? err.message : String(err),
+      machineReason: "ledger_write_failed",
+      errorName: err instanceof Error ? err.name : "Error",
     });
   }
 }

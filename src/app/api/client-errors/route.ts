@@ -6,6 +6,7 @@ import {
   enforceRateLimitPolicy,
 } from "@/lib/security/rate-limit/index";
 import { captureError } from "@/lib/observability/errors";
+import { routeGroupFromPath } from "@/lib/metrics";
 
 /**
  * Client-side error sink (US-029). The browser error reporter
@@ -29,10 +30,9 @@ type ClientErrorBody = {
 };
 
 type ScrubbedClientErrorReport = {
-  message: string;
   source: string;
   stack?: string;
-  url?: string;
+  route?: string;
 };
 
 const CLIENT_SOURCE_FALLBACK = "window";
@@ -44,23 +44,21 @@ function scrubClientText(text: string): string {
     .replace(/\b[A-Za-z0-9_-]{24,}\b/g, "[token]");
 }
 
-/** Strip query string and hash from a URL string (defense-in-depth). */
-function stripUrlSensitive(url: string): string {
+/** Reduce an untrusted browser URL to a bounded, low-cardinality route group. */
+function clientRouteGroup(url: string): string {
   try {
-    const parsed = new URL(url);
-    return parsed.origin + parsed.pathname;
+    const parsed = new URL(url, "http://client.invalid");
+    return routeGroupFromPath(parsed.pathname);
   } catch {
-    // Not a valid absolute URL — strip manually.
-    return url.split("?")[0].split("#")[0];
+    return "/other";
   }
 }
 
 function scrubClientReport(body: ClientErrorBody): ScrubbedClientErrorReport {
   return {
-    message: scrubClientText(body.message),
     source: body.source ?? CLIENT_SOURCE_FALLBACK,
     stack: body.stack ? scrubClientText(body.stack) : undefined,
-    url: body.url ? stripUrlSensitive(body.url) : undefined,
+    route: body.url ? clientRouteGroup(body.url) : undefined,
   };
 }
 
@@ -84,22 +82,21 @@ export const POST = createPublicHandler(
     if (rateLimitedResponse) return rateLimitedResponse;
     const report = scrubClientReport(body);
     log.error("client.error", {
-      clientMessage: report.message,
+      failureReason: "client_error",
       clientSource: report.source,
-      clientStack: report.stack,
-      clientUrl: report.url,
+      route: report.route,
     });
-    // Also funnel into the backend-agnostic aggregator so client exceptions are
-    // grouped/fingerprinted + alertable alongside server errors. Build a
-    // synthetic Error from the (already scrubbed) client report — captureError
-    // re-scrubs, fingerprints, and increments the error metric.
-    const clientError = new Error(report.message);
+    // Funnel a controlled synthetic error into the backend-agnostic aggregator.
+    // The client stack is used only to derive a safe top-frame filename inside
+    // captureError; raw browser exception prose is never logged or exported.
+    const clientError = new Error("client_error");
     clientError.name = "ClientError";
     if (report.stack) clientError.stack = report.stack;
     captureError(clientError, {
       source: "client",
       severity: "error",
-      route: report.url,
+      machineReason: "client_error",
+      route: report.route,
       extra: { clientSource: report.source },
     });
     return noContent();

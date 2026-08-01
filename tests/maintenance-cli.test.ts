@@ -177,6 +177,18 @@ test("retention maintenance executes all retention helpers when explicit", async
   assert.deepEqual(errors, []);
 });
 
+test("retention maintenance keeps dry-run safety when both mode flags are present", async () => {
+  const { retentionMaintenanceMain } = await import("../scripts/retention-maintenance");
+  const { io, logs } = captureIo();
+
+  await retentionMaintenanceMain(["--execute", "--dry-run"], io);
+  const payload = JSON.parse(logs[0]!) as { dryRun: boolean; executed: boolean };
+
+  assert.equal(payload.dryRun, true);
+  assert.equal(payload.executed, false);
+  assert.deepEqual(deleteArgs, {});
+});
+
 test("ledger erasure requires a user id", async () => {
   const { eraseUserLedgersMain } = await import("../scripts/erase-user-ledgers");
   const { io, errors } = captureIo();
@@ -244,4 +256,17 @@ test("ledger erasure execute deletes rows and audits metadata only", async () =>
     aiInvocationsDeleted: 30,
   });
   assert.deepEqual(errors, []);
+});
+
+test("ledger erasure keeps dry-run safety when both mode flags are present", async () => {
+  const { eraseUserLedgersMain } = await import("../scripts/erase-user-ledgers");
+  const { io, logs } = captureIo();
+
+  await eraseUserLedgersMain(["--user-id", "user-1", "--execute", "--dry-run"], io);
+  const payload = JSON.parse(logs[0]!) as { dryRun: boolean; executed: boolean };
+
+  assert.equal(payload.dryRun, true);
+  assert.equal(payload.executed, false);
+  assert.deepEqual(deleteArgs, {});
+  assert.deepEqual(auditCreates, []);
 });

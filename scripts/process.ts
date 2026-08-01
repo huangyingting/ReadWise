@@ -150,8 +150,8 @@ async function enqueueArticles(ids: string[], opts: ProcessOptions): Promise<num
       const job = await enqueueArticleProcess(id, opts);
       console.log(`✓ ${id} → job ${job.id} (${job.status})`);
       enqueued++;
-    } catch (err) {
-      console.error(`✗ could not enqueue ${id}: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      console.error(`✗ could not enqueue ${id}.`);
       failed++;
     }
   }

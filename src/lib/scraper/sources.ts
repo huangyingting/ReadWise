@@ -307,17 +307,25 @@ function coarseOutcome(outcome: CrawlRunOutcome): "success" | "empty" | "failed"
   return "success";
 }
 
-const URL_RE = /\b(?:https?:\/\/|www\.)\S+/gi;
-const MAX_ERROR_CHARS = 240;
 const SAFE_LABEL_RE = /[^a-zA-Z0-9._:-]+/g;
 
+/** Maps arbitrary scraper failure prose onto privacy-safe operational codes. */
 export function sanitizeCrawlRunError(error?: string | null): string | null {
   if (!error) return null;
-  const scrubbed = error.replace(URL_RE, "[url]").replace(/\s+/g, " ").trim();
-  if (!scrubbed) return null;
-  return scrubbed.length <= MAX_ERROR_CHARS
-    ? scrubbed
-    : `${scrubbed.slice(0, MAX_ERROR_CHARS - 1).trimEnd()}…`;
+  const value = error.toLowerCase();
+  if (/time[ -]?out|timed out/.test(value)) return "crawl_timeout";
+  if (/rate[ _-]?limit|throttl|\b429\b/.test(value)) return "crawl_rate_limited";
+  if (/auth|credential|forbidden|unauthori[sz]ed|\b40[13]\b/.test(value)) {
+    return "crawl_auth_failed";
+  }
+  if (/extract|parse|content/.test(value)) return "crawl_extraction_failed";
+  if (/save|persist|database|prisma|constraint/.test(value)) {
+    return "crawl_persistence_failed";
+  }
+  if (/fetch|network|http|socket|connect|dns|request/.test(value)) {
+    return "crawl_fetch_failed";
+  }
+  return "crawl_run_failed";
 }
 
 function safeLabel(value: string | null | undefined, fallback: string): string {

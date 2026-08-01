@@ -667,6 +667,8 @@ model AuditLog {
 // restarts and can be claimed safely by multiple workers. `payload` references
 // (e.g. articleId) are plain strings, NOT FKs, so a job row is independent of
 // the entity it acts on (and survives its deletion, like AuditLog/SavedWord).
+// `lastError` and error-history messages are controlled, content-free reason
+// codes; provider/exception prose must never be persisted.
 // `type`/`status` are enums in the schema but TEXT columns in the migrations
 // (matching the ArticleStatus convention); claim logic uses raw SQL on
 // PostgreSQL (FOR UPDATE SKIP LOCKED) and a serialized transaction on SQLite.
@@ -703,8 +705,9 @@ model Job {
 // this article not fully enriched?". One row per (articleId, step); `step`
 // is a feature label (difficulty|tags|vocabulary|quiz|speech|grammar) or a
 // language-scoped translation key ("translation:es"). METADATA ONLY — model
-// name / prompt version / a short error message are stored, never prompt
-// content. Cascades with the article (unlike the Job/ledger string refs, this
+// name / prompt version / controlled fallback and failure reasons are stored;
+// provider/exception prose and prompt content are never stored. Cascades with
+// the article (unlike the Job/ledger string refs, this
 // IS a real FK so step state is cleaned up with its article).
 model ArticleProcessingStep {
   id            String    @id @default(cuid())

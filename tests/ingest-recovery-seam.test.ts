@@ -71,7 +71,10 @@ test("seam: a transient failure classifies to a NON-permanent JobError and persi
   await assert.rejects(
     () => handler(job({ candidateId: "cand-1", processingVersion: 1 }), { logger }),
     (err: unknown) =>
-      err instanceof JobError && err.permanent === false && err.message === INGEST_FAILURE_REASON.HTTP_5XX,
+      err instanceof JobError &&
+      err.permanent === false &&
+      err.reason === INGEST_FAILURE_REASON.HTTP_5XX &&
+      err.message === "candidate ingest failed",
   );
   assert.equal(applyCalls.length, 1);
   assert.equal((applyCalls[0].classification as { disposition: string }).disposition, "retry");
@@ -87,7 +90,10 @@ test("seam: a permanent failure (410) classifies to a PERMANENT JobError (dead-l
   await assert.rejects(
     () => handler(job({ candidateId: "cand-1", processingVersion: 1 }), { logger }),
     (err: unknown) =>
-      err instanceof JobError && err.permanent === true && err.message === INGEST_FAILURE_REASON.HTTP_410_GONE,
+      err instanceof JobError &&
+      err.permanent === true &&
+      err.reason === INGEST_FAILURE_REASON.HTTP_410_GONE &&
+      err.message === "candidate ingest failed",
   );
   assert.equal((applyCalls[0].classification as { disposition: string }).disposition, "terminal");
 });
