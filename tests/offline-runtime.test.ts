@@ -273,7 +273,10 @@ function defineGlobal(name: string, value: unknown): void {
 
 function installIndexedDb(): FakeIndexedDb {
   fakeIndexedDb = new FakeIndexedDb();
-  fakeLocalStorage = new Map();
+  fakeLocalStorage = new Map([
+    ["readwise:offline-actor-id", "user-1"],
+    ["readwise:offline-purge-generation", "generation-1"],
+  ]);
   defineGlobal("window", {
     localStorage: {
       getItem: (key: string) => fakeLocalStorage.get(key) ?? null,
@@ -350,6 +353,8 @@ function makeArticle(id: string, savedAt?: string): Record<string, unknown> {
     version: `v-${id}`,
     contentHash: `h-${id}`,
     savedAt: savedAt ?? new Date().toISOString(),
+    actorId: "user-1",
+    purgeGeneration: "generation-1",
   };
 }
 
@@ -366,6 +371,7 @@ function queued(partial: Partial<QueuedMutation> = {}): QueuedMutation {
     payload: partial.payload ?? { percent: 10 },
     createdAt: partial.createdAt ?? "2026-01-01T00:00:00.000Z",
     purgeGeneration: partial.purgeGeneration ?? null,
+    actorId: partial.actorId,
     retryCount: partial.retryCount ?? 0,
     status: partial.status ?? "pending",
     lastError: partial.lastError ?? null,
@@ -408,12 +414,40 @@ test("offline article store saves, expires, lists, evicts, removes, and purges",
     purgeOfflineData,
     removeOfflineArticle,
     saveOfflineArticle,
+    captureOfflineArticleOwnership,
   } = await import("@/lib/offline/article-store");
+  const ownership = captureOfflineArticleOwnership();
+  assert.ok(ownership);
 
-  await saveOfflineArticle(makeArticle("a1") as never);
+  await saveOfflineArticle(makeArticle("a1") as never, ownership);
   assert.equal((await getOfflineArticle("a1"))?.title, "Title a1");
   assert.equal(await getOfflineArticleVersion("a1"), "v-a1");
   assert.equal(await isArticleOffline("a1"), true);
+
+  fakeLocalStorage.set("readwise:offline-actor-id", "user-2");
+  fakeLocalStorage.set("readwise:offline-purge-generation", "generation-2");
+  assert.equal(await getOfflineArticle("a1"), null);
+  assert.deepEqual(await getAllOfflineArticles(), []);
+  assert.equal(
+    await saveOfflineArticle(makeArticle("late-a") as never, ownership),
+    false,
+  );
+  assert.equal(fakeIndexedDb.db.store("articles").has("late-a"), false);
+  const userTwoOwnership = captureOfflineArticleOwnership();
+  assert.ok(userTwoOwnership);
+  const userTwoArticle = makeArticle("a1");
+  userTwoArticle.title = "User 2 article";
+  assert.equal(
+    await saveOfflineArticle(
+      userTwoArticle as never,
+      userTwoOwnership,
+    ),
+    true,
+  );
+  await removeOfflineArticle("a1", ownership);
+  assert.equal((await getOfflineArticle("a1"))?.title, "User 2 article");
+  fakeLocalStorage.set("readwise:offline-actor-id", "user-1");
+  fakeLocalStorage.set("readwise:offline-purge-generation", "generation-1");
 
   seedArticle("expired", "2020-01-01T00:00:00.000Z");
   assert.equal(await getOfflineArticle("expired"), null);
@@ -429,19 +463,17 @@ test("offline article store saves, expires, lists, evicts, removes, and purges",
   assert.equal(await isArticleOffline("a1"), false);
 
   for (let i = 0; i <= MAX_OFFLINE_ARTICLES; i++) {
-    await saveOfflineArticle(makeArticle(`bulk-${i}`) as never);
+    await saveOfflineArticle(makeArticle(`bulk-${i}`) as never, ownership);
   }
   assert.ok(fakeIndexedDb.db.store("articles").size <= MAX_OFFLINE_ARTICLES);
 
-  await purgeOfflineData();
-  assert.equal(fakeIndexedDb.deleted, true);
+  assert.equal(await purgeOfflineData(), true);
+  assert.equal(fakeIndexedDb.db.store("articles").size, 0);
 
-  fakeIndexedDb.deleteThrows = true;
-  await purgeOfflineData();
-
-  fakeIndexedDb.deleteThrows = false;
   fakeIndexedDb.openThrows = true;
-  await saveOfflineArticle(makeArticle("catch-save") as never);
+  assert.equal(await purgeOfflineData(), false);
+
+  await saveOfflineArticle(makeArticle("catch-save") as never, ownership);
   assert.equal(await getOfflineArticle("catch-get"), null);
   assert.deepEqual(await getAllOfflineArticles(), []);
   await removeOfflineArticle("catch-remove");
@@ -455,7 +487,9 @@ test("offline mutation store dedupes, updates, removes, clears, and degrades gra
     listQueuedMutations,
     removeQueuedMutation,
     removeQueuedMutationForGeneration,
+    replaceQueuedMutationPayload,
     updateQueuedMutation,
+    updateQueuedMutationForGeneration,
   } = await import("@/lib/offline/mutation-store");
 
   assert.equal(await enqueueMutation({
@@ -491,6 +525,52 @@ test("offline mutation store dedupes, updates, removes, clears, and degrades gra
     true,
   );
   assert.equal(await countQueuedMutations(), 0);
+
+  await enqueueMutation({
+    clientMutationId: "revision-fence",
+    type: "highlight.note",
+    endpoint: "/api/highlights/h1",
+    method: "PATCH",
+    payload: { note: "first" },
+    purgeGeneration: "generation-1",
+    actorId: "user-1",
+  });
+  const staleSnapshot = (await listQueuedMutations()).find(
+    (mutation) => mutation.clientMutationId === "revision-fence",
+  );
+  assert.ok(staleSnapshot);
+  assert.equal(
+    await replaceQueuedMutationPayload("revision-fence", {
+      note: "replacement",
+    }),
+    true,
+  );
+  assert.equal(
+    await removeQueuedMutationForGeneration(
+      staleSnapshot.clientMutationId,
+      staleSnapshot.purgeGeneration,
+      staleSnapshot.actorId,
+      staleSnapshot.createdAt,
+      staleSnapshot.queueRevision,
+    ),
+    false,
+  );
+  assert.equal(
+    await updateQueuedMutationForGeneration(
+      staleSnapshot.clientMutationId,
+      staleSnapshot.purgeGeneration,
+      staleSnapshot.actorId,
+      staleSnapshot.createdAt,
+      staleSnapshot.queueRevision,
+      { status: "failed" },
+    ),
+    false,
+  );
+  const replacement = (await listQueuedMutations()).find(
+    (mutation) => mutation.clientMutationId === "revision-fence",
+  );
+  assert.deepEqual(replacement?.payload, { note: "replacement" });
+  await removeQueuedMutation("revision-fence");
 
   await enqueueMutation({
     clientMutationId: "m2",
@@ -574,6 +654,8 @@ test("offline conflict helpers cover empty anchors and one-sided note merges", a
 
 test("queueing acknowledges durable storage without waiting for service-worker readiness", async () => {
   const runtime = await import("@/lib/offline/sync-runtime");
+  fakeLocalStorage.set("readwise:offline-actor-id", "user-1");
+  await runtime.setOfflineSyncActor("user-1");
 
   makeNavigator({
     onLine: false,
@@ -606,6 +688,8 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
   const store = await import("@/lib/offline/mutation-store");
   const runtime = await import("@/lib/offline/sync-runtime");
   const { STORAGE_KEYS } = await import("@/lib/storage-keys");
+  fakeLocalStorage.set(STORAGE_KEYS.OFFLINE_ACTOR_ID, "user-1");
+  await runtime.setOfflineSyncActor("user-1");
 
   const fetches: Array<{ url: string; init: RequestInit }> = [];
   let nextStatus = 201;
@@ -651,6 +735,10 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
     (fetches[0].init.headers as Record<string, string>)[runtime.MUTATION_HEADER],
     "online-ok",
   );
+  assert.equal(
+    (fetches[0].init.headers as Record<string, string>)["x-offline-actor-id"],
+    "user-1",
+  );
   assert.equal(fetches[0].init.body, JSON.stringify({ percent: 42 }));
 
   const fetchCountBeforeQueue = fetches.length;
@@ -668,6 +756,12 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
       (mutation) => mutation.clientMutationId === "queue-only",
     )?.purgeGeneration,
     null,
+  );
+  assert.equal(
+    (await store.listQueuedMutations()).find(
+      (mutation) => mutation.clientMutationId === "queue-only",
+    )?.actorId,
+    "user-1",
   );
   assert.equal(fetches.length, fetchCountBeforeQueue);
 
@@ -742,6 +836,7 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
       endpoint: "/api/today/skip",
       payload: { localDate: "2026-06-27", timezone: "UTC", skipReason: "busy" },
       purgeGeneration: currentGeneration.shared,
+      actorId: currentGeneration.actorId ?? undefined,
     }),
   );
   await store.enqueueMutation(
@@ -752,6 +847,7 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
       payload: { percent: 90 },
       createdAt: "2026-06-28T00:00:00.000Z",
       purgeGeneration: currentGeneration.shared,
+      actorId: currentGeneration.actorId ?? undefined,
     }),
   );
   makeNavigator({ onLine: true });
@@ -781,6 +877,7 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
       clientMutationId: "slow",
       endpoint: "/api/slow",
       purgeGeneration: currentGeneration.shared,
+      actorId: currentGeneration.actorId ?? undefined,
     }),
   );
   const firstFlush = runtime.flushOfflineQueue();

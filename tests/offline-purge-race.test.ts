@@ -28,15 +28,18 @@ before(() => {
             : mutation,
         );
       },
+      updateQueuedMutationForGeneration: async () => false,
       countQueuedMutations: async () => queue.length,
+      queuedMutationsBelongTo: async () => false,
       clearQueuedMutations: async () => {
         queue = [];
+        return true;
       },
     },
   });
   mock.module("../src/lib/offline/article-store", {
     namedExports: {
-      purgeOfflineData: async () => undefined,
+      purgeOfflineData: async () => true,
     },
   });
 });
@@ -60,10 +63,6 @@ function queued(
 }
 
 test("privacy purge invalidates an active drain before another account can receive its remaining payloads", async () => {
-  queue = [
-    queued("first", "2026-01-01T00:00:00.000Z"),
-    queued("second", "2026-01-01T00:00:01.000Z"),
-  ];
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "window", {
     configurable: true,
@@ -104,6 +103,21 @@ test("privacy purge invalidates an active drain before another account can recei
   });
 
   const runtime = await import("@/lib/offline/sync-runtime");
+  storage.set("readwise:offline-actor-id", "account-a");
+  await runtime.setOfflineSyncActor("account-a");
+  const generation = runtime.captureOfflineMutationGeneration();
+  queue = [
+    {
+      ...queued("first", "2026-01-01T00:00:00.000Z"),
+      purgeGeneration: generation.shared,
+      actorId: generation.actorId ?? undefined,
+    },
+    {
+      ...queued("second", "2026-01-01T00:00:01.000Z"),
+      purgeGeneration: generation.shared,
+      actorId: generation.actorId ?? undefined,
+    },
+  ];
   const flushing = runtime.flushOfflineQueue();
   for (let i = 0; sent.length === 0 && i < 10; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 0));

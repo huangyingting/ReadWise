@@ -27,11 +27,15 @@ test("direct network producers preserve their pre-request purge generation for f
   );
   assert.match(
     inlineNote,
-    /const generation = captureOfflineMutationGeneration\(\);[\s\S]*patchJson\([\s\S]*queueNoteEdit\([\s\S]*generation/,
+    /const generation = captureOfflineMutationGeneration\(\);[\s\S]*requestJson\([\s\S]*OFFLINE_ACTOR_HEADER[\s\S]*queueNoteEdit\([\s\S]*generation/,
   );
   assert.match(
     progress,
     /const generation = captureOfflineMutationGeneration\(\);[\s\S]*fetch\([\s\S]*queueOffline\(\)/,
+  );
+  assert.match(
+    progress,
+    /dedupeKey: `progress:\$\{articleId\}:\$\{localDate\.localDate\}`/,
   );
   assert.match(
     quiz,
@@ -41,4 +45,7 @@ test("direct network producers preserve their pre-request purge generation for f
     today,
     /const generation = captureOfflineMutationGeneration\(\);[\s\S]*requestJson[\s\S]*queueMutation\(\{[\s\S]*generation,/,
   );
+  for (const producer of [highlights, inlineNote, progress, quiz, today]) {
+    assert.match(producer, /OFFLINE_ACTOR_HEADER/);
+  }
 });

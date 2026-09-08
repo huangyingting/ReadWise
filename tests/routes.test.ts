@@ -12,6 +12,22 @@ const session = { user: { id: "user-1", role: "Admin", name: "T", email: "t@e.co
 // ---- mutable lib return values -----------------------------------------
 let articleExists = true;
 let saveProgressResult = { percent: 50, completed: false, completedNow: false };
+let lastSaveProgressOptions:
+  | {
+      timezone?: string;
+      recordActivity?: boolean;
+    }
+  | undefined;
+let lastTodayProgress:
+  | {
+      userId: string;
+      articleId: string;
+      percent: number;
+      completed: boolean;
+      requestTimezone?: string | null;
+      localDate?: string | null;
+    }
+  | undefined;
 let progressSummaries: Record<string, { percent: number; completed: boolean }> = {};
 let translationResult: unknown = { lang: "es", content: "Hola", cached: false, fallback: false };
 let supportedLang = true;
@@ -38,6 +54,8 @@ function resetRouteState(): void {
   authState = "ok";
   articleExists = true;
   saveProgressResult = { percent: 50, completed: false, completedNow: false };
+  lastSaveProgressOptions = undefined;
+  lastTodayProgress = undefined;
   progressSummaries = {};
   supportedLang = true;
   revalidateCalls = 0;
@@ -72,8 +90,33 @@ before(() => {
   });
   mock.module("@/lib/engagement/progress", {
     namedExports: {
-      saveProgress: async () => saveProgressResult,
+      saveProgress: async (
+        _userId: string,
+        _articleId: string,
+        _percent: number,
+        options?: {
+          timezone?: string;
+          recordActivity?: boolean;
+        },
+      ) => {
+        lastSaveProgressOptions = options;
+        return saveProgressResult;
+      },
       getProgressSummaries: async () => progressSummaries,
+    },
+  });
+  mock.module("@/lib/engagement/today-session/integrations", {
+    namedExports: {
+      syncTodayReadingFromProgress: async (args: {
+        userId: string;
+        articleId: string;
+        percent: number;
+        completed: boolean;
+        requestTimezone?: string | null;
+        localDate?: string | null;
+      }) => {
+        lastTodayProgress = args;
+      },
     },
   });
   mock.module("@/lib/translation", {
@@ -210,6 +253,31 @@ test("POST progress emits completion analytics and busts user cache only on firs
   assert.deepEqual(await repeat.json(), { percent: 100, completed: true });
   assert.equal(eventCalls.length, 1);
   assert.equal(userCacheRevalidateCalls, 1);
+});
+
+test("POST progress attributes delayed replay to its queued local date", async () => {
+  const { POST } = (await import("@/app/api/reader/[id]/progress/route")) as {
+    POST: RouteHandler;
+  };
+  const res = await POST(
+    jsonReq({
+      percent: 96,
+      timezone: "America/Los_Angeles",
+      localDate: "2000-01-01",
+    }),
+    ctx(),
+  );
+  assert.equal(res.status, 200);
+  assert.equal(lastSaveProgressOptions?.timezone, "America/Los_Angeles");
+  assert.equal(lastSaveProgressOptions?.recordActivity, false);
+  assert.deepEqual(lastTodayProgress, {
+    userId: "user-1",
+    articleId: "a1",
+    percent: 50,
+    completed: false,
+    requestTimezone: "America/Los_Angeles",
+    localDate: "2000-01-01",
+  });
 });
 
 test("POST progress returns 404 for a missing article", async () => {

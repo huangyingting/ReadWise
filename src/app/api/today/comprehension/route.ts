@@ -9,7 +9,11 @@ import {
   boolean,
   type Schema,
 } from "@/lib/validation";
-import { optionalTimezoneString, parseOptionalTimezoneQuery } from "@/lib/timezone";
+import {
+  optionalLocalDateString,
+  optionalTimezoneString,
+  parseOptionalTimezoneQuery,
+} from "@/lib/timezone";
 import {
   COMPREHENSION_SELF_RATINGS,
   COMPREHENSION_SKILL_TAGS,
@@ -61,6 +65,7 @@ const comprehensionBody = object({
   skillTag: optional(oneOf(COMPREHENSION_SKILL_TAGS)),
   remediationViewed: optional(boolean()),
   timezone: optionalTimezoneString,
+  localDate: optionalLocalDateString,
 });
 
 type ComprehensionBody = typeof comprehensionBody extends Schema<infer T> ? T : never;
@@ -69,6 +74,7 @@ function toSubmissionInput(body: ComprehensionBody, userId: string) {
   return {
     userId,
     requestTimezone: body.timezone ?? null,
+    localDate: body.localDate ?? null,
     selfRating: body.selfRating,
     questionId: body.questionId ?? null,
     selectedIndex: body.selectedIndex ?? null,

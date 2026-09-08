@@ -44,6 +44,14 @@ let articleMasteryUpdates = 0;
 let learnerEvidenceWrites = 0;
 let quizAnalyticsEvents = 0;
 let todayCompletions = 0;
+let lastTodayCompletion:
+  | {
+      userId: string;
+      articleId: string;
+      requestTimezone?: string | null;
+      localDate?: string | null;
+    }
+  | undefined;
 let assignmentCompletions = 0;
 
 // ---------------------------------------------------------------------------
@@ -136,8 +144,14 @@ before(() => {
   });
   mock.module("@/lib/engagement/today-session/integrations", {
     namedExports: {
-      markTodayComprehensionComplete: async () => {
+      markTodayComprehensionComplete: async (args: {
+        userId: string;
+        articleId: string;
+        requestTimezone?: string | null;
+        localDate?: string | null;
+      }) => {
         todayCompletions += 1;
+        lastTodayCompletion = args;
       },
     },
   });
@@ -170,6 +184,7 @@ beforeEach(() => {
   learnerEvidenceWrites = 0;
   quizAnalyticsEvents = 0;
   todayCompletions = 0;
+  lastTodayCompletion = undefined;
   assignmentCompletions = 0;
 });
 
@@ -282,6 +297,27 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
     assert.equal(body.attempt.correctCount, 3);
     assert.equal(body.attempt.totalQuestions, 3);
     assert.equal(body.attempt.scorePct, 100);
+  });
+
+  test("→ attributes delayed comprehension to the queued local date", async () => {
+    maxAggResult = { _max: { scorePct: 100 } };
+    const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
+    const res = await POST(
+      quizAttemptRequest(ALL_CORRECT_ANSWERS, {
+        extraBody: {
+          timezone: "America/Los_Angeles",
+          localDate: "2000-01-01",
+        },
+      }),
+      quizRouteContext(),
+    );
+    assert.equal(res.status, 200);
+    assert.deepEqual(lastTodayCompletion, {
+      userId: "user-1",
+      articleId: "a1",
+      requestTimezone: "America/Los_Angeles",
+      localDate: "2000-01-01",
+    });
   });
 
   test("→ a forged high count cannot inflate the score (server-graded)", async () => {

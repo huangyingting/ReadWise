@@ -86,7 +86,7 @@ Apple-specific icons (`apple-touch-icon`, 180 × 180) are declared in the root `
 
 ## 3. Service worker and caching strategy
 
-`public/sw.js` (cache version `v4`, name `readwise-v4`) implements:
+`public/sw.js` (cache version `v5`, name `readwise-v5`) implements:
 
 | Request type | Strategy |
 |--------------|----------|

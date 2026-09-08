@@ -16,7 +16,10 @@ import {
 } from "@/lib/validation";
 import { HIGHLIGHT_NOTE_MAX } from "@/lib/annotations";
 import { MAX_ACTIVE_TIME_MS } from "@/lib/engagement/reading-speed";
-import { optionalTimezoneString } from "@/lib/timezone";
+import {
+  optionalLocalDateString,
+  optionalTimezoneString,
+} from "@/lib/timezone";
 
 /** Helper: extract the validated value type from any Schema<T>. */
 type InferSchema<S extends Schema<unknown>> = S extends Schema<infer T> ? T : never;
@@ -64,6 +67,7 @@ export type CreateHighlightBody = InferSchema<typeof createHighlightBody>;
 export const progressBody = object({
   percent: number({ min: 0, max: 100 }),
   timezone: optionalTimezoneString,
+  localDate: optionalLocalDateString,
 });
 
 export type ProgressBody = InferSchema<typeof progressBody>;
@@ -81,6 +85,8 @@ export const quizAttemptBody = object({
     { max: MAX_QUIZ_ANSWERS },
   ),
   clientMutationId: optional(nonEmptyString(MAX_CLIENT_MUTATION_ID_CHARS)),
+  timezone: optionalTimezoneString,
+  localDate: optionalLocalDateString,
 });
 
 export type QuizAttemptBody = InferSchema<typeof quizAttemptBody>;

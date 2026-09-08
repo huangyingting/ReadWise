@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object, oneOf } from "@/lib/validation";
-import { optionalTimezoneString } from "@/lib/timezone";
+import {
+  optionalLocalDateString,
+  optionalTimezoneString,
+} from "@/lib/timezone";
 import {
   enforceTodayGate,
   skipTodaySession,
@@ -25,6 +28,7 @@ import {
 const skipBody = object({
   skipReason: oneOf(TODAY_SKIP_REASONS),
   timezone: optionalTimezoneString,
+  localDate: optionalLocalDateString,
 });
 
 type SkipTodayResult = Awaited<ReturnType<typeof skipTodaySession>>;
@@ -49,6 +53,7 @@ export const POST = createHandler(
       userId: session.user.id,
       skipReason: body.skipReason,
       requestTimezone: body.timezone ?? null,
+      localDate: body.localDate ?? null,
     });
 
     return NextResponse.json(skipResponse(result));

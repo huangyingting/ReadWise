@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { object, optional, string } from "@/lib/validation";
-import { optionalTimezoneString } from "@/lib/timezone";
+import { object } from "@/lib/validation";
+import {
+  optionalLocalDateString,
+  optionalTimezoneString,
+} from "@/lib/timezone";
 import {
   enforceTodayGate,
   markTodayWordReviewComplete,
@@ -31,7 +34,7 @@ import {
  */
 const wordReviewCompleteBody = object({
   timezone: optionalTimezoneString,
-  localDate: optional(string({ max: 10 })),
+  localDate: optionalLocalDateString,
 });
 
 type WordReviewCompletionView = NonNullable<
@@ -55,6 +58,7 @@ export const POST = createHandler(
     const view = await markTodayWordReviewComplete({
       userId: session.user.id,
       requestTimezone: body.timezone ?? null,
+      localDate: body.localDate ?? null,
     });
 
     if (!view) {

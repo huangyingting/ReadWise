@@ -91,6 +91,7 @@ export async function skipTodaySession(args: {
   userId: string;
   skipReason: TodaySkipReason;
   requestTimezone?: string | null;
+  localDate?: string | null;
   now?: Date;
 }): Promise<SkipResult> {
   const now = args.now ?? new Date();
@@ -105,6 +106,7 @@ export async function skipTodaySession(args: {
   const session = await getOrCreateTodaySession({
     userId: args.userId,
     requestTimezone: args.requestTimezone,
+    localDate: args.localDate ?? undefined,
     now,
   });
 

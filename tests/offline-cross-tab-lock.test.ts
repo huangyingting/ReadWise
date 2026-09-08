@@ -87,14 +87,15 @@ test("origin-wide flush lock prevents two tabs from replaying one queue concurre
       serverNote = "new note";
       return { status: 201 };
     },
-    remove: async (clientMutationId) => {
+    remove: async (mutation) => {
       queue = queue.filter(
-        (queued) => queued.clientMutationId !== clientMutationId,
+        (queued) =>
+          queued.clientMutationId !== mutation.clientMutationId,
       );
     },
-    update: async (clientMutationId, patch) => {
+    update: async (mutation, patch) => {
       queue = queue.map((queued) =>
-        queued.clientMutationId === clientMutationId
+        queued.clientMutationId === mutation.clientMutationId
           ? { ...queued, ...patch }
           : queued,
       );

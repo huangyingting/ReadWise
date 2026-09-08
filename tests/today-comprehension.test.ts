@@ -320,6 +320,7 @@ test("self-rating alone completes comprehension (no MCQ, no quiz)", async () => 
     selfRating: "confident",
     now: NOW,
   });
+
   assert.ok(res);
   assert.equal(res.updated, true);
   assert.equal(res.mcqCorrect, null);
@@ -338,6 +339,21 @@ test("self-rating alone completes comprehension (no MCQ, no quiz)", async () => 
     mcqCorrect: null,
   }]);
   assert.equal(articleMasteryCalls.length, 1);
+});
+
+test("offline replay submits comprehension to its queued local date", async () => {
+  const queuedLocalDate = "2026-07-18";
+  sessionRow = makeRow({ localDate: queuedLocalDate });
+  const { submitTodayComprehension } = await importLib();
+  const res = await submitTodayComprehension({
+    userId: USER_ID,
+    selfRating: "confident",
+    localDate: queuedLocalDate,
+    now: NOW,
+  });
+  assert.ok(res);
+  assertComprehensionCompleted();
+  assert.equal(feedbackRows[0].todaySessionId, "ts1");
 });
 
 test("returns null when there is no Today session / primary article", async () => {

@@ -196,6 +196,8 @@
       var DB_NAME = "readwise-offline";
       var STORE_NAME = "articles";
       var EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
+      var ACTOR_KEY = "readwise:offline-actor-id";
+      var GENERATION_KEY = "readwise:offline-purge-generation";
 
       // Extract article ID from the current path: /reader/<id>
       var match = window.location.pathname.match(/\/reader\/([^/?#]+)/);
@@ -242,6 +244,33 @@
         show("article-container");
       }
 
+      function currentOwnership() {
+        try {
+          var actorId = localStorage.getItem(ACTOR_KEY);
+          if (!actorId) return null;
+          return {
+            actorId: actorId,
+            purgeGeneration: localStorage.getItem(GENERATION_KEY)
+          };
+        } catch (_) {
+          return null;
+        }
+      }
+
+      var ownership = currentOwnership();
+      if (!ownership) {
+        show("not-found");
+        return;
+      }
+
+      window.addEventListener("storage", function (event) {
+        if (event.key === ACTOR_KEY || event.key === GENERATION_KEY) {
+          var container = document.getElementById("article-container");
+          if (container) container.innerHTML = "";
+          show("not-found");
+        }
+      });
+
       if (!articleId) {
         show("not-found");
         return;
@@ -262,6 +291,22 @@
         getReq.onsuccess = function () {
           var article = getReq.result;
           if (!article) { show("not-found"); return; }
+          var latestOwnership = currentOwnership();
+          if (
+            !latestOwnership ||
+            latestOwnership.actorId !== ownership.actorId ||
+            latestOwnership.purgeGeneration !== ownership.purgeGeneration
+          ) {
+            show("not-found");
+            return;
+          }
+          if (
+            article.actorId !== ownership.actorId ||
+            article.purgeGeneration !== ownership.purgeGeneration
+          ) {
+            show("not-found");
+            return;
+          }
           var age = Date.now() - new Date(article.savedAt).getTime();
           if (age > EXPIRY_MS) { show("not-found"); return; }
           renderArticle(article);

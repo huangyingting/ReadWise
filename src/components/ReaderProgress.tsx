@@ -4,9 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { markArticleVisited } from "@/lib/visited";
 import {
   captureOfflineMutationGeneration,
+  isOfflineMutationGenerationCurrent,
   submitMutation,
   type OfflineMutationGeneration,
 } from "@/lib/offline/sync-runtime";
+import { OFFLINE_ACTOR_HEADER } from "@/lib/offline-sync";
+import {
+  currentBrowserLocalDate,
+  type BrowserLocalDate,
+} from "@/lib/browser-local-date";
 
 const THROTTLE_MS = 1000;
 const PROGRESS_METHOD = "POST";
@@ -16,8 +22,11 @@ function progressEndpoint(articleId: string): string {
   return `/api/reader/${articleId}/progress`;
 }
 
-function progressBody(percent: number): { percent: number } {
-  return { percent };
+function progressBody(
+  percent: number,
+  localDate: BrowserLocalDate,
+): { percent: number; localDate: string; timezone: string } {
+  return { percent, ...localDate };
 }
 
 function computeScrollPercent(): number {
@@ -34,16 +43,17 @@ function queueProgressMutation(
   articleId: string,
   endpoint: string,
   percent: number,
+  localDate: BrowserLocalDate,
   generation: OfflineMutationGeneration,
 ): void {
   void submitMutation({
     type: "progress",
     endpoint,
     method: PROGRESS_METHOD,
-    body: progressBody(percent),
-    // Collapse to the latest position — the server is forward-only so an
-    // older queued percent would be a no-op anyway (RW-042/RW-043).
-    dedupeKey: `progress:${articleId}`,
+    body: progressBody(percent, localDate),
+    // Collapse positions within one local day. Different days must survive
+    // independently because their Today-session side effects are distinct.
+    dedupeKey: `progress:${articleId}:${localDate.localDate}`,
     generation,
   });
 }
@@ -73,6 +83,7 @@ export default function ReaderProgress({
 
     function send(value: number, useKeepalive = false) {
       const generation = captureOfflineMutationGeneration();
+      const localDate = currentBrowserLocalDate();
       lastSentRef.current = Date.now();
       lastSentValueRef.current = value;
       const endpoint = progressEndpoint(articleId);
@@ -81,6 +92,7 @@ export default function ReaderProgress({
           articleId,
           endpoint,
           value,
+          localDate,
           generation,
         );
 
@@ -89,10 +101,20 @@ export default function ReaderProgress({
         queueOffline();
         return;
       }
+      if (
+        !generation.actorId ||
+        !isOfflineMutationGenerationCurrent(generation)
+      ) {
+        queueOffline();
+        return;
+      }
       void fetch(endpoint, {
         method: PROGRESS_METHOD,
-        headers: JSON_HEADERS,
-        body: JSON.stringify(progressBody(value)),
+        headers: {
+          ...JSON_HEADERS,
+          [OFFLINE_ACTOR_HEADER]: generation.actorId,
+        },
+        body: JSON.stringify(progressBody(value, localDate)),
         keepalive: useKeepalive,
       }).catch(() => {
         // Online send failed (flaky network) — queue it; server stays

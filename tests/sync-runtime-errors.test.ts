@@ -13,7 +13,9 @@ before(() => {
       removeQueuedMutation: async () => {},
       removeQueuedMutationForGeneration: async () => false,
       updateQueuedMutation: async () => {},
+      updateQueuedMutationForGeneration: async () => false,
       countQueuedMutations: async () => 7,
+      queuedMutationsBelongTo: async () => false,
       clearQueuedMutations: async () => {
         throw new Error("clear failed");
       },
@@ -40,6 +42,9 @@ test("sync runtime falls back when store-backed flush and purge dependencies thr
     remaining: 7,
   });
 
-  await runtime.purgeOfflineUserData();
+  await assert.rejects(
+    () => runtime.purgeOfflineUserData(),
+    /Offline private data could not be cleared/,
+  );
   assert.equal(runtime.getSyncState().pending, 0);
 });

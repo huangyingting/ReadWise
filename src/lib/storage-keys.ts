@@ -72,6 +72,14 @@ export const STORAGE_KEYS = {
    *  Payload: opaque generation token changed before a privacy purge */
   OFFLINE_PURGE_GENERATION: "readwise:offline-purge-generation",
 
+  /** scope: local | privacy: user | owner: offline sync
+   *  Payload: authenticated user id owning the offline stores */
+  OFFLINE_ACTOR_ID: "readwise:offline-actor-id",
+
+  /** scope: local | privacy: app | owner: offline sync
+   *  Payload: "1" while explicit sign-out/account removal blocks local access */
+  OFFLINE_ACCESS_BLOCKED: "readwise:offline-access-blocked",
+
   // ── sessionStorage: tab / session scoped ──────────────────────────────────
 
   /** scope: session | privacy: user | owner: reader navigation

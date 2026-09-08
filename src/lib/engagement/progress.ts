@@ -192,7 +192,10 @@ export async function saveProgress(
   userId: string,
   articleId: string,
   rawPercent: number,
-  opts: { timezone?: string | null } = {},
+  opts: {
+    timezone?: string | null;
+    recordActivity?: boolean;
+  } = {},
 ): Promise<SaveProgressResult> {
   const incoming = clampPercent(rawPercent);
   const before = await getProgress(userId, articleId);
@@ -201,14 +204,16 @@ export async function saveProgress(
 
   // Side-effect: record daily activity (errors are logged but never
   // affect the caller's return value or forward-only semantics).
-  try {
-    await recordReadingActivity(userId, articleId, opts.timezone ?? undefined);
-  } catch {
-    log.error("activity recording failed", {
-      userId,
-      articleId,
-      machineReason: "activity_recording_failed",
-    });
+  if (opts.recordActivity !== false) {
+    try {
+      await recordReadingActivity(userId, articleId, opts.timezone ?? undefined);
+    } catch {
+      log.error("activity recording failed", {
+        userId,
+        articleId,
+        machineReason: "activity_recording_failed",
+      });
+    }
   }
 
   // Side-effect (#808): on the transition into completion, let the learner's

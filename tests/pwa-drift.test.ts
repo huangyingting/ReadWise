@@ -122,7 +122,7 @@ test("every shell sign-out control purges offline private data before ending the
   for (const [name, source] of [["UserMenu", userMenu], ["MoreSheet", moreSheet]] as const) {
     assert.match(
       source,
-      /await purgeOfflineUserData\(\);\s*await signOut\(/,
+      /await prepareOfflineSignOut\(\);[\s\S]*?await signOut\(/,
       `${name} must await the offline-data purge before signOut`,
     );
   }
@@ -185,5 +185,15 @@ test("offline-reader.html EXPIRY_MS matches OFFLINE_ARTICLE_EXPIRY_MS", () => {
     computed,
     OFFLINE_ARTICLE_EXPIRY_MS,
     `offline-reader.html EXPIRY_MS=${computed} does not match TypeScript OFFLINE_ARTICLE_EXPIRY_MS=${OFFLINE_ARTICLE_EXPIRY_MS}`,
+  );
+});
+
+test("offline-reader.html enforces durable article ownership", () => {
+  assert.match(offlineReader, /readwise:offline-actor-id/);
+  assert.match(offlineReader, /readwise:offline-purge-generation/);
+  assert.match(offlineReader, /article\.actorId !== ownership\.actorId/);
+  assert.match(
+    offlineReader,
+    /article\.purgeGeneration !== ownership\.purgeGeneration/,
   );
 });

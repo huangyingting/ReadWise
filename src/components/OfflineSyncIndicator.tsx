@@ -10,10 +10,16 @@
  * so it's invisible in the common online case.
  */
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useSession } from "next-auth/react";
-import { CloudOff } from "lucide-react";
-import { Button, Spinner } from "@/components/ui";
+import { CloudOff, ShieldAlert } from "lucide-react";
+import { Button, EmptyState, Spinner } from "@/components/ui";
 import {
   registerOfflineSync,
   setOfflineSyncActor,
@@ -21,6 +27,8 @@ import {
   flushOfflineQueue,
   type SyncState,
 } from "@/lib/offline/sync-runtime";
+import { STORAGE_KEYS, lsGet } from "@/lib/storage-keys";
+import { shouldBlockOfflineView } from "@/lib/offline/ownership-visibility";
 
 const INITIAL_SYNC_STATE: SyncState = {
   pending: 0,
@@ -38,9 +46,18 @@ function getSyncLabel(sync: SyncState): string {
   return `${sync.pending} changes waiting to sync`;
 }
 
-export default function OfflineSyncIndicator() {
+type OwnershipState = "checking" | "ready" | "blocked" | "error";
+
+export default function OfflineSyncIndicator({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const { data: session, status: sessionStatus } = useSession();
   const [sync, setSync] = useState<SyncState>(INITIAL_SYNC_STATE);
+  const [ownershipState, setOwnershipState] =
+    useState<OwnershipState>("ready");
+  const renderedActorRef = useRef(session?.user?.id ?? null);
 
   useEffect(() => {
     const unsubscribe = subscribeSyncState(setSync);
@@ -48,17 +65,122 @@ export default function OfflineSyncIndicator() {
   }, []);
 
   useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (
+        event.key !== STORAGE_KEYS.OFFLINE_ACTOR_ID &&
+        event.key !== STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED
+      ) {
+        return;
+      }
+      const actorId = session?.user?.id ?? null;
+      const durableActorId = lsGet(STORAGE_KEYS.OFFLINE_ACTOR_ID);
+      if (shouldBlockOfflineView(
+        actorId,
+        durableActorId,
+        lsGet(STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED) === "1",
+      )) {
+        setOwnershipState("blocked");
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [session?.user?.id]);
+
+  useLayoutEffect(() => {
     if (sessionStatus === "loading") return;
+    let cancelled = false;
+    setOwnershipState("checking");
     const actorId =
       sessionStatus === "authenticated" ? session?.user?.id ?? null : null;
     void setOfflineSyncActor(actorId).then(() => {
+      if (cancelled) return;
+      if (shouldBlockOfflineView(
+        actorId,
+        lsGet(STORAGE_KEYS.OFFLINE_ACTOR_ID),
+        lsGet(STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED) === "1",
+      )) {
+        setOwnershipState("blocked");
+        return;
+      }
+      const renderedActor = renderedActorRef.current;
+      if (
+        renderedActor !== null &&
+        renderedActor !== actorId
+      ) {
+        window.location.reload();
+        return;
+      }
+      if (actorId !== null) renderedActorRef.current = actorId;
+      setOwnershipState("ready");
       if (actorId) registerOfflineSync();
+    }).catch(() => {
+      if (!cancelled) setOwnershipState("error");
     });
+    return () => {
+      cancelled = true;
+    };
   }, [session?.user?.id, sessionStatus]);
 
-  // Nothing pending and not syncing → render nothing.
-  if (!shouldShowSyncIndicator(sync)) return null;
+  if (ownershipState === "checking") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-bg px-[var(--space-6)]">
+        <Spinner label="Preparing private offline data" />
+      </main>
+    );
+  }
 
+  if (ownershipState === "error") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-bg px-[var(--space-6)]">
+        <EmptyState
+          icon={ShieldAlert}
+          title="Offline data could not be secured"
+          description="Reload this page after closing other ReadWise tabs. Your account data has not been opened."
+          action={
+            <Button type="button" onClick={() => window.location.reload()}>
+              Reload
+            </Button>
+          }
+          titleAs="h1"
+          role="alert"
+        />
+      </main>
+    );
+  }
+
+  if (ownershipState === "blocked") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-bg px-[var(--space-6)]">
+        <EmptyState
+          icon={ShieldAlert}
+          title="This session changed in another tab"
+          description="Reload to continue with the current account. Private offline data remains hidden."
+          action={
+            <Button type="button" onClick={() => window.location.reload()}>
+              Reload
+            </Button>
+          }
+          titleAs="h1"
+          role="alert"
+        />
+      </main>
+    );
+  }
+
+  const indicator = shouldShowSyncIndicator(sync) ? (
+    <SyncIndicatorBadge sync={sync} />
+  ) : null;
+
+  return (
+    <>
+      {children}
+      {indicator}
+    </>
+  );
+}
+
+function SyncIndicatorBadge({ sync }: { sync: SyncState }) {
+  // Nothing pending and not syncing → render nothing.
   const label = getSyncLabel(sync);
 
   return (

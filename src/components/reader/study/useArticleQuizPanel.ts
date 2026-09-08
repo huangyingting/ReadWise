@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   captureOfflineMutationGeneration,
+  isOfflineMutationGenerationCurrent,
   submitMutation,
   newClientMutationId,
   type OfflineMutationGeneration,
 } from "@/lib/offline/sync-runtime";
+import { OFFLINE_ACTOR_HEADER } from "@/lib/offline-sync";
+import { currentBrowserLocalDate } from "@/lib/browser-local-date";
 import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 
 export type QuizQuestion = {
@@ -49,6 +52,8 @@ type SubmittedAnswer = {
 type AttemptPayload = {
   answers: SubmittedAnswer[];
   clientMutationId: string;
+  localDate: string;
+  timezone: string;
 };
 
 export type SavedNote = "idle" | "saving" | "saved" | "failed" | "queued";
@@ -199,6 +204,7 @@ export function useArticleQuizPanel(
     const payload = {
       answers: buildSubmittedAnswers(questions, answers),
       clientMutationId,
+      ...currentBrowserLocalDate(),
     };
 
     recordAttempt(
@@ -217,11 +223,19 @@ export function useArticleQuizPanel(
     priorBest: number | null,
     generation: OfflineMutationGeneration,
   ) {
+    if (
+      !generation.actorId ||
+      !isOfflineMutationGenerationCurrent(generation)
+    ) {
+      setSavedNote("failed");
+      return;
+    }
     fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-client-mutation-id": clientMutationId,
+        [OFFLINE_ACTOR_HEADER]: generation.actorId,
       },
       body: JSON.stringify(payload),
     })

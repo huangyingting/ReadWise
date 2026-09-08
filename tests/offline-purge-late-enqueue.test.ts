@@ -30,15 +30,18 @@ before(() => {
       removeQueuedMutation: async () => undefined,
       removeQueuedMutationForGeneration: async () => false,
       updateQueuedMutation: async () => undefined,
+      updateQueuedMutationForGeneration: async () => false,
       countQueuedMutations: async () => queue.length,
+      queuedMutationsBelongTo: async () => false,
       clearQueuedMutations: async () => {
         queue = [];
+        return true;
       },
     },
   });
   mock.module("../src/lib/offline/article-store", {
     namedExports: {
-      purgeOfflineData: async () => undefined,
+      purgeOfflineData: async () => true,
     },
   });
 });
@@ -70,6 +73,8 @@ test("a pre-purge mutation cannot commit a stale fallback after privacy cleanup"
   });
 
   const runtime = await import("@/lib/offline/sync-runtime");
+  storage.set("readwise:offline-actor-id", "account-a");
+  await runtime.setOfflineSyncActor("account-a");
   const generation = runtime.captureOfflineMutationGeneration();
   let notifyEnqueueStarted!: () => void;
   const enqueueHasStarted = new Promise<void>((resolve) => {

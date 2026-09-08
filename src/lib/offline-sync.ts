@@ -32,6 +32,8 @@ export interface QueuedMutation {
   purgeGeneration?: string | null;
   /** Authenticated account that originated this mutation. */
   actorId?: string;
+  /** Monotonic durable revision used to fence in-flight queue snapshots. */
+  queueRevision?: number;
   /** Number of delivery attempts so far. */
   retryCount: number;
   status: MutationStatus;
@@ -144,8 +146,11 @@ export function isConflict(mutation: QueuedMutation): boolean {
 export interface FlushDeps {
   list: () => Promise<QueuedMutation[]>;
   send: (mutation: QueuedMutation) => Promise<{ status: number }>;
-  remove: (clientMutationId: string) => Promise<void>;
-  update: (clientMutationId: string, patch: Partial<QueuedMutation>) => Promise<void>;
+  remove: (mutation: QueuedMutation) => Promise<void>;
+  update: (
+    mutation: QueuedMutation,
+    patch: Partial<QueuedMutation>,
+  ) => Promise<void>;
 }
 
 export interface FlushResult {
@@ -200,7 +205,7 @@ async function recordFailedDelivery(
   const status =
     outcome === "permanent" || nextRetry >= maxRetries ? "failed" : "pending";
 
-  await deps.update(mutation.clientMutationId, {
+  await deps.update(mutation, {
     status,
     retryCount: nextRetry,
     lastError: errorMessage,
@@ -249,7 +254,7 @@ export async function flushQueue(
           (state) => state === "failed" || state === "terminal",
         )
       ) {
-        await deps.update(mutation.clientMutationId, {
+        await deps.update(mutation, {
           status: "failed",
           retryCount: maxRetries,
           lastError: "dependency_failed",
@@ -270,7 +275,7 @@ export async function flushQueue(
     );
 
     if (outcome === "success") {
-      await deps.remove(mutation.clientMutationId);
+      await deps.remove(mutation);
       mutationStates.set(mutation.clientMutationId, "success");
       result.succeeded++;
       continue;

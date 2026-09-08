@@ -128,11 +128,11 @@ function recordingDeps(
   const deps: FlushDeps = {
     list: async () => queue,
     send,
-    remove: async (id) => {
-      removed.push(id);
+    remove: async (mutation) => {
+      removed.push(mutation.clientMutationId);
     },
-    update: async (id, patch) => {
-      updated.push({ id, patch });
+    update: async (mutation, patch) => {
+      updated.push({ id: mutation.clientMutationId, patch });
     },
   };
   return { deps, removed, updated };
@@ -299,12 +299,15 @@ test("flushQueue defers anchor recreation until a transient delete succeeds", as
       }
       return { status: 201 };
     },
-    remove: async (id) => {
-      queue = queue.filter((mutation) => mutation.clientMutationId !== id);
+    remove: async (delivered) => {
+      queue = queue.filter(
+        (mutation) =>
+          mutation.clientMutationId !== delivered.clientMutationId,
+      );
     },
-    update: async (id, patch) => {
+    update: async (target, patch) => {
       queue = queue.map((mutation) =>
-        mutation.clientMutationId === id
+        mutation.clientMutationId === target.clientMutationId
           ? { ...mutation, ...patch }
           : mutation,
       );

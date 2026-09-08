@@ -121,6 +121,8 @@ export const POST = createHandler(
         markTodayComprehensionComplete({
           userId: session.user.id,
           articleId: article.id,
+          requestTimezone: body.timezone ?? null,
+          localDate: body.localDate ?? null,
         }),
       );
 

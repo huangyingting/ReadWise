@@ -6,7 +6,10 @@
  * progress and Today endpoints reject invalid browser timezones consistently.
  */
 
-import { isValidTimezoneString } from "@/lib/offline/registry";
+import {
+  isValidLocalDate,
+  isValidTimezoneString,
+} from "@/lib/offline/registry";
 import { optional, string, type Schema, type ValidationResult } from "@/lib/validation";
 
 export { isValidTimezoneString };
@@ -33,6 +36,20 @@ export const timezoneString: Schema<string> = (value, field) => {
 };
 
 export const optionalTimezoneString = optional(timezoneString);
+
+export const localDateString: Schema<string> = (value, field) => {
+  const parsed = string({ min: 10, max: 10 })(value, field);
+  if (!parsed.ok) return parsed;
+  if (!isValidLocalDate(parsed.value)) {
+    return {
+      ok: false,
+      error: `${field ?? "localDate"} must be a YYYY-MM-DD date`,
+    };
+  }
+  return parsed;
+};
+
+export const optionalLocalDateString = optional(localDateString);
 
 export function parseOptionalTimezoneQuery(
   params: URLSearchParams,

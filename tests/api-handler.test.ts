@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { NextResponse } from "next/server";
 import { object, nonEmptyString } from "@/lib/validation";
 import { getMetricsSnapshot, resetMetrics } from "@/lib/metrics";
+import { OFFLINE_ACTOR_HEADER } from "@/lib/offline-sync";
 import { type RouteHandler } from "./support/route";
 import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
@@ -215,6 +216,33 @@ test("createHandler returns 401 when unauthenticated", async () => {
   const handler = createHandler({}, async () => NextResponse.json({ ok: true })) as RouteHandler;
   const res = await handler(new Request("http://test/api/test"));
   assert.equal(res.status, 401);
+});
+
+test("authenticated handlers discard offline mutations owned by another account", async () => {
+  const { createHandler } = await loadApiHandler();
+  let invoked = false;
+  const handler = createHandler({}, async () => {
+    invoked = true;
+    return NextResponse.json({ ok: true });
+  }) as RouteHandler;
+
+  const mismatch = await handler(
+    new Request("http://test/api/test", {
+      method: "POST",
+      headers: { [OFFLINE_ACTOR_HEADER]: "different-user" },
+    }),
+  );
+  assert.equal(mismatch.status, 204);
+  assert.equal(invoked, false);
+
+  const matching = await handler(
+    new Request("http://test/api/test", {
+      method: "POST",
+      headers: { [OFFLINE_ACTOR_HEADER]: "user-1" },
+    }),
+  );
+  assert.equal(matching.status, 200);
+  assert.equal(invoked, true);
 });
 
 test("createPublicHandler records API metrics with sanitized route group", async () => {

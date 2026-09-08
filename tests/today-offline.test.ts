@@ -273,11 +273,11 @@ function recorder(send: TodayReplayDeps["send"]): Recorder {
     conflicts,
     deps: {
       send,
-      remove: async (id) => {
-        removed.push(id);
+      remove: async (mutation) => {
+        removed.push(mutation.clientMutationId);
       },
-      update: async (id, patch) => {
-        updated.push({ id, patch });
+      update: async (mutation, patch) => {
+        updated.push({ id: mutation.clientMutationId, patch });
       },
       onConflict: (info) => {
         conflicts.push(info);

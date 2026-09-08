@@ -17,7 +17,7 @@
 // mutation queue. `message` also supports SKIP_WAITING (graceful upgrade) and
 // purging private caches on sign-out.
 
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const CACHE_PREFIX = "readwise-";
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 

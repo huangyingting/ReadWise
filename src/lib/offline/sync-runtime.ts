@@ -30,10 +30,10 @@ import {
 import {
   enqueueMutation,
   listQueuedMutations,
-  removeQueuedMutation,
-  updateQueuedMutation,
+  updateQueuedMutationForGeneration,
   countQueuedMutations,
   clearQueuedMutations,
+  queuedMutationsBelongTo,
   discardQueuedMutation,
   replaceQueuedMutationPayload,
   removeQueuedMutationForGeneration,
@@ -45,7 +45,7 @@ import {
   isValidTimezoneString,
 } from "./registry";
 import { purgeOfflineData } from "./article-store";
-import { STORAGE_KEYS, lsGet, lsSet } from "@/lib/storage-keys";
+import { STORAGE_KEYS, lsGet, lsRemove, lsSet } from "@/lib/storage-keys";
 
 /** Header carrying the idempotency key to the server on every send. */
 export const MUTATION_HEADER = "x-client-mutation-id";
@@ -61,6 +61,8 @@ let localPurgeGeneration = 0;
 let currentOfflineActorId: string | null = null;
 let offlineActorInitialized = false;
 let offlineActorReady = false;
+let actorTransitionVersion = 0;
+let actorTransitionTail: Promise<void> = Promise.resolve();
 
 type PurgeGeneration = {
   local: number;
@@ -223,6 +225,9 @@ function isCurrentPurgeGeneration(expected: PurgeGeneration): boolean {
   const current = readPurgeGeneration();
   return (
     offlineActorReady &&
+    expected.actorId !== null &&
+    lsGet(STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED) !== "1" &&
+    lsGet(STORAGE_KEYS.OFFLINE_ACTOR_ID) === expected.actorId &&
     current.local === expected.local &&
     current.shared === expected.shared &&
     current.actorId === expected.actorId
@@ -248,18 +253,115 @@ function invalidateQueuedSnapshots(): boolean {
  * later account transition purges private stores before syncing is re-enabled.
  */
 export async function setOfflineSyncActor(actorId: string | null): Promise<void> {
-  if (!offlineActorInitialized) {
+  const durableActorId = lsGet(STORAGE_KEYS.OFFLINE_ACTOR_ID);
+  const accessBlocked =
+    lsGet(STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED) === "1";
+  if (actorId === null) {
     offlineActorInitialized = true;
-    currentOfflineActorId = actorId;
-    offlineActorReady = actorId !== null;
+    if (durableActorId && !accessBlocked) {
+      currentOfflineActorId = durableActorId;
+      offlineActorReady = true;
+    } else {
+      currentOfflineActorId = null;
+      offlineActorReady = false;
+    }
+    await actorTransitionTail;
     return;
   }
-  if (currentOfflineActorId === actorId) return;
 
+  if (
+    offlineActorInitialized &&
+    currentOfflineActorId === actorId &&
+    (actorId === null || offlineActorReady)
+  ) {
+    return;
+  }
+
+  offlineActorInitialized = true;
   currentOfflineActorId = actorId;
   offlineActorReady = false;
-  await purgeOfflineUserData();
-  offlineActorReady = actorId !== null;
+  const transitionVersion = ++actorTransitionVersion;
+
+  const priorDurableActorId = durableActorId;
+  lsSet(STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED, "1");
+  lsRemove(STORAGE_KEYS.OFFLINE_ACTOR_ID);
+
+  const transition = actorTransitionTail.then(async () => {
+    if (
+      transitionVersion !== actorTransitionVersion ||
+      currentOfflineActorId !== actorId
+    ) {
+      return;
+    }
+    if (priorDurableActorId !== actorId || accessBlocked) {
+      const sharedGeneration = lsGet(
+        STORAGE_KEYS.OFFLINE_PURGE_GENERATION,
+      );
+      const canAdoptQueue =
+        priorDurableActorId === null &&
+        sharedGeneration !== null &&
+        (await queuedMutationsBelongTo(actorId, sharedGeneration));
+      if (canAdoptQueue) {
+        if (!(await purgeOfflineData())) {
+          throw new Error("Offline private data could not be cleared");
+        }
+      } else {
+        await purgeOfflineUserData();
+      }
+    }
+    if (
+      transitionVersion !== actorTransitionVersion ||
+      currentOfflineActorId !== actorId
+    ) {
+      return;
+    }
+    lsSet(STORAGE_KEYS.OFFLINE_ACTOR_ID, actorId);
+    const generation = captureOfflineMutationGeneration();
+    lsRemove(STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED);
+    offlineActorReady =
+      lsGet(STORAGE_KEYS.OFFLINE_ACTOR_ID) === actorId &&
+      lsGet(STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED) !== "1" &&
+      (generation.shared !== null || typeof window === "undefined");
+    if (!offlineActorReady) {
+      throw new Error("Offline account ownership could not be persisted");
+    }
+  });
+  actorTransitionTail = transition.catch(() => undefined);
+  await transition;
+}
+
+/** Permanently hide retained offline data after irreversible account deletion. */
+export function disableOfflineUserDataAccess(): void {
+  actorTransitionVersion += 1;
+  currentOfflineActorId = null;
+  offlineActorReady = false;
+  lsSet(STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED, "1");
+  lsRemove(STORAGE_KEYS.OFFLINE_ACTOR_ID);
+  invalidateQueuedSnapshots();
+}
+
+/** Block every tab before clearing private data for an explicit sign-out. */
+export async function prepareOfflineSignOut(): Promise<void> {
+  const actorId =
+    currentOfflineActorId ?? lsGet(STORAGE_KEYS.OFFLINE_ACTOR_ID);
+  actorTransitionVersion += 1;
+  currentOfflineActorId = null;
+  offlineActorReady = false;
+  lsSet(STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED, "1");
+  lsRemove(STORAGE_KEYS.OFFLINE_ACTOR_ID);
+  await actorTransitionTail;
+  try {
+    await purgeOfflineUserData();
+  } catch (error) {
+    if (actorId) {
+      currentOfflineActorId = actorId;
+      lsSet(STORAGE_KEYS.OFFLINE_ACTOR_ID, actorId);
+      lsRemove(STORAGE_KEYS.OFFLINE_ACCESS_BLOCKED);
+      offlineActorReady =
+        lsGet(STORAGE_KEYS.OFFLINE_ACTOR_ID) === actorId;
+    }
+    throw error;
+  }
 }
 
 async function sendRequest(
@@ -413,9 +515,9 @@ export async function discardPendingMutation(
 /** Injected dependencies for {@link todayMutationReplayHandler} (testable in Node). */
 export interface TodayReplayDeps {
   send: (mutation: QueuedMutation) => Promise<{ status: number }>;
-  remove: (clientMutationId: string) => Promise<void>;
+  remove: (mutation: QueuedMutation) => Promise<void>;
   update: (
-    clientMutationId: string,
+    mutation: QueuedMutation,
     patch: Partial<QueuedMutation>,
   ) => Promise<void>;
   /** Emits the content-free `today_offline_conflict` event on a 409. */
@@ -455,7 +557,7 @@ export async function todayMutationReplayHandler(
   // 1. Privacy + shape validation. Never send (or keep retrying) a payload that
   //    is malformed or carries fields outside the allowed Today set.
   if (!isValidTodayReplayMutation(mutation)) {
-    await deps.update(mutation.clientMutationId, {
+    await deps.update(mutation, {
       status: "failed",
       lastError: "invalid Today mutation payload",
     });
@@ -472,7 +574,7 @@ export async function todayMutationReplayHandler(
 
   // 3. Success (incl. idempotent no-op) — drop from the queue.
   if (isSuccessfulStatus(status)) {
-    await deps.remove(mutation.clientMutationId);
+    await deps.remove(mutation);
     return "removed";
   }
 
@@ -499,7 +601,7 @@ async function markTodayConflict(
   deps: TodayReplayDeps,
   status: number,
 ): Promise<TodayReplayOutcome> {
-  await deps.update(mutation.clientMutationId, {
+  await deps.update(mutation, {
     status: "conflict",
     lastError: `HTTP ${status}`,
   });
@@ -512,7 +614,7 @@ async function markTodayFailed(
   deps: TodayReplayDeps,
   lastError: string,
 ): Promise<TodayReplayOutcome> {
-  await deps.update(mutation.clientMutationId, {
+  await deps.update(mutation, {
     status: "failed",
     retryCount: mutation.retryCount + 1,
     lastError,
@@ -544,14 +646,14 @@ async function retryOrFail(
 ): Promise<TodayReplayOutcome> {
   const nextRetry = mutation.retryCount + 1;
   if (nextRetry >= maxRetries) {
-    await deps.update(mutation.clientMutationId, {
+    await deps.update(mutation, {
       status: "failed",
       retryCount: nextRetry,
       lastError: errorMessage,
     });
     return "failed";
   }
-  await deps.update(mutation.clientMutationId, {
+  await deps.update(mutation, {
     status: "pending",
     retryCount: nextRetry,
     lastError: errorMessage,
@@ -590,6 +692,8 @@ async function currentQueuedMutations(
         mutation.clientMutationId,
         mutation.purgeGeneration,
         mutation.actorId,
+        mutation.createdAt,
+        mutation.queueRevision,
       );
     }
   }
@@ -607,8 +711,25 @@ function flushDeps(generation: PurgeGeneration): FlushDeps {
       ),
     send: (mutation) =>
       sendQueuedMutationForGeneration(generation, mutation),
-    remove: (id) => removeQueuedMutation(id),
-    update: (id, patch) => updateQueuedMutation(id, patch),
+    remove: async (mutation) => {
+      await removeQueuedMutationForGeneration(
+        mutation.clientMutationId,
+        mutation.purgeGeneration,
+        mutation.actorId,
+        mutation.createdAt,
+        mutation.queueRevision,
+      );
+    },
+    update: async (mutation, patch) => {
+      await updateQueuedMutationForGeneration(
+        mutation.clientMutationId,
+        mutation.purgeGeneration,
+        mutation.actorId,
+        mutation.createdAt,
+        mutation.queueRevision,
+        patch,
+      );
+    },
   };
 }
 
@@ -617,8 +738,25 @@ function todayReplayDeps(generation: PurgeGeneration): TodayReplayDeps {
   return {
     send: (mutation) =>
       sendQueuedMutationForGeneration(generation, mutation),
-    remove: (id) => removeQueuedMutation(id),
-    update: (id, patch) => updateQueuedMutation(id, patch),
+    remove: async (mutation) => {
+      await removeQueuedMutationForGeneration(
+        mutation.clientMutationId,
+        mutation.purgeGeneration,
+        mutation.actorId,
+        mutation.createdAt,
+        mutation.queueRevision,
+      );
+    },
+    update: async (mutation, patch) => {
+      await updateQueuedMutationForGeneration(
+        mutation.clientMutationId,
+        mutation.purgeGeneration,
+        mutation.actorId,
+        mutation.createdAt,
+        mutation.queueRevision,
+        patch,
+      );
+    },
     onConflict: (info) => notifyTodayConflict(info),
   };
 }
@@ -763,26 +901,28 @@ export function registerOfflineSync(): void {
  */
 export async function purgeOfflineUserData(): Promise<void> {
   const sharedGenerationUpdated = invalidateQueuedSnapshots();
-  const clearPrivateStores = async () => {
+  const clearPrivateStores = async (): Promise<boolean> => {
+    let queueCleared = false;
     try {
-      await clearQueuedMutations();
+      queueCleared = await clearQueuedMutations();
     } catch {
-      // ignore
+      queueCleared = false;
     }
     try {
-      await purgeOfflineData();
+      return queueCleared && (await purgeOfflineData());
     } catch {
-      // ignore
+      return false;
     }
   };
   const canUseOriginLock =
     typeof window !== "undefined" &&
     typeof navigator !== "undefined" &&
     typeof navigator.locks?.request === "function";
+  let privateStoresCleared: boolean;
   if (!sharedGenerationUpdated && canUseOriginLock) {
-    await withOriginFlushLock(clearPrivateStores);
+    privateStoresCleared = await withOriginFlushLock(clearPrivateStores);
   } else {
-    await clearPrivateStores();
+    privateStoresCleared = await clearPrivateStores();
   }
   const postClearGenerationUpdated = invalidateQueuedSnapshots();
   if (!postClearGenerationUpdated && canUseOriginLock) {
@@ -804,4 +944,7 @@ export async function purgeOfflineUserData(): Promise<void> {
   }
   state = { pending: 0, syncing: false, lastResult: null };
   emit();
+  if (!privateStoresCleared) {
+    throw new Error("Offline private data could not be cleared");
+  }
 }

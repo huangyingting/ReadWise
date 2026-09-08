@@ -23,6 +23,7 @@ import {
   type OfflineMutationGeneration,
   type SubmitResult,
 } from "@/lib/offline/sync-runtime";
+import { OFFLINE_ACTOR_HEADER } from "@/lib/offline-sync";
 import type {
   Highlight,
   CreateHighlightInput,
@@ -203,7 +204,8 @@ export function useHighlightsApi({
         }
       }
 
-      if (!isOfflineMutationGenerationCurrent(generation)) {
+      const actorId = generation.actorId;
+      if (!actorId || !isOfflineMutationGenerationCurrent(generation)) {
         dispatch({ type: "REVERT_OPTIMISTIC", tempId });
         announce("Failed to save highlight");
         return null;
@@ -211,7 +213,10 @@ export function useHighlightsApi({
       try {
         const res = await fetch(readerHighlightsEndpoint(articleId), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            [OFFLINE_ACTOR_HEADER]: actorId,
+          },
           body: JSON.stringify(input),
         });
         if (!res.ok) {
@@ -260,10 +265,21 @@ export function useHighlightsApi({
         return;
       }
       const generation = captureOfflineMutationGeneration();
+      if (
+        !generation.actorId ||
+        !isOfflineMutationGenerationCurrent(generation)
+      ) {
+        dispatch({ type: "UPDATE", id, patch: { color: prev.color } });
+        announce("Failed to save highlight color");
+        return;
+      }
       try {
         const res = await fetch(highlightEndpoint(id), {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            [OFFLINE_ACTOR_HEADER]: generation.actorId,
+          },
           body: JSON.stringify({ color }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -323,13 +339,24 @@ export function useHighlightsApi({
         return false;
       }
       const generation = captureOfflineMutationGeneration();
+      if (
+        !generation.actorId ||
+        !isOfflineMutationGenerationCurrent(generation)
+      ) {
+        dispatch({ type: "UPDATE", id, patch: { note: prev.note } });
+        announce("Failed to save note");
+        return false;
+      }
       // RW-043 — send the updatedAt we based this edit on so the server can
       // detect a concurrent change and MERGE (never silently drop note text).
       const body = { note, baseUpdatedAt: prev.updatedAt };
       try {
         const res = await fetch(highlightEndpoint(id), {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            [OFFLINE_ACTOR_HEADER]: generation.actorId,
+          },
           body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

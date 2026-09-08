@@ -328,12 +328,19 @@ type MarkArgs = {
   userId: string;
   now?: Date;
   requestTimezone?: string | null;
+  localDate?: string | null;
 };
 
 async function loadLocalTodaySession(
   args: MarkArgs,
   now: Date,
 ): Promise<{ localDate: string; session: TodaySessionView | null }> {
+  if (args.localDate) {
+    return {
+      localDate: args.localDate,
+      session: await getTodaySession(args.userId, args.localDate),
+    };
+  }
   const { localDate } = await resolveLocalDate({
     userId: args.userId,
     requestTimezone: args.requestTimezone,
@@ -409,6 +416,7 @@ export async function syncTodayReadingFromProgress(args: {
   completed: boolean;
   now?: Date;
   requestTimezone?: string | null;
+  localDate?: string | null;
 }): Promise<TodaySessionView | null> {
   if (!args.completed && args.percent < READING_COMPLETION_PERCENT) return null;
   return markTodayReadingComplete({
@@ -416,6 +424,7 @@ export async function syncTodayReadingFromProgress(args: {
     articleId: args.articleId,
     now: args.now,
     requestTimezone: args.requestTimezone,
+    localDate: args.localDate,
   });
 }
 

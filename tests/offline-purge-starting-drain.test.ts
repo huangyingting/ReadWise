@@ -21,19 +21,22 @@ before(() => {
       },
       removeQueuedMutationForGeneration: async () => false,
       updateQueuedMutation: async () => undefined,
+      updateQueuedMutationForGeneration: async () => false,
       countQueuedMutations: async () => queue.length,
+      queuedMutationsBelongTo: async () => false,
       clearQueuedMutations: async () => {
         clearStarted();
         await new Promise<void>((resolve) => {
           releaseClear = resolve;
         });
         queue = [];
+        return true;
       },
     },
   });
   mock.module("../src/lib/offline/article-store", {
     namedExports: {
-      purgeOfflineData: async () => undefined,
+      purgeOfflineData: async () => true,
     },
   });
 });
@@ -56,7 +59,7 @@ function legacyQueued(
   };
 }
 
-test("post-clear generation fences a drain that starts during privacy purge", async () => {
+test("unversioned records are never replayed while privacy purge is clearing", async () => {
   queue = [
     legacyQueued("first", "2026-01-01T00:00:00.000Z"),
     legacyQueued("second", "2026-01-01T00:00:01.000Z"),
@@ -92,39 +95,26 @@ test("post-clear generation fences a drain that starts during privacy purge", as
   });
   clearStarted = notifyClearStarted;
 
-  let releaseFirst!: () => void;
-  const firstGate = new Promise<void>((resolve) => {
-    releaseFirst = resolve;
-  });
   const sent: string[] = [];
   Object.defineProperty(globalThis, "fetch", {
     configurable: true,
     value: async (url: string) => {
       sent.push(url);
-      if (sent.length === 1) await firstGate;
       return new Response(null, { status: 201 });
     },
   });
 
   const runtime = await import("@/lib/offline/sync-runtime");
+  storage.set("readwise:offline-actor-id", "account-a");
+  await runtime.setOfflineSyncActor("account-a");
   const purging = runtime.purgeOfflineUserData();
   await clearHasStarted;
 
   const flushing = runtime.flushOfflineQueue();
-  for (let i = 0; sent.length === 0 && i < 10; i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  assert.deepEqual(sent, ["/api/highlights/first"]);
+  await flushing;
+  assert.deepEqual(sent, []);
 
   releaseClear();
   await purging;
-  releaseFirst();
-  await flushing;
-
-  assert.deepEqual(
-    sent,
-    ["/api/highlights/first"],
-    "the generation published after clearing must stop the retained snapshot",
-  );
   assert.deepEqual(queue, []);
 });

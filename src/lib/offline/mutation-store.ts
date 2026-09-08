@@ -59,6 +59,7 @@ function queuedMutationFromInput(input: EnqueueMutationInput): QueuedMutation {
     createdAt: new Date().toISOString(),
     purgeGeneration: input.purgeGeneration ?? null,
     actorId: input.actorId,
+    queueRevision: 0,
     retryCount: 0,
     status: "pending",
     lastError: null,
@@ -133,7 +134,11 @@ export async function replaceQueuedMutationPayload(
       db.close();
       return false;
     }
-    store.put({ ...existing, payload });
+    store.put({
+      ...existing,
+      payload,
+      queueRevision: (existing.queueRevision ?? 0) + 1,
+    });
     await waitForTransaction(tx);
     db.close();
     return true;
@@ -174,6 +179,8 @@ export async function removeQueuedMutationForGeneration(
   clientMutationId: string,
   purgeGeneration: string | null | undefined,
   actorId: string | undefined,
+  createdAt?: string,
+  queueRevision?: number,
 ): Promise<boolean> {
   if (!isIndexedDbAvailable()) return false;
   try {
@@ -187,7 +194,10 @@ export async function removeQueuedMutationForGeneration(
     if (
       !existing ||
       existing.purgeGeneration !== purgeGeneration ||
-      existing.actorId !== actorId
+      existing.actorId !== actorId ||
+      (createdAt !== undefined && existing.createdAt !== createdAt) ||
+      (queueRevision !== undefined &&
+        existing.queueRevision !== queueRevision)
     ) {
       db.close();
       return false;
@@ -231,6 +241,30 @@ export async function countQueuedMutations(): Promise<number> {
   }
 }
 
+/** Whether every durable row can be safely adopted by the current account. */
+export async function queuedMutationsBelongTo(
+  actorId: string,
+  purgeGeneration: string,
+): Promise<boolean> {
+  if (!isIndexedDbAvailable()) return true;
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_MUTATIONS, "readonly");
+    const records =
+      ((await requestResult(
+        tx.objectStore(STORE_MUTATIONS).getAll(),
+      )) as QueuedMutation[]) ?? [];
+    db.close();
+    return records.every(
+      (record) =>
+        record.actorId === actorId &&
+        record.purgeGeneration === purgeGeneration,
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Apply a partial patch to a queued mutation (status / retryCount / lastError). */
 export async function updateQueuedMutation(
   clientMutationId: string,
@@ -246,12 +280,59 @@ export async function updateQueuedMutation(
         | QueuedMutation
         | undefined) ?? null;
     if (existing) {
-      store.put({ ...existing, ...patch, clientMutationId });
+      store.put({
+        ...existing,
+        ...patch,
+        clientMutationId,
+        queueRevision: (existing.queueRevision ?? 0) + 1,
+      });
     }
     await waitForTransaction(tx);
     db.close();
   } catch {
     // Best-effort.
+  }
+}
+
+/** Update a record only while it still belongs to the inspected owner fence. */
+export async function updateQueuedMutationForGeneration(
+  clientMutationId: string,
+  purgeGeneration: string | null | undefined,
+  actorId: string | undefined,
+  createdAt: string,
+  queueRevision: number | undefined,
+  patch: Partial<QueuedMutation>,
+): Promise<boolean> {
+  if (!isIndexedDbAvailable()) return false;
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_MUTATIONS, "readwrite");
+    const store = tx.objectStore(STORE_MUTATIONS);
+    const existing =
+      ((await requestResult(store.get(clientMutationId))) as
+        | QueuedMutation
+        | undefined) ?? null;
+    if (
+      !existing ||
+      existing.purgeGeneration !== purgeGeneration ||
+      existing.actorId !== actorId ||
+      existing.createdAt !== createdAt ||
+      existing.queueRevision !== queueRevision
+    ) {
+      db.close();
+      return false;
+    }
+    store.put({
+      ...existing,
+      ...patch,
+      clientMutationId,
+      queueRevision: (existing.queueRevision ?? 0) + 1,
+    });
+    await waitForTransaction(tx);
+    db.close();
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -271,16 +352,17 @@ export async function removeQueuedMutation(
   }
 }
 
-/** Clear every queued mutation (used by the sign-out / account purge). */
-export async function clearQueuedMutations(): Promise<void> {
-  if (!isIndexedDbAvailable()) return;
+/** Clear every queued mutation and report whether privacy cleanup completed. */
+export async function clearQueuedMutations(): Promise<boolean> {
+  if (!isIndexedDbAvailable()) return true;
   try {
     const db = await openDb();
     const tx = db.transaction(STORE_MUTATIONS, "readwrite");
     tx.objectStore(STORE_MUTATIONS).clear();
     await waitForTransaction(tx);
     db.close();
+    return true;
   } catch {
-    // Best-effort.
+    return false;
   }
 }

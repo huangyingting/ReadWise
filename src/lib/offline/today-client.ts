@@ -19,9 +19,11 @@ import {
 } from "@/lib/client-fetch";
 import {
   captureOfflineMutationGeneration,
+  isOfflineMutationGenerationCurrent,
   MUTATION_HEADER,
   queueMutation,
 } from "./sync-runtime";
+import { OFFLINE_ACTOR_HEADER } from "@/lib/offline-sync";
 import {
   TODAY_ENDPOINT_BY_TYPE,
   buildTodayIdempotencyKey,
@@ -133,6 +135,12 @@ export async function submitTodayAction<A extends TodayAction>(
   const generation = captureOfflineMutationGeneration();
 
   if (isOnline()) {
+    if (
+      !generation.actorId ||
+      !isOfflineMutationGenerationCurrent(generation)
+    ) {
+      throw new Error("Offline account ownership is unavailable");
+    }
     try {
       const result = await requestJson<TodayActionResultMap[A["type"]]>(
         endpoint,
@@ -141,8 +149,9 @@ export async function submitTodayAction<A extends TodayAction>(
           headers: {
             "Content-Type": "application/json",
             [MUTATION_HEADER]: clientMutationId,
+            [OFFLINE_ACTOR_HEADER]: generation.actorId,
           },
-          body: JSON.stringify({ ...fields, timezone: ctx.timezone }),
+          body: JSON.stringify(queuedBody),
         },
       );
       return { kind: "delivered", result };

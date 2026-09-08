@@ -135,14 +135,38 @@ test("progress body accepts valid IANA timezone and rejects invalid timezone", a
 
   assert.deepEqual(progressBody({ percent: 25 }), {
     ok: true,
-    value: { percent: 25, timezone: undefined },
+    value: { percent: 25, timezone: undefined, localDate: undefined },
   });
   assert.deepEqual(progressBody({ percent: 25, timezone: "America/Los_Angeles" }), {
     ok: true,
-    value: { percent: 25, timezone: "America/Los_Angeles" },
+    value: {
+      percent: 25,
+      timezone: "America/Los_Angeles",
+      localDate: undefined,
+    },
   });
+  assert.deepEqual(
+    progressBody({
+      percent: 25,
+      timezone: "America/Los_Angeles",
+      localDate: "2026-07-18",
+    }),
+    {
+      ok: true,
+      value: {
+        percent: 25,
+        timezone: "America/Los_Angeles",
+        localDate: "2026-07-18",
+      },
+    },
+  );
   const invalid = progressBody({ percent: 25, timezone: "Bogus/Zone" });
   assert.equal(invalid.ok, false);
+  const invalidLocalDate = progressBody({
+    percent: 25,
+    localDate: "2026-02-30",
+  });
+  assert.equal(invalidLocalDate.ok, false);
 });
 
 test("saveProgress never lowers the stored percent (forward-only)", async () => {

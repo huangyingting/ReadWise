@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object } from "@/lib/validation";
-import { optionalTimezoneString } from "@/lib/timezone";
+import {
+  optionalLocalDateString,
+  optionalTimezoneString,
+} from "@/lib/timezone";
 import {
   enforceTodayGate,
   markTodayReadingCompleteManual,
@@ -22,6 +25,7 @@ import {
  */
 const readCompleteBody = object({
   timezone: optionalTimezoneString,
+  localDate: optionalLocalDateString,
 });
 
 type ManualCompletionView = NonNullable<
@@ -50,6 +54,7 @@ export const POST = createHandler(
     const view = await markTodayReadingCompleteManual({
       userId: session.user.id,
       requestTimezone: body.timezone ?? null,
+      localDate: body.localDate ?? null,
     });
 
     return readCompleteResponse(view);

@@ -61,7 +61,9 @@ before(async () => {
       captureOfflineMutationGeneration: () => ({
         local: 0,
         shared: "generation-1",
+        actorId: "user-1",
       }),
+      isOfflineMutationGenerationCurrent: () => true,
       MUTATION_HEADER: "x-client-mutation-id",
       queueMutation: async (spec: QueuedSpec) => {
         queuedSpecs.push(spec);
@@ -120,12 +122,17 @@ test("Today action delivery selects HTTP or queue without leaking adapter choice
   assert.equal(requestCalls.length, 1);
   assert.equal(requestCalls[0].url, "/api/today/skip");
   assert.deepEqual(JSON.parse(String(requestCalls[0].init.body)), {
+    localDate: "2026-07-18",
     skipReason: "too_busy",
     timezone: "UTC",
   });
   assert.equal(
     (requestCalls[0].init.headers as Record<string, string>)["x-client-mutation-id"],
     "today-skip-user-1-2026-07-18",
+  );
+  assert.equal(
+    (requestCalls[0].init.headers as Record<string, string>)["x-offline-actor-id"],
+    "user-1",
   );
   assert.equal(queuedSpecs.length, 0);
 
@@ -153,7 +160,11 @@ test("Today action delivery selects HTTP or queue without leaking adapter choice
       },
       clientMutationId: "today-comp-user-1-2026-07-18",
       dedupeKey: "today-comp-user-1-2026-07-18",
-      generation: { local: 0, shared: "generation-1" },
+      generation: {
+        local: 0,
+        shared: "generation-1",
+        actorId: "user-1",
+      },
     },
   ]);
 });
@@ -183,7 +194,11 @@ test("Today action delivery queues transient failures once and preserves permane
       },
       clientMutationId: "today-read-user-2-2026-07-18",
       dedupeKey: "today-read-user-2-2026-07-18",
-      generation: { local: 0, shared: "generation-1" },
+      generation: {
+        local: 0,
+        shared: "generation-1",
+        actorId: "user-1",
+      },
     },
   ]);
 

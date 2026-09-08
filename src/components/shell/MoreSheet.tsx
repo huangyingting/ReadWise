@@ -10,7 +10,8 @@ import { Badge, Button, Sheet } from "@/components/ui";
 import { SECONDARY_NAV, isActivePath, filterNavForUser } from "./nav-items";
 import ThemeToggle from "./ThemeToggle";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
-import { purgeOfflineUserData } from "@/lib/offline/sync-runtime";
+import { prepareOfflineSignOut } from "@/lib/offline/sync-runtime";
+import { clientErrorMessage } from "@/lib/client-fetch";
 import type { ShellUser } from "./types";
 
 interface MoreSheetProps {
@@ -21,6 +22,7 @@ interface MoreSheetProps {
 
 const ACTION_ROW_CLASS =
   "h-auto w-full justify-start rounded-none border-l-[3px] border-transparent px-[var(--space-6)] py-[var(--space-3)] text-[length:var(--text-base)] font-medium text-text-muted hover:bg-bg-subtle hover:text-text";
+const SIGN_OUT_ERROR = "Could not clear offline data. Sign out was cancelled.";
 
 function getLinkRowClass(active: boolean): string {
   return cn(
@@ -48,12 +50,22 @@ export default function MoreSheet({
 }: MoreSheetProps) {
   const pathname = usePathname();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [signOutBusy, setSignOutBusy] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const isAdmin = user.role === "Admin";
 
   async function handleSignOut() {
-    onClose();
-    await purgeOfflineUserData();
-    await signOut({ callbackUrl: "/" });
+    setSignOutBusy(true);
+    setSignOutError(null);
+    try {
+      await prepareOfflineSignOut();
+      onClose();
+      await signOut({ callbackUrl: "/" });
+    } catch (error) {
+      setSignOutError(clientErrorMessage(error, SIGN_OUT_ERROR));
+    } finally {
+      setSignOutBusy(false);
+    }
   }
 
   return (
@@ -134,11 +146,20 @@ export default function MoreSheet({
             variant="ghost"
             size="lg"
             onClick={handleSignOut}
+            disabled={signOutBusy}
             leadingIcon={<LogOut size={20} aria-hidden />}
             className={cn(ACTION_ROW_CLASS, "text-danger-text hover:text-danger-text")}
           >
-            Sign out
+            {signOutBusy ? "Clearing offline data…" : "Sign out"}
           </Button>
+          {signOutError ? (
+            <p
+              role="alert"
+              className="m-0 px-[var(--space-6)] py-[var(--space-2)] text-[length:var(--text-sm)] text-danger-text"
+            >
+              {signOutError}
+            </p>
+          ) : null}
         </div>
       </Sheet>
 

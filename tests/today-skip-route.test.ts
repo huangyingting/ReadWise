@@ -157,6 +157,21 @@ test("skips the day and reports the browse fallback + promoted backups", async (
   for (const scope of updateScopes) assert.equal(scope.userId, USER_ID);
 });
 
+test("replay skips the queued local date instead of the current day", async () => {
+  const queuedLocalDate = "2026-07-18";
+  sessionRow = makeRow({ localDate: queuedLocalDate });
+  const res = await POST({
+    skipReason: "too_busy",
+    timezone: "UTC",
+    localDate: queuedLocalDate,
+  });
+  assert.equal(res.status, 200);
+  assert.equal(sessionRow.status, "skipped");
+  assert.ok(
+    updateScopes.every((scope) => scope.localDate === queuedLocalDate),
+  );
+});
+
 test("a second skip hits the daily limit and returns the browse fallback", async () => {
   await POST({ skipReason: "too_hard" });
   const res = await POST({ skipReason: "too_easy" });

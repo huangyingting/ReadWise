@@ -42,6 +42,7 @@ mock.module("@/lib/offline/sync-runtime", {
     captureOfflineMutationGeneration: () => ({
       local: 0,
       shared: "generation-1",
+      actorId: "user-1",
     }),
     isOfflineMutationGenerationCurrent: () => true,
     newClientMutationId: () => {

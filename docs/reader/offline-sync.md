@@ -56,7 +56,9 @@ store. Each queued mutation row is:
   method: string,
   payload: unknown,         // JSON payload
   purgeGeneration?: string, // session fence captured before first async work
-  dedupeKey?: string,       // collapses superseded mutations (e.g. "progress:<articleId>")
+  actorId?: string,         // authenticated account that originated the write
+  queueRevision?: number,   // fences completion of an older in-flight snapshot
+  dedupeKey?: string,       // collapses superseded mutations (e.g. "progress:<articleId>:<localDate>")
   dependsOnClientMutationId?: string, // causal predecessor for ordered follow-ups
   dependsOnClientMutationIds?: string[], // all listed predecessors must succeed
   status: "pending" | "syncing" | "failed" | "conflict",
@@ -66,9 +68,10 @@ store. Each queued mutation row is:
 }
 ```
 
-`dedupeKey` lets a newer mutation **replace** a stale queued one (e.g. only the
-latest reading-progress value for an article needs to survive — older percents
-are forward-only-dominated anyway).
+`dedupeKey` lets a newer mutation **replace** a stale queued one. Reading
+progress collapses within one article and browser-local date because older
+percents on that date are forward-only-dominated. Different dates remain
+separate so each queued write can update the correct Today session.
 
 The dependency fields protect causal mutation chains. A dependent row is sent
 only after every referenced predecessor succeeds; if any predecessor fails
@@ -114,6 +117,25 @@ is empty, fencing drains that started during cleanup. New queue records retain
 the generation captured before their first network attempt; stale late
 fallbacks are rejected and stale persisted records are discarded without
 delivery.
+
+Synchronization remains disabled until `OfflineSyncIndicator`, inside the
+NextAuth session provider, establishes the authenticated account. IndexedDB
+mutations are bound to that account and replayed with
+`x-offline-actor-id`; the shared authenticated API wrapper discards a replay
+before route logic when the expected actor does not match the current session.
+Account transitions purge private stores before the new actor is enabled.
+The durable store owner is checked on startup, so a browser reopened under a
+different account cannot inherit offline articles or mutations. Legacy
+unversioned/unowned rows are never replayed. If IndexedDB cleanup or durable
+owner persistence fails, synchronization stays disabled rather than reporting
+a privacy-safe transition.
+
+Offline article rows carry the same `actorId` and purge generation. Reads
+require the durable owner to match, and downloads capture ownership before
+their first network request and re-check it after the IndexedDB commit. A late
+response from a previous account therefore cannot recreate readable private
+content after an account transition. The standalone offline reader applies the
+same owner/generation checks and hides rendered content when either key changes.
 
 IndexedDB `lastError` never receives exception or response prose. It contains
 only client-generated, controlled delivery diagnostics such as `network_error`,
@@ -304,7 +326,7 @@ mirrored there manually and must stay in sync).
 | Constant | Value | Meaning |
 | --- | --- | --- |
 | `OFFLINE_PAYLOAD_VERSION` | `2` | Schema version of the cached article payload. |
-| `SW_CACHE_VERSION` | `"v3"` | Service-worker cache-name suffix. |
+| `SW_CACHE_VERSION` | `"v5"` | Service-worker cache-name suffix. |
 
 `/api/reader/[id]/offline` returns `version` (`OFFLINE_PAYLOAD_VERSION:updatedAt:contentHash`)
 and a `contentHash` (FNV-1a over sanitized content). `?meta=1` returns just the
@@ -338,6 +360,13 @@ client sign-out flows and from the account-deletion flow (`AccountDangerZone`),
 so private/offline content never lingers after a user leaves. Server-side,
 `ReminderPreference` (and all other per-user rows) cascade on account deletion —
 no extra cleanup code needed.
+
+Before cleanup begins, sign-out removes the durable actor and sets a
+cross-tab terminal access fence. Authenticated stale tabs render no private
+content after observing that fence. A successfully signed-out anonymous page
+can still render the public application, but offline writes remain disabled
+because no actor is established; authenticating again performs the ownership
+transition before private offline access resumes.
 
 ---
 

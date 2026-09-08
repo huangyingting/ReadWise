@@ -5,7 +5,10 @@ import { signOut } from "next-auth/react";
 import { clientErrorMessage, deleteJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 import { buttonVariants } from "@/components/ui/Button";
-import { purgeOfflineUserData } from "@/lib/offline/sync-runtime";
+import {
+  disableOfflineUserDataAccess,
+  purgeOfflineUserData,
+} from "@/lib/offline/sync-runtime";
 
 const ACCOUNT_DELETION_ERROR = "Deletion failed";
 
@@ -16,13 +19,25 @@ export default function AccountDangerZone() {
   async function handleDelete() {
     setDeleteBusy(true);
     setDeleteError(null);
+    let accountDeleted = false;
     try {
       await deleteJson("/api/account");
-      // Session is now invalid server-side — purge offline data then sign out.
-      await purgeOfflineUserData();
+      accountDeleted = true;
+      // The server deletion is irreversible. Always end the invalid session,
+      // while hiding any local data immediately if physical cleanup fails.
+      disableOfflineUserDataAccess();
+      try {
+        await purgeOfflineUserData();
+      } catch {
+        // Access is already blocked; a later account activation retries purge.
+      }
       await signOut({ callbackUrl: "/signin" });
     } catch (err) {
-      setDeleteError(clientErrorMessage(err, ACCOUNT_DELETION_ERROR));
+      setDeleteError(
+        accountDeleted
+          ? "The account was deleted, but sign-out did not finish. Reload this page."
+          : clientErrorMessage(err, ACCOUNT_DELETION_ERROR),
+      );
     } finally {
       setDeleteBusy(false);
     }

@@ -11,6 +11,7 @@ import { progressBody } from "@/lib/reader/schemas";
 import { revalidateUserCache } from "@/lib/cache";
 import { syncTodayReadingFromProgress } from "@/lib/engagement/today-session/integrations";
 import { syncAssignmentReadingProgress } from "@/lib/classroom";
+import { dateKey } from "@/lib/engagement/time";
 
 type ProgressWrite = {
   percent: number;
@@ -39,6 +40,7 @@ async function syncTodayReadingProgress(
   articleId: string,
   progress: ProgressWrite,
   timezone?: string | null,
+  localDate?: string | null,
 ) {
   await bestEffortMastery("progress.today_reading", () =>
     syncTodayReadingFromProgress({
@@ -47,6 +49,7 @@ async function syncTodayReadingProgress(
       percent: progress.percent,
       completed: progress.completed,
       requestTimezone: timezone ?? null,
+      localDate: localDate ?? null,
     }),
   );
 }
@@ -55,8 +58,14 @@ export const POST = createHandler(
   { params: idParams, body: progressBody },
   async ({ params, body, session }) => {
     const { article } = await requireReadableArticle(params.id, session.user);
+    const currentLocalDate = dateKey(
+      new Date(),
+      body.timezone ?? "UTC",
+    );
     const progress = await saveProgress(session.user.id, article.id, body.percent, {
       timezone: body.timezone,
+      recordActivity:
+        body.localDate == null || body.localDate === currentLocalDate,
     });
     // Best-effort mastery side-effects — never break the progress write.
     await recordProgressMastery(session.user.id, article.id, progress.percent);
@@ -76,7 +85,13 @@ export const POST = createHandler(
     // Best-effort: advance the learner's active Today session reading step when
     // the primary article reaches the completion threshold. Never breaks the
     // progress write and never mutates ReadingProgress.
-    await syncTodayReadingProgress(session.user.id, article.id, progress, body.timezone);
+    await syncTodayReadingProgress(
+      session.user.id,
+      article.id,
+      progress,
+      body.timezone,
+      body.localDate,
+    );
     // Best-effort: advance any classroom assignments for this article based on
     // reading progress. Uses the cumulative completed flag so a re-read at
     // ≥threshold still reconciles an assignment that wasn't yet synced.

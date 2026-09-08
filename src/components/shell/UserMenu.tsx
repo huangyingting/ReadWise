@@ -8,10 +8,12 @@ import { cn, focusRing } from "@/lib/cn";
 import { Avatar, Button, IconButton, Popover } from "@/components/ui";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import { useKeyboardShortcut } from "@/lib/use-keyboard-shortcut";
-import { purgeOfflineUserData } from "@/lib/offline/sync-runtime";
+import { prepareOfflineSignOut } from "@/lib/offline/sync-runtime";
+import { clientErrorMessage } from "@/lib/client-fetch";
 import type { ShellUser } from "./types";
 
 const FIRST_MENU_ITEM_SELECTOR = '[role="menuitem"]';
+const SIGN_OUT_ERROR = "Could not clear offline data. Sign out was cancelled.";
 
 const menuItemClass = cn(
   "flex items-center gap-[var(--space-2)] w-full text-left",
@@ -27,6 +29,8 @@ const menuButtonClass =
 export default function UserMenu({ user }: { user: ShellUser }) {
   const [open, setOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [signOutBusy, setSignOutBusy] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Global "?" shortcut — open the shortcuts panel when focus is not in a field.
@@ -63,9 +67,17 @@ export default function UserMenu({ user }: { user: ShellUser }) {
   }
 
   async function signOutToHome() {
-    setOpen(false);
-    await purgeOfflineUserData();
-    await signOut({ callbackUrl: "/" });
+    setSignOutBusy(true);
+    setSignOutError(null);
+    try {
+      await prepareOfflineSignOut();
+      setOpen(false);
+      await signOut({ callbackUrl: "/" });
+    } catch (error) {
+      setSignOutError(clientErrorMessage(error, SIGN_OUT_ERROR));
+    } finally {
+      setSignOutBusy(false);
+    }
   }
 
   return (
@@ -150,11 +162,20 @@ export default function UserMenu({ user }: { user: ShellUser }) {
             size="sm"
             role="menuitem"
             onClick={signOutToHome}
+            disabled={signOutBusy}
             leadingIcon={<LogOut size={16} aria-hidden />}
             className={cn(menuButtonClass, "text-text hover:text-danger-text")}
           >
-            Sign out
+            {signOutBusy ? "Clearing offline data…" : "Sign out"}
           </Button>
+          {signOutError ? (
+            <p
+              role="alert"
+              className="m-0 px-[var(--space-4)] py-[var(--space-2)] text-[length:var(--text-xs)] text-danger-text"
+            >
+              {signOutError}
+            </p>
+          ) : null}
         </div>
       </Popover>
 

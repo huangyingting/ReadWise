@@ -27,14 +27,14 @@ function updatedAtEpoch(updatedAt: Date | string | number | null | undefined): n
  * Format version of the stored offline article payload. Bump when the shape of
  * the cached record changes so old records are treated as stale and refreshed.
  */
-export const OFFLINE_PAYLOAD_VERSION = 2;
+export const OFFLINE_PAYLOAD_VERSION = 3;
 
 /**
  * Service worker runtime cache version. MUST be kept in sync with the
  * `CACHE_VERSION` constant in `public/sw.js` (the SW can't import this module).
  * Bumping it makes the SW drop every older runtime cache on activate.
  */
-export const SW_CACHE_VERSION = "v4";
+export const SW_CACHE_VERSION = "v5";
 
 /** The runtime cache name derived from {@link SW_CACHE_VERSION}. */
 export const SW_CACHE_PREFIX = "readwise-";

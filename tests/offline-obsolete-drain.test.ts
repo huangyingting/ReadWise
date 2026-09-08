@@ -18,6 +18,7 @@ before(() => {
           payload: input.payload,
           createdAt: new Date().toISOString(),
           purgeGeneration: input.purgeGeneration ?? null,
+          actorId: input.actorId,
           retryCount: 0,
           status: "pending",
           lastError: null,
@@ -40,26 +41,31 @@ before(() => {
       removeQueuedMutationForGeneration: async (
         clientMutationId: string,
         generation: string | null | undefined,
+        actorId: string | undefined,
       ) => {
         const existing = queue.find(
           (mutation) =>
             mutation.clientMutationId === clientMutationId &&
-            mutation.purgeGeneration === generation,
+            mutation.purgeGeneration === generation &&
+            mutation.actorId === actorId,
         );
         if (!existing) return false;
         queue = queue.filter((mutation) => mutation !== existing);
         return true;
       },
       updateQueuedMutation: async () => undefined,
+      updateQueuedMutationForGeneration: async () => false,
       countQueuedMutations: async () => queue.length,
+      queuedMutationsBelongTo: async () => false,
       clearQueuedMutations: async () => {
         queue = [];
+        return true;
       },
     },
   });
   mock.module("../src/lib/offline/article-store", {
     namedExports: {
-      purgeOfflineData: async () => undefined,
+      purgeOfflineData: async () => true,
     },
   });
 });
@@ -91,6 +97,8 @@ test("an obsolete drain cannot delete newly queued current-account mutations", a
   });
 
   const runtime = await import("@/lib/offline/sync-runtime");
+  storage.set("readwise:offline-actor-id", "account-a");
+  await runtime.setOfflineSyncActor("account-a");
   const oldGeneration = runtime.captureOfflineMutationGeneration();
   queue = [
     {
@@ -101,6 +109,7 @@ test("an obsolete drain cannot delete newly queued current-account mutations", a
       payload: { localDate: "2026-09-08", timezone: "UTC" },
       createdAt: "2026-01-01T00:00:00.000Z",
       purgeGeneration: oldGeneration.shared,
+      actorId: oldGeneration.actorId ?? undefined,
       retryCount: 0,
       status: "pending",
       lastError: null,
@@ -128,14 +137,14 @@ test("an obsolete drain cannot delete newly queued current-account mutations", a
   }
   assert.deepEqual(sent, ["/api/today/read-complete"]);
 
-  await runtime.purgeOfflineUserData();
+  await runtime.setOfflineSyncActor("account-b");
   const newGeneration = runtime.captureOfflineMutationGeneration();
   const queued = await runtime.queueMutation({
     type: "highlight.create",
     endpoint: "/api/reader/article-1/highlights",
     method: "POST",
     body: { note: "account B note" },
-    clientMutationId: "new-account-highlight",
+    clientMutationId: "old-today",
     generation: newGeneration,
   });
   assert.deepEqual(queued, { sent: false, queued: true });
@@ -146,6 +155,6 @@ test("an obsolete drain cannot delete newly queued current-account mutations", a
   assert.deepEqual(sent, ["/api/today/read-complete"]);
   assert.deepEqual(
     queue.map((mutation) => mutation.clientMutationId),
-    ["new-account-highlight"],
+    ["old-today"],
   );
 });

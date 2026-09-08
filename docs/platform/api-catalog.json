@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T04:57:51.083Z",
+  "generatedAt": "2026-09-08T12:38:01.554Z",
   "routeCount": 140,
   "methodCount": 172,
   "routes": [
@@ -3890,6 +3890,7 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": [
+            "localDate",
             "questionId",
             "remediationViewed",
             "selectedIndex",
@@ -3920,6 +3921,7 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": [
+            "localDate",
             "timezone"
           ]
         }
@@ -4001,6 +4003,7 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": [
+            "localDate",
             "skipReason",
             "timezone"
           ]

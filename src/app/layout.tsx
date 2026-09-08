@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/config";
 import { Inter, Space_Grotesk, Literata } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
 import ClientErrorReporter from "@/components/ClientErrorReporter";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
-import OfflineSyncIndicator from "@/components/OfflineSyncIndicator";
 import {
   TITLE_TEMPLATE,
   SITE_DEFAULT_TITLE,
@@ -84,13 +85,13 @@ type RootLayoutProps = {
   children: ReactNode;
 };
 
-function AppRuntime({ children }: RootLayoutProps) {
+async function AppRuntime({ children }: RootLayoutProps) {
+  const session = await getServerSession(authOptions);
   return (
     <>
       <ClientErrorReporter />
       <ServiceWorkerRegister />
-      <OfflineSyncIndicator />
-      <Providers>{children}</Providers>
+      <Providers session={session}>{children}</Providers>
     </>
   );
 }

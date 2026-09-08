@@ -2,13 +2,15 @@
 
 import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 import { Pencil, Check, X } from "lucide-react";
-import { patchJson } from "@/lib/client-fetch";
+import { requestJson } from "@/lib/client-fetch";
 import { Button, IconButton, Textarea, Tooltip } from "@/components/ui";
 import {
   captureOfflineMutationGeneration,
+  isOfflineMutationGenerationCurrent,
   submitMutation,
   type OfflineMutationGeneration,
 } from "@/lib/offline/sync-runtime";
+import { OFFLINE_ACTOR_HEADER } from "@/lib/offline-sync";
 
 interface Props {
   highlightId: string;
@@ -72,7 +74,20 @@ export default function InlineNoteEditor({
     setSaving(true);
     setSaveError(null);
     try {
-      await patchJson(endpoint, { note: payload });
+      if (
+        !generation.actorId ||
+        !isOfflineMutationGenerationCurrent(generation)
+      ) {
+        throw new Error("Offline account ownership is unavailable");
+      }
+      await requestJson(endpoint, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          [OFFLINE_ACTOR_HEADER]: generation.actorId,
+        },
+        body: JSON.stringify({ note: payload }),
+      });
       setNote(trimmed);
       setEditing(false);
     } catch {

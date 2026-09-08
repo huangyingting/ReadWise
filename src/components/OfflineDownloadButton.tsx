@@ -17,6 +17,7 @@ import { Download, Check, Trash2, WifiOff } from "lucide-react";
 import { Button, PanelError, Tooltip } from "@/components/ui";
 import { clientErrorMessage, getJson } from "@/lib/client-fetch";
 import {
+  captureOfflineArticleOwnership,
   saveOfflineArticle,
   removeOfflineArticle,
   isArticleOffline,
@@ -49,12 +50,14 @@ export default function OfflineDownloadButton({
    * deleted (404), drop the stale offline copy. Best-effort and offline-safe.
    */
   const revalidateCachedCopy = useCallback(async () => {
+    const ownership = captureOfflineArticleOwnership();
+    if (!ownership) return;
     try {
       const stored = await getOfflineArticleVersion(articleId);
       // binary/offline content: response may not be JSON; routed through raw fetch
       const res = await fetch(offlineArticleUrl(articleId, true));
       if (res.status === 404) {
-        await removeOfflineArticle(articleId);
+        await removeOfflineArticle(articleId, ownership);
         setState("idle");
         return;
       }
@@ -64,7 +67,7 @@ export default function OfflineDownloadButton({
         const full = await fetch(offlineArticleUrl(articleId));
         if (full.ok) {
           const data = (await full.json()) as Omit<OfflineArticle, "savedAt">;
-          await saveOfflineArticle(data);
+          await saveOfflineArticle(data, ownership);
         }
       }
     } catch {
@@ -106,6 +109,10 @@ export default function OfflineDownloadButton({
     setState("loading");
     setError(null);
     try {
+      const ownership = captureOfflineArticleOwnership();
+      if (!ownership) {
+        throw new Error("Offline account ownership is unavailable");
+      }
       // Cap check — warn before the last download uses the cap.
       const all = await getAllOfflineArticles();
       if (all.length >= MAX_OFFLINE_ARTICLES) {
@@ -119,7 +126,9 @@ export default function OfflineDownloadButton({
       const data = await getJson<Omit<OfflineArticle, "savedAt">>(
         offlineArticleUrl(articleId),
       );
-      await saveOfflineArticle(data);
+      if (!(await saveOfflineArticle(data, ownership))) {
+        throw new Error("Offline article ownership changed during download");
+      }
       setState("saved");
     } catch (err) {
       setError(clientErrorMessage(err, "Download failed"));

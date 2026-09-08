@@ -135,6 +135,20 @@ test("marks the current primary read and reports completion state", async () => 
   assert.ok(sessionRow.readingCompletedAt instanceof Date, "reading timestamp persisted");
 });
 
+test("replay completes the queued local date instead of the current day", async () => {
+  const queuedLocalDate = "2026-07-18";
+  sessionRow = makeRow({
+    localDate: queuedLocalDate,
+    primaryArticleId: "a1",
+  });
+  const res = await POST({
+    timezone: "UTC",
+    localDate: queuedLocalDate,
+  });
+  assert.equal(res.status, 200);
+  assert.ok(sessionRow.readingCompletedAt instanceof Date);
+});
+
 test("returns updated:false when there is no Today session", async () => {
   sessionRow = null;
   const res = await POST({});

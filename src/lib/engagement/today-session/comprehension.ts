@@ -223,6 +223,7 @@ export async function loadTodayComprehensionCheck(args: {
 export type SubmitTodayComprehensionArgs = {
   userId: string;
   requestTimezone?: string | null;
+  localDate?: string | null;
   now?: Date;
   /** Required controlled self-rating. */
   selfRating: ComprehensionSelfRating;
@@ -427,11 +428,15 @@ export async function submitTodayComprehension(
   args: SubmitTodayComprehensionArgs,
 ): Promise<TodayComprehensionResult | null> {
   const now = args.now ?? new Date();
-  const { localDate } = await resolveLocalDate({
-    userId: args.userId,
-    requestTimezone: args.requestTimezone,
-    now,
-  });
+  const localDate =
+    args.localDate ??
+    (
+      await resolveLocalDate({
+        userId: args.userId,
+        requestTimezone: args.requestTimezone,
+        now,
+      })
+    ).localDate;
   const session = await getTodaySession(args.userId, localDate);
   if (!session || !session.primaryArticleId) return null;
   const articleId = session.primaryArticleId;
@@ -449,6 +454,7 @@ export async function submitTodayComprehension(
     articleId,
     now,
     requestTimezone: args.requestTimezone,
+    localDate,
     selfRating: args.selfRating,
   });
 
