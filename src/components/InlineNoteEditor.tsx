@@ -4,7 +4,11 @@ import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { patchJson } from "@/lib/client-fetch";
 import { Button, IconButton, Textarea, Tooltip } from "@/components/ui";
-import { submitMutation } from "@/lib/offline/sync-runtime";
+import {
+  captureOfflineMutationGeneration,
+  submitMutation,
+  type OfflineMutationGeneration,
+} from "@/lib/offline/sync-runtime";
 
 interface Props {
   highlightId: string;
@@ -19,14 +23,20 @@ function normalizeNote(draft: string): { trimmed: string; payload: string | null
   return { trimmed, payload: trimmed || null };
 }
 
-function queueNoteEdit(highlightId: string, note: string | null) {
-  void submitMutation({
+async function queueNoteEdit(
+  highlightId: string,
+  note: string | null,
+  generation: OfflineMutationGeneration,
+): Promise<boolean> {
+  const result = await submitMutation({
     type: "highlight.note",
     endpoint: `/api/highlights/${highlightId}`,
     method: "PATCH",
     body: { note },
     dedupeKey: `hl-note:${highlightId}`,
+    generation,
   });
+  return result.sent || result.queued;
 }
 
 export default function InlineNoteEditor({
@@ -38,10 +48,12 @@ export default function InlineNoteEditor({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const startEdit = useCallback(() => {
     setDraft(note);
+    setSaveError(null);
     setEditing(true);
     setTimeout(() => textareaRef.current?.focus(), 0);
   }, [note]);
@@ -49,21 +61,32 @@ export default function InlineNoteEditor({
   const cancel = useCallback(() => {
     setEditing(false);
     setDraft(note);
+    setSaveError(null);
   }, [note]);
 
   const save = useCallback(async () => {
+    const generation = captureOfflineMutationGeneration();
     const { trimmed, payload } = normalizeNote(draft);
     const endpoint = `/api/highlights/${highlightId}`;
 
     setSaving(true);
+    setSaveError(null);
     try {
       await patchJson(endpoint, { note: payload });
       setNote(trimmed);
       setEditing(false);
     } catch {
-      // Offline / network failure — queue the note edit and keep it locally so
-      // the user's text is never lost (RW-042). Server uses last-write-wins.
-      queueNoteEdit(highlightId, payload);
+      const queued = await queueNoteEdit(
+        highlightId,
+        payload,
+        generation,
+      );
+      if (!queued) {
+        setSaveError(
+          "Could not save this note offline. Keep this page open and try again.",
+        );
+        return;
+      }
       setNote(trimmed);
       setEditing(false);
     } finally {
@@ -85,7 +108,10 @@ export default function InlineNoteEditor({
         <Textarea
           ref={textareaRef}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setSaveError(null);
+          }}
           onKeyDown={onKeyDown}
           maxLength={maxLength}
           rows={3}
@@ -116,6 +142,14 @@ export default function InlineNoteEditor({
             {NOTE_SAVE_HINT}
           </span>
         </div>
+        {saveError ? (
+          <p
+            role="alert"
+            className="mt-[var(--space-1)] text-[length:var(--text-xs)] text-danger"
+          >
+            {saveError}
+          </p>
+        ) : null}
       </div>
     );
   }

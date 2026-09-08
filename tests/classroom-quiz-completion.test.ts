@@ -79,8 +79,8 @@ test("student assignment context exposes archived classroom state for route reje
   assert.equal(args.where.id, "asgn-archived");
   assert.deepEqual(args.where.classroom.members.some, { userId: "student-1" });
   assert.deepEqual(args.where.AND[0].OR, [
-    { targets: { none: {} } },
-    { targets: { some: { studentId: "student-1" } } },
+    { wholeClass: true },
+    { wholeClass: false, targets: { some: { studentId: "student-1" } } },
   ]);
   assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
   assert.equal(args.select.classroom.select.archivedAt, true);
@@ -106,8 +106,8 @@ test("scopes the assignment lookup to classrooms the student is enrolled in", as
   assert.equal(args.where.classroom.archivedAt, null);
   assert.deepEqual(args.where.classroom.members.some, { userId: "student-1" });
   assert.deepEqual(args.where.AND[0].OR, [
-    { targets: { none: {} } },
-    { targets: { some: { studentId: "student-1" } } },
+    { wholeClass: true },
+    { wholeClass: false, targets: { some: { studentId: "student-1" } } },
   ]);
   assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });
@@ -123,8 +123,8 @@ test("non-targeted student context returns null when the visibility seam exclude
     };
   };
   assert.deepEqual(args.where.AND[0].OR, [
-    { targets: { none: {} } },
-    { targets: { some: { studentId: "student-2" } } },
+    { wholeClass: true },
+    { wholeClass: false, targets: { some: { studentId: "student-2" } } },
   ]);
   assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });

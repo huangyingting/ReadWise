@@ -519,6 +519,24 @@ test("word-review: large set requires at least 5 reviewed targets", async () => 
   assert.equal(view!.completionTier, "full");
 });
 
+test("word-review: four effective targets require four reviews", async () => {
+  const { markTodayWordReviewComplete } = await importCompletion();
+  const ids = ["w1", "w2", "w3", "w4"];
+  sessionRow = makeReviewReadyRow({
+    targetSavedWordIds: ids,
+    reviewTargetCount: ids.length,
+  });
+  savedWords = ids.map((id) => ({
+    id,
+    userId: "u1",
+    lastReviewedAt: REVIEWED_AT,
+  }));
+
+  const view = await markTodayWordReviewComplete({ userId: "u1", now: NOW });
+  assert.ok(view!.wordReviewCompletedAt, "4/4 meets the effective target threshold");
+  assert.equal(view!.completionTier, "full");
+});
+
 test("word-review: non-target reviewed words do not complete Today review", async () => {
   const { markTodayWordReviewComplete } = await importCompletion();
   sessionRow = makeReviewReadyRow({

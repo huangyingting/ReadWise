@@ -22,6 +22,7 @@ import {
   isPermanentlyFailed,
   MAX_MUTATION_RETRIES,
   OFFLINE_NETWORK_ERROR,
+  OFFLINE_ACTOR_HEADER,
   type FlushDeps,
   type FlushResult,
   type QueuedMutation,
@@ -33,6 +34,9 @@ import {
   updateQueuedMutation,
   countQueuedMutations,
   clearQueuedMutations,
+  discardQueuedMutation,
+  replaceQueuedMutationPayload,
+  removeQueuedMutationForGeneration,
 } from "./mutation-store";
 import {
   isTodayMutationType,
@@ -41,7 +45,7 @@ import {
   isValidTimezoneString,
 } from "./registry";
 import { purgeOfflineData } from "./article-store";
-import { STORAGE_KEYS } from "@/lib/storage-keys";
+import { STORAGE_KEYS, lsGet, lsSet } from "@/lib/storage-keys";
 
 /** Header carrying the idempotency key to the server on every send. */
 export const MUTATION_HEADER = "x-client-mutation-id";
@@ -52,6 +56,19 @@ const SW_FLUSH_MESSAGE = STORAGE_KEYS.SW_FLUSH_QUEUE;
 const BODYLESS_METHODS = new Set(["GET", "DELETE"]);
 const SUCCESS_STATUS_MIN = 200;
 const SUCCESS_STATUS_MAX_EXCLUSIVE = 300;
+const FLUSH_LOCK_NAME = "readwise-offline-queue-flush";
+let localPurgeGeneration = 0;
+let currentOfflineActorId: string | null = null;
+let offlineActorInitialized = false;
+let offlineActorReady = false;
+
+type PurgeGeneration = {
+  local: number;
+  shared: string | null;
+  actorId: string | null;
+};
+
+export type OfflineMutationGeneration = Readonly<PurgeGeneration>;
 
 export interface MutationSpec {
   type: string;
@@ -60,6 +77,10 @@ export interface MutationSpec {
   body?: unknown;
   /** Optional collapse key (see {@link enqueueMutation}). */
   dedupeKey?: string;
+  /** Causal predecessor that must be delivered before this mutation. */
+  dependsOnClientMutationId?: string;
+  /** Causal predecessors that must all be delivered before this mutation. */
+  dependsOnClientMutationIds?: string[];
   /**
    * Optional caller-supplied idempotency key. When omitted a fresh one is
    * generated. Supply it when the SAME logical mutation may be attempted both
@@ -68,6 +89,8 @@ export interface MutationSpec {
    * apply (e.g. a quiz attempt).
    */
   clientMutationId?: string;
+  /** Generation captured before any caller-managed network attempt. */
+  generation?: OfflineMutationGeneration;
 }
 
 export interface SubmitResult {
@@ -171,11 +194,80 @@ export function newClientMutationId(): string {
   return newMutationId();
 }
 
+function readPurgeGeneration(): PurgeGeneration {
+  return {
+    local: localPurgeGeneration,
+    shared: lsGet(STORAGE_KEYS.OFFLINE_PURGE_GENERATION),
+    actorId: currentOfflineActorId,
+  };
+}
+
+export function captureOfflineMutationGeneration(): OfflineMutationGeneration {
+  const current = readPurgeGeneration();
+  if (current.shared !== null || typeof window === "undefined") {
+    return current;
+  }
+  const token = `${newMutationId()}:${Date.now()}:${localPurgeGeneration}`;
+  lsSet(STORAGE_KEYS.OFFLINE_PURGE_GENERATION, token);
+  return {
+    local: localPurgeGeneration,
+    shared:
+      lsGet(STORAGE_KEYS.OFFLINE_PURGE_GENERATION) === token
+        ? token
+        : null,
+    actorId: current.actorId,
+  };
+}
+
+function isCurrentPurgeGeneration(expected: PurgeGeneration): boolean {
+  const current = readPurgeGeneration();
+  return (
+    offlineActorReady &&
+    current.local === expected.local &&
+    current.shared === expected.shared &&
+    current.actorId === expected.actorId
+  );
+}
+
+export function isOfflineMutationGenerationCurrent(
+  expected: OfflineMutationGeneration,
+): boolean {
+  return isCurrentPurgeGeneration(expected);
+}
+
+function invalidateQueuedSnapshots(): boolean {
+  localPurgeGeneration += 1;
+  const token = `${newMutationId()}:${Date.now()}:${localPurgeGeneration}`;
+  lsSet(STORAGE_KEYS.OFFLINE_PURGE_GENERATION, token);
+  return lsGet(STORAGE_KEYS.OFFLINE_PURGE_GENERATION) === token;
+}
+
+/**
+ * Establish the authenticated owner of browser-side offline data. The first
+ * resolved session preserves same-account queued work across reloads; every
+ * later account transition purges private stores before syncing is re-enabled.
+ */
+export async function setOfflineSyncActor(actorId: string | null): Promise<void> {
+  if (!offlineActorInitialized) {
+    offlineActorInitialized = true;
+    currentOfflineActorId = actorId;
+    offlineActorReady = actorId !== null;
+    return;
+  }
+  if (currentOfflineActorId === actorId) return;
+
+  currentOfflineActorId = actorId;
+  offlineActorReady = false;
+  await purgeOfflineUserData();
+  offlineActorReady = actorId !== null;
+}
+
 async function sendRequest(
   endpoint: string,
   method: string,
   payload: unknown,
   clientMutationId: string,
+  actorId: string | null,
 ): Promise<{ status: number }> {
   const hasBody = payload != null && !BODYLESS_METHODS.has(method);
   const res = await fetch(endpoint, {
@@ -183,6 +275,7 @@ async function sendRequest(
     headers: {
       "Content-Type": "application/json",
       [MUTATION_HEADER]: clientMutationId,
+      ...(actorId ? { [OFFLINE_ACTOR_HEADER]: actorId } : {}),
     },
     body: hasBody ? JSON.stringify(payload) : undefined,
   });
@@ -197,7 +290,18 @@ function sendQueuedMutation(
     mutation.method,
     mutation.payload,
     mutation.clientMutationId,
+    mutation.actorId ?? null,
   );
+}
+
+function sendQueuedMutationForGeneration(
+  generation: PurgeGeneration,
+  mutation: QueuedMutation,
+): Promise<{ status: number }> {
+  if (!isCurrentPurgeGeneration(generation)) {
+    throw new Error("Offline queue invalidated by privacy purge");
+  }
+  return sendQueuedMutation(mutation);
 }
 
 /**
@@ -209,6 +313,11 @@ function sendQueuedMutation(
 export async function submitMutation(
   spec: MutationSpec,
 ): Promise<SubmitResult> {
+  const generation =
+    spec.generation ?? captureOfflineMutationGeneration();
+  if (!isCurrentPurgeGeneration(generation)) {
+    return { sent: false, queued: false };
+  }
   const clientMutationId = spec.clientMutationId ?? newMutationId();
   const method = spec.method ?? "POST";
   const payload = spec.body ?? null;
@@ -220,6 +329,7 @@ export async function submitMutation(
         method,
         payload,
         clientMutationId,
+        generation.actorId,
       );
       const outcome = classifyStatus(status);
       if (outcome === "success") return { sent: true, queued: false, status };
@@ -230,7 +340,7 @@ export async function submitMutation(
     }
   }
 
-  return queueMutation({ ...spec, clientMutationId });
+  return queueMutation({ ...spec, clientMutationId, generation });
 }
 
 /**
@@ -242,24 +352,58 @@ export async function submitMutation(
 export async function queueMutation(
   spec: MutationSpec,
 ): Promise<SubmitResult> {
+  const generation =
+    spec.generation ?? captureOfflineMutationGeneration();
+  if (
+    !isCurrentPurgeGeneration(generation) ||
+    (typeof window !== "undefined" && generation.shared === null)
+  ) {
+    return { sent: false, queued: false };
+  }
   const clientMutationId = spec.clientMutationId ?? newMutationId();
   const method = spec.method ?? "POST";
   const payload = spec.body ?? null;
 
-  await enqueueMutation({
+  const queued = await enqueueMutation({
     clientMutationId,
     type: spec.type,
     endpoint: spec.endpoint,
     method,
     payload,
+    purgeGeneration: generation.shared,
+    actorId: generation.actorId ?? undefined,
     dedupeKey: spec.dedupeKey ?? null,
+    dependsOnClientMutationId: spec.dependsOnClientMutationId ?? null,
+    dependsOnClientMutationIds: spec.dependsOnClientMutationIds ?? null,
   });
   await refreshPending();
+  if (!queued) return { sent: false, queued: false };
+  if (!isCurrentPurgeGeneration(generation)) {
+    await discardPendingMutation(clientMutationId);
+    return { sent: false, queued: false };
+  }
   // The mutation is durable once IndexedDB and the pending-state refresh
   // complete. Service-worker readiness is optional and may never settle, so it
   // must not hold the caller's queued acknowledgement (or UI busy state) open.
   void requestBackgroundSync();
   return { sent: false, queued: true };
+}
+
+/** Update a not-yet-delivered mutation without exposing the IndexedDB store. */
+export async function replacePendingMutationBody(
+  clientMutationId: string,
+  body: unknown,
+): Promise<boolean> {
+  return replaceQueuedMutationPayload(clientMutationId, body);
+}
+
+/** Cancel a not-yet-delivered mutation and refresh the public pending count. */
+export async function discardPendingMutation(
+  clientMutationId: string,
+): Promise<boolean> {
+  const discarded = await discardQueuedMutation(clientMutationId);
+  if (discarded) await refreshPending();
+  return discarded;
 }
 
 // ---------------------------------------------------------------------------
@@ -419,23 +563,60 @@ async function retryOrFail(
 // Flushing
 // ---------------------------------------------------------------------------
 
-function flushDeps(): FlushDeps {
+function isMutationFromGeneration(
+  mutation: QueuedMutation,
+  generation: PurgeGeneration,
+): boolean {
+  return (
+    generation.actorId !== null &&
+    mutation.purgeGeneration === generation.shared &&
+    mutation.actorId === generation.actorId
+  );
+}
+
+async function currentQueuedMutations(
+  generation: PurgeGeneration,
+): Promise<QueuedMutation[]> {
+  if (!isCurrentPurgeGeneration(generation)) return [];
+  const mutations = await listQueuedMutations();
+  if (!isCurrentPurgeGeneration(generation)) return [];
+  const current: QueuedMutation[] = [];
+  for (const mutation of mutations) {
+    if (!isCurrentPurgeGeneration(generation)) return [];
+    if (isMutationFromGeneration(mutation, generation)) {
+      current.push(mutation);
+    } else {
+      await removeQueuedMutationForGeneration(
+        mutation.clientMutationId,
+        mutation.purgeGeneration,
+        mutation.actorId,
+      );
+    }
+  }
+  return current;
+}
+
+function flushDeps(generation: PurgeGeneration): FlushDeps {
   return {
     // The generic engine handles every NON-Today mutation; Today mutations are
     // drained separately by `replayTodayMutations` so a 409 becomes a conflict
     // (not a resolved no-op as `classifyStatus` would otherwise treat it).
     list: async () =>
-      (await listQueuedMutations()).filter((m) => !isTodayMutationType(m.type)),
-    send: sendQueuedMutation,
+      (await currentQueuedMutations(generation)).filter(
+        (m) => !isTodayMutationType(m.type),
+      ),
+    send: (mutation) =>
+      sendQueuedMutationForGeneration(generation, mutation),
     remove: (id) => removeQueuedMutation(id),
     update: (id, patch) => updateQueuedMutation(id, patch),
   };
 }
 
 /** Browser-wired deps for the Today replay handler. */
-function todayReplayDeps(): TodayReplayDeps {
+function todayReplayDeps(generation: PurgeGeneration): TodayReplayDeps {
   return {
-    send: sendQueuedMutation,
+    send: (mutation) =>
+      sendQueuedMutationForGeneration(generation, mutation),
     remove: (id) => removeQueuedMutation(id),
     update: (id, patch) => updateQueuedMutation(id, patch),
     onConflict: (info) => notifyTodayConflict(info),
@@ -443,11 +624,15 @@ function todayReplayDeps(): TodayReplayDeps {
 }
 
 /** Replay all queued Today mutations (FIFO), skipping terminal ones. */
-async function replayTodayMutations(): Promise<void> {
+async function replayTodayMutations(
+  generation: PurgeGeneration,
+): Promise<void> {
   const todayMutations = sortQueue(
-    (await listQueuedMutations()).filter((m) => isTodayMutationType(m.type)),
+    (await currentQueuedMutations(generation)).filter((m) =>
+      isTodayMutationType(m.type),
+    ),
   );
-  const deps = todayReplayDeps();
+  const deps = todayReplayDeps(generation);
   for (const mutation of todayMutations) {
     if (isTerminalQueuedMutation(mutation)) continue;
     await todayMutationReplayHandler(mutation, deps);
@@ -460,20 +645,43 @@ function isTerminalQueuedMutation(mutation: QueuedMutation): boolean {
 
 let flushing: Promise<FlushResult> | null = null;
 
-/** Drain the offline queue. Concurrent calls share the in-flight pass. */
+export async function withOriginFlushLock<T>(
+  work: () => Promise<T>,
+): Promise<T> {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return work();
+  }
+  if (typeof navigator.locks?.request !== "function") {
+    throw new Error("Origin-wide offline queue locking is unavailable");
+  }
+  return navigator.locks.request(
+    FLUSH_LOCK_NAME,
+    { mode: "exclusive" },
+    work,
+  );
+}
+
+/**
+ * Drain the offline queue. Calls in this tab share the in-flight pass, while
+ * the origin-wide Web Lock serializes separate tabs before either reads the
+ * shared IndexedDB queue.
+ */
 export async function flushOfflineQueue(): Promise<FlushResult> {
   if (flushing) return flushing;
   state = { ...state, syncing: true };
   emit();
   flushing = (async () => {
     try {
-      // Today mutations first (conflict-aware), then the generic engine.
-      await replayTodayMutations();
-      const result = await flushQueue(flushDeps());
-      const remaining = await countQueuedMutations();
-      state = { pending: remaining, syncing: false, lastResult: result };
-      emit();
-      return { ...result, remaining };
+      return await withOriginFlushLock(async () => {
+        const generation = readPurgeGeneration();
+        // Today mutations first (conflict-aware), then the generic engine.
+        await replayTodayMutations(generation);
+        const result = await flushQueue(flushDeps(generation));
+        const remaining = await countQueuedMutations();
+        state = { pending: remaining, syncing: false, lastResult: result };
+        emit();
+        return { ...result, remaining };
+      });
     } catch {
       const fallback = emptyFlushResult(await countQueuedMutations());
       state = { ...state, syncing: false };
@@ -554,21 +762,42 @@ export function registerOfflineSync(): void {
  * or after account deletion so private content never lingers on a shared device.
  */
 export async function purgeOfflineUserData(): Promise<void> {
-  try {
-    await clearQueuedMutations();
-  } catch {
-    // ignore
+  const sharedGenerationUpdated = invalidateQueuedSnapshots();
+  const clearPrivateStores = async () => {
+    try {
+      await clearQueuedMutations();
+    } catch {
+      // ignore
+    }
+    try {
+      await purgeOfflineData();
+    } catch {
+      // ignore
+    }
+  };
+  const canUseOriginLock =
+    typeof window !== "undefined" &&
+    typeof navigator !== "undefined" &&
+    typeof navigator.locks?.request === "function";
+  if (!sharedGenerationUpdated && canUseOriginLock) {
+    await withOriginFlushLock(clearPrivateStores);
+  } else {
+    await clearPrivateStores();
   }
-  try {
-    await purgeOfflineData();
-  } catch {
-    // ignore
+  const postClearGenerationUpdated = invalidateQueuedSnapshots();
+  if (!postClearGenerationUpdated && canUseOriginLock) {
+    await withOriginFlushLock(async () => undefined);
   }
   // Ask the service worker to drop its runtime caches too.
   if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
     try {
-      const reg = await navigator.serviceWorker.ready;
-      reg.active?.postMessage({ type: STORAGE_KEYS.SW_PURGE_CACHES });
+      const container = navigator.serviceWorker;
+      const active =
+        container.controller ??
+        (typeof container.getRegistration === "function"
+          ? (await container.getRegistration())?.active
+          : null);
+      active?.postMessage({ type: STORAGE_KEYS.SW_PURGE_CACHES });
     } catch {
       // ignore
     }

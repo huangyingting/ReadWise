@@ -86,13 +86,13 @@ Apple-specific icons (`apple-touch-icon`, 180 × 180) are declared in the root `
 
 ## 3. Service worker and caching strategy
 
-`public/sw.js` (cache version `v3`, name `readwise-v3`) implements:
+`public/sw.js` (cache version `v4`, name `readwise-v4`) implements:
 
 | Request type | Strategy |
 |--------------|----------|
 | `/_next/static/**` | Cache-first (versioned, immutable) |
-| HTML navigations | Network-first; falls back to `/offline.html` on failure |
-| `/reader/**` HTML | Network-first; falls back to `/offline-reader.html` on failure |
+| HTML navigations | Network-only; rendered application HTML is never cached, with `/offline.html` as the offline fallback |
+| `/reader/**` HTML | Network-only; falls back to the static `/offline-reader.html` shell |
 | API routes (`/api/**`) | Network-only (authenticated responses are never cached) |
 
 On **install** the SW pre-caches `/offline.html` and `/offline-reader.html` so they are available on the very first offline visit, even before the user has cached any other resources.

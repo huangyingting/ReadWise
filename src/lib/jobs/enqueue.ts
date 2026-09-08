@@ -106,8 +106,8 @@ async function enqueueDeduped(
       return existing;
     }
     // Terminal job: re-enqueue by resetting it to PENDING with the new payload.
-    const reset = await prisma.job.update({
-      where: { id: existing.id },
+    const reset = await prisma.job.updateMany({
+      where: { id: existing.id, status: { in: [JobStatus.COMPLETED, JobStatus.DEAD_LETTER] } },
       data: {
         type,
         status: JobStatus.PENDING,
@@ -126,8 +126,14 @@ async function enqueueDeduped(
         startedAt: null,
       },
     });
-    recordJobQueueEvent({ event: "enqueued", type });
-    return reset;
+    if (reset.count === 1) {
+      const resetJob = await prisma.job.findUnique({ where: { id: existing.id } });
+      if (!resetJob) throw new Error("Re-enqueued job disappeared");
+      recordJobQueueEvent({ event: "enqueued", type });
+      return resetJob;
+    }
+    const winner = await prisma.job.findUnique({ where: { dedupeKey } });
+    if (winner) return winner;
   }
 
   try {
@@ -287,6 +293,22 @@ export function enqueueAiRebuild(
     JobType.AI_REBUILD,
     { articleId, ...payload },
     { dedupeKey: `ai-rebuild:${articleId}`, ...opts },
+  );
+}
+
+export function enqueueAiRebuildInTx(
+  tx: Prisma.TransactionClient,
+  articleId: string,
+  payload: Omit<ArticleJobPayload, "articleId">,
+  dedupeKey: string,
+  opts: EnqueueOptions = {},
+): Promise<Job> {
+  return enqueueJobInTx(
+    tx,
+    JobType.AI_REBUILD,
+    { articleId, ...payload },
+    dedupeKey,
+    opts,
   );
 }
 

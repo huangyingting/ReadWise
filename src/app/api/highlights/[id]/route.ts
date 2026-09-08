@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { idParams, object, string, optional } from "@/lib/validation";
+import { idParams, nullable, object, string, optional } from "@/lib/validation";
 import { updateHighlight, deleteHighlight, HIGHLIGHT_NOTE_MAX } from "@/lib/annotations";
 
 const patchBody = object({
-  note: optional(string({ max: HIGHLIGHT_NOTE_MAX })),
-  color: optional(string({ max: 20 })),
+  note: nullable(string({ max: HIGHLIGHT_NOTE_MAX })),
+  color: nullable(string({ max: 20 })),
   // RW-043 — the updatedAt the offline client last saw, for conflict-aware
   // note merging (both versions preserved when the server note changed).
   baseUpdatedAt: optional(string({ max: 40 })),
@@ -23,15 +23,15 @@ function requireHighlightCommandOk<T extends { ok: true }>(
 }
 
 function highlightUpdateInput(body: {
-  note?: string;
-  color?: string;
+  note?: string | null;
+  color?: string | null;
   baseUpdatedAt?: string;
 }): Parameters<typeof updateHighlight>[2] {
-  return {
-    note: body.note,
-    color: body.color,
-    baseUpdatedAt: body.baseUpdatedAt,
-  };
+  const input: Parameters<typeof updateHighlight>[2] = {};
+  if (body.note !== undefined) input.note = body.note;
+  if (body.color !== undefined) input.color = body.color;
+  if (body.baseUpdatedAt !== undefined) input.baseUpdatedAt = body.baseUpdatedAt;
+  return input;
 }
 
 export const PATCH = createHandler(

@@ -204,6 +204,7 @@ export async function sendDueAssignmentReminders(): Promise<AssignmentReminderRe
     },
     select: {
       id: true,
+      wholeClass: true,
       classroom: {
         select: {
           members: {
@@ -226,7 +227,9 @@ export async function sendDueAssignmentReminders(): Promise<AssignmentReminderRe
     const completedStudents = new Set(assignment.completions.map((c) => c.studentId));
     const audience = effectiveStudentIds(
       assignment.classroom.members.map((m) => m.userId),
-      assignment.targets.map((t) => t.studentId),
+      assignment.wholeClass
+        ? null
+        : assignment.targets.map((t) => t.studentId),
     );
     for (const studentId of audience) {
       if (!completedStudents.has(studentId)) {
@@ -335,6 +338,7 @@ export async function remindAssignmentStudents(assignmentId: string): Promise<Re
     where: { id: assignmentId },
     select: {
       id: true,
+      wholeClass: true,
       publishState: true,
       publishAt: true,
       classroom: { select: { members: { where: { role: "Student" }, select: { userId: true } } } },
@@ -353,7 +357,9 @@ export async function remindAssignmentStudents(assignmentId: string): Promise<Re
   const completed = new Set(assignment.completions.map((c) => c.studentId));
   const audience = effectiveStudentIds(
     assignment.classroom.members.map((m) => m.userId),
-    assignment.targets.map((t) => t.studentId),
+    assignment.wholeClass
+      ? null
+      : assignment.targets.map((t) => t.studentId),
   );
   const nudges = audience.filter((id) => !completed.has(id));
   const result: RemindAssignmentResult = { total: nudges.length, notified: 0, skipped: 0, suppressed: 0 };

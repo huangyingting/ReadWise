@@ -4,7 +4,7 @@ process.env.LOG_LEVEL = "error";
 import assert from "node:assert/strict";
 import { before, beforeEach, mock, test } from "node:test";
 
-import { CrawlCandidateStatus } from "@prisma/client";
+import { CrawlCandidateStatus, Prisma } from "@prisma/client";
 
 type Candidate = ReturnType<typeof candidate>;
 type TxClient = ReturnType<typeof transactionClient>;
@@ -153,6 +153,28 @@ test("a lost save race never revives a baseline candidate", async () => {
 test("a lost save race converges directly on the candidate's winning Article", async () => {
   const { saveIncrementalArticle } = await import("@/lib/scraper/incremental/article-save-commit");
   transactionSteps = [losingTransaction()];
+  outerCandidateRows = [candidate({ articleId: "article-winner" })];
+
+  assert.deepEqual(await saveIncrementalArticle(input), {
+    action: "converged",
+    candidateId: "candidate-save",
+    articleId: "article-winner",
+  });
+  assert.deepEqual(processJobs, ["article-winner"]);
+});
+
+test("a partial-index P2002 converges on the public-library winner", async () => {
+  const { saveIncrementalArticle } = await import("@/lib/scraper/incremental/article-save-commit");
+  transactionSteps = [
+    new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (`sourceUrl`)",
+      {
+        code: "P2002",
+        clientVersion: "test",
+        meta: { target: "Article_public_sourceUrl_key" },
+      },
+    ),
+  ];
   outerCandidateRows = [candidate({ articleId: "article-winner" })];
 
   assert.deepEqual(await saveIncrementalArticle(input), {

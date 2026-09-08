@@ -94,6 +94,7 @@ const MODULES: ModuleConfig[] = [
       "countJobsByType",
       "countJobsByTypeAndStatus",
       "enqueueAiRebuild",
+      "enqueueAiRebuildInTx",
       "enqueueArticleIngest",
       "enqueueArticleProcess",
       "enqueueArticleProcessInTx",

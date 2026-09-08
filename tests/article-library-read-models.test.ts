@@ -638,10 +638,33 @@ test("article policy helpers centralize readable, editable, and import predicate
   });
   assert.deepEqual(policy.publicLibraryArticleWhere({ id: "a1" }), {
     id: "a1",
-    visibility: ArticleVisibility.PUBLIC,
+    visibility: {
+      in: [ArticleVisibility.PUBLIC, ArticleVisibility.UNLISTED],
+    },
     ownerId: null,
     organizationId: null,
   });
+  assert.deepEqual(
+    policy.moderatableArticleWhere(
+      { userId: "moderator-1", role: "Moderator" },
+      { id: "a1" },
+    ),
+    {
+      id: "a1",
+      visibility: {
+        in: [ArticleVisibility.PUBLIC, ArticleVisibility.UNLISTED],
+      },
+      ownerId: null,
+      organizationId: null,
+    },
+  );
+  assert.deepEqual(
+    policy.moderatableArticleWhere(
+      { userId: "support-1", role: "SupportAgent" },
+      { id: "a1" },
+    ),
+    { id: "__readwise_article_access_denied__" },
+  );
   assert.ok("AND" in policy.readableArticleWhere(readerContext, { OR: [{ id: "a1" }] }));
   assert.deepEqual(policy.editableArticleWhere(null), { id: "__readwise_article_access_denied__" });
   assert.deepEqual(policy.adminVisibleArticleWhere(adminContext, { id: "a1" }), { id: "a1" });

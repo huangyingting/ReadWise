@@ -68,6 +68,10 @@ export const STORAGE_KEYS = {
    *  Payload: "yellow" | "green" | "blue" | "pink" */
   LAST_HL_COLOR: "readwise:last-hl-color",
 
+  /** scope: local | privacy: app | owner: offline sync
+   *  Payload: opaque generation token changed before a privacy purge */
+  OFFLINE_PURGE_GENERATION: "readwise:offline-purge-generation",
+
   // ── sessionStorage: tab / session scoped ──────────────────────────────────
 
   /** scope: session | privacy: user | owner: reader navigation

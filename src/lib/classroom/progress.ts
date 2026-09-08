@@ -8,7 +8,7 @@
  */
 import type { AssignmentCompletionSource } from "@prisma/client";
 import { AssignmentStatus } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { runSerializableTransaction } from "@/lib/database/serializable-transaction";
 import { assignmentLiveWhere } from "./targeting";
 
 export type ClassroomProgressStudent = { userId: string; name: string | null; email: string | null };
@@ -19,6 +19,7 @@ export type ClassroomProgressAssignment = {
   dueDate: Date | null;
   createdAt: Date;
   targetedStudentIds: string[] | null;
+  everTargeted: boolean;
 };
 export type ClassroomProgressCompletion = {
   assignmentId: string;
@@ -45,6 +46,8 @@ type ClassroomMemberRow = {
 type ClassroomAssignmentRow = {
   id: string;
   articleId: string;
+  wholeClass: boolean;
+  everTargeted: boolean;
   article: { title: string };
   dueDate: Date | null;
   createdAt: Date;
@@ -68,9 +71,10 @@ function toProgressAssignment(
     articleTitle: assignment.article.title,
     dueDate: assignment.dueDate,
     createdAt: assignment.createdAt,
-    targetedStudentIds: assignment.targets.length
-      ? assignment.targets.map((target) => target.studentId)
-      : null,
+    targetedStudentIds: assignment.wholeClass !== false
+      ? null
+      : assignment.targets.map((target) => target.studentId),
+    everTargeted: assignment.everTargeted === true,
   };
 }
 
@@ -98,44 +102,46 @@ export async function getClassroomProgressData(
   classroomId: string,
 ): Promise<ClassroomProgressData | null> {
   const now = new Date();
-  const classroom = await prisma.classroom.findUnique({
-    where: { id: classroomId },
-    select: { id: true, name: true, orgId: true, teacherId: true },
+  return runSerializableTransaction(async (tx) => {
+    const classroom = await tx.classroom.findUnique({
+      where: { id: classroomId },
+      select: { id: true, name: true, orgId: true, teacherId: true },
+    });
+    if (!classroom) return null;
+
+    const [memberRows, assignmentRows, completionRows] = await Promise.all([
+      tx.classroomMembership.findMany({
+        where: { classroomId, role: "Student" },
+        include: { user: { select: { id: true, name: true, email: true } } },
+      }),
+      tx.assignment.findMany({
+        where: { classroomId, ...assignmentLiveWhere(now) },
+        include: {
+          article: { select: { id: true, title: true } },
+          targets: { select: { studentId: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      tx.assignmentCompletion.findMany({
+        where: { assignment: { classroomId } },
+        select: {
+          assignmentId: true,
+          studentId: true,
+          status: true,
+          quizScore: true,
+          pointsAwarded: true,
+          completionSource: true,
+          completedAt: true,
+          feedback: true,
+        },
+      }),
+    ]);
+
+    return {
+      classroom,
+      students: memberRows.map(toProgressStudent),
+      assignments: assignmentRows.map(toProgressAssignment),
+      completions: completionRows.map(toProgressCompletion),
+    };
   });
-  if (!classroom) return null;
-
-  const [memberRows, assignmentRows, completionRows] = await Promise.all([
-    prisma.classroomMembership.findMany({
-      where: { classroomId, role: "Student" },
-      include: { user: { select: { id: true, name: true, email: true } } },
-    }),
-    prisma.assignment.findMany({
-      where: { classroomId, ...assignmentLiveWhere(now) },
-      include: {
-        article: { select: { id: true, title: true } },
-        targets: { select: { studentId: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.assignmentCompletion.findMany({
-      where: { assignment: { classroomId } },
-      select: {
-        assignmentId: true,
-        studentId: true,
-        status: true,
-        quizScore: true,
-        pointsAwarded: true,
-        completionSource: true,
-        completedAt: true,
-        feedback: true,
-      },
-    }),
-  ]);
-
-  return {
-    classroom,
-    students: memberRows.map(toProgressStudent),
-    assignments: assignmentRows.map(toProgressAssignment),
-    completions: completionRows.map(toProgressCompletion),
-  };
 }

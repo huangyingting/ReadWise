@@ -6,19 +6,17 @@
  * untrusted body. {@link getStudentAssignmentContext} enforces enrollment before
  * any completion is written.
  */
-import { AssignmentCompletionSource, AssignmentStatus } from "@prisma/client";
+import {
+  AssignmentCompletionSource,
+  AssignmentStatus,
+  Prisma,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isCompletePercent } from "@/lib/engagement/progress-rules";
 import { assignmentLiveWhere, assignmentVisibleToStudentWhere } from "./targeting";
 
 /** Minimum reading percent (inclusive) at/above which an assignment advances from ASSIGNED to IN_PROGRESS. */
 export const ASSIGNMENT_START_PERCENT = 1;
-
-const STATUS_RANK: Record<AssignmentStatus, number> = {
-  [AssignmentStatus.ASSIGNED]: 0,
-  [AssignmentStatus.IN_PROGRESS]: 1,
-  [AssignmentStatus.COMPLETED]: 2,
-};
 
 export type RecordCompletionInput = {
   status?: AssignmentStatus;
@@ -211,69 +209,75 @@ export async function syncAssignmentReadingProgress(input: {
   if (assignments.length === 0) {
     return { updatedCount: 0 };
   }
-  const assignmentIds = assignments.map((a) => a.id);
-  const existingCompletions = await prisma.assignmentCompletion.findMany({
-    where: { assignmentId: { in: assignmentIds }, studentId: userId },
-    select: {
-      assignmentId: true,
-      status: true,
-      quizScore: true,
-      completionSource: true,
-      completedAt: true,
-    },
-  });
-  const completionByAssignmentId = new Map(
-    existingCompletions.map((c) => [c.assignmentId, c]),
-  );
   const targetStatus = isCompletePercent(percent) || completed
     ? AssignmentStatus.COMPLETED
     : AssignmentStatus.IN_PROGRESS;
-  const targetRank = STATUS_RANK[targetStatus];
   const now = new Date();
   const writes = await Promise.all(
     assignments.map(async (assignment) => {
-      const existing = completionByAssignmentId.get(assignment.id);
-      const currentRank = STATUS_RANK[existing?.status ?? AssignmentStatus.ASSIGNED];
-      if (targetRank <= currentRank) {
-        return false;
+      const identity = {
+        assignmentId: assignment.id,
+        studentId: userId,
+      };
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        if (targetStatus === AssignmentStatus.COMPLETED) {
+          const withReadingSource = await prisma.assignmentCompletion.updateMany({
+            where: {
+              ...identity,
+              status: { not: AssignmentStatus.COMPLETED },
+              completionSource: null,
+            },
+            data: {
+              status: AssignmentStatus.COMPLETED,
+              completionSource: AssignmentCompletionSource.READING,
+              completedAt: now,
+            },
+          });
+          if (withReadingSource.count === 1) return true;
+
+          const preservingSource = await prisma.assignmentCompletion.updateMany({
+            where: {
+              ...identity,
+              status: { not: AssignmentStatus.COMPLETED },
+            },
+            data: {
+              status: AssignmentStatus.COMPLETED,
+              completedAt: now,
+            },
+          });
+          if (preservingSource.count === 1) return true;
+        } else {
+          const advanced = await prisma.assignmentCompletion.updateMany({
+            where: { ...identity, status: AssignmentStatus.ASSIGNED },
+            data: { status: AssignmentStatus.IN_PROGRESS },
+          });
+          if (advanced.count === 1) return true;
+        }
+
+        try {
+          await prisma.assignmentCompletion.create({
+            data: {
+              ...identity,
+              status: targetStatus,
+              ...(targetStatus === AssignmentStatus.COMPLETED
+                ? { completionSource: AssignmentCompletionSource.READING }
+                : {}),
+              completedAt:
+                targetStatus === AssignmentStatus.COMPLETED ? now : null,
+              quizScore: null,
+            },
+          });
+          return true;
+        } catch (error) {
+          const raced =
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002";
+          if (!raced) throw error;
+        }
       }
-      if (targetStatus === AssignmentStatus.COMPLETED) {
-        await prisma.assignmentCompletion.upsert({
-          where: { assignmentId_studentId: { assignmentId: assignment.id, studentId: userId } },
-          update: {
-            status: AssignmentStatus.COMPLETED,
-            // Sticky: only stamp completedAt the first time.
-            ...(existing?.completedAt ? {} : { completedAt: now }),
-            ...(existing?.completionSource
-              ? {}
-              : { completionSource: AssignmentCompletionSource.READING }),
-          },
-          create: {
-            assignmentId: assignment.id,
-            studentId: userId,
-            status: AssignmentStatus.COMPLETED,
-            completionSource: AssignmentCompletionSource.READING,
-            completedAt: now,
-            quizScore: null,
-          },
-        });
-      } else {
-        await prisma.assignmentCompletion.upsert({
-          where: { assignmentId_studentId: { assignmentId: assignment.id, studentId: userId } },
-          update: {
-            status: AssignmentStatus.IN_PROGRESS,
-            completedAt: null,
-          },
-          create: {
-            assignmentId: assignment.id,
-            studentId: userId,
-            status: AssignmentStatus.IN_PROGRESS,
-            completedAt: null,
-            quizScore: null,
-          },
-        });
-      }
-      return true;
+
+      return false;
     }),
   );
   return { updatedCount: writes.filter(Boolean).length };

@@ -14,6 +14,8 @@ import assert from "node:assert/strict";
 // ---- mutable stub state --------------------------------------------------
 let stubUser: null | { id: string; role: string } = null;
 let stubAdminCount = 2;
+let administeredOrgIds: string[] = [];
+let orgAdminCount = 2;
 
 // Call recorders
 let deleteManyArgs: { where: Record<string, unknown> } | null = null;
@@ -47,6 +49,11 @@ before(() => {
         return { count: 0 };
       },
     },
+    membership: {
+      findMany: async () =>
+        administeredOrgIds.map((orgId) => ({ orgId })),
+      count: async () => orgAdminCount,
+    },
     mediaAsset: {
       findMany: async () => [],
     },
@@ -66,6 +73,8 @@ before(() => {
 beforeEach(() => {
   stubUser = null;
   stubAdminCount = 2;
+  administeredOrgIds = [];
+  orgAdminCount = 2;
   deleteManyArgs = null;
   userDeleteArgs = null;
   userUpdateArgs = null;
@@ -120,6 +129,19 @@ test("deleteMember refuses to remove the last remaining admin", async () => {
   assert.equal(userDeleteArgs, null);
 });
 
+test("deleteMember refuses to remove the last administrator of an organization", async () => {
+  setStubUser("Reader", "org-admin-1");
+  administeredOrgIds = ["org-1"];
+  orgAdminCount = 1;
+  const { deleteMember } = await loadMemberCommands();
+
+  const result = await deleteMember("org-admin-1");
+
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.status, 409);
+  assert.equal(userDeleteArgs, null);
+});
+
 test("deleteMember last-admin guard is re-counted inside the transaction (atomicity)", async () => {
   // The guard count happens INSIDE the tx callback, so two concurrent deletes
   // cannot both pass the guard and leave zero admins.
@@ -156,7 +178,7 @@ test("updateMemberRole is a no-op when role is unchanged", async () => {
   const result = await updateMemberRole("admin-1", "Admin");
   assert.equal(result.ok, true);
   // No DB write for same-role update
-  assert.equal(transactionCalled, false);
+  assert.equal(transactionCalled, true);
   assert.equal(userUpdateArgs, null);
 });
 

@@ -58,8 +58,8 @@ export async function scrapeUrl(url: string): Promise<ScrapedArticle | null> {
  * Persists a scraped article as a `draft`, de-duplicated by `sourceUrl` (for
  * library scrapes `ownerId` is null). Never throws on a duplicate — returns a
  * `skipped` outcome instead. A concurrent writer can win the race between the
- * pre-check and the insert; the `@@unique([sourceUrl, ownerId])` constraint
- * then surfaces a Prisma P2002, which is caught and reported as `skipped`
+ * pre-check and the insert; the provider migrations' partial unique index for
+ * ownerless source URLs then surfaces a Prisma P2002, reported as `skipped`
  * (re-resolving the winner's id) rather than bubbling up as a 500.
  */
 export async function saveDraftArticle(
@@ -98,7 +98,7 @@ export async function saveDraftArticle(
     });
     return { status: "saved", id: created.id, article };
   } catch (err) {
-    // A concurrent scrape created the same (sourceUrl, ownerId) first.
+    // A concurrent public-library scrape created the same source URL first.
     if (isUniqueConstraintError(err)) {
       return duplicateSourceUrlOutcome(article.sourceUrl);
     }

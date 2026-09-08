@@ -12,7 +12,7 @@ import {
 type ArticleWhere = {
   id?: string;
   status?: string;
-  visibility?: string;
+  visibility?: string | { in?: string[] };
   ownerId?: string | null;
   organizationId?: string | null;
   sourceUrl?: string | { in?: string[] };
@@ -32,7 +32,13 @@ let findManyWheres: ArticleWhere[] = [];
 function matchesWhere(article: Article, where: ArticleWhere): boolean {
   if (where.id !== undefined && article.id !== where.id) return false;
   if (where.status !== undefined && article.status !== where.status) return false;
-  if (where.visibility !== undefined && article.visibility !== where.visibility) return false;
+  if (where.visibility !== undefined) {
+    if (typeof where.visibility === "object") {
+      if (!(where.visibility.in ?? []).includes(article.visibility)) return false;
+    } else if (article.visibility !== where.visibility) {
+      return false;
+    }
+  }
   if (where.ownerId !== undefined && article.ownerId !== where.ownerId) return false;
   if (where.organizationId !== undefined && article.organizationId !== where.organizationId) return false;
   if (where.sourceUrl !== undefined) {
@@ -174,7 +180,7 @@ test("findExistingPublicLibrarySourceUrls returns only existing public-library U
     buildArticle({
       id: "existing-b",
       sourceUrl: "https://example.com/b",
-      visibility: ArticleVisibility.PUBLIC,
+      visibility: ArticleVisibility.UNLISTED,
       ownerId: null,
     }),
   );
@@ -193,7 +199,9 @@ test("findExistingPublicLibrarySourceUrls returns only existing public-library U
     sourceUrl: {
       in: ["https://example.com/a", "https://example.com/new", "https://example.com/b"],
     },
-    visibility: ArticleVisibility.PUBLIC,
+    visibility: {
+      in: [ArticleVisibility.PUBLIC, ArticleVisibility.UNLISTED],
+    },
     ownerId: null,
     organizationId: null,
   });
@@ -235,7 +243,9 @@ test("findExistingPublicLibrarySourceUrls ignores owned or non-public rows with 
     sourceUrl: {
       in: ["https://example.com/owned", "https://example.com/private"],
     },
-    visibility: ArticleVisibility.PUBLIC,
+    visibility: {
+      in: [ArticleVisibility.PUBLIC, ArticleVisibility.UNLISTED],
+    },
     ownerId: null,
     organizationId: null,
   });

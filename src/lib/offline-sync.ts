@@ -11,6 +11,9 @@
 
 export type MutationStatus = "pending" | "syncing" | "failed" | "conflict";
 
+/** Authenticated actor expected to own a replayed offline mutation. */
+export const OFFLINE_ACTOR_HEADER = "x-offline-actor-id";
+
 /** A single durable mutation awaiting delivery to its endpoint. */
 export interface QueuedMutation {
   /** Idempotency key — primary key in IndexedDB and the dedupe key server-side. */
@@ -25,6 +28,10 @@ export interface QueuedMutation {
   payload: unknown;
   /** ISO timestamp when first enqueued. */
   createdAt: string;
+  /** Cross-tab privacy generation captured when this mutation was initiated. */
+  purgeGeneration?: string | null;
+  /** Authenticated account that originated this mutation. */
+  actorId?: string;
   /** Number of delivery attempts so far. */
   retryCount: number;
   status: MutationStatus;
@@ -36,6 +43,17 @@ export interface QueuedMutation {
    * or the latest note edit for a highlight needs to be synced).
    */
   dedupeKey?: string | null;
+  /**
+   * Optional causal dependency. This mutation is deliverable only after the
+   * referenced queued mutation succeeds; failures leave destructive follow-up
+   * work blocked instead of applying it out of order.
+   */
+  dependsOnClientMutationId?: string | null;
+  /**
+   * Additional causal dependencies. Every referenced mutation must succeed
+   * before this mutation is deliverable.
+   */
+  dependsOnClientMutationIds?: string[] | null;
 }
 
 /** Maximum delivery attempts before a mutation is treated as permanently failed. */
@@ -91,9 +109,18 @@ export function backoffDelay(
 export function sortQueue(mutations: QueuedMutation[]): QueuedMutation[] {
   return [...mutations].sort((a, b) => {
     if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+    if (dependencyIds(a).includes(b.clientMutationId)) return 1;
+    if (dependencyIds(b).includes(a.clientMutationId)) return -1;
     if (a.clientMutationId === b.clientMutationId) return 0;
     return a.clientMutationId < b.clientMutationId ? -1 : 1;
   });
+}
+
+function dependencyIds(mutation: QueuedMutation): string[] {
+  return [
+    mutation.dependsOnClientMutationId,
+    ...(mutation.dependsOnClientMutationIds ?? []),
+  ].filter((id): id is string => typeof id === "string" && id.length > 0);
 }
 
 /** A mutation is permanently dead when it has failed and exhausted its retries. */
@@ -168,7 +195,8 @@ async function recordFailedDelivery(
   errorMessage: string | null,
   maxRetries: number,
 ): Promise<"failed" | "retried"> {
-  const nextRetry = mutation.retryCount + 1;
+  const nextRetry =
+    outcome === "permanent" ? maxRetries : mutation.retryCount + 1;
   const status =
     outcome === "permanent" || nextRetry >= maxRetries ? "failed" : "pending";
 
@@ -197,10 +225,42 @@ export async function flushQueue(
   const maxRetries = opts.maxRetries ?? MAX_MUTATION_RETRIES;
   const queue = sortQueue(await deps.list());
   const result = emptyResult();
+  const knownIds = new Set(queue.map((mutation) => mutation.clientMutationId));
+  const mutationStates = new Map<
+    string,
+    "success" | "retry" | "failed" | "terminal"
+  >();
 
   for (const mutation of queue) {
     if (shouldSkipMutation(mutation, maxRetries)) {
+      mutationStates.set(mutation.clientMutationId, "terminal");
       continue;
+    }
+
+    const dependencies = dependencyIds(mutation).filter((id) =>
+      knownIds.has(id),
+    );
+    if (dependencies.length > 0) {
+      const dependencyStates = dependencies.map((id) =>
+        mutationStates.get(id),
+      );
+      if (
+        dependencyStates.some(
+          (state) => state === "failed" || state === "terminal",
+        )
+      ) {
+        await deps.update(mutation.clientMutationId, {
+          status: "failed",
+          retryCount: maxRetries,
+          lastError: "dependency_failed",
+        });
+        mutationStates.set(mutation.clientMutationId, "failed");
+        result.failed++;
+        continue;
+      }
+      if (dependencyStates.some((state) => state !== "success")) {
+        continue;
+      }
     }
 
     result.attempted++;
@@ -211,20 +271,23 @@ export async function flushQueue(
 
     if (outcome === "success") {
       await deps.remove(mutation.clientMutationId);
+      mutationStates.set(mutation.clientMutationId, "success");
       result.succeeded++;
       continue;
     }
 
-    const deliveryState = await recordFailedDelivery(
+    const failedDeliveryState = await recordFailedDelivery(
       deps,
       mutation,
       outcome,
       errorMessage,
       maxRetries,
     );
-    if (deliveryState === "failed") {
+    if (failedDeliveryState === "failed") {
+      mutationStates.set(mutation.clientMutationId, "failed");
       result.failed++;
     } else {
+      mutationStates.set(mutation.clientMutationId, "retry");
       result.retried++;
     }
   }

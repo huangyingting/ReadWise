@@ -41,7 +41,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { enqueueAiRebuild } from "@/lib/jobs";
+import { enqueueAiRebuildInTx } from "@/lib/jobs";
 import { createLogger } from "@/lib/observability/logger";
 
 const log = createLogger("rescrape-regen");
@@ -75,11 +75,6 @@ export function rescrapeRegenStepKey(versionId: string): string {
  */
 export function rescrapeRegenDedupeKey(articleId: string, versionId: string): string {
   return `rescrape-regen:${articleId}:${versionId}`;
-}
-
-/** True when a thrown error is a Prisma unique-constraint (P2002) conflict. */
-function isUniqueConflict(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
 /**
@@ -151,11 +146,10 @@ export async function requestDerivedRegeneration(input: {
   const { articleId, versionId } = input;
   const stepKey = rescrapeRegenStepKey(versionId);
 
-  // 1. CLAIM the version (at-most-once). A retry/concurrent call loses the
-  //    unique race and is a safe no-op — no re-clear, no duplicate job.
-  try {
-    await prisma.articleProcessingStep.create({
-      data: {
+  const transactionResult = await prisma.$transaction(async (tx) => {
+    const claim = await tx.articleProcessingStep.upsert({
+      where: { articleId_step: { articleId, step: stepKey } },
+      create: {
         articleId,
         step: stepKey,
         status: "running",
@@ -164,38 +158,37 @@ export async function requestDerivedRegeneration(input: {
         createdAt: now,
         updatedAt: now,
       },
+      update: {},
     });
-  } catch (error) {
-    if (isUniqueConflict(error)) {
-      return { requested: false, alreadyRequested: true, translateLangs: [] };
+    if (claim.status === "generated") {
+      return null;
     }
-    throw error;
-  }
 
-  // 2. Capture the languages to re-translate BEFORE clearing (reads-before-clear).
-  const langRows = await prisma.translation.findMany({
-    where: { articleId },
-    select: { targetLang: true },
-  });
-  const translateLangs = [...new Set(langRows.map((row) => row.targetLang))].sort();
+    const langRows = await tx.translation.findMany({
+      where: { articleId },
+      select: { targetLang: true },
+    });
+    const translateLangs = [
+      ...new Set(langRows.map((row) => row.targetLang)),
+    ].sort();
 
-  // 3. Invalidate the stale content-derived outputs (idempotent, atomic).
-  await prisma.$transaction(async (tx) => {
     await clearContentDerivedOutputs(tx, articleId);
+    await enqueueAiRebuildInTx(
+      tx,
+      articleId,
+      { tts: true, translateLangs },
+      rescrapeRegenDedupeKey(articleId, versionId),
+    );
+    await tx.articleProcessingStep.update({
+      where: { articleId_step: { articleId, step: stepKey } },
+      data: { status: "generated", completedAt: now, updatedAt: now },
+    });
+    return translateLangs;
   });
-
-  // 4. Enqueue ONE version-scoped rebuild (ids + langs only; tts is soft/optional).
-  await enqueueAiRebuild(
-    articleId,
-    { tts: true, translateLangs },
-    { dedupeKey: rescrapeRegenDedupeKey(articleId, versionId) },
-  );
-
-  // 5. Mark the claim complete so status/reconciliation can see it landed.
-  await prisma.articleProcessingStep.updateMany({
-    where: { articleId, step: stepKey },
-    data: { status: "generated", completedAt: now, updatedAt: now },
-  });
+  if (!transactionResult) {
+    return { requested: false, alreadyRequested: true, translateLangs: [] };
+  }
+  const translateLangs = transactionResult;
 
   log.info("derived regeneration enqueued", {
     articleId,

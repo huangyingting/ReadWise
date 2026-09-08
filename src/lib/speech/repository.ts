@@ -129,21 +129,6 @@ function articleSpeechData(params: {
   };
 }
 
-async function deleteUploadedSpeechBlob(
-  storage: NonNullable<ReturnType<typeof getMediaStorage>>,
-  storageKey: string,
-  articleId: string,
-): Promise<void> {
-  try {
-    await storage.delete(storageKey);
-  } catch {
-    log.error("speech.storage_cleanup_failed", {
-      articleId,
-      machineReason: "storage_cleanup_failed",
-    });
-  }
-}
-
 /**
  * Persists synthesized audio to media storage and upserts both the MediaAsset
  * record and the ArticleSpeech cache row.
@@ -229,7 +214,6 @@ export async function saveSpeechResult(params: {
       });
     });
   } catch {
-    await deleteUploadedSpeechBlob(storage, put.storageKey, articleId);
     log.error("speech.persistence_failed", {
       articleId,
       machineReason: "speech_persistence_failed",

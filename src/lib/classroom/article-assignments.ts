@@ -184,6 +184,8 @@ export async function createArticleAssignment(
         data: {
           classroomId: input.classroomId,
           articleId: input.articleId,
+          wholeClass: false,
+          everTargeted: true,
           dueDate,
           instructions: trimOrNull(input.instructions),
           title: trimOrNull(input.title),

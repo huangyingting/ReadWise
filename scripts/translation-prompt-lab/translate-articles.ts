@@ -33,7 +33,7 @@ import { splitTranslationParagraphs } from "@/lib/bilingual";
 import { mapWithConcurrency } from "./concurrency";
 import { recommendedPromptForCategory } from "./prompts";
 import { getExistingHash, openTranslationStore, recordError, upsertTranslation } from "./store";
-import { chatCompleteWithRetry } from "./vllm-client";
+import { chatCompleteWithRetry, VllmClientError } from "./vllm-client";
 import { isMain, parseFlag, parsePositiveInt, parseString, runScript, warnUnknown } from "../lib/cli";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -55,6 +55,17 @@ type ArticleRow = { id: string; title: string; content: string; category: string
 
 export function contentHash(title: string, content: string): string {
   return createHash("sha256").update(title).update("\u0000").update(content).digest("hex");
+}
+
+export function persistedTranslationErrorCode(error: unknown): string {
+  if (error instanceof VllmClientError) {
+    return error.status ? `provider_http_${error.status}` : `provider_${error.code}`;
+  }
+  if (error instanceof Error && error.name === "AbortError") return "provider_timeout";
+  if (error instanceof Error && error.message.includes("hit the output token cap")) {
+    return "provider_output_token_limit";
+  }
+  return "translation_failed";
 }
 
 export async function translateTitle(title: string, systemPrompt: string, temperature: number): Promise<string> {
@@ -124,9 +135,20 @@ export type RunStats = {
   repairedChunks: number;
 };
 
-export async function runTranslateArticles(options: RunOptions): Promise<RunStats> {
+export type RunTranslateArticlesDeps = {
+  providerDatabaseExists: (path: string) => boolean;
+};
+
+const DEFAULT_RUN_DEPS: RunTranslateArticlesDeps = {
+  providerDatabaseExists: existsSync,
+};
+
+export async function runTranslateArticles(
+  options: RunOptions,
+  deps: RunTranslateArticlesDeps = DEFAULT_RUN_DEPS,
+): Promise<RunStats> {
   const dbPath = join(PROVIDER_DB_DIR, `${options.providerDb}.db`);
-  if (!existsSync(dbPath)) {
+  if (!deps.providerDatabaseExists(dbPath)) {
     throw new Error(`Provider db not found: ${dbPath}`);
   }
   const source = openReadOnly(dbPath);
@@ -229,7 +251,13 @@ export async function runTranslateArticles(options: RunOptions): Promise<RunStat
         }
         if (lastErr) {
           stats.errors++;
-          recordError(store!, options.providerDb, row.id, options.lang, lastErr instanceof Error ? lastErr.message : String(lastErr));
+          recordError(
+            store!,
+            options.providerDb,
+            row.id,
+            options.lang,
+            persistedTranslationErrorCode(lastErr),
+          );
         }
         reportProgress();
       },
@@ -295,7 +323,9 @@ export function parseArgs(argv: string[]): TranslateArticlesArgs {
   return args;
 }
 
-export async function main(): Promise<number> {
+export async function main(
+  deps: RunTranslateArticlesDeps = DEFAULT_RUN_DEPS,
+): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help || !args.db) {
     console.log(
@@ -304,17 +334,20 @@ export async function main(): Promise<number> {
     );
     return args.db ? 0 : 2;
   }
-  const stats = await runTranslateArticles({
-    providerDb: args.db,
-    lang: args.lang,
-    limit: args.limit,
-    categories: args.categories,
-    articleIds: args.articleIds,
-    concurrency: args.concurrency,
-    force: args.force,
-    dryRun: args.dryRun,
-    outDir: args.outDir,
-  });
+  const stats = await runTranslateArticles(
+    {
+      providerDb: args.db,
+      lang: args.lang,
+      limit: args.limit,
+      categories: args.categories,
+      articleIds: args.articleIds,
+      concurrency: args.concurrency,
+      force: args.force,
+      dryRun: args.dryRun,
+      outDir: args.outDir,
+    },
+    deps,
+  );
   console.log(
     `Done. total=${stats.total} translated=${stats.translated} skipped=${stats.skippedUnchanged} ` +
       `errors=${stats.errors} flagged=${stats.flagged} repairedChunks=${stats.repairedChunks}`,

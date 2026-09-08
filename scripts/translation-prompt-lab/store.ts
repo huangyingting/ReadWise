@@ -129,11 +129,17 @@ export function recordError(
   providerDb: string,
   articleId: string,
   targetLang: string,
-  error: string,
+  errorCode: string,
 ): void {
   db.prepare(
     "INSERT INTO ArticleTranslationError (id, providerDb, articleId, targetLang, error) VALUES (?, ?, ?, ?, ?)",
-  ).run(`${providerDb}:${articleId}:${targetLang}:${Date.now()}`, providerDb, articleId, targetLang, error);
+  ).run(
+    `${providerDb}:${articleId}:${targetLang}:${Date.now()}`,
+    providerDb,
+    articleId,
+    targetLang,
+    errorCode,
+  );
 }
 
 export function ensureParentDirExists(pathValue: string): void {

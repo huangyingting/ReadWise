@@ -217,7 +217,7 @@ test("all profiles 403 → reader (r.jina.ai) is called with X-Return-Format htm
   assert.equal(fetchHeaders[readerIdx]["authorization"], undefined);
 });
 
-test("browser strategy returns 200 before reader without fetching reader", async () => {
+test("browser strategy remains disabled even when configured", async () => {
   disableProfileRetry();
   const { fetchHtml } = await import("@/lib/scraper/fetch");
   const u = urls();
@@ -229,9 +229,9 @@ test("browser strategy returns 200 before reader without fetching reader", async
 
   const html = await fetchHtml(u.origin);
 
-  assert.equal(html, "BROWSER-OK");
-  assert.deepEqual(browserCalls, [u.origin]);
-  assert.equal(fetchCalls.includes(u.reader), false, "reader URL should not be fetched");
+  assert.equal(html, "READER-SHOULD-NOT-RUN");
+  assert.deepEqual(browserCalls, []);
+  assert.equal(fetchCalls.includes(u.reader), true);
 });
 
 test("browser unavailable advances to reader", async () => {
@@ -247,8 +247,8 @@ test("browser unavailable advances to reader", async () => {
   const html = await fetchHtml(u.origin);
 
   assert.equal(html, "READER-OK");
-  assert.deepEqual(browserCalls, [u.origin]);
-  assert.ok(fetchCalls.includes(u.reader), "reader should be reached after browser failure");
+  assert.deepEqual(browserCalls, []);
+  assert.ok(fetchCalls.includes(u.reader), "reader should be reached directly");
 });
 
 test("browser challenge body advances through reader to wayback", async () => {
@@ -265,12 +265,12 @@ test("browser challenge body advances through reader to wayback", async () => {
   const html = await fetchHtml(u.origin);
 
   assert.equal(html, "WAYBACK-OK");
-  assert.deepEqual(browserCalls, [u.origin]);
-  assert.ok(fetchCalls.includes(u.reader), "reader should be reached after browser challenge");
+  assert.deepEqual(browserCalls, []);
+  assert.ok(fetchCalls.includes(u.reader), "reader should be reached directly");
   assert.ok(fetchCalls.includes(u.wayback), "wayback should be reached after reader challenge");
 });
 
-test("browser strategy is positioned before reader", async () => {
+test("reader follows the origin without an intervening browser request", async () => {
   disableProfileRetry();
   const { fetchHtml } = await import("@/lib/scraper/fetch");
   const u = urls();
@@ -283,7 +283,7 @@ test("browser strategy is positioned before reader", async () => {
   const html = await fetchHtml(u.origin);
 
   assert.equal(html, "READER-OK");
-  assert.deepEqual(attempts, [`fetch:${u.origin}`, `browser:${u.origin}`, `fetch:${u.reader}`]);
+  assert.deepEqual(attempts, [`fetch:${u.origin}`, `fetch:${u.reader}`]);
 });
 
 test("SCRAPER_FETCH_BROWSER=false skips browser and preserves reader fallback", async () => {

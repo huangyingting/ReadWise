@@ -34,7 +34,7 @@ interface HighlightEditPopoverProps {
   anchorEl: HTMLElement;
   onClose: () => void;
   onColorChange: (color: HighlightColor) => void;
-  onNoteSave: (note: string | null) => void;
+  onNoteSave: (note: string | null) => Promise<boolean>;
   onDelete: () => Promise<void>;
   /** Ref guard so outside-click ignores this element. */
   popoverRef: React.RefObject<HTMLDivElement | null>;
@@ -64,20 +64,32 @@ export default function HighlightEditPopover({
   const [noteText, setNoteText] = useState(highlight.note ?? "");
   const [noteOpen, setNoteOpen] = useState(!!highlight.note);
   const [deleting, setDeleting] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteSaveError, setNoteSaveError] = useState<string | null>(null);
 
   // Sync note text when highlight changes externally
   useEffect(() => {
-    setNoteText(highlight.note ?? "");
-  }, [highlight.note]);
+    if (!noteOpen) setNoteText(highlight.note ?? "");
+  }, [highlight.note, noteOpen]);
 
-  function handleNoteSave() {
+  async function handleNoteSave() {
     const trimmed = noteText.trim();
-    onNoteSave(trimmed || null);
-    setNoteOpen(false);
+    setSavingNote(true);
+    setNoteSaveError(null);
+    try {
+      if (await onNoteSave(trimmed || null)) {
+        setNoteOpen(false);
+      } else {
+        setNoteSaveError("Could not save this note. Keep it open and try again.");
+      }
+    } finally {
+      setSavingNote(false);
+    }
   }
 
   function handleNoteCancel() {
     setNoteText(highlight.note ?? "");
+    setNoteSaveError(null);
     setNoteOpen(false);
   }
 
@@ -138,7 +150,11 @@ export default function HighlightEditPopover({
               rows={3}
               placeholder="Add a note…"
               aria-label="Highlight note"
-              onChange={(e) => setNoteText(e.target.value)}
+              disabled={savingNote}
+              onChange={(e) => {
+                setNoteText(e.target.value);
+                setNoteSaveError(null);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
                   e.preventDefault();
@@ -159,20 +175,32 @@ export default function HighlightEditPopover({
               </p>
             )}
             <div className="rw-note-inline-actions">
-              <Button size="sm" onClick={handleNoteSave} disabled={atLimit && noteLen > NOTE_MAX}>
+              <Button
+                size="sm"
+                onClick={() => void handleNoteSave()}
+                disabled={savingNote || (atLimit && noteLen > NOTE_MAX)}
+              >
                 Save
               </Button>
-              <Button size="sm" variant="ghost" onClick={handleNoteCancel}>
+              <Button size="sm" variant="ghost" onClick={handleNoteCancel} disabled={savingNote}>
                 Cancel
               </Button>
             </div>
+            {noteSaveError ? (
+              <p className="text-[length:var(--text-xs)] text-danger" role="alert">
+                {noteSaveError}
+              </p>
+            ) : null}
           </div>
         ) : (
           <Button
             variant="ghost"
             size="sm"
             className="rw-note-row-add-note"
-            onClick={() => setNoteOpen(true)}
+            onClick={() => {
+              setNoteSaveError(null);
+              setNoteOpen(true);
+            }}
           >
             {highlight.note ? "Edit note" : "Add note…"}
           </Button>

@@ -102,38 +102,42 @@ export const POST = createHandler(
       throw badAttemptRequest(err, "Invalid attempt data");
     }
 
-    // Best-effort mastery side-effects — never break the attempt write. A quiz
-    // is the strongest comprehension signal; it also feeds reading.
-    await updateQuizMasterySignals(
-      session.user.id,
-      article.id,
-      result.attempt.scorePct,
-    );
+    if (result.created) {
+      // Best-effort mastery side-effects — never break the attempt write. A
+      // quiz is the strongest comprehension signal; it also feeds reading.
+      await updateQuizMasterySignals(
+        session.user.id,
+        article.id,
+        result.attempt.scorePct,
+      );
 
-    // Product analytics (RW-051): quiz completion is a core engagement signal.
-    // Metadata only — only the server-derived score/counts, never quiz content.
-    await recordQuizCompletionEvent(session.user.id, article.id, result.attempt);
+      // Product analytics (RW-051): quiz completion is a core engagement
+      // signal. Metadata only — never quiz content.
+      await recordQuizCompletionEvent(session.user.id, article.id, result.attempt);
 
-    // Best-effort: a quiz attempt on today's primary article completes the
-    // Today comprehension step. Never breaks the attempt write.
-    await bestEffortMastery("quiz.today_comprehension", () =>
-      markTodayComprehensionComplete({
-        userId: session.user.id,
-        articleId: article.id,
-      }),
-    );
+      // Best-effort: a quiz attempt on today's primary article completes the
+      // Today comprehension step. Never breaks the attempt write.
+      await bestEffortMastery("quiz.today_comprehension", () =>
+        markTodayComprehensionComplete({
+          userId: session.user.id,
+          articleId: article.id,
+        }),
+      );
 
-    // Best-effort: a graded quiz attempt completes any active assignment of this
-    // article in a classroom the student is enrolled in (RW-061). The student id
-    // and score are server-derived; never breaks the attempt write.
-    await bestEffortMastery("quiz.assignment_completion", () =>
-      markAssignmentQuizComplete({
-        userId: session.user.id,
-        articleId: article.id,
-        scorePct: result.attempt.scorePct,
-      }),
-    );
+      // Best-effort: a graded quiz attempt completes any active assignment of
+      // this article in a classroom the student is enrolled in (RW-061).
+      await bestEffortMastery("quiz.assignment_completion", () =>
+        markAssignmentQuizComplete({
+          userId: session.user.id,
+          articleId: article.id,
+          scorePct: result.attempt.scorePct,
+        }),
+      );
+    }
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      attempt: result.attempt,
+      best: result.best,
+    });
   },
 );

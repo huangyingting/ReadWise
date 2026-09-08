@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { markArticleVisited } from "@/lib/visited";
-import { submitMutation } from "@/lib/offline/sync-runtime";
+import {
+  captureOfflineMutationGeneration,
+  submitMutation,
+  type OfflineMutationGeneration,
+} from "@/lib/offline/sync-runtime";
 
 const THROTTLE_MS = 1000;
 const PROGRESS_METHOD = "POST";
@@ -26,7 +30,12 @@ function computeScrollPercent(): number {
   return Math.min(100, Math.max(0, Math.round(ratio * 100)));
 }
 
-function queueProgressMutation(articleId: string, endpoint: string, percent: number): void {
+function queueProgressMutation(
+  articleId: string,
+  endpoint: string,
+  percent: number,
+  generation: OfflineMutationGeneration,
+): void {
   void submitMutation({
     type: "progress",
     endpoint,
@@ -35,6 +44,7 @@ function queueProgressMutation(articleId: string, endpoint: string, percent: num
     // Collapse to the latest position — the server is forward-only so an
     // older queued percent would be a no-op anyway (RW-042/RW-043).
     dedupeKey: `progress:${articleId}`,
+    generation,
   });
 }
 
@@ -62,10 +72,17 @@ export default function ReaderProgress({
     markArticleVisited(articleId);
 
     function send(value: number, useKeepalive = false) {
+      const generation = captureOfflineMutationGeneration();
       lastSentRef.current = Date.now();
       lastSentValueRef.current = value;
       const endpoint = progressEndpoint(articleId);
-      const queueOffline = () => queueProgressMutation(articleId, endpoint, value);
+      const queueOffline = () =>
+        queueProgressMutation(
+          articleId,
+          endpoint,
+          value,
+          generation,
+        );
 
       // Offline: enqueue for background sync instead of a doomed fetch.
       if (isOffline()) {

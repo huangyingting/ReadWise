@@ -42,7 +42,13 @@ export {
 export type { HighlightPage } from "./queries";
 
 // Server mutation commands
-export { createHighlight, updateHighlight, deleteHighlight } from "./commands";
+export {
+  createHighlight,
+  updateHighlight,
+  updateHighlightByAnchor,
+  deleteHighlight,
+  deleteHighlightByAnchor,
+} from "./commands";
 
 // Conflict resolution helpers (re-exported for the offline sync layer)
 export {

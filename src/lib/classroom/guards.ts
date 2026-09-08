@@ -45,6 +45,11 @@ export function canManageClassroom(
 ): boolean {
   if (!classroom) return false;
   if (hasSystemAdminAccess(viewer)) return true;
-  if (isClassroomTeacher(viewer, classroom)) return true;
+  if (
+    isClassroomTeacher(viewer, classroom) &&
+    hasOrgCapability(membership, CAPABILITIES.classroomManage)
+  ) {
+    return true;
+  }
   return hasOrgCapability(membership, CAPABILITIES.orgManage);
 }

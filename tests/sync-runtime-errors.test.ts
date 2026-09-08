@@ -4,11 +4,14 @@ import assert from "node:assert/strict";
 before(() => {
   mock.module("../src/lib/offline/mutation-store", {
     namedExports: {
-      enqueueMutation: async () => {},
+      enqueueMutation: async () => false,
+      discardQueuedMutation: async () => false,
+      replaceQueuedMutationPayload: async () => false,
       listQueuedMutations: async () => {
         throw new Error("list failed");
       },
       removeQueuedMutation: async () => {},
+      removeQueuedMutationForGeneration: async () => false,
       updateQueuedMutation: async () => {},
       countQueuedMutations: async () => 7,
       clearQueuedMutations: async () => {

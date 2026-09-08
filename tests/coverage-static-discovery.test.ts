@@ -236,6 +236,23 @@ test("discoverEligibleFiles finds executable files and excludes type-only/barrel
   ]);
 });
 
+test("discoverEligibleFiles includes executable JavaScript module formats", () => {
+  const deps = createMockDeps({
+    "root/eslint-rules/rule.js": "module.exports = { create() {} };",
+    "root/scripts/config.mjs": "export const config = {};",
+    "root/scripts/worker.cjs": "exports.run = () => {};",
+    "root/scripts/ignored.test.js": "throw new Error('test only');",
+  });
+
+  const result = discoverEligibleFiles("root", ["eslint-rules", "scripts"], deps);
+
+  assert.deepEqual(result.eligible, [
+    "eslint-rules/rule.js",
+    "scripts/config.mjs",
+    "scripts/worker.cjs",
+  ]);
+});
+
 test("discoverEligibleFiles: unimported executable files become synthetic 0%", () => {
   const deps = createMockDeps({
     "root/src/lib/tested.ts": 'export const tested = true;',

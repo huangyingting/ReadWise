@@ -29,6 +29,7 @@ let mediaAssetFindRow: { storageKey: string | null; mimeType: string; voice: str
 let mediaAssetUpsertArgs: UpsertArgs | null = null;
 let articleSpeechUpsertArgs: UpsertArgs | null = null;
 let transactionThrows: Error | null = null;
+let transactionFailuresRemaining = 0;
 let loggerEntries: Array<{ event: string; meta?: Record<string, unknown> }> = [];
 
 function resetState(): void {
@@ -38,6 +39,7 @@ function resetState(): void {
   mediaAssetUpsertArgs = null;
   articleSpeechUpsertArgs = null;
   transactionThrows = null;
+  transactionFailuresRemaining = 0;
   loggerEntries = [];
 }
 
@@ -75,6 +77,10 @@ before(() => {
             articleSpeech: { upsert: (args: UpsertArgs) => Promise<{ articleId: string }> };
           }) => Promise<unknown>,
         ) => {
+          if (transactionFailuresRemaining > 0) {
+            transactionFailuresRemaining -= 1;
+            throw new Error("transaction unavailable");
+          }
           if (transactionThrows) throw transactionThrows;
           return callback({
             mediaAsset: {
@@ -409,7 +415,7 @@ test("saveSpeechResult skips persistence when the storage write throws", async (
   assert.equal(articleSpeechUpsertArgs, null, "speech row upsert is skipped after a put failure");
 });
 
-test("saveSpeechResult deletes the uploaded blob and returns false when the DB transaction fails", async () => {
+test("saveSpeechResult keeps a potentially shared blob when the DB transaction fails", async () => {
   const { saveSpeechResult } = await loadRepo();
   const deletedKeys: string[] = [];
   transactionThrows = new Error("transaction unavailable with private article sentence");
@@ -423,14 +429,36 @@ test("saveSpeechResult deletes the uploaded blob and returns false when the DB t
   const saved = await saveSpeechResult(SAVE_PARAMS);
 
   assert.equal(saved, false);
-  assert.deepEqual(deletedKeys, ["speech/orphaned"]);
+  assert.deepEqual(deletedKeys, []);
   assert.doesNotMatch(JSON.stringify(loggerEntries), /private article sentence/);
   assert.equal(loggerEntries.at(-1)?.meta?.machineReason, "speech_persistence_failed");
   assert.equal(mediaAssetUpsertArgs, null, "media asset upsert should not commit after tx failure");
   assert.equal(articleSpeechUpsertArgs, null, "speech row upsert should not commit after tx failure");
 });
 
-test("saveSpeechResult preserves graceful fallback when orphan cleanup also fails", async () => {
+test("a failed concurrent speech save never deletes the blob committed by its peer", async () => {
+  const { saveSpeechResult } = await loadRepo();
+  const deletedKeys: string[] = [];
+  transactionFailuresRemaining = 1;
+  storageImpl = makeStorage({
+    put: async () => ({ storageKey: "speech/shared", sizeBytes: 5, checksum: "cafef00d" }),
+    delete: async (key) => {
+      deletedKeys.push(key);
+    },
+  });
+
+  const results = await Promise.all([
+    saveSpeechResult(SAVE_PARAMS),
+    saveSpeechResult(SAVE_PARAMS),
+  ]);
+
+  assert.deepEqual(results.sort(), [false, true]);
+  assert.deepEqual(deletedKeys, []);
+  assert.deepEqual(mediaAssetUpsertArgs?.where, { storageKey: "speech/shared" });
+  assert.equal(articleSpeechUpsertArgs?.create.mediaAssetId, "media-1");
+});
+
+test("saveSpeechResult does not attempt unsafe cleanup after persistence failure", async () => {
   const { saveSpeechResult } = await loadRepo();
   transactionThrows = new Error("transaction unavailable");
   storageImpl = makeStorage({
@@ -443,6 +471,6 @@ test("saveSpeechResult preserves graceful fallback when orphan cleanup also fail
   assert.equal(await saveSpeechResult(SAVE_PARAMS), false);
   assert.deepEqual(
     loggerEntries.map((entry) => entry.meta?.machineReason),
-    ["storage_cleanup_failed", "speech_persistence_failed"],
+    ["speech_persistence_failed"],
   );
 });

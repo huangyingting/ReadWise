@@ -18,7 +18,11 @@
  * is introduced, add the tenant predicate in this module so callers inherit it.
  */
 import { prisma } from "@/lib/prisma";
-import { isPlatformSuperuser } from "@/lib/rbac";
+import {
+  CAPABILITIES,
+  hasCapability,
+  isPlatformSuperuser,
+} from "@/lib/rbac";
 import {
   ArticleStatus,
   ArticleVisibility,
@@ -304,10 +308,23 @@ export function publicLibraryArticleWhere(
 ): Prisma.ArticleWhereInput {
   return {
     ...(extra ?? {}),
-    visibility: ArticleVisibility.PUBLIC,
+    visibility: {
+      in: [ArticleVisibility.PUBLIC, ArticleVisibility.UNLISTED],
+    },
     ownerId: null,
     organizationId: null,
   };
+}
+
+export function moderatableArticleWhere(
+  context?: ArticleAccessContext | null,
+  extra?: Prisma.ArticleWhereInput,
+): Prisma.ArticleWhereInput {
+  if (!hasCapability(context, CAPABILITIES.contentModerate)) {
+    return DENIED_WHERE;
+  }
+  if (isArticleOperator(context)) return andWhere({}, extra);
+  return publicLibraryArticleWhere(extra);
 }
 
 export function readableArticleWhere(

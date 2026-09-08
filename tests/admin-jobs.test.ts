@@ -62,9 +62,9 @@ before(() => {
             }
             return { count: 1 };
           },
-          delete: async (args: { where: { id: string } }) => {
+          deleteMany: async (args: { where: { id: string } }) => {
             archiveCalls.push(args.where.id);
-            return { id: args.where.id, status: "COMPLETED", type: "ARTICLE_PROCESS" };
+            return { count: 1 };
           },
         },
       },

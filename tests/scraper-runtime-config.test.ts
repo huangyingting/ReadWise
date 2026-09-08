@@ -62,7 +62,7 @@ test("scraper runtime config exposes safe defaults for every operational control
   assert.equal(config.scraperHtmlNormalize(), false);
   assert.equal(config.scraperReadability(), true);
   assert.equal(config.scraperFetchProfileRetry(), true);
-  assert.equal(config.scraperFetchBrowser(), true);
+  assert.equal(config.scraperFetchBrowser(), false);
   assert.equal(config.scraperFetchReader(), true);
   assert.equal(config.scraperFetchWayback(), true);
   assert.equal(config.scraperFetch429Retries(), 3);

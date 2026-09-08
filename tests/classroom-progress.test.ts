@@ -25,6 +25,8 @@ let memberRowStub: Record<string, unknown>[] = [];
 let assignmentRowStub: Record<string, unknown>[] = [];
 let completionRowStub: Record<string, unknown>[] = [];
 let lastAssignmentFindManyArgs: unknown = null;
+let serializableTransactionCalls = 0;
+let afterAssignmentRead: (() => void) | null = null;
 
 function defaultClassroom(overrides: Record<string, unknown> = {}) {
   return { id: "c1", name: "Math", orgId: "o1", teacherId: "t1", ...overrides };
@@ -72,6 +74,61 @@ before(() => {
       },
     },
   });
+
+  mock.module("@/lib/database/serializable-transaction", {
+    namedExports: {
+      runSerializableTransaction: async (
+        operation: (tx: Record<string, unknown>) => Promise<unknown>,
+      ) => {
+        serializableTransactionCalls += 1;
+        const classroomSnapshot = classroomStub ? { ...classroomStub } : null;
+        const memberSnapshot = memberRowStub.map((row) => ({ ...row }));
+        const assignmentSnapshot = assignmentRowStub.map((row) => ({ ...row }));
+        const completionSnapshot = completionRowStub.map((row) => ({ ...row }));
+        const tx = {
+          classroom: {
+            findUnique: async () => classroomSnapshot,
+          },
+          classroomMembership: {
+            findMany: async () => memberSnapshot,
+          },
+          assignment: {
+            findMany: async (args: {
+              where?: {
+                OR?: Array<{
+                  publishState?: string;
+                  publishAt?: { lte?: Date };
+                }>;
+              };
+            }) => {
+              lastAssignmentFindManyArgs = args;
+              const liveAt = args.where?.OR
+                ?.find((clause) => clause.publishAt)
+                ?.publishAt?.lte;
+              const rows = assignmentSnapshot
+                .filter((assignment) =>
+                  (assignment.publishState ?? "PUBLISHED") === "PUBLISHED" ||
+                  ((assignment.publishState ?? "PUBLISHED") === "SCHEDULED" &&
+                    assignment.publishAt instanceof Date &&
+                    liveAt instanceof Date &&
+                    assignment.publishAt <= liveAt),
+                )
+                .map((assignment) => ({
+                  ...assignment,
+                  targets: (assignment.targets as unknown[]) ?? [],
+                }));
+              afterAssignmentRead?.();
+              return rows;
+            },
+          },
+          assignmentCompletion: {
+            findMany: async () => completionSnapshot,
+          },
+        };
+        return operation(tx);
+      },
+    },
+  });
 });
 
 beforeEach(() => {
@@ -80,6 +137,8 @@ beforeEach(() => {
   assignmentRowStub = [];
   completionRowStub = [];
   lastAssignmentFindManyArgs = null;
+  serializableTransactionCalls = 0;
+  afterAssignmentRead = null;
 });
 
 // ---- getClassroomProgressData — null classroom ----------------------------
@@ -98,6 +157,49 @@ test("getClassroomProgressData does not fetch roster or assignments when classro
   // Should short-circuit and return null without touching member/assignment rows
   const result = await getClassroomProgressData("nonexistent");
   assert.equal(result, null);
+});
+
+test("getClassroomProgressData reads provenance and completions from one serializable snapshot", async () => {
+  const createdAt = new Date("2026-01-01");
+  assignmentRowStub = [
+    {
+      id: "asgn1",
+      articleId: "art1",
+      article: { title: "Article One" },
+      wholeClass: true,
+      everTargeted: false,
+      dueDate: null,
+      createdAt,
+    },
+  ];
+  completionRowStub = [];
+  afterAssignmentRead = () => {
+    assignmentRowStub = [
+      {
+        ...assignmentRowStub[0],
+        everTargeted: true,
+      },
+    ];
+    completionRowStub = [
+      {
+        assignmentId: "asgn1",
+        studentId: "s1",
+        status: AssignmentStatus.COMPLETED,
+        quizScore: 41,
+        pointsAwarded: null,
+        completionSource: null,
+        completedAt: createdAt,
+        feedback: null,
+      },
+    ];
+  };
+
+  const { getClassroomProgressData } = await classroomProgress();
+  const result = await getClassroomProgressData("c1");
+
+  assert.equal(serializableTransactionCalls, 1);
+  assert.equal(result?.assignments[0].everTargeted, false);
+  assert.deepEqual(result?.completions, []);
 });
 
 // ---- classroom header -----------------------------------------------------
@@ -226,6 +328,7 @@ test("getClassroomProgressData maps assignment rows to ClassroomProgressAssignme
     dueDate,
     createdAt,
     targetedStudentIds: null,
+    everTargeted: false,
   });
 });
 
@@ -238,6 +341,8 @@ test("getClassroomProgressData maps assignment targets to targetedStudentIds", a
       dueDate: null,
       createdAt,
       article: { id: "art1", title: "Article One" },
+      wholeClass: false,
+      everTargeted: true,
       targets: [{ studentId: "s1" }, { studentId: "s2" }],
     },
   ];
@@ -245,6 +350,7 @@ test("getClassroomProgressData maps assignment targets to targetedStudentIds", a
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.deepEqual(result.assignments[0].targetedStudentIds, ["s1", "s2"]);
+  assert.equal(result.assignments[0].everTargeted, true);
 });
 
 test("getClassroomProgressData maps assignment with null dueDate", async () => {

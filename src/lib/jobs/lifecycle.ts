@@ -258,8 +258,10 @@ export async function archiveJob(jobId: string): Promise<Job | null> {
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return null;
   if (!TERMINAL_STATUSES.includes(job.status)) return null;
-  await prisma.job.delete({ where: { id: jobId } });
-  return job;
+  const deleted = await prisma.job.deleteMany({
+    where: { id: jobId, status: { in: TERMINAL_STATUSES } },
+  });
+  return deleted.count === 1 ? job : null;
 }
 
 // ---------------------------------------------------------------------------

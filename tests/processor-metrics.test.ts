@@ -27,6 +27,11 @@ before(() => {
             status = ArticleStatus.PUBLISHED;
             return {};
           },
+          updateMany: async () => {
+            updated = true;
+            status = ArticleStatus.PUBLISHED;
+            return { count: 1 };
+          },
           findMany: async () => [],
         },
       },

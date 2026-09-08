@@ -372,6 +372,7 @@ async function migrateHighlights(
       endOffset: true,
       prefix: true,
       suffix: true,
+      note: true,
     },
     orderBy: [{ userId: "asc" }, { startOffset: "asc" }, { id: "asc" }],
   });
@@ -390,11 +391,19 @@ async function migrateHighlights(
 
   const survivorHighlights = await tx.highlight.findMany({
     where: { articleId: survivingArticleId },
-    select: { userId: true, startOffset: true, endOffset: true },
+    select: {
+      userId: true,
+      startOffset: true,
+      endOffset: true,
+      note: true,
+    },
   });
-  const occupied = new Set<string>();
+  const occupied = new Map<string, string | null>();
   for (const h of survivorHighlights) {
-    occupied.add(highlightSlotKey(h.userId, h.startOffset, h.endOffset));
+    occupied.set(
+      highlightSlotKey(h.userId, h.startOffset, h.endOffset),
+      h.note,
+    );
   }
 
   for (const row of loserRows) {
@@ -406,7 +415,10 @@ async function migrateHighlights(
     }
     const slot = highlightSlotKey(row.userId, assessment.targetStartOffset, assessment.targetEndOffset);
     if (occupied.has(slot)) {
-      // The survivor already owns this exact anchor for this user — drop the dup.
+      if (occupied.get(slot) !== row.note) {
+        counts.skipped += 1;
+        continue;
+      }
       await tx.highlight.delete({ where: { id: row.id } });
       counts.merged += 1;
       continue;
@@ -419,7 +431,7 @@ async function migrateHighlights(
         endOffset: assessment.targetEndOffset,
       },
     });
-    occupied.add(slot);
+    occupied.set(slot, row.note);
     counts.repointed += 1;
   }
   return counts;

@@ -10,6 +10,7 @@
  */
 
 import { removeAccount } from "@/lib/account-lifecycle/account-removal";
+import { runSerializableTransaction } from "@/lib/database/serializable-transaction";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
@@ -69,27 +70,22 @@ export async function updateMemberRole(
   role: Role,
   audit?: AuditFactory<UpdateMemberRoleSuccess>,
 ): Promise<UpdateMemberRoleResult> {
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: { id: true, role: true },
-  });
-  if (!user) {
-    return notFound();
-  }
-
-  // No role change — skip the DB write entirely.
-  if (user.role === role) {
-    const result = updateRoleSuccess(role, user.role, false);
-    if (audit) {
-      await recordAuditFromRequest(audit(result));
-    }
-    return result;
-  }
-
-  // Re-count admins inside the transaction so two concurrent demotions of the
-  // last admin can never both pass the guard and leave the system adminless.
   try {
-    await prisma.$transaction(async (tx) => {
+    const result = await runSerializableTransaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id },
+        select: { id: true, role: true },
+      });
+      if (!user) return null;
+
+      if (user.role === role) {
+        const unchanged = updateRoleSuccess(role, user.role, false);
+        if (audit) {
+          await recordAuditFromRequest(audit(unchanged), tx);
+        }
+        return unchanged;
+      }
+
       if (user.role === "Admin" && role !== "Admin") {
         const admins = await tx.user.count({ where: { role: "Admin" } });
         if (admins <= 1) {
@@ -103,13 +99,14 @@ export async function updateMemberRole(
           tx,
         );
       }
+      return updateRoleSuccess(role, user.role, true);
     });
+    return result ?? notFound();
   } catch (e) {
     const guardConflict = adminGuardConflict(e);
     if (guardConflict) return guardConflict;
     throw e;
   }
-  return updateRoleSuccess(role, user.role, true);
 }
 
 /**

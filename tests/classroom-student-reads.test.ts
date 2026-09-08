@@ -138,8 +138,8 @@ test("listAssignmentsForStudent AND-composes targeting and live visibility seams
   await listAssignmentsForStudent("s1");
   const args = lastStudentScopeArgs();
   assert.deepEqual(args.where.AND[0].OR, [
-    { targets: { none: {} } },
-    { targets: { some: { studentId: "s1" } } },
+    { wholeClass: true },
+    { wholeClass: false, targets: { some: { studentId: "s1" } } },
   ]);
   assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
   assert.equal(args.where.AND[1].OR[1].publishState, "SCHEDULED");
@@ -318,8 +318,8 @@ test("listStudentAssignmentsForArticle includes article, classroom, and targetin
   assert.equal(args.where.articleId, "art-42");
   assert.equal(args.where.classroom.members.some.userId, "s42");
   assert.deepEqual(args.where.AND[0].OR, [
-    { targets: { none: {} } },
-    { targets: { some: { studentId: "s42" } } },
+    { wholeClass: true },
+    { wholeClass: false, targets: { some: { studentId: "s42" } } },
   ]);
   assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });

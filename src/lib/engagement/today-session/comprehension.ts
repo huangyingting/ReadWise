@@ -26,7 +26,11 @@
  * text, question text, answer/option text, definitions, or explanations.
  */
 
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import {
+  articleAccessContextForUser,
+  getReadableArticleById,
+} from "@/lib/article-library";
 import { prisma } from "@/lib/prisma";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { updateArticleMastery } from "@/lib/learning/article-mastery";
@@ -159,6 +163,17 @@ function unavailableComprehensionCheck(): TodayComprehensionCheck {
   };
 }
 
+async function isReadablePrimaryArticle(
+  userId: string,
+  articleId: string,
+): Promise<boolean> {
+  const access = await articleAccessContextForUser({ id: userId });
+  const article = await getReadableArticleById(articleId, access, {
+    select: { id: true },
+  });
+  return article !== null;
+}
+
 /**
  * Load the comprehension self-check for an authenticated learner's local day.
  * Resolves the day's primary article, selects an optional MCQ, and reports
@@ -178,6 +193,9 @@ export async function loadTodayComprehensionCheck(args: {
   });
   const session = await getTodaySession(args.userId, localDate);
   if (!session || !session.primaryArticleId) {
+    return unavailableComprehensionCheck();
+  }
+  if (!(await isReadablePrimaryArticle(args.userId, session.primaryArticleId))) {
     return unavailableComprehensionCheck();
   }
 
@@ -255,7 +273,7 @@ async function upsertComprehensionFeedback(args: {
   mcqCorrect: boolean | null;
   skillTag: ComprehensionSkillTag | null;
   remediationViewed: boolean;
-}): Promise<void> {
+}): Promise<boolean> {
   const existing = await prisma.todayComprehensionFeedback.findFirst({
     where: { userId: args.userId, todaySessionId: args.todaySessionId },
     select: { id: true, remediationViewed: true },
@@ -276,17 +294,43 @@ async function upsertComprehensionFeedback(args: {
       where: { id: existing.id },
       data,
     });
-    return;
+    return false;
   }
 
-  await prisma.todayComprehensionFeedback.create({
-    data: {
-      userId: args.userId,
-      todaySessionId: args.todaySessionId,
-      articleId: args.articleId,
-      ...data,
-    },
-  });
+  try {
+    await prisma.todayComprehensionFeedback.create({
+      data: {
+        userId: args.userId,
+        todaySessionId: args.todaySessionId,
+        articleId: args.articleId,
+        ...data,
+      },
+    });
+    return true;
+  } catch (error) {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== "P2002"
+    ) {
+      throw error;
+    }
+
+    const winner = await prisma.todayComprehensionFeedback.findFirst({
+      where: { userId: args.userId, todaySessionId: args.todaySessionId },
+      select: { id: true, remediationViewed: true },
+    });
+    if (!winner) throw error;
+
+    await prisma.todayComprehensionFeedback.update({
+      where: { id: winner.id },
+      data: {
+        ...data,
+        remediationViewed:
+          winner.remediationViewed || args.remediationViewed,
+      },
+    });
+    return false;
+  }
 }
 
 function answerableQuestionId(args: SubmitTodayComprehensionArgs): string | null {
@@ -391,6 +435,7 @@ export async function submitTodayComprehension(
   const session = await getTodaySession(args.userId, localDate);
   if (!session || !session.primaryArticleId) return null;
   const articleId = session.primaryArticleId;
+  if (!(await isReadablePrimaryArticle(args.userId, articleId))) return null;
 
   // ── Grade the optional MCQ server-side (never trust a client outcome) ──────
   const skillTag = isComprehensionSkillTag(args.skillTag) ? args.skillTag : null;
@@ -408,32 +453,36 @@ export async function submitTodayComprehension(
   });
 
   // ── Persist the controlled feedback row (ids/enums/booleans only) ──────────
-  await bestEffortMastery("today.comprehension_feedback", () =>
-    upsertComprehensionFeedback({
-      userId: args.userId,
-      todaySessionId: session.id,
-      articleId,
-      selfRating: args.selfRating,
-      questionId: effectiveQuestionId,
-      mcqCorrect,
-      skillTag,
-      remediationViewed,
-    }),
+  const feedbackCreated = await bestEffortMastery(
+    "today.comprehension_feedback",
+    () =>
+      upsertComprehensionFeedback({
+        userId: args.userId,
+        todaySessionId: session.id,
+        articleId,
+        selfRating: args.selfRating,
+        questionId: effectiveQuestionId,
+        mcqCorrect,
+        skillTag,
+        remediationViewed,
+      }),
   );
 
   // ── Feed weakness signals into the EXISTING mastery paths (best-effort) ────
-  await Promise.all(
-    masteryUpdates({
-      userId: args.userId,
-      articleId,
-      selfRating: args.selfRating,
-      skillTag,
-      mcqCorrect,
-    }),
-  );
+  if (feedbackCreated === true) {
+    await Promise.all(
+      masteryUpdates({
+        userId: args.userId,
+        articleId,
+        selfRating: args.selfRating,
+        skillTag,
+        mcqCorrect,
+      }),
+    );
+  }
 
   // ── Product analytics (metadata only — enums/booleans, never content) ──────
-  if (view) {
+  if (view && feedbackCreated === true) {
     await emitTodayComprehensionSubmitted(view, {
       selfRating: args.selfRating,
       skillTag,

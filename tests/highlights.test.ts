@@ -20,6 +20,8 @@ let stubHighlights: unknown[] = [];
 let stubCreated: unknown = null;
 let stubFindFirst: unknown = null; // for ownership checks
 let stubUpdated: unknown = null;
+let updateManyArgs: unknown = null;
+let deleteManyArgs: unknown = null;
 
 before(() => {
   mock.module("@/lib/api-auth", {
@@ -37,8 +39,16 @@ before(() => {
           findMany: async () => stubHighlights,
           upsert: async () => stubCreated,
           findFirst: async () => stubFindFirst,
-          update: async () => stubUpdated,
+          updateMany: async (args: unknown) => {
+            updateManyArgs = args;
+            stubFindFirst = stubUpdated;
+            return { count: 1 };
+          },
           delete: async () => ({}),
+          deleteMany: async (args: unknown) => {
+            deleteManyArgs = args;
+            return { count: 1 };
+          },
           groupBy: async () => [],
         },
         membership: { findMany: async () => [] },
@@ -54,6 +64,8 @@ beforeEach(() => {
   stubCreated = null;
   stubFindFirst = null;
   stubUpdated = null;
+  updateManyArgs = null;
+  deleteManyArgs = null;
 });
 
 function jsonReq(body: unknown, method = "POST"): Request {
@@ -72,10 +84,17 @@ function deleteReq(): Request {
   return new Request("http://test/api", { method: "DELETE" });
 }
 
-async function readerHighlightsRoute(): Promise<{ GET: RouteHandler; POST: RouteHandler }> {
+async function readerHighlightsRoute(): Promise<{
+  GET: RouteHandler;
+  POST: RouteHandler;
+  PATCH: RouteHandler;
+  DELETE: RouteHandler;
+}> {
   return (await import("@/app/api/reader/[id]/highlights/route")) as {
     GET: RouteHandler;
     POST: RouteHandler;
+    PATCH: RouteHandler;
+    DELETE: RouteHandler;
   };
 }
 
@@ -193,16 +212,16 @@ test("updateHighlight succeeds for owner with valid note", async () => {
   if (result.ok) assert.equal(result.highlight.note, "My note");
 });
 
-test("deleteHighlight returns 404 when not owner", async () => {
-  stubFindFirst = null;
+test("deleteHighlight is idempotent and ownership scoped", async () => {
   const { deleteHighlight } = await import("@/lib/annotations");
   const result = await deleteHighlight("h-99", "user-1");
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.status, 404);
+  assert.deepEqual(result, { ok: true });
+  assert.deepEqual(deleteManyArgs, {
+    where: { id: "h-99", userId: "user-1" },
+  });
 });
 
 test("deleteHighlight succeeds for owner", async () => {
-  stubFindFirst = { id: "h-1" };
   const { deleteHighlight } = await import("@/lib/annotations");
   const result = await deleteHighlight("h-1", "user-1");
   assert.equal(result.ok, true);
@@ -305,20 +324,69 @@ test("PATCH /api/highlights/[id] returns 404 when not the owner", async () => {
 });
 
 test("PATCH /api/highlights/[id] updates note for the owner", async () => {
-  stubFindFirst = { id: "h-1" };
+  stubFindFirst = { id: "h-1", note: null, updatedAt: new Date() };
   stubUpdated = highlightRow({ note: "updated note" });
   const { PATCH } = await highlightRoute();
   const res = await PATCH(jsonReq({ note: "updated note" }, "PATCH"), ctx({ id: "h-1" }));
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.highlight.note, "updated note");
+  assert.deepEqual(
+    (updateManyArgs as { data: Record<string, unknown> }).data,
+    { note: "updated note" },
+  );
 });
 
 test("PATCH /api/highlights/[id] returns 400 for invalid color", async () => {
-  stubFindFirst = { id: "h-1" };
+  stubFindFirst = { id: "h-1", note: null, updatedAt: new Date() };
   const { PATCH } = await highlightRoute();
   const res = await PATCH(jsonReq({ color: "invisible" }, "PATCH"), ctx({ id: "h-1" }));
   assert.equal(res.status, 400);
+});
+
+test("PATCH pending highlight by anchor applies a note after an ambiguous create", async () => {
+  stubFindFirst = highlightRow({ id: "server-id", note: null });
+  stubUpdated = highlightRow({ id: "server-id", note: "saved later" });
+  const { PATCH } = await readerHighlightsRoute();
+
+  const res = await PATCH(
+    jsonReq(
+      {
+        startOffset: validAnchor.startOffset,
+        endOffset: validAnchor.endOffset,
+        note: "saved later",
+        baseNote: null,
+      },
+      "PATCH",
+    ),
+    ctx({ id: "art-1" }),
+  );
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.highlight.id, "server-id");
+  assert.equal(body.highlight.note, "saved later");
+});
+
+test("DELETE pending highlight by anchor is idempotent", async () => {
+  const { DELETE } = await readerHighlightsRoute();
+  const res = await DELETE(
+    new Request(
+      `http://test/api/reader/art-1/highlights?startOffset=${validAnchor.startOffset}&endOffset=${validAnchor.endOffset}`,
+      { method: "DELETE" },
+    ),
+    ctx({ id: "art-1" }),
+  );
+
+  assert.equal(res.status, 200);
+  assert.deepEqual(deleteManyArgs, {
+    where: {
+      userId: "user-1",
+      articleId: "art-1",
+      startOffset: validAnchor.startOffset,
+      endOffset: validAnchor.endOffset,
+    },
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -332,15 +400,16 @@ test("DELETE /api/highlights/[id] returns 401 when unauthenticated", async () =>
   assert.equal(res.status, 401);
 });
 
-test("DELETE /api/highlights/[id] returns 404 when not the owner", async () => {
-  stubFindFirst = null;
+test("DELETE /api/highlights/[id] is idempotent and ownership scoped", async () => {
   const { DELETE } = await highlightRoute();
   const res = await DELETE(deleteReq(), ctx({ id: "h-99" }));
-  assert.equal(res.status, 404);
+  assert.equal(res.status, 200);
+  assert.deepEqual(deleteManyArgs, {
+    where: { id: "h-99", userId: "user-1" },
+  });
 });
 
 test("DELETE /api/highlights/[id] removes the highlight and returns ok", async () => {
-  stubFindFirst = { id: "h-1" };
   const { DELETE } = await highlightRoute();
   const res = await DELETE(deleteReq(), ctx({ id: "h-1" }));
   assert.equal(res.status, 200);

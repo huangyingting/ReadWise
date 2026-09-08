@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { submitMutation, newClientMutationId } from "@/lib/offline/sync-runtime";
+import {
+  captureOfflineMutationGeneration,
+  submitMutation,
+  newClientMutationId,
+  type OfflineMutationGeneration,
+} from "@/lib/offline/sync-runtime";
 import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 
 export type QuizQuestion = {
@@ -188,6 +193,7 @@ export function useArticleQuizPanel(
 
     const priorBest = best;
 
+    const generation = captureOfflineMutationGeneration();
     const clientMutationId = newClientMutationId();
     const endpoint = `/api/reader/${articleId}/quiz/attempt`;
     const payload = {
@@ -195,7 +201,13 @@ export function useArticleQuizPanel(
       clientMutationId,
     };
 
-    recordAttempt(endpoint, payload, clientMutationId, priorBest);
+    recordAttempt(
+      endpoint,
+      payload,
+      clientMutationId,
+      priorBest,
+      generation,
+    );
   }
 
   function recordAttempt(
@@ -203,6 +215,7 @@ export function useArticleQuizPanel(
     payload: AttemptPayload,
     clientMutationId: string,
     priorBest: number | null,
+    generation: OfflineMutationGeneration,
   ) {
     fetch(endpoint, {
       method: "POST",
@@ -228,6 +241,7 @@ export function useArticleQuizPanel(
           method: "POST",
           body: payload,
           clientMutationId,
+          generation,
         }).then((res) => {
           setSavedNote(res.queued ? "queued" : "failed");
         });

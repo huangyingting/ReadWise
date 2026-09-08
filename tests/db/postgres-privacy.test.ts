@@ -187,22 +187,41 @@ test("ownership uniqueness matches PostgreSQL semantics", { skip: !enabled }, as
     },
   });
 
-  await prisma.article.createMany({
-    data: [
-      {
-        id: id("public_null_owner_a"),
-        title: "Public Shared Source A",
-        content: "Body",
-        sourceUrl,
-        visibility: ArticleVisibility.PUBLIC,
-      },
-      {
+  await prisma.article.create({
+    data: {
+      id: id("public_null_owner_a"),
+      title: "Public Shared Source A",
+      content: "Body",
+      sourceUrl,
+      visibility: ArticleVisibility.PUBLIC,
+    },
+  });
+  await assert.rejects(
+    prisma.article.create({
+      data: {
         id: id("public_null_owner_b"),
         title: "Public Shared Source B",
         content: "Body",
         sourceUrl,
         visibility: ArticleVisibility.PUBLIC,
       },
+    }),
+    UNIQUE_CONSTRAINT_ERROR,
+  );
+
+  await prisma.article.create({
+    data: {
+      id: id("org_shared_source"),
+      title: "Organization Shared Source",
+      content: "Body",
+      sourceUrl,
+      visibility: ArticleVisibility.ORG,
+      organizationId: id("org_namespace"),
+    },
+  });
+
+  await prisma.article.createMany({
+    data: [
       {
         id: id("owner_null_source_a"),
         title: "Owned Null Source A",

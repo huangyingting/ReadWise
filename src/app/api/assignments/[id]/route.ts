@@ -18,6 +18,9 @@ import {
   updateAssignment,
 } from "@/lib/classroom";
 import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
+import { viewerRoleForClassroom } from "@/lib/analytics/tenant";
+import { hasOrgCapability } from "@/lib/org/guards";
+import { CAPABILITIES } from "@/lib/rbac";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const updateBody = object({
@@ -35,8 +38,23 @@ export const GET = createHandler(
   async ({ params, session }) => {
     const assignment = await getAssignmentClassroom(params.id);
     if (!assignment) throw new ApiError(404, "Assignment not found");
-    await requireActiveClassroomManageApi(session, assignment.classroomId);
-    const detail = await getAssignmentDetail(params.id);
+    const { classroom, membership } = await requireActiveClassroomManageApi(
+      session,
+      assignment.classroomId,
+    );
+    const isOrgAdmin = hasOrgCapability(membership, CAPABILITIES.orgManage);
+    const isTeacher =
+      classroom.teacherId === session.user.id &&
+      hasOrgCapability(membership, CAPABILITIES.classroomManage);
+    const role = viewerRoleForClassroom({
+      viewer: session.user,
+      classroom,
+      isTeacher,
+      isOrgAdmin,
+    });
+    const detail = await getAssignmentDetail(params.id, {
+      includeIndividualData: role === "teacher" || role === "systemAdmin",
+    });
     if (!detail) throw new ApiError(404, "Assignment not found");
     return NextResponse.json({ assignment: detail });
   },

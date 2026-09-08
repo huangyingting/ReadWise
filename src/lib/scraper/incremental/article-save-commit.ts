@@ -36,7 +36,7 @@
  *     serialization point: a losing concurrent worker's guard matches zero rows,
  *     rolling back its Article insert too, so there is never a duplicate Article.
  *   - Convergence-after-conflict: on the guarded-update race OR the Article
- *     `@@unique([sourceUrl, ownerId])` conflict, the standalone wrapper re-reads
+ *     public-library source-URL uniqueness conflict, the standalone wrapper re-reads
  *     the winner, attaches this candidate to the existing Article, ensures its
  *     required `ARTICLE_PROCESS` job, and converges — never a duplicate Article,
  *     never a saved candidate without its required job (req6).
@@ -63,6 +63,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { enqueueArticleProcess, enqueueArticleProcessInTx } from "@/lib/jobs/enqueue";
+import { publicLibraryArticleWhere } from "@/lib/article-library/policy";
 
 import { RECOVERABLE_CANDIDATE_STATUSES } from "./ingest-recovery";
 
@@ -226,12 +227,10 @@ function sameInstant(a: Date | null, b: Date | null): boolean {
 
 /** True when a thrown error is a unique conflict on the Article identity slot. */
 function isArticleUniqueConflict(error: unknown): boolean {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
-    return false;
-  }
-  const target = (error.meta as { target?: unknown } | undefined)?.target;
-  const asText = Array.isArray(target) ? target.join(",") : String(target ?? "");
-  return asText.includes("sourceUrl");
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
 }
 
 function buildArticleCreateData(
@@ -396,7 +395,7 @@ async function convergeOnExistingArticle(
   // The Article identity slot was won by a different candidate: attach this one
   // to the existing ownerless Article rather than create a duplicate.
   const existing = await prisma.article.findFirst({
-    where: { sourceUrl: input.draft.sourceUrl, ownerId: null },
+    where: publicLibraryArticleWhere({ sourceUrl: input.draft.sourceUrl }),
     select: { id: true },
   });
   if (!existing) return null;

@@ -260,6 +260,8 @@ class FakeIndexedDb {
 }
 
 let fakeIndexedDb: FakeIndexedDb;
+let navigatorLockTail: Promise<void>;
+let fakeLocalStorage: Map<string, string>;
 
 function defineGlobal(name: string, value: unknown): void {
   Object.defineProperty(globalThis, name, {
@@ -271,14 +273,41 @@ function defineGlobal(name: string, value: unknown): void {
 
 function installIndexedDb(): FakeIndexedDb {
   fakeIndexedDb = new FakeIndexedDb();
-  defineGlobal("window", {});
+  fakeLocalStorage = new Map();
+  defineGlobal("window", {
+    localStorage: {
+      getItem: (key: string) => fakeLocalStorage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        fakeLocalStorage.set(key, value);
+      },
+      removeItem: (key: string) => {
+        fakeLocalStorage.delete(key);
+      },
+    },
+  });
   defineGlobal("indexedDB", fakeIndexedDb);
   defineGlobal("IDBKeyRange", { only: (only: unknown) => ({ only }) });
   return fakeIndexedDb;
 }
 
 function makeNavigator(value: Record<string, unknown>): void {
-  defineGlobal("navigator", value);
+  defineGlobal("navigator", {
+    locks: {
+      request: <T>(
+        _name: string,
+        _options: { mode: "exclusive" },
+        callback: () => Promise<T>,
+      ): Promise<T> => {
+        const result = navigatorLockTail.then(callback);
+        navigatorLockTail = result.then(
+          () => undefined,
+          () => undefined,
+        );
+        return result;
+      },
+    },
+    ...value,
+  });
 }
 
 function makeServiceWorkerNavigator({
@@ -290,13 +319,17 @@ function makeServiceWorkerNavigator({
   swListeners: Map<string, (event: MessageEvent) => void>;
   syncRegistrations: string[];
 }): void {
+  const active = { postMessage: (msg: unknown) => postedMessages.push(msg) };
+  const registration = {
+    sync: { register: async (tag: string) => syncRegistrations.push(tag) },
+    active,
+  };
   makeNavigator({
     onLine: true,
     serviceWorker: {
-      ready: Promise.resolve({
-        sync: { register: async (tag: string) => syncRegistrations.push(tag) },
-        active: { postMessage: (msg: unknown) => postedMessages.push(msg) },
-      }),
+      controller: active,
+      getRegistration: async () => registration,
+      ready: Promise.resolve(registration),
       addEventListener: (type: string, cb: (event: MessageEvent) => void) => swListeners.set(type, cb),
     },
   });
@@ -332,6 +365,7 @@ function queued(partial: Partial<QueuedMutation> = {}): QueuedMutation {
     method: partial.method ?? "POST",
     payload: partial.payload ?? { percent: 10 },
     createdAt: partial.createdAt ?? "2026-01-01T00:00:00.000Z",
+    purgeGeneration: partial.purgeGeneration ?? null,
     retryCount: partial.retryCount ?? 0,
     status: partial.status ?? "pending",
     lastError: partial.lastError ?? null,
@@ -341,6 +375,7 @@ function queued(partial: Partial<QueuedMutation> = {}): QueuedMutation {
 
 beforeEach(() => {
   installIndexedDb();
+  navigatorLockTail = Promise.resolve();
   defineGlobal("crypto", { randomUUID: () => "uuid-from-crypto" });
 });
 
@@ -419,17 +454,44 @@ test("offline mutation store dedupes, updates, removes, clears, and degrades gra
     enqueueMutation,
     listQueuedMutations,
     removeQueuedMutation,
+    removeQueuedMutationForGeneration,
     updateQueuedMutation,
   } = await import("@/lib/offline/mutation-store");
 
-  await enqueueMutation({
+  assert.equal(await enqueueMutation({
     clientMutationId: "m1",
     type: "progress",
     endpoint: "/api/progress",
     method: "POST",
     payload: { percent: 10 },
     dedupeKey: "progress:a1",
-  });
+  }), true);
+  assert.equal(await enqueueMutation({
+    clientMutationId: "m2",
+    type: "progress",
+    endpoint: "/api/progress",
+    method: "POST",
+    payload: { percent: 20 },
+    dedupeKey: "progress:a1",
+  }), true);
+
+  assert.equal(await countQueuedMutations(), 1);
+  assert.deepEqual((await listQueuedMutations()).map((m) => m.clientMutationId), ["m2"]);
+
+  await updateQueuedMutation("m2", { status: "failed", retryCount: 3, lastError: "bad" });
+  assert.equal((await listQueuedMutations())[0].status, "failed");
+
+  assert.equal(
+    await removeQueuedMutationForGeneration("m2", "other-generation", undefined),
+    false,
+  );
+  assert.equal(await countQueuedMutations(), 1);
+  assert.equal(
+    await removeQueuedMutationForGeneration("m2", null, undefined),
+    true,
+  );
+  assert.equal(await countQueuedMutations(), 0);
+
   await enqueueMutation({
     clientMutationId: "m2",
     type: "progress",
@@ -438,30 +500,41 @@ test("offline mutation store dedupes, updates, removes, clears, and degrades gra
     payload: { percent: 20 },
     dedupeKey: "progress:a1",
   });
-
-  assert.equal(await countQueuedMutations(), 1);
-  assert.deepEqual((await listQueuedMutations()).map((m) => m.clientMutationId), ["m2"]);
-
-  await updateQueuedMutation("m2", { status: "failed", retryCount: 3, lastError: "bad" });
-  assert.equal((await listQueuedMutations())[0].status, "failed");
-
   await removeQueuedMutation("m2");
   assert.equal(await countQueuedMutations(), 0);
 
-  await enqueueMutation({
+  assert.equal(await enqueueMutation({
     clientMutationId: "m3",
     type: "quiz.attempt",
     endpoint: "/api/quiz",
     method: "POST",
     payload: { score: 1 },
-  });
+  }), true);
   await clearQueuedMutations();
   assert.deepEqual(await listQueuedMutations(), []);
 
   delete (globalThis as Record<string, unknown>).window;
   assert.equal(await countQueuedMutations(), 0);
   assert.deepEqual(await listQueuedMutations(), []);
-  await enqueueMutation({ clientMutationId: "off", type: "x", endpoint: "x", method: "POST", payload: null });
+  assert.equal(
+    await enqueueMutation({
+      clientMutationId: "off",
+      type: "x",
+      endpoint: "x",
+      method: "POST",
+      payload: null,
+    }),
+    false,
+  );
+  const runtime = await import("@/lib/offline/sync-runtime");
+  assert.deepEqual(
+    await runtime.queueMutation({
+      type: "x",
+      endpoint: "/api/x",
+      clientMutationId: "failed-runtime-queue",
+    }),
+    { sent: false, queued: false },
+  );
 
   defineGlobal("window", {});
   fakeIndexedDb.openThrows = true;
@@ -470,6 +543,16 @@ test("offline mutation store dedupes, updates, removes, clears, and degrades gra
   await updateQueuedMutation("missing", { status: "failed" });
   await removeQueuedMutation("missing");
   await clearQueuedMutations();
+  assert.equal(
+    await enqueueMutation({
+      clientMutationId: "failed",
+      type: "x",
+      endpoint: "x",
+      method: "POST",
+      payload: null,
+    }),
+    false,
+  );
 });
 
 test("offline conflict helpers cover empty anchors and one-sided note merges", async () => {
@@ -536,6 +619,15 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
   const windowListeners = new Map<string, () => void>();
   const swListeners = new Map<string, (event: MessageEvent) => void>();
   defineGlobal("window", {
+    localStorage: {
+      getItem: (key: string) => fakeLocalStorage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        fakeLocalStorage.set(key, value);
+      },
+      removeItem: (key: string) => {
+        fakeLocalStorage.delete(key);
+      },
+    },
     addEventListener: (type: string, cb: () => void) => windowListeners.set(type, cb),
   });
   makeServiceWorkerNavigator({ postedMessages, swListeners, syncRegistrations });
@@ -570,6 +662,12 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
       clientMutationId: "queue-only",
     }),
     { sent: false, queued: true },
+  );
+  assert.notEqual(
+    (await store.listQueuedMutations()).find(
+      (mutation) => mutation.clientMutationId === "queue-only",
+    )?.purgeGeneration,
+    null,
   );
   assert.equal(fetches.length, fetchCountBeforeQueue);
 
@@ -636,12 +734,14 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
   const unsubscribeConflicts = runtime.subscribeTodayConflicts((info) => conflicts.push(info));
   unsubscribeConflicts();
   runtime.subscribeTodayConflicts((info) => conflicts.push(info));
+  const currentGeneration = runtime.captureOfflineMutationGeneration();
   await store.enqueueMutation(
     queued({
       clientMutationId: "today-conflict",
       type: "today.skip",
       endpoint: "/api/today/skip",
       payload: { localDate: "2026-06-27", timezone: "UTC", skipReason: "busy" },
+      purgeGeneration: currentGeneration.shared,
     }),
   );
   await store.enqueueMutation(
@@ -651,6 +751,7 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
       endpoint: "/api/progress",
       payload: { percent: 90 },
       createdAt: "2026-06-28T00:00:00.000Z",
+      purgeGeneration: currentGeneration.shared,
     }),
   );
   makeNavigator({ onLine: true });
@@ -675,7 +776,13 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
     });
     return new Response(null, { status: 200 });
   });
-  await store.enqueueMutation(queued({ clientMutationId: "slow", endpoint: "/api/slow" }));
+  await store.enqueueMutation(
+    queued({
+      clientMutationId: "slow",
+      endpoint: "/api/slow",
+      purgeGeneration: currentGeneration.shared,
+    }),
+  );
   const firstFlush = runtime.flushOfflineQueue();
   const secondFlush = runtime.flushOfflineQueue();
   for (let i = 0; releaseFetch === undefined && i < 10; i++) {
@@ -693,6 +800,7 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
   windowListeners.get("online")?.();
   swListeners.get("message")?.({ data: { type: STORAGE_KEYS.SW_FLUSH_QUEUE } } as MessageEvent);
   swListeners.get("message")?.({ data: { type: "ignored" } } as MessageEvent);
+  await runtime.flushOfflineQueue();
 
   await runtime.purgeOfflineUserData();
   assert.deepEqual(postedMessages, [{ type: STORAGE_KEYS.SW_PURGE_CACHES }]);
@@ -700,8 +808,22 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
 
   makeNavigator({
     serviceWorker: {
-      ready: Promise.reject(new Error("no service worker")),
+      getRegistration: async () => {
+        throw new Error("no service worker");
+      },
+      ready: new Promise(() => {}),
     },
   });
   await runtime.purgeOfflineUserData();
+
+  makeNavigator({
+    serviceWorker: {
+      ready: new Promise(() => {}),
+    },
+  });
+  const purgeWithoutWorker = await Promise.race([
+    runtime.purgeOfflineUserData().then(() => "purged"),
+    new Promise<"timed-out">((resolve) => setTimeout(() => resolve("timed-out"), 100)),
+  ]);
+  assert.equal(purgeWithoutWorker, "purged");
 });

@@ -24,6 +24,7 @@ type MockSubscription = {
 type MockAssignment = {
   id: string;
   dueDate: Date | null;
+  wholeClass?: boolean;
   classroom: {
     archivedAt?: Date | null;
     members: { userId: string }[];
@@ -67,6 +68,7 @@ let mockAssignments: MockAssignment[] = [];
 let mockAssignmentCount: number = 0;
 let mockAssignmentFindUniqueResult: {
   id: string;
+  wholeClass?: boolean;
   publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
   publishAt?: Date | null;
   classroom: { members: { userId: string }[] };
@@ -183,7 +185,11 @@ before(() => {
                   a.publishAt <= liveAt),
               );
             }
-            return rows.map((a) => ({ ...a, targets: a.targets ?? [] }));
+            return rows.map((a) => ({
+              ...a,
+              wholeClass: a.wholeClass ?? (a.targets?.length ? false : true),
+              targets: a.targets ?? [],
+            }));
           },
           count: async (args: MockAssignmentCount) => {
             lastAssignmentCountArgs = args;
@@ -195,6 +201,9 @@ before(() => {
                  publishState: "PUBLISHED",
                  publishAt: null,
                  ...mockAssignmentFindUniqueResult,
+                 wholeClass:
+                   mockAssignmentFindUniqueResult.wholeClass ??
+                   (mockAssignmentFindUniqueResult.targets?.length ? false : true),
                  targets: mockAssignmentFindUniqueResult.targets ?? [],
                }
              : null,
@@ -553,8 +562,8 @@ describe("sendAssignmentReminderToStudent", () => {
     const payload = sentPayload();
     assert.ok(payload.body.includes("2 assignments"), `expected '2 assignments' in '${payload.body}'`);
     assert.deepEqual(lastAssignmentCountArgs?.where?.AND?.[0].OR, [
-      { targets: { none: {} } },
-      { targets: { some: { studentId: "s1" } } },
+      { wholeClass: true },
+      { wholeClass: false, targets: { some: { studentId: "s1" } } },
     ]);
     assert.deepEqual(lastAssignmentCountArgs?.where?.AND?.[1].OR?.[0], { publishState: "PUBLISHED" });
     assert.equal(lastAssignmentCountArgs?.where?.classroom?.archivedAt, null);

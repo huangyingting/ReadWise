@@ -109,8 +109,11 @@ Aggregate teacher/admin visibility rules are documented in
 `GET /api/classrooms/[id]/analytics` accepts optional `assignmentId` and
 `studentId` filters. `GET /api/classrooms/[id]/analytics/export` accepts the
 same filters plus `format=csv|json`. Classroom teachers and system admins receive
-the same per-student/drilldown fields visible in the UI; org admins continue to
-receive aggregate-only exports with individual rows redacted.
+the same per-student/drilldown fields visible in the UI. Filters require that
+individual-data access. Org admins receive aggregate-only exports with
+individual rows redacted and assignments that have ever been targeted excluded,
+preventing later audience widening from revealing an operator-controlled
+singleton result.
 
 ## Deletion and retention
 
@@ -125,4 +128,3 @@ receive aggregate-only exports with individual rows redacted.
 - [`../access/rbac.md`](../access/rbac.md) — capability resolution.
 - [`../analytics/tenant-reporting-privacy.md`](../analytics/tenant-reporting-privacy.md) — teacher/admin reporting visibility.
 - [`learning-and-mastery.md`](./learning-and-mastery.md) — mastery and quiz signals that can appear in assignment analytics.
-

@@ -121,16 +121,28 @@ export async function recordLearnerEvidence(
   userId: string,
   activity: LearnerEvidence,
 ): Promise<void> {
+  const bySkill = new Map<Skill, SkillEvidence[]>();
+  for (const evidence of evidenceFor(activity)) {
+    const signals = bySkill.get(evidence.skill);
+    if (signals) {
+      signals.push(evidence);
+    } else {
+      bySkill.set(evidence.skill, [evidence]);
+    }
+  }
+
   await Promise.all(
-    evidenceFor(activity).map((evidence) =>
-      bestEffortMastery(evidence.label, () =>
-        recordSkillEvidence(
-          userId,
-          evidence.skill,
-          evidence.outcome,
-          evidence.weight,
-        ),
-      ),
-    ),
+    [...bySkill.values()].map(async (signals) => {
+      for (const evidence of signals) {
+        await bestEffortMastery(evidence.label, () =>
+          recordSkillEvidence(
+            userId,
+            evidence.skill,
+            evidence.outcome,
+            evidence.weight,
+          ),
+        );
+      }
+    }),
   );
 }

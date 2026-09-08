@@ -1169,17 +1169,19 @@ model ClassroomMembership {
 }
 
 model Assignment {
-  id           String    @id @default(cuid())
-  classroomId  String
-  articleId    String
-  dueDate      DateTime?
-  instructions String?
-  title        String?
-  points       Int?
-  publishState AssignmentPublishState @default(PUBLISHED)
-  publishAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  classroomId    String
+  articleId      String
+  wholeClass     Boolean   @default(true)
+  everTargeted   Boolean   @default(false)
+  dueDate        DateTime?
+  instructions   String?
+  title          String?
+  points         Int?
+  publishState   AssignmentPublishState @default(PUBLISHED)
+  publishAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   classroom   Classroom              @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   article     Article                @relation(fields: [articleId], references: [id], onDelete: Cascade)
@@ -1310,6 +1312,7 @@ model TodayComprehensionFeedback {
 
   @@index([userId])
   @@index([userId, articleId])
+  @@unique([userId, todaySessionId])
 }
 
 // #810 — Structured long-term learner weakness memory for Tutor and Study Plan.

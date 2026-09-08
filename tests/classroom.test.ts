@@ -80,7 +80,8 @@ test("canCreateClassroom: OrgAdmin and Teacher may, plain Member may not", () =>
 test("canManageClassroom: the classroom's teacher, an org admin, or a system admin", () => {
   const classroom = { teacherId: "t1", orgId: "o1" };
   // The classroom's own teacher.
-  assert.ok(cls.canManageClassroom({ id: "t1", role: "Reader" }, classroom, { role: "Student" }));
+  assert.ok(cls.canManageClassroom({ id: "t1", role: "Reader" }, classroom, { role: "Teacher" }));
+  assert.ok(!cls.canManageClassroom({ id: "t1", role: "Reader" }, classroom, null));
   // An org admin (org.manage) who isn't the teacher.
   assert.ok(cls.canManageClassroom({ id: "z", role: "Reader" }, classroom, { role: "OrgAdmin" }));
   // A system admin.
@@ -136,8 +137,8 @@ test("getStudentAssignmentContext returns context only for an enrolled student",
   assert.deepEqual(ctx, { assignmentId: "a1", classroomId: "c1", classroomArchivedAt: null });
   const args = lastAssignmentFindFirstArgs as { where: { AND: Array<{ OR: unknown[] }> } };
   assert.deepEqual(args.where.AND[0].OR, [
-    { targets: { none: {} } },
-    { targets: { some: { studentId: "s1" } } },
+    { wholeClass: true },
+    { wholeClass: false, targets: { some: { studentId: "s1" } } },
   ]);
   assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });

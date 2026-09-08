@@ -213,7 +213,7 @@ function AssignmentsCard({
                         : "Not visible to students yet"}
                       {assignmentPointsSuffix(meta.points)}
                     </span>
-                    {meta && meta.targetStudentIds.length > 0 ? (
+                    {meta && !meta.wholeClass ? (
                       <Badge variant="neutral">{meta.targetStudentIds.length} students</Badge>
                     ) : (
                       <Badge variant="neutral">Whole class</Badge>
@@ -227,6 +227,7 @@ function AssignmentsCard({
                           initialInstructions={meta.instructions}
                           initialTitle={meta.title}
                           initialPoints={meta.points}
+                          initialWholeClass={meta.wholeClass}
                           initialTargetIds={meta.targetStudentIds}
                           students={assignmentTargetStudents}
                         />
@@ -545,13 +546,16 @@ export default async function ClassroomDetailPage({
 
   const membership = await getMembership(session.user.id, classroom.orgId);
   const isOrgAdmin = hasOrgCapability(membership, CAPABILITIES.orgManage);
-  const isTeacher = classroom.teacherId === session.user.id;
+  const isTeacher =
+    classroom.teacherId === session.user.id &&
+    hasOrgCapability(membership, CAPABILITIES.classroomManage);
   const canView = isTeacher || isOrgAdmin || isSystemAdmin(session.user.role);
   if (!canView) redirect("/forbidden");
 
   const role = viewerRoleForClassroom({
     viewer: session.user,
     classroom,
+    isTeacher,
     isOrgAdmin,
   });
 

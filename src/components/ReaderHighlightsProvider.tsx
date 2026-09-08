@@ -67,6 +67,11 @@ export interface CreateHighlightInput {
   color?: HighlightColor;
 }
 
+export interface RemoveHighlightOptions {
+  /** Delay deletion until this optimistic replacement has been delivered. */
+  dependsOnHighlightId?: string;
+}
+
 function withSetEntry<T>(set: Set<T>, value: T): Set<T> {
   if (set.has(value)) return set;
   const next = new Set(set);
@@ -89,9 +94,9 @@ interface HighlightsContextValue {
   /** Optimistic color update. */
   updateColor: (id: string, color: HighlightColor | null) => Promise<void>;
   /** Optimistic note update. */
-  updateNote: (id: string, note: string | null) => Promise<void>;
+  updateNote: (id: string, note: string | null) => Promise<boolean>;
   /** Optimistic delete. */
-  remove: (id: string) => Promise<void>;
+  remove: (id: string, options?: RemoveHighlightOptions) => Promise<void>;
   /** Called by the mark renderer when a highlight can't be located. */
   markOrphaned: (id: string) => void;
   /** Aria-live announcement string (changes to trigger screen-reader announcements). */
@@ -146,9 +151,9 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
 
   // Wrap apiRemove to also clear the orphanedIds entry.
   const remove = useCallback(
-    async (id: string) => {
+    async (id: string, options?: RemoveHighlightOptions) => {
       setOrphanedIds((prev) => withoutSetEntry(prev, id));
-      await apiRemove(id);
+      await apiRemove(id, options);
     },
     [apiRemove],
   );

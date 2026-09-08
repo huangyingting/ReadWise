@@ -1,7 +1,7 @@
 // ReadWise Service Worker
 // Strategy:
 //   - Cache-first for versioned static assets (/_next/static/**)
-//   - Network-first for everything else
+//   - Network-only HTML navigations with a precached offline fallback
 //   - Offline fallback (/offline.html) for failed HTML navigations
 //   - API routes are always network-only (never cache authenticated responses)
 //   - /reader/* paths: when offline, serve /offline-reader.html (which reads
@@ -17,7 +17,7 @@
 // mutation queue. `message` also supports SKIP_WAITING (graceful upgrade) and
 // purging private caches on sign-out.
 
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
 const CACHE_PREFIX = "readwise-";
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 
@@ -99,32 +99,6 @@ self.addEventListener("sync", (event) => {
   }
 });
 
-// Paths that render authenticated, user-specific SSR content.
-// These must never be cached to prevent private data leaking to other users
-// on shared devices (e.g. family tablet, school computer, library terminal).
-const AUTH_PATHS = [
-  "/dashboard",
-  "/reader",
-  "/study",
-  "/browse",
-  "/notes",
-  "/progress",
-  "/lists",
-  "/settings",
-  "/admin",
-  "/tags",
-  "/onboarding",
-  "/profile",
-  "/forbidden",
-  "/import",
-  "/welcome",
-];
-
-/** Returns true when the pathname belongs to a session-gated area. */
-function isAuthenticatedPath(pathname) {
-  return AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
-}
-
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -186,28 +160,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-// HTML navigations: network-first, offline fallback on failure.
+  // HTML navigations are never cached. Authentication can change independently
+  // of Cache Storage, so replaying any rendered page risks exposing stale
+  // session-specific HTML on a shared device.
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
-        .then((res) => {
-          // Only cache public/unauthenticated pages (marketing, sign-in, offline).
-          // Authenticated paths (dashboard, reader, study, etc.) must NOT be cached
-          // to prevent private SSR content leaking to other users on shared devices.
-          if (res.ok && res.status === 200 && !isAuthenticatedPath(url.pathname)) {
-            caches
-              .open(CACHE_NAME)
-              .then((cache) => cache.put(request, res.clone()));
-          }
-          return res;
-        })
-        .catch(() => {
+        .catch(async () => {
           // For /reader/* paths when offline: serve the standalone offline reader
           // which reads article content from IndexedDB (if user downloaded it).
           if (url.pathname.startsWith("/reader/")) {
             return (
-              caches.match("/offline-reader.html") ??
-              caches.match("/offline.html") ??
+              (await caches.match("/offline-reader.html")) ??
+              (await caches.match("/offline.html")) ??
               new Response("Offline", {
                 status: 503,
                 headers: { "Content-Type": "text/plain" },
@@ -215,8 +180,7 @@ self.addEventListener("fetch", (event) => {
             );
           }
           return (
-            caches.match(request) ??
-            caches.match("/offline.html") ??
+            (await caches.match("/offline.html")) ??
             new Response("Offline", {
               status: 503,
               headers: { "Content-Type": "text/plain" },

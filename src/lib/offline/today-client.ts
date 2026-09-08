@@ -18,6 +18,7 @@ import {
   requestJson,
 } from "@/lib/client-fetch";
 import {
+  captureOfflineMutationGeneration,
   MUTATION_HEADER,
   queueMutation,
 } from "./sync-runtime";
@@ -129,6 +130,7 @@ export async function submitTodayAction<A extends TodayAction>(
 
   const clientMutationId = todayClientMutationId(action.type, ctx);
   const endpoint = TODAY_ENDPOINT_BY_TYPE[action.type];
+  const generation = captureOfflineMutationGeneration();
 
   if (isOnline()) {
     try {
@@ -152,14 +154,18 @@ export async function submitTodayAction<A extends TodayAction>(
   }
 
   const registration = getMutationRegistration(action.type);
-  await queueMutation({
+  const queued = await queueMutation({
     type: action.type,
     endpoint,
     method: "POST",
     body: queuedBody,
     clientMutationId,
     dedupeKey: registration?.dedupe === "latest-wins" ? clientMutationId : undefined,
+    generation,
   });
+  if (!queued.queued) {
+    throw new Error("Unable to save Today action offline");
+  }
   return { kind: "queued" };
 }
 

@@ -32,7 +32,7 @@ import { AUDIT_ACTIONS, auditRequestInfo, tryRecordAuditLog } from "@/lib/securi
 import { checkSameOrigin, isStateChangingMethod } from "@/lib/security/csrf";
 import { clientIp } from "@/lib/security/client-ip";
 import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security/events";
-
+import { OFFLINE_ACTOR_HEADER } from "@/lib/offline-sync";
 
 const UUID_V4_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -251,6 +251,14 @@ function build<B, P, Q, S extends Session | null>(
               session = result.session;
             }
             if (session?.user?.id) setRequestContext({ userId: session.user.id });
+            const expectedOfflineActor = req.headers.get(OFFLINE_ACTOR_HEADER);
+            if (
+              auth !== "public" &&
+              expectedOfflineActor &&
+              expectedOfflineActor !== session?.user?.id
+            ) {
+              return complete(new Response(null, { status: 204 }));
+            }
 
             // 2) Validate route params (untrusted ids from the URL).
             let params = {} as P;

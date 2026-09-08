@@ -38,9 +38,11 @@ material. Extraction is provider-aware and lives in code under
   sanitized via `sanitizeArticleHtml` before storage.
 - `index.ts` — `scrapeUrl`, `discoverProviderUrls`, `saveDraftArticle`.
 
-Scraped articles are stored as `draft` and de-duplicated by `sourceUrl`. They are
-only published after the processing pipeline (and, where configured, human
-review) has run.
+Scraped articles are stored as `draft` and de-duplicated by `sourceUrl` within
+the global public-library namespace (`PUBLIC`/`UNLISTED`, no owner or
+organization). Private and organization articles may retain the same source URL
+without occupying that namespace. Articles are only published after the
+processing pipeline (and, where configured, human review) has run.
 
 ### Provider governance (`ContentSource`)
 
@@ -124,9 +126,15 @@ Use the **Rights & takedown** panel on `/admin/articles/[id]` (gated on
 3. Records a `ContentReview` history row (`takedown.<state>`) with a diff and the
    optional note, and is audited (`admin.article.takedown`).
 
-Publishing is also guarded server-side: the review workflow refuses to publish an
-article whose `takedownState` is not `active` (HTTP 409). Rights always win over
-editorial intent.
+Scoped Moderators may govern ownerless global `PUBLIC`/`UNLISTED` library
+articles regardless of publication or takedown status, so they can review
+drafts and restore prior takedowns. Private and organization-scoped articles
+remain hidden from them; platform superusers retain unrestricted access.
+
+Publishing is also guarded server-side: the review workflow conditionally
+updates only an article whose `takedownState` is still `active` (HTTP 409
+otherwise), so a concurrent takedown wins. Rights always win over editorial
+intent.
 
 ### Responding to a takedown request
 

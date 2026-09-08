@@ -82,9 +82,12 @@ Location: `tests/db/support/`
 #### Activation gate
 
 Integration tests **only run** when `RUN_DB_INTEGRATION=1` is set and
-`DATABASE_URL` points to a PostgreSQL connection string.  Every integration test
-file must check `enabled` from `db-config.ts` at the top and skip or exit early
-when the gate is off:
+`DATABASE_URL` points to an isolated loopback target. PostgreSQL database names
+and SQLite filenames must contain `test`, `testing`, `ci`, or `e2e`; remote
+targets, connection-target query overrides, and ordinary development/production
+databases are rejected before any test body runs. Every integration test file
+must check `enabled` from `db-config.ts` at the top and skip or exit early when
+the gate is off:
 
 ```ts
 import { enabled } from "../support/db-config";
@@ -286,4 +289,3 @@ If the same delegate shape recurs across multiple test files, extract a helper
    rows (tags, reading progress, etc.).
 3. Verify that `resetE2eDatabase()` correctly tears down the new rows by
    checking the deletion order respects foreign-key constraints.
-

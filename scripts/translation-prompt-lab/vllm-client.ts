@@ -39,6 +39,22 @@ export type ChatCompletionResult = {
   durationMs: number;
 };
 
+export class VllmClientError extends Error {
+  readonly code: "http_error" | "empty_completion";
+  readonly status?: number;
+
+  constructor(
+    message: string,
+    code: "http_error" | "empty_completion",
+    status?: number,
+  ) {
+    super(message);
+    this.name = "VllmClientError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
 /**
  * Calls the vLLM OpenAI-compatible `/chat/completions` endpoint once. Throws
  * on transport/HTTP errors or an empty completion — callers decide how to
@@ -69,8 +85,11 @@ export async function chatComplete(
       signal: controller.signal,
     });
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`vLLM request failed: ${response.status} ${response.statusText} ${body.slice(0, 300)}`);
+      throw new VllmClientError(
+        `vLLM request failed with HTTP ${response.status}`,
+        "http_error",
+        response.status,
+      );
     }
     const json = (await response.json()) as {
       choices?: Array<{
@@ -85,8 +104,9 @@ export async function chatComplete(
       const hint = choice?.message?.reasoning
         ? " (model returned only reasoning tokens — thinking mode may be leaking through; check chat_template_kwargs support)"
         : "";
-      throw new Error(
+      throw new VllmClientError(
         `vLLM returned an empty completion (finish_reason=${choice?.finish_reason ?? "unknown"})${hint}`,
+        "empty_completion",
       );
     }
     return {

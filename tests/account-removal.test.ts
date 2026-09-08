@@ -28,6 +28,7 @@ before(() => {
       let pendingDeletedUserId: string | null = null;
       const tx = {
         user: {
+          findUnique: async () => stubUser,
           count: async () => adminCount,
           delete: async ({ where }: { where: { id: string } }) => {
             if (userDeleteError) throw userDeleteError;
@@ -37,6 +38,10 @@ before(() => {
         },
         article: {
           count: async () => ownedArticleCount,
+        },
+        membership: {
+          findMany: async () => [],
+          count: async () => 0,
         },
       };
       const result = await callback(tx);

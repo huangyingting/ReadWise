@@ -202,6 +202,7 @@ export async function updateAssignment(
     points?: number | null;
     publishState?: AssignmentPublishState;
     publishAt?: Date | null;
+    wholeClass?: boolean;
     updatedAt?: Date;
   } = {};
 
@@ -280,7 +281,12 @@ export async function updateAssignment(
   const assignment = await prisma.$transaction(async (tx) => {
     const updated = await tx.assignment.update({
       where: { id: assignmentId },
-      data: { ...data, updatedAt: new Date() },
+      data: {
+        ...data,
+        wholeClass: targetIds.length === 0,
+        ...(targetIds.length > 0 ? { everTargeted: true } : {}),
+        updatedAt: new Date(),
+      },
     });
     await tx.assignmentTarget.deleteMany({ where: { assignmentId } });
     if (targetIds.length > 0) {

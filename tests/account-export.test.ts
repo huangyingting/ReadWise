@@ -233,6 +233,10 @@ before(() => {
           delete: async () => ({}),
         },
         article: { count: async () => 0 },
+        membership: {
+          findMany: async () => [],
+          count: async () => 0,
+        },
         auditLog: { create: async () => ({ id: "audit-1" }) },
       };
       return fn(tx);

@@ -135,6 +135,10 @@ before(() => {
         jobDeletes.push(args);
         return jobById;
       },
+      deleteMany: async (args: AnyArgs) => {
+        jobDeletes.push(args);
+        return { count: jobById ? 1 : 0 };
+      },
       findMany: async (args: AnyArgs) => {
         jobFindManyArgs.push(args);
         return jobFindManyRows;
@@ -439,6 +443,23 @@ test("enqueue helpers and lifecycle edge branches cover dedupe races and admin a
   );
   jobCreateError = null;
 
+  dedupeWinner = makeJob({
+    id: "terminal-job",
+    status: JobStatus.COMPLETED,
+    dedupeKey: "terminal-key",
+  });
+  jobById = dedupeWinner;
+  await enqueue.enqueueJob(
+    JobType.ARTICLE_PROCESS,
+    { articleId: "a2" },
+    { dedupeKey: "terminal-key" },
+  );
+  assert.deepEqual(jobUpdateManyArgs.at(-1)?.where, {
+    id: "terminal-job",
+    status: { in: [JobStatus.COMPLETED, JobStatus.DEAD_LETTER] },
+  });
+
+  jobById = makeJob({ status: JobStatus.FAILED, lockedBy: "worker-a" });
   assert.equal((await lifecycle.startJob("job-1", "worker-a", { now }))?.status, JobStatus.FAILED);
   assert.equal(jobUpdateManyArgs.at(-1)?.data.startedAt, now);
   jobUpdateManyCount = 0;
@@ -449,7 +470,12 @@ test("enqueue helpers and lifecycle edge branches cover dedupe races and admin a
   assert.equal(await lifecycle.archiveJob("missing"), null);
   jobById = makeJob({ id: "job-archive", status: JobStatus.COMPLETED });
   assert.equal((await lifecycle.archiveJob("job-archive"))?.id, "job-archive");
-  assert.deepEqual(jobDeletes.at(-1), { where: { id: "job-archive" } });
+  assert.deepEqual(jobDeletes.at(-1), {
+    where: {
+      id: "job-archive",
+      status: { in: [JobStatus.COMPLETED, JobStatus.DEAD_LETTER] },
+    },
+  });
 });
 
 test("enqueue payload guards and failJob history normalization keep JSON boundaries strict", async () => {
@@ -739,8 +765,18 @@ test("tenant analytics aggregates classroom data and applies role redaction", as
       { userId: "student-2", name: null, email: null },
     ],
     assignments: [
-      { id: "assignment-1", articleTitle: "Article One" },
-      { id: "assignment-2", articleTitle: "Article Two" },
+      {
+        id: "assignment-1",
+        articleTitle: "Article One",
+        targetedStudentIds: null,
+        everTargeted: false,
+      },
+      {
+        id: "assignment-2",
+        articleTitle: "Article Two",
+        targetedStudentIds: null,
+        everTargeted: false,
+      },
     ],
     completions: [
       {
@@ -791,6 +827,7 @@ test("tenant analytics aggregates classroom data and applies role redaction", as
     tenant.viewerRoleForClassroom({
       viewer: { id: "admin-1", role: "Admin" },
       classroom: { teacherId: "teacher-1", orgId: "org-1" },
+      isTeacher: false,
       isOrgAdmin: false,
     }),
     "systemAdmin",
@@ -799,6 +836,7 @@ test("tenant analytics aggregates classroom data and applies role redaction", as
     tenant.viewerRoleForClassroom({
       viewer: { id: "teacher-1", role: "Reader" },
       classroom: { teacherId: "teacher-1", orgId: "org-1" },
+      isTeacher: true,
       isOrgAdmin: false,
     }),
     "teacher",
@@ -807,6 +845,7 @@ test("tenant analytics aggregates classroom data and applies role redaction", as
     tenant.viewerRoleForClassroom({
       viewer: { id: "org-admin", role: "Reader" },
       classroom: { teacherId: "teacher-1", orgId: "org-1" },
+      isTeacher: false,
       isOrgAdmin: true,
     }),
     "orgAdmin",
@@ -815,6 +854,7 @@ test("tenant analytics aggregates classroom data and applies role redaction", as
     tenant.viewerRoleForClassroom({
       viewer: { id: "student-1", role: "Reader" },
       classroom: { teacherId: "teacher-1", orgId: "org-1" },
+      isTeacher: false,
       isOrgAdmin: false,
     }),
     "learner",
@@ -827,4 +867,39 @@ test("tenant analytics aggregates classroom data and applies role redaction", as
   const classroomAnalytics = await tenant.getClassroomAnalytics("class-1", "orgAdmin");
   assert.equal(classroomAnalytics?.redacted, true);
   assert.deepEqual(classroomAnalytics?.perStudent, []);
+
+  classroomProgressData = {
+    ...savedClassroomProgressData,
+    assignments: [
+      ...savedClassroomProgressData.assignments,
+      {
+        id: "targeted-assignment",
+        articleTitle: "Targeted Article",
+        targetedStudentIds: null,
+        everTargeted: true,
+      },
+    ],
+    completions: [
+      ...savedClassroomProgressData.completions,
+      {
+        assignmentId: "targeted-assignment",
+        studentId: "student-1",
+        status: AssignmentStatus.COMPLETED,
+        quizScore: 41,
+      },
+    ],
+  };
+  const filtered = await tenant.getClassroomAnalytics(
+    "class-1",
+    "orgAdmin",
+    { assignmentId: "targeted-assignment" },
+  );
+  assert.equal(filtered?.studentCount, 2);
+  assert.equal(filtered?.assignmentCount, 2);
+  assert.equal(filtered?.averageQuizScore, 90);
+  assert.ok(
+    !filtered?.perAssignment.some(
+      (assignment) => assignment.assignmentId === "targeted-assignment",
+    ),
+  );
 });

@@ -13,12 +13,21 @@
  * `useReducer(highlightsReducer, [])`.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { submitMutation } from "@/lib/offline/sync-runtime";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  captureOfflineMutationGeneration,
+  isOfflineMutationGenerationCurrent,
+  newClientMutationId,
+  queueMutation,
+  submitMutation,
+  type OfflineMutationGeneration,
+  type SubmitResult,
+} from "@/lib/offline/sync-runtime";
 import type {
   Highlight,
   CreateHighlightInput,
   HighlightColor,
+  RemoveHighlightOptions,
 } from "@/components/ReaderHighlightsProvider";
 import type { HighlightAction } from "@/components/reader/highlightsReducer";
 
@@ -57,6 +66,42 @@ function createOptimisticHighlight(
   };
 }
 
+type PendingCreate = {
+  clientMutationId: string;
+  input: CreateHighlightInput;
+  generation: OfflineMutationGeneration;
+};
+
+type PendingDelete = {
+  clientMutationId: string;
+  completion: Promise<SubmitResult>;
+};
+
+function pendingAnchor(input: CreateHighlightInput) {
+  return {
+    startOffset: input.startOffset,
+    endOffset: input.endOffset,
+  };
+}
+
+function pendingAnchorKey(
+  articleId: string,
+  input: Pick<CreateHighlightInput, "startOffset" | "endOffset">,
+): string {
+  return `${articleId}:${input.startOffset}:${input.endOffset}`;
+}
+
+function pendingAnchorDeleteEndpoint(
+  articleId: string,
+  input: CreateHighlightInput,
+): string {
+  const query = new URLSearchParams({
+    startOffset: String(input.startOffset),
+    endOffset: String(input.endOffset),
+  });
+  return `${readerHighlightsEndpoint(articleId)}?${query}`;
+}
+
 export interface UseHighlightsApiOptions {
   articleId: string;
   /** Current highlights — needed for existence checks and conflict detection. */
@@ -70,8 +115,8 @@ export interface HighlightsApi {
   loading: boolean;
   add: (input: CreateHighlightInput) => Promise<Highlight | null>;
   updateColor: (id: string, color: HighlightColor | null) => Promise<void>;
-  updateNote: (id: string, note: string | null) => Promise<void>;
-  remove: (id: string) => Promise<void>;
+  updateNote: (id: string, note: string | null) => Promise<boolean>;
+  remove: (id: string, options?: RemoveHighlightOptions) => Promise<void>;
 }
 
 export function useHighlightsApi({
@@ -81,6 +126,12 @@ export function useHighlightsApi({
   announce,
 }: UseHighlightsApiOptions): HighlightsApi {
   const [loading, setLoading] = useState(true);
+  const pendingCreates = useRef(
+    new Map<string, PendingCreate>(),
+  );
+  const pendingDeletes = useRef(
+    new Map<string, PendingDelete>(),
+  );
 
   // Initial fetch
   useEffect(() => {
@@ -109,9 +160,54 @@ export function useHighlightsApi({
   // ---- add ----
   const add = useCallback(
     async (input: CreateHighlightInput): Promise<Highlight | null> => {
-      const tempId = `optimistic-${Date.now()}`;
+      const generation = captureOfflineMutationGeneration();
+      const clientMutationId = newClientMutationId();
+      const tempId = `optimistic-${clientMutationId}`;
       const optimistic = createOptimisticHighlight(input, tempId);
       dispatch({ type: "ADD_OPTIMISTIC", optimistic });
+      const queueCreate = async (
+        dependsOnClientMutationId?: string,
+      ): Promise<Highlight | null> => {
+        const result = await queueMutation({
+          type: "highlight.create",
+          endpoint: readerHighlightsEndpoint(articleId),
+          method: "POST",
+          body: input,
+          clientMutationId,
+          dependsOnClientMutationId,
+          generation,
+        });
+        if (!result.queued) {
+          dispatch({ type: "REVERT_OPTIMISTIC", tempId });
+          announce("Failed to save highlight offline");
+          return null;
+        }
+        pendingCreates.current.set(tempId, {
+          clientMutationId,
+          input,
+          generation,
+        });
+        announce("Highlight saved offline");
+        return optimistic;
+      };
+
+      const anchorKey = pendingAnchorKey(articleId, input);
+      const pendingDelete = pendingDeletes.current.get(anchorKey);
+      if (pendingDelete) {
+        const deleteResult = await pendingDelete.completion;
+        if (deleteResult.queued) {
+          return queueCreate(pendingDelete.clientMutationId);
+        }
+        if (pendingDeletes.current.get(anchorKey) === pendingDelete) {
+          pendingDeletes.current.delete(anchorKey);
+        }
+      }
+
+      if (!isOfflineMutationGenerationCurrent(generation)) {
+        dispatch({ type: "REVERT_OPTIMISTIC", tempId });
+        announce("Failed to save highlight");
+        return null;
+      }
       try {
         const res = await fetch(readerHighlightsEndpoint(articleId), {
           method: "POST",
@@ -130,14 +226,7 @@ export function useHighlightsApi({
       } catch {
         // Network/offline — queue the create (idempotent server-side upsert by
         // anchor offsets) and KEEP the optimistic mark (RW-042).
-        void submitMutation({
-          type: "highlight.create",
-          endpoint: readerHighlightsEndpoint(articleId),
-          method: "POST",
-          body: input,
-        });
-        announce("Highlight saved offline");
-        return optimistic;
+        return queueCreate();
       }
     },
     [articleId, dispatch, announce],
@@ -146,11 +235,31 @@ export function useHighlightsApi({
   // ---- updateColor ----
   const updateColor = useCallback(
     async (id: string, color: HighlightColor | null): Promise<void> => {
-      if (!findHighlight(highlights, id)) return;
+      const prev = findHighlight(highlights, id);
+      if (!prev) return;
       dispatch({ type: "UPDATE", id, patch: { color } });
-      // An unsaved (optimistic) highlight has no server id yet — its queued
-      // create already carries the colour.
-      if (isOptimisticId(id)) return;
+      if (isOptimisticId(id)) {
+        const pending = pendingCreates.current.get(id);
+        if (!pending) {
+          dispatch({ type: "UPDATE", id, patch: { color: prev.color } });
+          announce("Failed to save highlight color offline");
+          return;
+        }
+        const result = await queueMutation({
+          type: "highlight.color",
+          endpoint: readerHighlightsEndpoint(articleId),
+          method: "PATCH",
+          body: { ...pendingAnchor(pending.input), color },
+          dedupeKey: `hl-color:${pending.clientMutationId}`,
+          dependsOnClientMutationId: pending.clientMutationId,
+          generation: pending.generation,
+        });
+        if (result.queued) return;
+        dispatch({ type: "UPDATE", id, patch: { color: prev.color } });
+        announce("Failed to save highlight color offline");
+        return;
+      }
+      const generation = captureOfflineMutationGeneration();
       try {
         const res = await fetch(highlightEndpoint(id), {
           method: "PATCH",
@@ -162,25 +271,58 @@ export function useHighlightsApi({
         dispatch({ type: "UPDATE", id, patch: data.highlight });
       } catch {
         // Offline — queue and keep the optimistic colour (RW-042).
-        void submitMutation({
+        const result = await submitMutation({
           type: "highlight.color",
           endpoint: highlightEndpoint(id),
           method: "PATCH",
           body: { color },
           dedupeKey: `hl-color:${id}`,
+          generation,
         });
+        if (!result.queued) {
+          dispatch({ type: "UPDATE", id, patch: { color: prev.color } });
+          announce("Failed to save highlight color offline");
+        }
       }
     },
-    [highlights, dispatch],
+    [articleId, highlights, dispatch, announce],
   );
 
   // ---- updateNote ----
   const updateNote = useCallback(
-    async (id: string, note: string | null): Promise<void> => {
+    async (id: string, note: string | null): Promise<boolean> => {
       const prev = findHighlight(highlights, id);
-      if (!prev) return;
+      if (!prev) return false;
       dispatch({ type: "UPDATE", id, patch: { note } });
-      if (isOptimisticId(id)) return;
+      if (isOptimisticId(id)) {
+        const pending = pendingCreates.current.get(id);
+        if (!pending) {
+          dispatch({ type: "UPDATE", id, patch: { note: prev.note } });
+          announce("Failed to save note offline");
+          return false;
+        }
+        const result = await queueMutation({
+          type: "highlight.note",
+          endpoint: readerHighlightsEndpoint(articleId),
+          method: "PATCH",
+          body: {
+            ...pendingAnchor(pending.input),
+            note,
+            baseNote: pending.input.note ?? null,
+          },
+          dedupeKey: `hl-note:${pending.clientMutationId}`,
+          dependsOnClientMutationId: pending.clientMutationId,
+          generation: pending.generation,
+        });
+        if (result.queued) {
+          announce("Note saved offline");
+          return true;
+        }
+        dispatch({ type: "UPDATE", id, patch: { note: prev.note } });
+        announce("Failed to save note offline");
+        return false;
+      }
+      const generation = captureOfflineMutationGeneration();
       // RW-043 — send the updatedAt we based this edit on so the server can
       // detect a concurrent change and MERGE (never silently drop note text).
       const body = { note, baseUpdatedAt: prev.updatedAt };
@@ -201,47 +343,140 @@ export function useHighlightsApi({
             ? "Note merged — your text and another device's edit were both kept"
             : "Note saved",
         );
+        return true;
       } catch {
         // Offline — queue and keep the optimistic note (RW-042/RW-043).
-        void submitMutation({
+        const result = await submitMutation({
           type: "highlight.note",
           endpoint: highlightEndpoint(id),
           method: "PATCH",
           body,
           dedupeKey: `hl-note:${id}`,
+          generation,
         });
-        announce("Note saved offline");
+        if (result.sent || result.queued) {
+          announce(result.sent ? "Note saved" : "Note saved offline");
+          return true;
+        } else {
+          dispatch({ type: "UPDATE", id, patch: { note: prev.note } });
+          announce("Failed to save note offline");
+          return false;
+        }
       }
     },
-    [highlights, dispatch, announce],
+    [articleId, highlights, dispatch, announce],
   );
 
   // ---- remove ----
   const remove = useCallback(
-    async (id: string): Promise<void> => {
-      if (!findHighlight(highlights, id)) return;
+    async (id: string, options?: RemoveHighlightOptions): Promise<void> => {
+      const existing = findHighlight(highlights, id);
+      if (!existing) return;
       dispatch({ type: "REMOVE", id });
-      // An optimistic highlight only ever existed locally.
+      const replacementDependency = options?.dependsOnHighlightId
+        ? pendingCreates.current.get(options.dependsOnHighlightId)
+        : undefined;
       if (isOptimisticId(id)) {
-        announce("Highlight deleted");
+        const pending = pendingCreates.current.get(id);
+        if (pending) {
+          const deleteMutationId = newClientMutationId();
+          const anchorKey = pendingAnchorKey(articleId, pending.input);
+          const completion = queueMutation({
+            type: "highlight.delete",
+            endpoint: pendingAnchorDeleteEndpoint(articleId, pending.input),
+            method: "DELETE",
+            clientMutationId: deleteMutationId,
+            dedupeKey: `hl-delete:${pending.clientMutationId}`,
+            dependsOnClientMutationIds: [
+              pending.clientMutationId,
+              ...(replacementDependency
+                ? [replacementDependency.clientMutationId]
+                : []),
+            ],
+            generation: pending.generation,
+          });
+          const pendingDelete = {
+            clientMutationId: deleteMutationId,
+            completion,
+          };
+          pendingDeletes.current.set(anchorKey, pendingDelete);
+          const result = await completion;
+          if (result.queued) {
+            pendingCreates.current.delete(id);
+            announce("Highlight deleted offline");
+            return;
+          }
+          if (pendingDeletes.current.get(anchorKey) === pendingDelete) {
+            pendingDeletes.current.delete(anchorKey);
+          }
+        }
+        dispatch({ type: "ADD_OPTIMISTIC", optimistic: existing });
+        announce("Failed to delete offline highlight");
         return;
       }
-      try {
-        const res = await fetch(highlightEndpoint(id), { method: "DELETE" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        announce("Highlight deleted");
-      } catch {
-        // Offline — queue the delete (idempotent) and keep it removed locally.
-        void submitMutation({
+
+      if (replacementDependency) {
+        const deleteMutationId = newClientMutationId();
+        const anchorKey = pendingAnchorKey(articleId, existing);
+        const completion = queueMutation({
           type: "highlight.delete",
           endpoint: highlightEndpoint(id),
           method: "DELETE",
+          clientMutationId: deleteMutationId,
           dedupeKey: `hl-delete:${id}`,
+          dependsOnClientMutationId: replacementDependency.clientMutationId,
+          generation: replacementDependency.generation,
         });
-        announce("Highlight deleted offline");
+        const pendingDelete = {
+          clientMutationId: deleteMutationId,
+          completion,
+        };
+        pendingDeletes.current.set(anchorKey, pendingDelete);
+        const result = await completion;
+        if (result.queued) {
+          announce("Highlight deletion saved offline");
+          return;
+        }
+        if (pendingDeletes.current.get(anchorKey) === pendingDelete) {
+          pendingDeletes.current.delete(anchorKey);
+        }
+        dispatch({ type: "ADD_OPTIMISTIC", optimistic: existing });
+        announce("Failed to save highlight deletion offline");
+        return;
       }
+      const deleteMutationId = newClientMutationId();
+      const anchorKey = pendingAnchorKey(articleId, existing);
+      const completion = submitMutation({
+        type: "highlight.delete",
+        endpoint: highlightEndpoint(id),
+        method: "DELETE",
+        clientMutationId: deleteMutationId,
+        dedupeKey: `hl-delete:${id}`,
+      });
+      const pendingDelete = {
+        clientMutationId: deleteMutationId,
+        completion,
+      };
+      pendingDeletes.current.set(anchorKey, pendingDelete);
+      const result = await completion;
+      if (result.sent) {
+        if (pendingDeletes.current.get(anchorKey) === pendingDelete) {
+          pendingDeletes.current.delete(anchorKey);
+        }
+        announce("Highlight deleted");
+        return;
+      }
+      if (result.queued) {
+        announce("Highlight deleted offline");
+        return;
+      }
+      if (pendingDeletes.current.get(anchorKey) === pendingDelete) {
+        pendingDeletes.current.delete(anchorKey);
+      }
+      dispatch({ type: "ADD_OPTIMISTIC", optimistic: existing });
+      announce("Failed to delete highlight offline");
     },
-    [highlights, dispatch, announce],
+    [articleId, highlights, dispatch, announce],
   );
 
   return { loading, add, updateColor, updateNote, remove };

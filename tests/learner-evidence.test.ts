@@ -12,6 +12,10 @@ type EvidenceCall = {
 
 let calls: EvidenceCall[] = [];
 let failingSkill: string | null = null;
+let blockFirstComprehension = false;
+let releaseFirstComprehension: (() => void) | null = null;
+let activeComprehensionWrites = 0;
+let maxActiveComprehensionWrites = 0;
 
 before(() => {
   mock.module("@/lib/learning/skill-mastery", {
@@ -22,7 +26,20 @@ before(() => {
         outcome: number,
         weight?: number,
       ) => {
+        if (skill === "comprehension") {
+          activeComprehensionWrites += 1;
+          maxActiveComprehensionWrites = Math.max(
+            maxActiveComprehensionWrites,
+            activeComprehensionWrites,
+          );
+          if (blockFirstComprehension && calls.length === 0) {
+            await new Promise<void>((resolve) => {
+              releaseFirstComprehension = resolve;
+            });
+          }
+        }
         calls.push({ userId, skill, outcome, weight });
+        if (skill === "comprehension") activeComprehensionWrites -= 1;
         if (skill === failingSkill) throw new Error("mastery unavailable");
         return null;
       },
@@ -33,6 +50,10 @@ before(() => {
 beforeEach(() => {
   calls = [];
   failingSkill = null;
+  blockFirstComprehension = false;
+  releaseFirstComprehension = null;
+  activeComprehensionWrites = 0;
+  maxActiveComprehensionWrites = 0;
 });
 
 async function record(activity: Parameters<
@@ -92,4 +113,26 @@ test("attempts independent signals and resolves when one mastery write fails", a
     record({ activity: "quiz-completed", scorePct: 90 }),
   );
   assert.deepEqual(calls.map((call) => call.skill).sort(), ["comprehension", "reading"]);
+});
+
+test("serializes multiple signals for the same skill", async () => {
+  blockFirstComprehension = true;
+
+  const recording = record({
+    activity: "today-comprehension",
+    selfRating: "confident",
+    mcqCorrect: true,
+    skillTag: "main_idea",
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(maxActiveComprehensionWrites, 1);
+  assert.ok(releaseFirstComprehension);
+  releaseFirstComprehension();
+  await recording;
+  assert.equal(maxActiveComprehensionWrites, 1);
+  assert.equal(
+    calls.filter((call) => call.skill === "comprehension").length,
+    2,
+  );
 });

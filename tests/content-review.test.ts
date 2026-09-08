@@ -15,29 +15,83 @@ type ArticleRow = {
   takedownState: string;
   publishedAt: Date | null;
   visibility: string;
+  ownerId: string | null;
+  organizationId: string | null;
 };
 
 let articles: Map<string, ArticleRow>;
 let reviews: Array<Record<string, unknown>>;
 let tagsByArticle: Map<string, { id: string; name: string; slug: string }[]>;
 let setTagsCalls: Array<{ articleId: string; names: string[] }>;
+let beforeArticleUpdateMany: (() => void) | null;
+
+function selectedArticle(
+  row: ArticleRow,
+  select?: Record<string, boolean>,
+): ArticleRow | Record<string, unknown> {
+  if (!select) return row;
+  return Object.fromEntries(
+    Object.entries(select)
+      .filter(([, value]) => value)
+      .map(([key]) => [key, (row as unknown as Record<string, unknown>)[key]]),
+  );
+}
+
+function matchesArticleWhere(
+  row: ArticleRow,
+  where: Record<string, unknown>,
+): boolean {
+  if (typeof where.id === "string" && row.id !== where.id) return false;
+  if ("ownerId" in where && row.ownerId !== where.ownerId) return false;
+  if (
+    "organizationId" in where &&
+    row.organizationId !== where.organizationId
+  ) {
+    return false;
+  }
+  if (typeof where.visibility === "string") {
+    return row.visibility === where.visibility;
+  }
+  const visibility = where.visibility as { in?: string[] } | undefined;
+  return !visibility?.in || visibility.in.includes(row.visibility);
+}
 
 before(() => {
   const article = {
     findUnique: async (a: { where: { id: string }; select?: Record<string, boolean> }) => {
       const row = articles.get(a.where.id) ?? null;
-      if (!row || !a.select) return row;
-      return Object.fromEntries(
-        Object.entries(a.select)
-          .filter(([, v]) => v)
-          .map(([k]) => [k, (row as unknown as Record<string, unknown>)[k]]),
+      return row ? selectedArticle(row, a.select) : null;
+    },
+    findFirst: async (a: {
+      where: Record<string, unknown>;
+      select?: Record<string, boolean>;
+    }) => {
+      const row = [...articles.values()].find((candidate) =>
+        matchesArticleWhere(candidate, a.where),
       );
+      return row ? selectedArticle(row, a.select) : null;
     },
     update: async (a: { where: { id: string }; data: Partial<ArticleRow> }) => {
       const row = articles.get(a.where.id);
       if (!row) throw new Error("not found");
       Object.assign(row, a.data);
       return row;
+    },
+    updateMany: async (a: {
+      where: { id: string; takedownState?: string };
+      data: Partial<ArticleRow>;
+    }) => {
+      beforeArticleUpdateMany?.();
+      const row = articles.get(a.where.id);
+      if (
+        !row ||
+        (a.where.takedownState !== undefined &&
+          row.takedownState !== a.where.takedownState)
+      ) {
+        return { count: 0 };
+      }
+      Object.assign(row, a.data);
+      return { count: 1 };
     },
   };
   const contentReview = {
@@ -97,12 +151,15 @@ beforeEach(() => {
         takedownState: "active",
         publishedAt: null,
         visibility: "PUBLIC",
+        ownerId: null,
+        organizationId: null,
       },
     ],
   ]);
   reviews = [];
   tagsByArticle = new Map();
   setTagsCalls = [];
+  beforeArticleUpdateMany = null;
 });
 
 test("reviewArticle applies corrections, records a diff, and writes history", async () => {
@@ -155,6 +212,24 @@ test("reviewArticle publishing sets publishedAt when first published", async () 
   const row = articles.get("a1");
   assert.equal(row?.status, "PUBLISHED");
   assert.ok(row?.publishedAt instanceof Date);
+});
+
+test("reviewArticle cannot publish across a concurrent takedown", async () => {
+  beforeArticleUpdateMany = () => {
+    const row = articles.get("a1");
+    if (row) row.takedownState = "takedown";
+  };
+  const { reviewArticle } = await import("@/lib/article-library/review");
+
+  const result = await reviewArticle({ articleId: "a1", status: "PUBLISHED" });
+
+  assert.deepEqual(result, {
+    ok: false,
+    error: "Cannot publish an article that is under takedown/unpublish",
+    status: 409,
+  });
+  assert.equal(articles.get("a1")?.status, "DRAFT");
+  assert.equal(reviews.length, 0);
 });
 
 test("reviewArticle applies a PUBLIC→UNLISTED visibility change and records the diff", async () => {
@@ -213,6 +288,68 @@ test("reviewArticle returns 404 for unknown article", async () => {
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.equal(result.status, 404);
+});
+
+test("reviewArticle hides a foreign private article from a scoped moderator", async () => {
+  articles.get("a1")!.visibility = "PRIVATE";
+  articles.get("a1")!.ownerId = "owner-1";
+  const { reviewArticle } = await import("@/lib/article-library/review");
+  const result = await reviewArticle({
+    articleId: "a1",
+    reviewState: "approved",
+    accessContext: {
+      userId: "moderator-1",
+      role: "Moderator",
+      orgIds: [],
+    },
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    error: "Article not found",
+    status: 404,
+  });
+  assert.equal(reviews.length, 0);
+});
+
+test("reviewArticle hides a foreign organization article from a scoped moderator", async () => {
+  articles.get("a1")!.visibility = "ORG";
+  articles.get("a1")!.organizationId = "org-1";
+  const { reviewArticle } = await import("@/lib/article-library/review");
+  const result = await reviewArticle({
+    articleId: "a1",
+    reviewState: "approved",
+    accessContext: {
+      userId: "moderator-1",
+      role: "Moderator",
+      orgIds: ["other-org"],
+    },
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.status, 404);
+  assert.equal(reviews.length, 0);
+});
+
+test("scoped moderators can review and publish unlisted public-library drafts", async () => {
+  articles.get("a1")!.visibility = "UNLISTED";
+  const { reviewArticle } = await import("@/lib/article-library/review");
+  const result = await reviewArticle({
+    articleId: "a1",
+    reviewState: "approved",
+    status: "PUBLISHED",
+    visibility: "PUBLIC",
+    accessContext: {
+      userId: "moderator-1",
+      role: "Moderator",
+      orgIds: [],
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(articles.get("a1")?.status, "PUBLISHED");
+  assert.equal(articles.get("a1")?.visibility, "PUBLIC");
+  assert.equal(reviews.length, 1);
 });
 
 test("reviewArticle replaces tags and records the change", async () => {

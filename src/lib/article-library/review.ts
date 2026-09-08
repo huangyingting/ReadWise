@@ -10,6 +10,10 @@ import { ArticleStatus, ArticleVisibility, type Prisma } from "@prisma/client";
 import { isValidCategorySlug } from "@/lib/categories";
 import { parseLevel } from "@/lib/difficulty";
 import { getArticleTags, setArticleTags } from "@/lib/article-library/collections";
+import {
+  moderatableArticleWhere,
+  type ArticleAccessContext,
+} from "@/lib/article-library/policy";
 
 // ---------------------------------------------------------------------------
 // Review state
@@ -96,6 +100,7 @@ export type ReviewCorrections = {
 export type ReviewArticleInput = ReviewCorrections & {
   articleId: string;
   reviewerId?: string | null;
+  accessContext?: ArticleAccessContext | null;
 };
 
 export type ReviewArticleResult =
@@ -144,9 +149,7 @@ function reviewAction(reviewState?: ReviewState): string {
 export async function reviewArticle(
   input: ReviewArticleInput,
 ): Promise<ReviewArticleResult> {
-  const article = await prisma.article.findUnique({
-    where: { id: input.articleId },
-    select: {
+  const articleSelect = {
       id: true,
       title: true,
       excerpt: true,
@@ -158,8 +161,18 @@ export async function reviewArticle(
       qualityFlags: true,
       takedownState: true,
       publishedAt: true,
-    },
-  });
+  } as const;
+  const article = input.accessContext === undefined
+    ? await prisma.article.findUnique({
+        where: { id: input.articleId },
+        select: articleSelect,
+      })
+    : await prisma.article.findFirst({
+        where: moderatableArticleWhere(input.accessContext, {
+          id: input.articleId,
+        }),
+        select: articleSelect,
+      });
   if (!article) {
     return { ok: false, error: "Article not found", status: 404 };
   }
@@ -277,9 +290,20 @@ export async function reviewArticle(
 
   const action = reviewAction(input.reviewState);
 
-  await prisma.$transaction(async (tx) => {
+  const committed = await prisma.$transaction(async (tx) => {
     if (Object.keys(data).length > 0) {
-      await tx.article.update({ where: { id: input.articleId }, data });
+      if (data.status === ArticleStatus.PUBLISHED) {
+        const updated = await tx.article.updateMany({
+          where: {
+            id: input.articleId,
+            takedownState: "active",
+          },
+          data,
+        });
+        if (updated.count !== 1) return false;
+      } else {
+        await tx.article.update({ where: { id: input.articleId }, data });
+      }
     }
     await tx.contentReview.create({
       data: {
@@ -290,7 +314,15 @@ export async function reviewArticle(
         changes: changes as Prisma.InputJsonValue,
       },
     });
+    return true;
   });
+  if (!committed) {
+    return {
+      ok: false,
+      error: "Cannot publish an article that is under takedown/unpublish",
+      status: 409,
+    };
+  }
 
   return {
     ok: true,

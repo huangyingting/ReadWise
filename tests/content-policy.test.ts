@@ -8,10 +8,44 @@ type ArticleRow = {
   takedownState: string;
   status: string;
   rightsNote: string | null;
+  visibility: string;
+  ownerId: string | null;
+  organizationId: string | null;
 };
 
 let articles: Map<string, ArticleRow>;
 let reviews: Array<Record<string, unknown>>;
+
+function selectedArticle(
+  row: ArticleRow,
+  select?: Record<string, boolean>,
+): ArticleRow | Record<string, unknown> {
+  if (!select) return row;
+  return Object.fromEntries(
+    Object.entries(select)
+      .filter(([, value]) => value)
+      .map(([key]) => [key, (row as unknown as Record<string, unknown>)[key]]),
+  );
+}
+
+function matchesArticleWhere(
+  row: ArticleRow,
+  where: Record<string, unknown>,
+): boolean {
+  if (typeof where.id === "string" && row.id !== where.id) return false;
+  if ("ownerId" in where && row.ownerId !== where.ownerId) return false;
+  if (
+    "organizationId" in where &&
+    row.organizationId !== where.organizationId
+  ) {
+    return false;
+  }
+  if (typeof where.visibility === "string") {
+    return row.visibility === where.visibility;
+  }
+  const visibility = where.visibility as { in?: string[] } | undefined;
+  return !visibility?.in || visibility.in.includes(row.visibility);
+}
 
 function articleRow(overrides: Partial<ArticleRow> = {}): ArticleRow {
   return {
@@ -19,6 +53,9 @@ function articleRow(overrides: Partial<ArticleRow> = {}): ArticleRow {
     takedownState: "active",
     status: "PUBLISHED",
     rightsNote: null,
+    visibility: "PUBLIC",
+    ownerId: null,
+    organizationId: null,
     ...overrides,
   };
 }
@@ -40,12 +77,16 @@ before(() => {
   const article = {
     findUnique: async (a: { where: { id: string }; select?: Record<string, boolean> }) => {
       const row = articles.get(a.where.id) ?? null;
-      if (!row || !a.select) return row;
-      return Object.fromEntries(
-        Object.entries(a.select)
-          .filter(([, v]) => v)
-          .map(([k]) => [k, (row as unknown as Record<string, unknown>)[k]]),
+      return row ? selectedArticle(row, a.select) : null;
+    },
+    findFirst: async (a: {
+      where: Record<string, unknown>;
+      select?: Record<string, boolean>;
+    }) => {
+      const row = [...articles.values()].find((candidate) =>
+        matchesArticleWhere(candidate, a.where),
       );
+      return row ? selectedArticle(row, a.select) : null;
     },
     update: async (a: { where: { id: string }; data: Partial<ArticleRow> }) => {
       const row = articles.get(a.where.id);
@@ -118,6 +159,53 @@ test("applyTakedown returns 404 for an unknown article", async () => {
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.equal(result.status, 404);
+});
+
+test("applyTakedown hides foreign private and organization articles from scoped moderators", async () => {
+  const { applyTakedown } = await import("@/lib/article-library");
+  for (const article of [
+    { visibility: "PRIVATE", ownerId: "owner-1", organizationId: null },
+    { visibility: "ORG", ownerId: null, organizationId: "org-1" },
+  ]) {
+    setArticle(article);
+    const result = await applyTakedown({
+      articleId: "a1",
+      state: "takedown",
+      accessContext: {
+        userId: "moderator-1",
+        role: "Moderator",
+        orgIds: ["other-org"],
+      },
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.status, 404);
+  }
+  assert.equal(reviews.length, 0);
+});
+
+test("scoped moderators can restore their public-library takedowns", async () => {
+  const { applyTakedown } = await import("@/lib/article-library");
+  const accessContext = {
+    userId: "moderator-1",
+    role: "Moderator",
+    orgIds: [] as string[],
+  };
+
+  const takedown = await applyTakedown({
+    articleId: "a1",
+    state: "takedown",
+    accessContext,
+  });
+  assert.equal(takedown.ok, true);
+  assertStoredArticle({ status: "DRAFT", takedownState: "takedown" });
+
+  const restore = await applyTakedown({
+    articleId: "a1",
+    state: "active",
+    accessContext,
+  });
+  assert.equal(restore.ok, true);
+  assertStoredArticle({ status: "DRAFT", takedownState: "active" });
 });
 
 test("applyTakedown rejects an invalid state with 400", async () => {

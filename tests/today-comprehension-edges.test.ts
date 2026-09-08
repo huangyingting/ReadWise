@@ -9,6 +9,16 @@ let markView: Record<string, unknown> | null = null;
 let updates: unknown[] = [];
 
 before(() => {
+  mock.module("@/lib/article-library", {
+    namedExports: {
+      articleAccessContextForUser: async () => ({
+        userId: "user-1",
+        isAdmin: false,
+        classroomIds: [],
+      }),
+      getReadableArticleById: async (articleId: string) => ({ id: articleId }),
+    },
+  });
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {

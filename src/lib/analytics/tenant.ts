@@ -360,15 +360,32 @@ export function applyAnalyticsAccess(
 	return access.individualData ? analytics : redactIndividualData(analytics);
 }
 
+function aggregateOnlyProgressData(
+	data: ClassroomProgressData,
+): ClassroomProgressData {
+	const assignments = data.assignments.filter(
+		(assignment) => !assignment.everTargeted,
+	);
+	const assignmentIds = new Set(
+		assignments.map((assignment) => assignment.id),
+	);
+	return {
+		...data,
+		assignments,
+		completions: data.completions.filter((completion) =>
+			assignmentIds.has(completion.assignmentId),
+		),
+	};
+}
+
 export function viewerRoleForClassroom(input: {
 	viewer: { id?: string | null; role?: string | null } | null | undefined;
 	classroom: { teacherId: string; orgId: string } | null | undefined;
+	isTeacher: boolean;
 	isOrgAdmin: boolean;
 }): AnalyticsViewerRole {
 	if (isSystemAdmin(input.viewer?.role)) return "systemAdmin";
-	if (input.viewer?.id && input.classroom?.teacherId === input.viewer.id) {
-		return "teacher";
-	}
+	if (input.isTeacher) return "teacher";
 	if (input.isOrgAdmin) return "orgAdmin";
 	return "learner";
 }
@@ -380,6 +397,11 @@ export async function getClassroomAnalytics(
 ): Promise<ClassroomAnalytics | null> {
 	const data = await getClassroomProgressData(classroomId);
 	if (!data) return null;
-	const analytics = aggregateClassroom(data, filters);
-	return applyAnalyticsAccess(analytics, analyticsAccessFor(role));
+	const access = analyticsAccessFor(role);
+	const safeData = access.individualData
+		? data
+		: aggregateOnlyProgressData(data);
+	const safeFilters = access.individualData ? filters : {};
+	const analytics = aggregateClassroom(safeData, safeFilters);
+	return applyAnalyticsAccess(analytics, access);
 }

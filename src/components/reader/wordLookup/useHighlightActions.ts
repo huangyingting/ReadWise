@@ -6,7 +6,10 @@ import type {
   Highlight as RwHighlight,
   CreateHighlightInput,
   HighlightColor,
+  RemoveHighlightOptions,
 } from "@/components/ReaderHighlightsProvider";
+import { HIGHLIGHT_NOTE_MAX } from "@/lib/annotations/anchor";
+import { NOTE_CONFLICT_SEPARATOR } from "@/lib/offline-conflict";
 import { overlapsAny } from "./highlightMarks";
 import type { SavedAnchor } from "./selectionHelpers";
 
@@ -34,12 +37,13 @@ function getMergedRange(
   };
 }
 
-function getFirstMergedNote(overlapping: RwHighlight[]) {
-  return (
-    overlapping
-      .filter((h) => h.note)
-      .sort((a, b) => a.startOffset - b.startOffset)[0]?.note ?? null
-  );
+function getMergedNote(overlapping: RwHighlight[]): string | null {
+  const notes = overlapping
+    .filter((highlight) => highlight.note?.trim())
+    .sort((a, b) => a.startOffset - b.startOffset)
+    .map((highlight) => highlight.note!.trim())
+    .filter((note, index, all) => all.indexOf(note) === index);
+  return notes.length > 0 ? notes.join(NOTE_CONFLICT_SEPARATOR) : null;
 }
 
 function buildSavedHighlightInput(
@@ -82,9 +86,56 @@ function buildMergedHighlightInput({
 
 async function removeHighlights(
   highlights: RwHighlight[],
-  remove: (id: string) => Promise<void>,
+  remove: (id: string, options?: RemoveHighlightOptions) => Promise<void>,
+  options?: RemoveHighlightOptions,
 ) {
-  for (const h of highlights) await remove(h.id);
+  for (const h of highlights) await remove(h.id, options);
+}
+
+export async function replaceOverlappingHighlights({
+  savedAnchor,
+  color,
+  fullText,
+  overlapping,
+  add,
+  remove,
+}: {
+  savedAnchor: SavedAnchor;
+  color: HighlightColor;
+  fullText: string;
+  overlapping: RwHighlight[];
+  add: (input: CreateHighlightInput) => Promise<RwHighlight | null>;
+  remove: (id: string, options?: RemoveHighlightOptions) => Promise<void>;
+}): Promise<RwHighlight | null> {
+  const range = getMergedRange(savedAnchor, overlapping);
+  const existingMerged = overlapping.find(
+    (highlight) =>
+      highlight.startOffset === range.startOffset &&
+      highlight.endOffset === range.endOffset,
+  );
+  if (existingMerged) return existingMerged;
+
+  const mergedNote = getMergedNote(overlapping);
+  if (mergedNote && mergedNote.length > HIGHLIGHT_NOTE_MAX) return null;
+
+  const replacement = await add(
+    buildMergedHighlightInput({
+      fullText,
+      range,
+      color,
+      note: mergedNote,
+    }),
+  );
+  if (!replacement) return null;
+
+  await removeHighlights(
+    overlapping.filter((highlight) => highlight.id !== replacement.id),
+    remove,
+    replacement.id.startsWith("optimistic-")
+      ? { dependsOnHighlightId: replacement.id }
+      : undefined,
+  );
+  return replacement;
 }
 
 /**
@@ -92,12 +143,13 @@ async function removeHighlights(
  * plain highlight and highlight-with-note. Both implement the same overlap-merge
  * strategy: when new selection overlaps an existing highlight, all overlapping
  * highlights are replaced with a single merged highlight spanning the full
- * combined range, preserving the first note found among the merged highlights.
+ * combined range. Every distinct note is preserved, and originals are removed
+ * only after the replacement is saved.
  */
 export function useHighlightActions(
   highlights: RwHighlight[],
   add: (input: CreateHighlightInput) => Promise<RwHighlight | null>,
-  remove: (id: string) => Promise<void>,
+  remove: (id: string, options?: RemoveHighlightOptions) => Promise<void>,
   proseRef: RefObject<HTMLElement | null>,
 ) {
   /**
@@ -112,18 +164,14 @@ export function useHighlightActions(
       const overlapping = overlapsAny(startOffset, endOffset, highlights);
       if (overlapping.length > 0) {
         const fullText = prose.textContent ?? "";
-        const range = getMergedRange(savedAnchor, overlapping);
-        const mergedNote = getFirstMergedNote(overlapping);
-
-        await removeHighlights(overlapping, remove);
-        await add(
-          buildMergedHighlightInput({
-            fullText,
-            range,
-            color,
-            note: mergedNote,
-          }),
-        );
+        await replaceOverlappingHighlights({
+          savedAnchor,
+          color,
+          fullText,
+          overlapping,
+          add,
+          remove,
+        });
       } else {
         await add(buildSavedHighlightInput(savedAnchor, color));
       }
@@ -144,22 +192,20 @@ export function useHighlightActions(
       onReadyForEdit: (hlId: string, markEl: HTMLElement) => void,
     ): Promise<void> => {
       const prose = proseRef.current;
+      if (!prose) return;
       const { startOffset, endOffset } = savedAnchor;
       const overlapping = overlapsAny(startOffset, endOffset, highlights);
       let newHl: RwHighlight | null = null;
 
       if (overlapping.length > 0) {
-        const fullText = prose?.textContent ?? "";
-        const range = getMergedRange(savedAnchor, overlapping);
-
-        await removeHighlights(overlapping, remove);
-        newHl = await add(
-          buildMergedHighlightInput({
-            fullText,
-            range,
-            color,
-          }),
-        );
+        newHl = await replaceOverlappingHighlights({
+          savedAnchor,
+          color,
+          fullText: prose.textContent ?? "",
+          overlapping,
+          add,
+          remove,
+        });
       } else {
         newHl = await add(buildSavedHighlightInput(savedAnchor, color));
       }

@@ -19,6 +19,7 @@ interface EditAssignmentFormProps {
   initialInstructions: string | null;
   initialTitle: string | null;
   initialPoints: number | null;
+  initialWholeClass: boolean;
   initialTargetIds: string[];
   students: { id: string; label: string }[];
 }
@@ -44,6 +45,7 @@ export default function EditAssignmentForm({
   initialInstructions,
   initialTitle,
   initialPoints,
+  initialWholeClass,
   initialTargetIds,
   students,
 }: EditAssignmentFormProps) {
@@ -53,7 +55,7 @@ export default function EditAssignmentForm({
   const [title, setTitle] = useState(initialTitle ?? "");
   const [points, setPoints] = useState(initialPoints == null ? "" : String(initialPoints));
   const [audience, setAudience] = useState<AssignmentAudience>(
-    initialTargetIds.length > 0 ? "students" : "class",
+    initialWholeClass ? "class" : "students",
   );
   const [targetIds, setTargetIds] = useState<string[]>([...initialTargetIds]);
   const [audienceDirty, setAudienceDirty] = useState(false);
@@ -64,7 +66,7 @@ export default function EditAssignmentForm({
     setInstructions(initialInstructions ?? "");
     setTitle(initialTitle ?? "");
     setPoints(initialPoints == null ? "" : String(initialPoints));
-    setAudience(initialTargetIds.length > 0 ? "students" : "class");
+    setAudience(initialWholeClass ? "class" : "students");
     setTargetIds([...initialTargetIds]);
     setAudienceDirty(false);
   }

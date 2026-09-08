@@ -100,21 +100,28 @@ Enforcement path:
 3. `getClassroomAnalytics(classroomId, role)` calls `applyAnalyticsAccess`,
    which calls `redactIndividualData` for any role where `individualData` is
    `false`. This strips the `perStudent` array and sets `redacted: true`.
-4. The `perAssignment` aggregate (counts and rates per article, no names) is
-   always returned to authorized viewers regardless of role.
+4. Org-admin aggregates include only assignments that have always been
+   whole-class. `Assignment.everTargeted` is sticky, so widening a targeted
+   assignment later cannot make its earlier learner results visible through an
+   aggregate. During migration, any existing assignment with learner activity
+   is conservatively treated as historically targeted because older target rows
+   may already have been deleted.
 5. Classroom analytics exports (`/api/classrooms/[id]/analytics/export`) reuse
    the same role resolution and redaction path before serializing CSV/JSON.
+6. `assignmentId` and `studentId` filters require teacher/system-admin
+   individual-data access. Aggregate-only org admins receive 403 rather than a
+   narrowed cohort.
 
 ### 3.3 Fields present at each access level
 
 | Field | `teacher` / `systemAdmin` | `orgAdmin` |
 |---|---|---|
 | `classroomId`, `classroomName` | ✓ | ✓ |
-| `studentCount`, `assignmentCount` | ✓ | ✓ |
-| `totalExpected`, `totalCompleted`, `completionRate` | ✓ | ✓ |
-| `averageQuizScore` (classroom-level) | ✓ | ✓ |
-| `perAssignment[]` (counts + rates per article) | ✓ | ✓ |
-| `drilldown.rows[]` for selected assignment/student filters | ✓ | **Redacted** |
+| `studentCount`, `assignmentCount` | ✓ | ✓ (always-whole-class assignments only) |
+| `totalExpected`, `totalCompleted`, `completionRate` | ✓ | ✓ (always-whole-class assignments only) |
+| `averageQuizScore` (classroom-level) | ✓ | ✓ (always-whole-class assignments only) |
+| `perAssignment[]` (counts + rates per article) | ✓ | ✓ (always-whole-class assignments only) |
+| `drilldown.rows[]` for selected assignment/student filters | ✓ | **Unavailable** — filters return 403 |
 | `perStudent[].name`, `.email`, `.completionRate`, `.averageQuizScore` | ✓ | **Redacted** |
 | `redacted` flag | `false` | `true` |
 
@@ -245,4 +252,3 @@ AI subsystem, not by Analytics or Access & Tenancy.
 | No classroom bulk-export endpoint | If added ad hoc, could bypass role-based redaction | Any export must reuse `applyAnalyticsAccess` with the same role resolution |
 | Learner visibility into own classroom aggregate (e.g., class average) | Learners currently get 403; no "how does my class compare?" surface | Decide scope before adding; must not expose other learners' identities |
 | AI usage per org/classroom | AI dashboard is platform-wide; no per-tenant AI cost view | Requires explicit per-tenant ledger query, gated by `orgAdmin` role |
-

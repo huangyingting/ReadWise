@@ -187,7 +187,7 @@ type WordReviewState = {
 function wordReviewThreshold(effectiveTargetCount: number): number {
   return effectiveTargetCount <= WORD_REVIEW_ALL_AT_MOST
     ? effectiveTargetCount
-    : WORD_REVIEW_LARGE_THRESHOLD;
+    : Math.min(effectiveTargetCount, WORD_REVIEW_LARGE_THRESHOLD);
 }
 
 async function loadWordReviewState(

@@ -46,6 +46,7 @@ let learnerEvidence: Array<Record<string, unknown>> = [];
 let articleMasteryCalls: Array<{ userId: string; articleId: string }> = [];
 let capturedEvents: Array<{ type: string; properties: Record<string, unknown> }> = [];
 let masteryShouldThrow = false;
+let articleReadable = true;
 
 function makeRow(overrides: Row = {}): Row {
   return {
@@ -102,6 +103,7 @@ function resetMockState(): void {
   articleMasteryCalls = [];
   capturedEvents = [];
   masteryShouldThrow = false;
+  articleReadable = true;
 }
 
 before(() => {
@@ -195,6 +197,18 @@ before(() => {
           },
         },
       },
+    },
+  });
+
+  mock.module("@/lib/article-library", {
+    namedExports: {
+      articleAccessContextForUser: async () => ({
+        userId: USER_ID,
+        isAdmin: false,
+        classroomIds: [],
+      }),
+      getReadableArticleById: async (articleId: string) =>
+        articleReadable ? { id: articleId } : null,
     },
   });
 
@@ -345,6 +359,33 @@ test("returns null when there is no Today session / primary article", async () =
   assert.equal(res2, null);
 });
 
+test("does not expose or grade a primary article that is no longer readable", async () => {
+  sessionRow = makeRow();
+  articleReadable = false;
+  const { loadTodayComprehensionCheck, submitTodayComprehension } = await importLib();
+
+  assert.deepEqual(
+    await loadTodayComprehensionCheck({ userId: USER_ID, now: NOW }),
+    {
+      available: false,
+      articleId: null,
+      question: null,
+      completed: false,
+      alreadySubmitted: false,
+    },
+  );
+  assert.equal(
+    await submitTodayComprehension({
+      userId: USER_ID,
+      selfRating: "partial",
+      now: NOW,
+    }),
+    null,
+  );
+  assert.equal(feedbackRows.length, 0);
+  assert.equal(learnerEvidence.length, 0);
+});
+
 // ===========================================================================
 // MCQ selection + grading
 // ===========================================================================
@@ -465,6 +506,29 @@ test("a mastery failure never breaks comprehension completion", async () => {
   assert.ok(res);
   assert.equal(res.updated, true);
   assertComprehensionCompleted();
+});
+
+test("replayed submissions do not duplicate mastery evidence or analytics", async () => {
+  sessionRow = makeRow();
+  const { submitTodayComprehension } = await importLib();
+  const input = {
+    userId: USER_ID,
+    selfRating: "confident" as const,
+    now: NOW,
+  };
+
+  await submitTodayComprehension(input);
+  await submitTodayComprehension(input);
+
+  assert.equal(feedbackRows.length, 1);
+  assert.equal(articleMasteryCalls.length, 1);
+  assert.equal(learnerEvidence.length, 1);
+  assert.equal(
+    capturedEvents.filter(
+      (event) => event.type === "today_comprehension_submitted",
+    ).length,
+    1,
+  );
 });
 
 // ===========================================================================

@@ -72,6 +72,7 @@ test("web runner creates a writable local-media fallback before dropping privile
     runnerStage,
     /COPY --from=production-deps .*\/app\/node_modules \.\/node_modules/,
   );
+  assert.match(runnerStage, /COPY --from=build .*\/app\/public \.\/public/);
   assert.match(runnerStage, /USER nextjs/);
 });
 
@@ -118,4 +119,14 @@ test("CI builds both PostgreSQL production image targets as a required gate", ()
     /docker build --target worker --build-arg PRISMA_SCHEMA_PATH=prisma\/postgresql\/schema\.prisma/,
   );
   assert.match(ciWorkflow, /needs: \[[^\]]*container-builds[^\]]*\]/);
+});
+
+test("CI database coverage installs native dependencies before SQLite tests", () => {
+  const dbIntegrationStart = ciWorkflow.indexOf("  db-integration:");
+  const supplyChainStart = ciWorkflow.indexOf("  supply-chain:", dbIntegrationStart);
+  assert.ok(dbIntegrationStart >= 0 && supplyChainStart > dbIntegrationStart);
+
+  const dbIntegrationJob = ciWorkflow.slice(dbIntegrationStart, supplyChainStart);
+  assert.match(dbIntegrationJob, /run: npm ci\s*$/m);
+  assert.doesNotMatch(dbIntegrationJob, /npm ci --ignore-scripts/);
 });

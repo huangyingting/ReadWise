@@ -107,6 +107,17 @@ test("sw.js forwards server-controlled notification tags for retry collapse", ()
   );
 });
 
+test("sw.js never caches rendered navigations and awaits offline fallbacks", () => {
+  const navigationBranch = sw.slice(
+    sw.indexOf('if (request.mode === "navigate")'),
+    sw.indexOf("// Web Push handlers"),
+  );
+  assert.doesNotMatch(navigationBranch, /cache\.put\(request/);
+  assert.doesNotMatch(navigationBranch, /caches\.match\(request\)/);
+  assert.match(navigationBranch, /await caches\.match\("\/offline\.html"\)/);
+  assert.match(navigationBranch, /await caches\.match\("\/offline-reader\.html"\)/);
+});
+
 test("every shell sign-out control purges offline private data before ending the session", () => {
   for (const [name, source] of [["UserMenu", userMenu], ["MoreSheet", moreSheet]] as const) {
     assert.match(

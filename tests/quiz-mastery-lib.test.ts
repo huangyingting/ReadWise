@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 let articleExists = true;
 
 let createdAttempt: Record<string, unknown> | null = null;
+let existingAttempt: Record<string, unknown> | null = null;
 let aggregateResult: { _count: { id: number }; _avg: { scorePct: number | null } } = {
   _count: { id: 0 },
   _avg: { scorePct: null },
@@ -37,6 +38,7 @@ before(() => {
           findFirst: async () => (articleExists ? { id: "a1" } : null),
         },
         quizAttempt: {
+          findUnique: async () => existingAttempt,
           create: async (args: {
             data: Record<string, unknown>;
             select: Record<string, unknown>;
@@ -50,6 +52,8 @@ before(() => {
             };
             createdAttempt = {
               id: "attempt-1",
+              userId: data.userId,
+              articleId: data.articleId,
               correctCount: data.correctCount,
               totalQuestions: data.totalQuestions,
               scorePct: data.scorePct,
@@ -72,6 +76,7 @@ before(() => {
 beforeEach(() => {
   articleExists = true;
   createdAttempt = null;
+  existingAttempt = null;
   aggregateResult = { _count: { id: 0 }, _avg: { scorePct: null } };
   maxAggResult = { _max: { scorePct: null } };
   findManyRows = [];
@@ -120,6 +125,61 @@ describe("recordQuizAttempt", () => {
   test("throws on negative correctCount", async () => {
     const { recordQuizAttempt } = await import("@/lib/learning/quiz-mastery");
     await assert.rejects(() => recordQuizAttempt("user-1", "a1", -1, 5), /correctCount/);
+  });
+
+  test("rejects a mutation id owned by another user or article", async () => {
+    existingAttempt = {
+      id: "attempt-other",
+      userId: "other-user",
+      articleId: "a1",
+      correctCount: 4,
+      totalQuestions: 5,
+      scorePct: 80,
+      completedAt: new Date("2026-01-01T00:00:00Z"),
+    };
+    const { recordQuizAttempt } = await import("@/lib/learning/quiz-mastery");
+
+    await assert.rejects(
+      recordQuizAttempt("user-1", "a1", 4, 5, {
+        clientMutationId: "shared-id",
+      }),
+      /mutation id is already in use/,
+    );
+
+    existingAttempt = {
+      ...existingAttempt,
+      userId: "user-1",
+      articleId: "other-article",
+    };
+    await assert.rejects(
+      recordQuizAttempt("user-1", "a1", 4, 5, {
+        clientMutationId: "shared-id",
+      }),
+      /mutation id is already in use/,
+    );
+  });
+
+  test("reports whether an idempotent attempt was newly created", async () => {
+    const { recordQuizAttempt } = await import("@/lib/learning/quiz-mastery");
+    const created = await recordQuizAttempt("user-1", "a1", 4, 5, {
+      clientMutationId: "attempt-key",
+    });
+    assert.equal(created.created, true);
+
+    existingAttempt = {
+      id: "attempt-existing",
+      userId: "user-1",
+      articleId: "a1",
+      correctCount: 4,
+      totalQuestions: 5,
+      scorePct: 80,
+      completedAt: new Date("2026-01-01T00:00:00Z"),
+    };
+    const replayed = await recordQuizAttempt("user-1", "a1", 4, 5, {
+      clientMutationId: "attempt-key",
+    });
+    assert.equal(replayed.created, false);
+    assert.equal(replayed.attempt.id, "attempt-existing");
   });
 });
 

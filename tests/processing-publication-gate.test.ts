@@ -15,6 +15,7 @@ type GateArticle = {
   id: string;
   title: string;
   status: ArticleStatus;
+  takedownState: string;
   difficulty: string | null;
   lexileApprox: number | null;
   difficultyVersion: string | null;
@@ -35,6 +36,7 @@ let quizFails = false;
 let tagsFallback = false;
 let vocabularyFallback = false;
 let quizFallback = false;
+let beforePublishUpdate: (() => void) | null = null;
 
 // >= 50 words of benign prose so the body-quality + content-safety checks pass.
 const SAFE_BODY =
@@ -48,6 +50,7 @@ function makeArticle(overrides: Partial<GateArticle> = {}): GateArticle {
     id: "article-gate-1",
     title: "Spring gardening basics",
     status: ArticleStatus.DRAFT,
+    takedownState: "active",
     difficulty: null,
     lexileApprox: null,
     difficultyVersion: null,
@@ -81,6 +84,22 @@ before(() => {
             updateCalls.push(args);
             article.status = ArticleStatus.PUBLISHED;
             return {};
+          },
+          updateMany: async (args: Record<string, unknown>) => {
+            updateCalls.push(args);
+            if (beforePublishUpdate) {
+              const hook = beforePublishUpdate;
+              beforePublishUpdate = null;
+              hook();
+            }
+            if (
+              article.status !== ArticleStatus.DRAFT ||
+              article.takedownState !== "active"
+            ) {
+              return { count: 0 };
+            }
+            article.status = ArticleStatus.PUBLISHED;
+            return { count: 1 };
           },
           findMany: async () => [],
         },
@@ -159,6 +178,7 @@ beforeEach(() => {
   tagsFallback = false;
   vocabularyFallback = false;
   quizFallback = false;
+  beforePublishUpdate = null;
 });
 
 function publishStep(steps: Array<{ step: string; status: string; detail?: string }>) {
@@ -173,6 +193,33 @@ test("trusted provider draft auto-publishes and revalidates cache exactly once",
   assert.equal(updateCalls.length, 1);
   assert.equal(revalidateCalls, 1);
   assert.equal(publishStep(result!.steps)?.status, "generated");
+});
+
+test("withdrawn articles remain unpublished even when enrichment succeeds", async () => {
+  article = makeArticle({ takedownState: "takedown" });
+  const { processArticle } = await import("@/lib/processing/processor");
+
+  const result = await processArticle("article-gate-1");
+
+  assert.equal(result?.published, false);
+  assert.equal(article.status, ArticleStatus.DRAFT);
+  assert.equal(publishStep(result!.steps)?.detail, "article_withdrawn");
+  assert.equal(revalidateCalls, 0);
+});
+
+test("a concurrent takedown wins the final publication race", async () => {
+  beforePublishUpdate = () => {
+    article.takedownState = "takedown";
+  };
+  const { processArticle } = await import("@/lib/processing/processor");
+
+  const result = await processArticle("article-gate-1");
+
+  assert.equal(result?.published, false);
+  assert.equal(article.status, ArticleStatus.DRAFT);
+  assert.equal(article.takedownState, "takedown");
+  assert.equal(publishStep(result!.steps)?.detail, "publication_state_changed");
+  assert.equal(revalidateCalls, 0);
 });
 
 test("untrusted provider draft stays in review with a machine reason and no cache change", async () => {

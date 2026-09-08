@@ -5,6 +5,11 @@ import { mock, test } from "node:test";
 
 const runnerCalls: Array<{ main: () => Promise<number | void>; label: string | undefined }> = [];
 
+class MockVllmClientError extends Error {
+  readonly code = "http_error";
+  readonly status?: number;
+}
+
 mock.module("../scripts/lib/cli.ts", {
   namedExports: {
     isMain: () => true,
@@ -40,6 +45,7 @@ mock.module("@/lib/scraper/incremental/reconciliation", {
 mock.module("../scripts/translation-prompt-lab/vllm-client.ts", {
   namedExports: {
     chatCompleteWithRetry: async () => ({ text: "", finishReason: null, usage: null, durationMs: 0 }),
+    VllmClientError: MockVllmClientError,
   },
 });
 

@@ -85,6 +85,7 @@ type ArticleState = {
   id: string;
   title: string;
   status: string;
+  takedownState: string;
   hasDifficulty: boolean;
   tagCount: number;
   vocabCount: number;
@@ -112,6 +113,7 @@ async function loadArticleState(articleId: string): Promise<ArticleState | null>
       id: true,
       title: true,
       status: true,
+      takedownState: true,
       difficulty: true,
       lexileApprox: true,
       difficultyVersion: true,
@@ -148,6 +150,7 @@ async function loadArticleState(articleId: string): Promise<ArticleState | null>
     id: article.id,
     title: article.title,
     status: article.status,
+    takedownState: article.takedownState ?? "active",
     hasDifficulty:
       Boolean(article.difficulty) &&
       article.lexileApprox != null &&
@@ -377,10 +380,21 @@ function computeRequiredChecks(state: ArticleState) {
 }
 
 async function markPublished(articleId: string): Promise<StepResult> {
-  await prisma.article.update({
-    where: { id: articleId },
+  const updated = await prisma.article.updateMany({
+    where: {
+      id: articleId,
+      status: ArticleStatus.DRAFT,
+      takedownState: "active",
+    },
     data: { status: ArticleStatus.PUBLISHED, publishedAt: new Date() },
   });
+  if (updated.count === 0) {
+    return {
+      step: "publish",
+      status: "skipped",
+      detail: "publication_state_changed",
+    };
+  }
   // Revalidate EXACTLY on the DRAFT → PUBLISHED state change (never on discovery).
   revalidateArticlesCache();
   return { step: "publish", status: "generated", detail: "draft → published" };
@@ -406,6 +420,17 @@ async function publishDraftIfReady(
 ): Promise<{ published: boolean; publishStep?: StepResult }> {
   const { id: articleId, status } = before;
 
+  if (before.takedownState !== "active") {
+    return {
+      published: false,
+      publishStep: {
+        step: "publish",
+        status: "skipped",
+        detail: "article_withdrawn",
+      },
+    };
+  }
+
   if (status === ArticleStatus.PUBLISHED) {
     return {
       published: true,
@@ -419,7 +444,11 @@ async function publishDraftIfReady(
   // Non-incremental articles (no linked candidate) keep the legacy publish gate.
   if (before.crawlCandidates.length === 0) {
     if (ok) {
-      return { published: true, publishStep: await markPublished(articleId) };
+      const publishStep = await markPublished(articleId);
+      return {
+        published: publishStep.status === "generated",
+        publishStep,
+      };
     }
     return { published: false };
   }
@@ -430,7 +459,11 @@ async function publishDraftIfReady(
   const decision = decideIncrementalPublication({ trust, checks, requiredEnrichmentComplete });
 
   if (decision.action === "auto-publish") {
-    return { published: true, publishStep: await markPublished(articleId) };
+    const publishStep = await markPublished(articleId);
+    return {
+      published: publishStep.status === "generated",
+      publishStep,
+    };
   }
   const reason: PublicationReason = decision.reason;
   return {

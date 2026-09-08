@@ -197,7 +197,7 @@ variable or changes a default.
 | `SCRAPER_HTML_NORMALIZE` | off unless exactly `true` | `scraper.ts` |
 | `SCRAPER_READABILITY` | on unless `false` | `scraper.ts` |
 | `SCRAPER_FETCH_PROFILE_RETRY` | on unless `false` | `scraper.ts` |
-| `SCRAPER_FETCH_BROWSER` | on unless `false` | `scraper.ts` |
+| `SCRAPER_FETCH_BROWSER` | disabled | `scraper.ts` |
 | `SCRAPER_FETCH_READER` | on unless `false` | `scraper.ts` |
 | `SCRAPER_FETCH_WAYBACK` | on unless `false` | `scraper.ts` |
 | `SCRAPER_FETCH_429_RETRIES` | `3`; `0` disables same-strategy 429 retries | `scraper.ts` |
@@ -289,4 +289,3 @@ If a file genuinely must import a runtime-config module from a client-adjacent
 path, add a justified allowlist entry to
 `eslint-rules/import-boundary-allowlist.json` following the instructions in
 [`docs/architecture/0010-subsystem-boundaries-and-import-contracts.md §How to add an allowlist entry`](../architecture/0010-subsystem-boundaries-and-import-contracts.md).
-

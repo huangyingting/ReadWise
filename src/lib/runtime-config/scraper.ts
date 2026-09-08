@@ -182,16 +182,11 @@ export function scraperFetchProfileRetry(): boolean {
 }
 
 /**
- * Whether the headless-browser fetch stage is enabled
- * (`SCRAPER_FETCH_BROWSER`, default ON).
- *
- * When ON, pages that stay bot-challenged after profile retries are rendered
- * directly via headless Chromium before falling back to the reader proxy. This
- * can solve JS/Cloudflare challenges; if Playwright is not installed or launch
- * fails, the strategy gracefully degrades to the reader/Wayback stages.
+ * Headless browser fetching is disabled because Chromium cannot share the
+ * request transport's DNS pinning and redirect validation guarantees.
  */
 export function scraperFetchBrowser(): boolean {
-  return isEnvEnabledByDefault("SCRAPER_FETCH_BROWSER");
+  return false;
 }
 
 /**

@@ -3,6 +3,7 @@ import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { CAPABILITIES } from "@/lib/rbac";
 import { applyTakedown } from "@/lib/article-library";
+import { articleAccessContextForUser } from "@/lib/article-library/policy";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { revalidateArticlesCache } from "@/lib/cache";
 import { takedownBody } from "@/lib/admin/articles/schemas";
@@ -16,12 +17,14 @@ export const POST = createCapabilityHandler(
   CAPABILITIES.contentModerate,
   { params: idParams, body: takedownBody },
   async ({ req, params, body, session, requestId }) => {
+    const accessContext = await articleAccessContextForUser(session.user);
     const result = await applyTakedown({
       articleId: params.id,
       state: body.state,
       note: body.note ?? null,
       rightsNote: body.rightsNote,
       reviewerId: session.user.id,
+      accessContext,
     });
     if (!result.ok) {
       throw new ApiError(result.status, result.error);

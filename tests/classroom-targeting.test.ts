@@ -9,7 +9,10 @@ import {
 
 test("assignmentVisibleToStudentWhere matches whole-class or targeted assignments", () => {
   assert.deepEqual(assignmentVisibleToStudentWhere("s1"), {
-    OR: [{ targets: { none: {} } }, { targets: { some: { studentId: "s1" } } }],
+    OR: [
+      { wholeClass: true },
+      { wholeClass: false, targets: { some: { studentId: "s1" } } },
+    ],
   });
 
   test("assignmentLiveWhere matches published or reached scheduled assignments", () => {
@@ -23,10 +26,10 @@ test("assignmentVisibleToStudentWhere matches whole-class or targeted assignment
   });
 });
 
-test("effectiveStudentIds treats null or empty targets as the whole enrolled roster", () => {
+test("effectiveStudentIds distinguishes whole-class from an empty targeted audience", () => {
   assert.deepEqual(effectiveStudentIds(["s1", "s2"], null), ["s1", "s2"]);
   assert.deepEqual(effectiveStudentIds(["s1", "s2"], undefined), ["s1", "s2"]);
-  assert.deepEqual(effectiveStudentIds(["s1", "s2"], []), ["s1", "s2"]);
+  assert.deepEqual(effectiveStudentIds(["s1", "s2"], []), []);
 });
 
 test("effectiveStudentIds returns targeted students intersected with the enrolled roster", () => {

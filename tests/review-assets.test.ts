@@ -73,6 +73,24 @@ before(() => {
             writes.push("highlight.update");
             return { ...row };
           },
+          updateMany: async ({
+            where,
+            data,
+          }: {
+            where: { id: string; userId: string; updatedAt: Date };
+            data: Row;
+          }) => {
+            const row = highlights.find(
+              (h) =>
+                h.id === where.id &&
+                h.userId === where.userId &&
+                (h.updatedAt as Date).getTime() === where.updatedAt.getTime(),
+            );
+            if (!row) return { count: 0 };
+            Object.assign(row, data, { updatedAt: NOW });
+            writes.push("highlight.updateMany");
+            return { count: 1 };
+          },
           count: async ({ where }: { where: Row }) => {
             return highlights.filter((h) => matchesHighlight(h, where)).length;
           },
@@ -248,7 +266,7 @@ test("recordTodayReflection stores the sentence in the highlight note domain", a
   assert.equal(highlights[0].note, "Cells make their own energy.");
   // It only ever wrote to the highlight (note) domain — never a SavedWord or
   // any TodaySession/analytics surface.
-  assert.deepEqual(writes, ["highlight.update"]);
+  assert.deepEqual(writes, ["highlight.updateMany"]);
   assert.equal(savedWords.length, 0);
 });
 

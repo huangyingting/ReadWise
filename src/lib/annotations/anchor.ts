@@ -37,8 +37,8 @@ export interface CreateHighlightInput {
 }
 
 export interface UpdateHighlightInput {
-  note?: string;
-  color?: string;
+  note?: string | null;
+  color?: string | null;
   /**
    * RW-043 — the `updatedAt` the offline client last saw. When provided and the
    * stored note changed since then, the note is merged (both versions kept)

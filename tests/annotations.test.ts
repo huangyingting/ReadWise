@@ -23,6 +23,10 @@ let stubHighlights: unknown[] = [];
 let stubCreated: unknown = null;
 let stubFindFirst: unknown = null;
 let stubUpdated: unknown = null;
+let updateManyCounts: number[] = [];
+let rowAfterFailedUpdate: unknown = null;
+let updateManyCalls: unknown[] = [];
+let deleteManyCalls: unknown[] = [];
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -32,8 +36,21 @@ before(() => {
           findMany: async () => stubHighlights,
           upsert: async () => stubCreated,
           findFirst: async () => stubFindFirst,
-          update: async () => stubUpdated,
+          updateMany: async (args: unknown) => {
+            updateManyCalls.push(args);
+            const count = updateManyCounts.shift() ?? 1;
+            if (count === 0 && rowAfterFailedUpdate) {
+              stubFindFirst = rowAfterFailedUpdate;
+            } else if (count === 1 && stubUpdated) {
+              stubFindFirst = stubUpdated;
+            }
+            return { count };
+          },
           delete: async () => ({}),
+          deleteMany: async (args: unknown) => {
+            deleteManyCalls.push(args);
+            return { count: 1 };
+          },
           groupBy: async () => [],
         },
       },
@@ -46,6 +63,10 @@ beforeEach(() => {
   stubCreated = null;
   stubFindFirst = null;
   stubUpdated = null;
+  updateManyCounts = [];
+  rowAfterFailedUpdate = null;
+  updateManyCalls = [];
+  deleteManyCalls = [];
 });
 
 type HighlightRow = {
@@ -246,22 +267,22 @@ test("createHighlight is idempotent: upsert returns the existing row unchanged",
 // deleteHighlight — offline delete semantics
 // ---------------------------------------------------------------------------
 
-test("deleteHighlight returns 404 for a highlight that no longer exists (already deleted offline)", async () => {
-  stubFindFirst = null;
+test("deleteHighlight is idempotent when the row was already deleted", async () => {
   const { deleteHighlight } = await import("@/lib/annotations");
   const r = await deleteHighlight("h-gone", "u-1");
-  assert.equal(r.ok, false);
-  if (!r.ok) {
-    // Offline sync should treat 404 as "already deleted" — not a fatal error.
-    assert.equal(r.status, 404);
-  }
+  assert.deepEqual(r, { ok: true });
+  assert.deepEqual(deleteManyCalls, [
+    { where: { id: "h-gone", userId: "u-1" } },
+  ]);
 });
 
 test("deleteHighlight succeeds and returns ok:true for an owned highlight", async () => {
-  stubFindFirst = { id: "h-1" };
   const { deleteHighlight } = await import("@/lib/annotations");
   const r = await deleteHighlight("h-1", "u-1");
   assert.equal(r.ok, true);
+  assert.deepEqual(deleteManyCalls, [
+    { where: { id: "h-1", userId: "u-1" } },
+  ]);
 });
 
 // ---------------------------------------------------------------------------
@@ -286,19 +307,17 @@ test("create-then-delete in order leaves no highlight (correct offline queue beh
   assert.equal(deleted.ok, true);
 });
 
-test("delete-then-create out of order: delete returns 404, create re-creates (documented edge case)", async () => {
+test("delete-then-create out of order: idempotent delete succeeds before create", async () => {
   // Simulates offline queue out-of-order delivery.
-  // This is the documented edge case where the highlight ends up present after
-  // sync because the queue must be ordered to reconcile create-then-delete.
+  // The highlight still ends up present, so causal queue ordering remains
+  // necessary even though deletion itself is safe to replay.
   const row = temporaryHighlightRow("h-ooo");
 
   const { createHighlight, deleteHighlight } = await import("@/lib/annotations");
 
-  // Delete arrives first — highlight doesn't exist yet → 404
-  stubFindFirst = null;
+  // Delete arrives first — the absent row is already in the requested state.
   const deletedFirst = await deleteHighlight("h-ooo", "u-1");
-  assert.equal(deletedFirst.ok, false);
-  if (!deletedFirst.ok) assert.equal(deletedFirst.status, 404);
+  assert.equal(deletedFirst.ok, true);
 
   // Create arrives second — upsert creates the row → ok:true
   stubCreated = row;
@@ -357,6 +376,90 @@ test("updateHighlight color-only update does not touch note or trigger conflict"
     assert.equal(r.highlight.color, "green");
     assert.equal(r.highlight.note, "keep this");
   }
+});
+
+test("updateHighlight retries and merges a note changed during the update", async () => {
+  const baseTime = new Date("2026-01-01T00:00:00Z");
+  const concurrentTime = new Date("2026-01-02T00:00:00Z");
+  stubFindFirst = { id: "h-1", note: "base note", updatedAt: baseTime };
+  rowAfterFailedUpdate = {
+    id: "h-1",
+    note: "concurrent server edit",
+    updatedAt: concurrentTime,
+  };
+  stubUpdated = highlightRow({
+    id: "h-1",
+    note:
+      "client edit\n\n--- ⚠ also edited on another device ---\nconcurrent server edit",
+    updatedAt: concurrentTime,
+  });
+
+  updateManyCounts = [0, 1];
+
+  const { updateHighlight } = await import("@/lib/annotations");
+  const result = await updateHighlight("h-1", "u-1", {
+    note: "client edit",
+    baseUpdatedAt: baseTime,
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.conflict, true);
+    assert.match(result.highlight.note ?? "", /concurrent server edit/);
+  }
+  assert.equal(updateManyCalls.length, 2);
+});
+
+test("updateHighlightByAnchor merges a note changed after the pending create", async () => {
+  const before = new Date("2026-01-01T00:00:00Z");
+  const after = new Date("2026-01-01T00:01:00Z");
+  stubFindFirst = highlightRow({
+    id: "server-id",
+    note: "server note",
+    updatedAt: before,
+  });
+  stubUpdated = highlightRow({
+    id: "server-id",
+    note: "merged note",
+    updatedAt: after,
+  });
+
+  const { updateHighlightByAnchor } = await import("@/lib/annotations");
+  const result = await updateHighlightByAnchor(
+    "user-1",
+    "article-1",
+    { startOffset: 0, endOffset: 1 },
+    { note: "client note", baseNote: "original note" },
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.conflict, true);
+  const mergedNote = (updateManyCalls[0] as {
+    data: { note: string };
+  }).data.note;
+  assert.match(mergedNote, /client note/);
+  assert.match(mergedNote, /server note/);
+});
+
+test("deleteHighlightByAnchor is idempotent and user scoped", async () => {
+  const { deleteHighlightByAnchor } = await import("@/lib/annotations");
+  const result = await deleteHighlightByAnchor(
+    "user-1",
+    "article-1",
+    { startOffset: 10, endOffset: 20 },
+  );
+
+  assert.deepEqual(result, { ok: true });
+  assert.deepEqual(deleteManyCalls, [
+    {
+      where: {
+        userId: "user-1",
+        articleId: "article-1",
+        startOffset: 10,
+        endOffset: 20,
+      },
+    },
+  ]);
 });
 
 // ---------------------------------------------------------------------------

@@ -9,17 +9,12 @@
  *   - createHighlight is idempotent via upsert: safe for offline retry.
  *   - updateHighlight detects offline note conflicts via baseUpdatedAt and
  *     preserves both versions rather than silently overwriting text.
- *   - deleteHighlight returns 404 for a highlight that doesn't exist or isn't
- *     owned by the caller; offline sync should treat 404 as already-deleted.
+ *   - deleteHighlight is an idempotent, ownership-scoped delete so replaying a
+ *     request after a lost response cannot block causally dependent work.
  *
- * Create-then-delete offline edge case:
- *   If the offline queue delivers a CREATE and DELETE for the same highlight,
- *   processing them in order (create → delete) produces the correct result:
- *   upsert creates/finds the row, then delete removes it. If the queue
- *   delivers them out of order (delete first), the delete returns 404 and the
- *   subsequent create via upsert re-creates the row. The accepted behavior is
- *   that a well-ordered sync queue is required for correct create-then-delete
- *   reconciliation; out-of-order delivery leaves the highlight present.
+ * Pending-create follow-ups use the immutable article anchor and declare a
+ * causal queue dependency on the create. Edits therefore survive ambiguous
+ * create responses, and deletes cannot run unless the create is accepted.
  */
 import { prisma } from "@/lib/prisma";
 import { mergeNoteConflict } from "@/lib/offline-conflict";
@@ -37,6 +32,15 @@ type HighlightWriteResult = { ok: true; highlight: HighlightRow } | CommandError
 type HighlightUpdateResult =
   | { ok: true; highlight: HighlightRow; conflict: boolean }
   | CommandError;
+type HighlightAnchorIdentity = {
+  startOffset: number;
+  endOffset: number;
+};
+type AnchoredHighlightUpdateInput = UpdateHighlightInput & {
+  /** Note value the pending create was based on, used for conflict merging. */
+  baseNote?: string | null;
+};
+const UPDATE_RETRY_LIMIT = 3;
 
 function isHighlightColor(color: string): boolean {
   return (HIGHLIGHT_COLORS as readonly string[]).includes(color);
@@ -127,7 +131,7 @@ export async function updateHighlight(
     return invalidColorResult();
   }
 
-  const existing = await prisma.highlight.findFirst({
+  let existing = await prisma.highlight.findFirst({
     where: { id, userId },
     select: { id: true, note: true, updatedAt: true },
   });
@@ -135,52 +139,117 @@ export async function updateHighlight(
     return { ok: false, error: "Highlight not found", status: 404 };
   }
 
-  const data: HighlightMutationData = {};
   let conflict = false;
-  if ("note" in input) {
-    const incoming = input.note ?? null;
-    // Last-write-wins, but never silently lose text: if the stored note changed
-    // since the offline client based its edit, merge both versions (RW-043).
-    if (
-      input.baseUpdatedAt != null &&
-      hasServerNoteChangedSinceBase(existing, incoming, input.baseUpdatedAt)
-    ) {
-      const merged = mergeNoteConflict(existing.note, incoming);
-      data.note = merged.text;
-      conflict = merged.conflict;
-    } else {
-      data.note = incoming;
+
+  for (let attempt = 0; attempt < UPDATE_RETRY_LIMIT; attempt += 1) {
+    const data: HighlightMutationData = {};
+    if ("note" in input) {
+      const incoming = input.note ?? null;
+      if (
+        input.baseUpdatedAt != null &&
+        hasServerNoteChangedSinceBase(existing, incoming, input.baseUpdatedAt)
+      ) {
+        const merged = mergeNoteConflict(existing.note, incoming);
+        data.note = merged.text;
+        conflict ||= merged.conflict;
+      } else {
+        data.note = incoming;
+      }
     }
+    if ("color" in input) data.color = input.color ?? null;
+
+    const update = await prisma.highlight.updateMany({
+      where: { id, userId, updatedAt: existing.updatedAt },
+      data,
+    });
+    if (update.count === 1) {
+      const highlight = await prisma.highlight.findFirst({
+        where: { id, userId },
+        select: highlightSelect,
+      });
+      if (!highlight) {
+        return { ok: false, error: "Highlight not found", status: 404 };
+      }
+      return { ok: true, highlight, conflict };
+    }
+
+    const current = await prisma.highlight.findFirst({
+      where: { id, userId },
+      select: { id: true, note: true, updatedAt: true },
+    });
+    if (!current) {
+      return { ok: false, error: "Highlight not found", status: 404 };
+    }
+    existing = current;
   }
-  if ("color" in input) data.color = input.color ?? null;
 
-  const highlight = await prisma.highlight.update({
-    where: { id },
-    data,
-    select: highlightSelect,
-  });
-
-  return { ok: true, highlight, conflict };
+  throw new Error("Highlight changed repeatedly while updating");
 }
 
 /**
- * Delete a highlight.
- * Ownership is checked via `where: {id, userId}` — returns a 404 result if
- * the highlight doesn't exist or belongs to another user.
- * Offline sync should treat a 404 response as "already deleted" (idempotent).
+ * Update a highlight through its immutable article anchor. Pending offline
+ * creates do not yet have a server id, so follow-up edits use this stable
+ * identity and remain valid even when the original create response was lost.
  */
-export async function deleteHighlight(
-  id: string,
+export async function updateHighlightByAnchor(
   userId: string,
-): Promise<{ ok: true } | CommandError> {
+  articleId: string,
+  anchor: HighlightAnchorIdentity,
+  input: AnchoredHighlightUpdateInput,
+): Promise<HighlightUpdateResult> {
   const existing = await prisma.highlight.findFirst({
-    where: { id, userId },
-    select: { id: true },
+    where: { userId, articleId, ...anchor },
+    select: { id: true, note: true, updatedAt: true },
   });
   if (!existing) {
     return { ok: false, error: "Highlight not found", status: 404 };
   }
 
-  await prisma.highlight.delete({ where: { id } });
+  let note = input.note;
+  let conflict = false;
+  if (
+    "note" in input &&
+    input.baseNote !== undefined &&
+    existing.note !== input.baseNote &&
+    existing.note !== (input.note ?? null)
+  ) {
+    const merged = mergeNoteConflict(existing.note, input.note ?? null);
+    note = merged.text;
+    conflict = merged.conflict;
+  }
+
+  const updateInput: UpdateHighlightInput = {
+    baseUpdatedAt: existing.updatedAt,
+  };
+  if ("note" in input) updateInput.note = note ?? null;
+  if ("color" in input) updateInput.color = input.color ?? null;
+
+  const result = await updateHighlight(existing.id, userId, updateInput);
+  return result.ok ? { ...result, conflict: result.conflict || conflict } : result;
+}
+
+/**
+ * Delete a highlight.
+ * Ownership is enforced in the delete predicate. An absent or foreign row is
+ * indistinguishable from an already-deleted row, making offline replay safe
+ * without exposing whether another user's highlight exists.
+ */
+export async function deleteHighlight(
+  id: string,
+  userId: string,
+): Promise<{ ok: true }> {
+  await prisma.highlight.deleteMany({ where: { id, userId } });
+  return { ok: true };
+}
+
+/** Idempotently delete a pending/offline highlight through its stable anchor. */
+export async function deleteHighlightByAnchor(
+  userId: string,
+  articleId: string,
+  anchor: HighlightAnchorIdentity,
+): Promise<{ ok: true }> {
+  await prisma.highlight.deleteMany({
+    where: { userId, articleId, ...anchor },
+  });
   return { ok: true };
 }

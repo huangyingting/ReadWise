@@ -52,6 +52,10 @@ before(() => {
     article: {
       count: async () => ownedArticleCount,
     },
+    membership: {
+      findMany: async () => [],
+      count: async () => 0,
+    },
     mediaAsset: {
       findMany: async () => ownedStorageKeys.map((storageKey) => ({ storageKey })),
     },
@@ -104,7 +108,7 @@ function setStubUser(role: StubRole, id = role === "Admin" ? "admin-1" : "reader
   stubUser = { id, role };
 }
 
-test("updateMemberRole audits an unchanged role without opening a transaction", async () => {
+test("updateMemberRole audits an unchanged role inside the protected transaction", async () => {
   setStubUser("Admin");
   const { updateMemberRole } = await loadMemberCommands();
 
@@ -113,10 +117,10 @@ test("updateMemberRole audits an unchanged role without opening a transaction", 
   );
 
   assert.equal(result.ok, true);
-  assert.equal(transactionCalled, false);
+  assert.equal(transactionCalled, true);
   assert.equal(userUpdateArgs, null);
   assert.equal(auditCalls.length, 1);
-  assert.equal(auditCalls[0].tx, undefined);
+  assert.equal(auditCalls[0].tx, mockPrisma);
   assert.deepEqual(auditCalls[0].input.metadata, { changed: false, role: "Admin" });
 });
 

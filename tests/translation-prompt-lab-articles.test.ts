@@ -22,6 +22,22 @@ const recordedErrors: unknown[][] = [];
 const bodyQueue: Array<BodyResult | Error> = [];
 const titleQueue: Array<{ text: string } | Error> = [];
 
+class MockVllmClientError extends Error {
+  readonly code: "http_error" | "empty_completion";
+  readonly status?: number;
+
+  constructor(
+    message: string,
+    code: "http_error" | "empty_completion",
+    status?: number,
+  ) {
+    super(message);
+    this.name = "VllmClientError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
 const fakeStore = {
   close: () => {
     storeClosed += 1;
@@ -84,6 +100,7 @@ before(() => {
   });
   mock.module("../scripts/translation-prompt-lab/vllm-client.ts", {
     namedExports: {
+      VllmClientError: MockVllmClientError,
       chatCompleteWithRetry: async () => {
         const next = titleQueue.shift();
         if (next instanceof Error) throw next;
@@ -132,6 +149,8 @@ function options(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const providerDatabaseExists = { providerDatabaseExists: () => true };
+
 async function withArgv<T>(args: string[], run: () => Promise<T>): Promise<T> {
   const original = process.argv;
   process.argv = [process.execPath, "translate-articles.ts", ...args];
@@ -163,7 +182,11 @@ test("article translator pure helpers hash, translate titles, and report every Q
 test("article translator rejects a missing provider database", async () => {
   const { runTranslateArticles } = await import("../scripts/translation-prompt-lab/translate-articles");
   await assert.rejects(
-    () => runTranslateArticles(options({ providerDb: `missing-${Date.now()}` }) as never),
+    () =>
+      runTranslateArticles(
+        options({ providerDb: "missing-provider" }) as never,
+        { providerDatabaseExists: () => false },
+      ),
     /Provider db not found/,
   );
   assert.equal(sourceClosed, 0);
@@ -176,12 +199,15 @@ test("article translator dry-run applies filters and limits without provider cal
   ];
   const { runTranslateArticles } = await import("../scripts/translation-prompt-lab/translate-articles");
 
-  const stats = await runTranslateArticles(options({
-    dryRun: true,
-    categories: ["science"],
-    articleIds: ["one", "two"],
-    limit: 1,
-  }) as never);
+  const stats = await runTranslateArticles(
+    options({
+      dryRun: true,
+      categories: ["science"],
+      articleIds: ["one", "two"],
+      limit: 1,
+    }) as never,
+    providerDatabaseExists,
+  );
 
   assert.deepEqual(stats, {
     total: 1,
@@ -233,7 +259,7 @@ test("article translator skips unchanged rows, retries transient failures, persi
     new Error("persistent body failure"),
   );
 
-  const stats = await script.runTranslateArticles(options() as never);
+  const stats = await script.runTranslateArticles(options() as never, providerDatabaseExists);
 
   assert.deepEqual(stats, {
     total: 4,
@@ -247,10 +273,43 @@ test("article translator skips unchanged rows, retries transient failures, persi
   assert.deepEqual(upserts[0]?.qaFlags, ["low-cjk-ratio", "suspicious-untranslated-block"]);
   assert.equal(upserts[0]?.promptVariantId, "science/recommended");
   assert.equal(recordedErrors.length, 1);
-  assert.match(String(recordedErrors[0]!.at(-1)), /persistent body failure/);
+  assert.equal(recordedErrors[0]!.at(-1), "translation_failed");
   assert.equal(sourceClosed, 1);
   assert.equal(storeClosed, 1);
   assert.match(logs.join("\n"), /translated=2 skipped=1 errors=1/);
+});
+
+test("article translator persists only controlled failure codes", async () => {
+  const script = await import("../scripts/translation-prompt-lab/translate-articles");
+
+  assert.equal(
+    script.persistedTranslationErrorCode(
+      new MockVllmClientError("provider echoed private article text", "http_error", 422),
+    ),
+    "provider_http_422",
+  );
+  assert.equal(
+    script.persistedTranslationErrorCode(
+      new MockVllmClientError("empty response", "empty_completion"),
+    ),
+    "provider_empty_completion",
+  );
+  assert.equal(
+    script.persistedTranslationErrorCode(
+      Object.assign(new Error("request aborted"), { name: "AbortError" }),
+    ),
+    "provider_timeout",
+  );
+  assert.equal(
+    script.persistedTranslationErrorCode(
+      new Error("block 2 hit the output token cap twice"),
+    ),
+    "provider_output_token_limit",
+  );
+  assert.equal(
+    script.persistedTranslationErrorCode(new Error("private source text")),
+    "translation_failed",
+  );
 });
 
 test("article translator force mode bypasses content-hash skips", async () => {
@@ -260,7 +319,10 @@ test("article translator force mode bypasses content-hash skips", async () => {
   bodyQueue.push(body());
   const { runTranslateArticles } = await import("../scripts/translation-prompt-lab/translate-articles");
 
-  const stats = await runTranslateArticles(options({ force: true }) as never);
+  const stats = await runTranslateArticles(
+    options({ force: true }) as never,
+    providerDatabaseExists,
+  );
   assert.equal(stats.translated, 1);
   assert.equal(stats.skippedUnchanged, 0);
 });
@@ -291,14 +353,32 @@ test("article translator CLI parses bounded filters and maps help/success/error 
   assert.equal(parsed.dryRun, true);
   assert.equal(warnings.length, 1);
 
-  assert.equal(await withArgv([], () => script.main()), 2);
-  assert.equal(await withArgv(["--db", "workinprogress", "--help"], () => script.main()), 0);
+  assert.equal(await withArgv([], () => script.main(providerDatabaseExists)), 2);
+  assert.equal(
+    await withArgv(
+      ["--db", "workinprogress", "--help"],
+      () => script.main(providerDatabaseExists),
+    ),
+    0,
+  );
 
   sourceRows = [{ id: "one", title: "One", content: "<p>source</p>", category: "world" }];
-  assert.equal(await withArgv(["--db", "workinprogress", "--dry-run", "--limit", "1"], () => script.main()), 0);
+  assert.equal(
+    await withArgv(
+      ["--db", "workinprogress", "--dry-run", "--limit", "1"],
+      () => script.main(providerDatabaseExists),
+    ),
+    0,
+  );
 
   titleQueue.push({ text: "one" }, { text: "two" });
   bodyQueue.push(new Error("failed"), new Error("failed"));
-  assert.equal(await withArgv(["--db", "workinprogress", "--force"], () => script.main()), 1);
+  assert.equal(
+    await withArgv(
+      ["--db", "workinprogress", "--force"],
+      () => script.main(providerDatabaseExists),
+    ),
+    1,
+  );
   assert.match(logs.join("\n"), /errors=1/);
 });

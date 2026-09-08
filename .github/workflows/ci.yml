@@ -264,7 +264,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci
 
       - name: Generate PostgreSQL Prisma client
         run: npm run prisma:generate:pg

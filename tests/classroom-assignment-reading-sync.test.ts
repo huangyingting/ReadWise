@@ -11,11 +11,14 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { AssignmentCompletionSource, AssignmentStatus } from "@prisma/client";
+import {
+  AssignmentCompletionSource,
+  AssignmentStatus,
+  Prisma,
+} from "@prisma/client";
 
 let assignmentFindManyArgs: unknown = null;
 let assignmentFindManyResult: Array<{ id: string }> = [];
-let completionFindManyArgs: unknown = null;
 let completionFindManyResult: Array<{
   assignmentId: string;
   status: AssignmentStatus;
@@ -24,6 +27,21 @@ let completionFindManyResult: Array<{
   completedAt: Date | null;
 }> = [];
 const upsertCalls: Array<Record<string, unknown>> = [];
+const updateManyCalls: Array<Record<string, unknown>> = [];
+let beforeNextUpdateMany: (() => void) | null = null;
+
+function completionFor(assignmentId: string) {
+  return completionFindManyResult.find((row) => row.assignmentId === assignmentId);
+}
+
+function statusMatches(
+  status: AssignmentStatus,
+  expected: AssignmentStatus | { not: AssignmentStatus },
+): boolean {
+  return typeof expected === "string"
+    ? status === expected
+    : status !== expected.not;
+}
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -37,13 +55,77 @@ before(() => {
           },
         },
         assignmentCompletion: {
-          findMany: async (args: unknown) => {
-            completionFindManyArgs = args;
-            return completionFindManyResult;
+          updateMany: async (args: {
+            where: {
+              assignmentId: string;
+              studentId: string;
+              status: AssignmentStatus | { not: AssignmentStatus };
+              completionSource?: null;
+            };
+            data: Record<string, unknown>;
+          }) => {
+            updateManyCalls.push(args);
+            if (beforeNextUpdateMany) {
+              const hook = beforeNextUpdateMany;
+              beforeNextUpdateMany = null;
+              hook();
+            }
+            const row = completionFor(args.where.assignmentId);
+            if (
+              !row ||
+              !statusMatches(row.status, args.where.status) ||
+              (args.where.completionSource === null &&
+                row.completionSource != null)
+            ) {
+              return { count: 0 };
+            }
+            Object.assign(row, args.data);
+            upsertCalls.push({
+              where: {
+                assignmentId_studentId: {
+                  assignmentId: args.where.assignmentId,
+                  studentId: args.where.studentId,
+                },
+              },
+              update: args.data,
+              create: {},
+            });
+            return { count: 1 };
           },
-          upsert: async (args: Record<string, unknown>) => {
-            upsertCalls.push(args);
-            return args;
+          create: async ({ data }: { data: Record<string, unknown> }) => {
+            const assignmentId = String(data.assignmentId);
+            if (completionFor(assignmentId)) {
+              throw new Prisma.PrismaClientKnownRequestError("unique", {
+                code: "P2002",
+                clientVersion: "test",
+              });
+            }
+            completionFindManyResult.push({
+              assignmentId,
+              status: data.status as AssignmentStatus,
+              quizScore: (data.quizScore as number | null) ?? null,
+              completionSource:
+                (data.completionSource as AssignmentCompletionSource | null) ??
+                null,
+              completedAt: (data.completedAt as Date | null) ?? null,
+            });
+            upsertCalls.push({
+              where: {
+                assignmentId_studentId: {
+                  assignmentId,
+                  studentId: data.studentId,
+                },
+              },
+              update: {
+                status: data.status,
+                ...(data.completionSource !== undefined
+                  ? { completionSource: data.completionSource }
+                  : {}),
+                completedAt: data.completedAt,
+              },
+              create: data,
+            });
+            return data;
           },
         },
       },
@@ -54,9 +136,10 @@ before(() => {
 beforeEach(() => {
   assignmentFindManyArgs = null;
   assignmentFindManyResult = [];
-  completionFindManyArgs = null;
   completionFindManyResult = [];
   upsertCalls.length = 0;
+  updateManyCalls.length = 0;
+  beforeNextUpdateMany = null;
 });
 
 async function load(): Promise<typeof import("@/lib/classroom/completions")> {
@@ -296,6 +379,45 @@ test("does not overwrite sticky completedAt when existing COMPLETED row has one"
   assert.equal(upsertCalls.length, 0, "no write — no regression possible");
 });
 
+test("a delayed reading write cannot downgrade a concurrent quiz completion", async () => {
+  const quizCompletedAt = new Date("2026-07-02T00:00:00Z");
+  assignmentFindManyResult = [{ id: "asgn-1" }];
+  completionFindManyResult = [
+    {
+      assignmentId: "asgn-1",
+      status: AssignmentStatus.IN_PROGRESS,
+      quizScore: null,
+      completionSource: null,
+      completedAt: null,
+    },
+  ];
+  beforeNextUpdateMany = () => {
+    Object.assign(completionFindManyResult[0], {
+      status: AssignmentStatus.COMPLETED,
+      quizScore: 100,
+      completionSource: AssignmentCompletionSource.QUIZ,
+      completedAt: quizCompletedAt,
+    });
+  };
+
+  const { syncAssignmentReadingProgress } = await load();
+  const result = await syncAssignmentReadingProgress({
+    userId: "student-1",
+    articleId: "article-1",
+    percent: 50,
+    completed: false,
+  });
+
+  assert.deepEqual(result, { updatedCount: 0 });
+  assert.deepEqual(completionFindManyResult[0], {
+    assignmentId: "asgn-1",
+    status: AssignmentStatus.COMPLETED,
+    quizScore: 100,
+    completionSource: AssignmentCompletionSource.QUIZ,
+    completedAt: quizCompletedAt,
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Multi-classroom: article assigned in 2 enrolled classrooms
 // ---------------------------------------------------------------------------
@@ -368,8 +490,8 @@ test("excludes non-enrolled students via the where clause — returns updatedCou
   assert.equal(args.where.classroom.archivedAt, null, "must filter archived classrooms");
   assert.deepEqual(args.where.classroom.members.some, { userId: "outsider" }, "must scope to enrolled student");
   assert.deepEqual(args.where.AND[0].OR, [
-    { targets: { none: {} } },
-    { targets: { some: { studentId: "outsider" } } },
+    { wholeClass: true },
+    { wholeClass: false, targets: { some: { studentId: "outsider" } } },
   ]);
   assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });
@@ -394,7 +516,7 @@ test("excludes archived classrooms — findMany returns empty when all are archi
 // Completion findMany scoping
 // ---------------------------------------------------------------------------
 
-test("scopes existing-completion read to returned assignment IDs and the student", async () => {
+test("scopes atomic completion transitions to each assignment and student", async () => {
   assignmentFindManyResult = [{ id: "asgn-1" }, { id: "asgn-2" }];
   completionFindManyResult = [];
   const { syncAssignmentReadingProgress } = await load();
@@ -404,15 +526,16 @@ test("scopes existing-completion read to returned assignment IDs and the student
     percent: 50,
     completed: false,
   });
-  const args = completionFindManyArgs as {
-    where: { assignmentId: { in: string[] }; studentId: string };
-    select: Record<string, boolean>;
-  };
-  assert.deepEqual(args.where.assignmentId.in.sort(), ["asgn-1", "asgn-2"]);
-  assert.equal(args.where.studentId, "student-1");
-  assert.equal(args.select.assignmentId, true);
-  assert.equal(args.select.status, true);
-  assert.equal(args.select.quizScore, true);
-  assert.equal(args.select.completionSource, true);
-  assert.equal(args.select.completedAt, true);
+  assert.deepEqual(
+    [...new Set(updateManyCalls.map((call) =>
+      (call.where as { assignmentId: string }).assignmentId,
+    ))].sort(),
+    ["asgn-1", "asgn-2"],
+  );
+  assert.ok(
+    updateManyCalls.every(
+      (call) =>
+        (call.where as { studentId: string }).studentId === "student-1",
+    ),
+  );
 });

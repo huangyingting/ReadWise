@@ -609,7 +609,7 @@ test("updateAssignment replaces targets with enrolled deduped students", async (
   const result = await updateAssignment("asgn-1", { studentIds: ["s1", "s2", "s1", "ghost"] });
   assert.deepEqual(result, { ok: true, assignment: assignmentUpdateResult });
   assert.equal(transactionCalled, true);
-  assertTargetTransactionUpdate();
+  assertTargetTransactionUpdate({ wholeClass: false, everTargeted: true });
   assert.deepEqual(assignmentFindUniqueArgs, {
     where: { id: "asgn-1" },
     select: { classroomId: true },
@@ -631,11 +631,11 @@ test("updateAssignment replaces targets with enrolled deduped students", async (
   });
 });
 
-test("updateAssignment clears targets when studentIds is empty", async () => {
+test("updateAssignment clears current targets without clearing targeted-audience history", async () => {
   const { updateAssignment } = await loadCommands();
   await updateAssignment("asgn-1", { studentIds: [] });
   assert.equal(transactionCalled, true);
-  assertTargetTransactionUpdate();
+  assertTargetTransactionUpdate({ wholeClass: true });
   assert.equal(assignmentFindUniqueArgs, null);
   assert.deepEqual(targetDeleteManyArgs, { where: { assignmentId: "asgn-1" } });
   assert.equal(targetCreateManyArgs, null);
@@ -647,7 +647,7 @@ test("updateAssignment target-only patch forces an assignment row update for loc
   await updateAssignment("asgn-1", { studentIds: ["s1"] });
 
   assert.equal(transactionCalled, true);
-  assertTargetTransactionUpdate();
+  assertTargetTransactionUpdate({ wholeClass: false, everTargeted: true });
   assert.deepEqual(targetDeleteManyArgs, { where: { assignmentId: "asgn-1" } });
   assert.deepEqual(targetCreateManyArgs, {
     data: [{ assignmentId: "asgn-1", studentId: "s1" }],
@@ -660,7 +660,11 @@ test("updateAssignment updates scalar data and replaces targets in the same row-
   await updateAssignment("asgn-1", { instructions: "  Focus  ", studentIds: ["s1"] });
 
   assert.equal(transactionCalled, true);
-  assertTargetTransactionUpdate({ instructions: "Focus" });
+  assertTargetTransactionUpdate({
+    instructions: "Focus",
+    wholeClass: false,
+    everTargeted: true,
+  });
   assert.deepEqual(targetCreateManyArgs, {
     data: [{ assignmentId: "asgn-1", studentId: "s1" }],
   });

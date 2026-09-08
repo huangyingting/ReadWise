@@ -45,6 +45,7 @@ export {
   articleProcessDedupeKey,
   enqueueArticleIngest,
   enqueueAiRebuild,
+  enqueueAiRebuildInTx,
   enqueueTtsGenerate,
   enqueuePushReminder,
 } from "./enqueue";

@@ -257,6 +257,10 @@ separate concerns.
   `individualData`. The `/teacher/classrooms/[id]` page and the analytics API
   both run results through this envelope, so an org admin physically never
   receives named per-learner data.
+- Aggregate-only org-admin reports exclude assignments that have ever used a
+  targeted audience and reject assignment/student filters. Targeting history is
+  sticky even if the assignment is later widened, preventing singleton-result
+  recovery through an apparently whole-class aggregate.
 
 ### Data retention & export
 
@@ -289,4 +293,3 @@ separate concerns.
 - **RW-063** — visibility rules, class-level aggregation, redaction of
   out-of-scope individual data, retention/export per role, class analytics
   surfaced in the teacher view. → §4
-

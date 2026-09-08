@@ -11,10 +11,12 @@
  */
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { CloudOff } from "lucide-react";
 import { Button, Spinner } from "@/components/ui";
 import {
   registerOfflineSync,
+  setOfflineSyncActor,
   subscribeSyncState,
   flushOfflineQueue,
   type SyncState,
@@ -37,13 +39,22 @@ function getSyncLabel(sync: SyncState): string {
 }
 
 export default function OfflineSyncIndicator() {
+  const { data: session, status: sessionStatus } = useSession();
   const [sync, setSync] = useState<SyncState>(INITIAL_SYNC_STATE);
 
   useEffect(() => {
-    registerOfflineSync();
     const unsubscribe = subscribeSyncState(setSync);
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (sessionStatus === "loading") return;
+    const actorId =
+      sessionStatus === "authenticated" ? session?.user?.id ?? null : null;
+    void setOfflineSyncActor(actorId).then(() => {
+      if (actorId) registerOfflineSync();
+    });
+  }, [session?.user?.id, sessionStatus]);
 
   // Nothing pending and not syncing → render nothing.
   if (!shouldShowSyncIndicator(sync)) return null;

@@ -112,6 +112,8 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 # Static assets served by Next.js
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Public assets are not included in Next.js standalone output.
+COPY --from=build --chown=nextjs:nodejs /app/public ./public
 # Bundled local dictionary files used by LocalDictionaryProvider.
 COPY --from=build --chown=nextjs:nodejs /app/dict ./dict
 

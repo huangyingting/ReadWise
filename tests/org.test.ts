@@ -23,6 +23,9 @@ let lastUpdate: unknown;
 let lastDelete: unknown;
 let lastCreatedOrg: Record<string, unknown> | null;
 let lastCreatedMembership: Record<string, unknown> | null;
+let ownedClassroom: { id: string } | null;
+let classroomMembershipDeletes: unknown[];
+let assignmentTargetDeletes: unknown[];
 
 before(async () => {
   const prismaFake = {
@@ -48,6 +51,21 @@ before(async () => {
       delete: async (args: unknown) => {
         lastDelete = args;
         return { id: "mem1" };
+      },
+    },
+    classroom: {
+      findFirst: async () => ownedClassroom,
+    },
+    classroomMembership: {
+      deleteMany: async (args: unknown) => {
+        classroomMembershipDeletes.push(args);
+        return { count: 0 };
+      },
+    },
+    assignmentTarget: {
+      deleteMany: async (args: unknown) => {
+        assignmentTargetDeletes.push(args);
+        return { count: 0 };
       },
     },
     $transaction: async (fn: (tx: unknown) => unknown) => fn(prismaFake),
@@ -76,6 +94,9 @@ beforeEach(() => {
   lastDelete = null;
   lastCreatedOrg = null;
   lastCreatedMembership = null;
+  ownedClassroom = null;
+  classroomMembershipDeletes = [];
+  assignmentTargetDeletes = [];
 });
 
 // ---------------------------------------------------------------------------
@@ -205,4 +226,24 @@ test("removeMember removes a plain member without guard", async () => {
   const res = await org.removeMember("o1", "u2");
   assert.equal(res.ok, true);
   assert.notEqual(lastDelete, null);
+});
+
+test("removeMember revokes organization-scoped classroom access", async () => {
+  membershipRow = { role: "Member" };
+  const result = await org.removeMember("o1", "u2");
+
+  assert.equal(result.ok, true);
+  assert.equal(classroomMembershipDeletes.length, 1);
+  assert.equal(assignmentTargetDeletes.length, 1);
+});
+
+test("removeMember requires classroom ownership transfer first", async () => {
+  membershipRow = { role: "Teacher" };
+  ownedClassroom = { id: "class-1" };
+
+  const result = await org.removeMember("o1", "teacher-1");
+
+  assert.equal(result.ok, false);
+  assert.equal((result as { status: number }).status, 409);
+  assert.equal(lastDelete, null);
 });

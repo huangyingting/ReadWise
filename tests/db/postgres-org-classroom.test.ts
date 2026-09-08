@@ -361,6 +361,9 @@ test("listAssignmentsForTeacher returns assignments from both classrooms with co
     ],
   });
   await createOrganization(orgId, "LAFT Org");
+  await prisma.membership.create({
+    data: { userId: teacherId, orgId, role: "Teacher" },
+  });
   await createArticle(articleId1, "LAFT Article 1", "body");
   await createArticle(articleId2, "LAFT Article 2", "body");
 
@@ -411,4 +414,3 @@ test("listAssignmentsForTeacher returns assignments from both classrooms with co
   assert.equal(row2.completedCount, 0, "completedCount must be 0");
   assert.equal(row2.studentCount, 1, "studentCount must be 1");
 });
-

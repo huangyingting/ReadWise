@@ -48,7 +48,9 @@ export async function getScopedClassroomAnalytics({
 
   const membership = await getMembership(viewer.id, classroom.orgId);
   const isOrgAdmin = hasOrgCapability(membership, CAPABILITIES.orgManage);
-  const isTeacher = classroom.teacherId === viewer.id;
+  const isTeacher =
+    classroom.teacherId === viewer.id &&
+    hasOrgCapability(membership, CAPABILITIES.classroomManage);
 
   if (!canViewAnalytics(viewer.role, isTeacher, isOrgAdmin)) {
     throw new ApiError(403, FORBIDDEN);
@@ -57,8 +59,16 @@ export async function getScopedClassroomAnalytics({
   const role = viewerRoleForClassroom({
     viewer,
     classroom,
+    isTeacher,
     isOrgAdmin,
   });
+  if (
+    (filters.studentId || filters.assignmentId) &&
+    role !== "teacher" &&
+    role !== "systemAdmin"
+  ) {
+    throw new ApiError(403, "Analytics filtering requires individual data access");
+  }
   const analytics = await getClassroomAnalytics(classroomId, role, filters);
   if (!analytics) throw new ApiError(404, CLASSROOM_NOT_FOUND);
 

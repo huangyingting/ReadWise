@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-22T09:39:17.172Z",
+  "generatedAt": "2026-09-08T04:57:51.083Z",
   "routeCount": 140,
-  "methodCount": 170,
+  "methodCount": 172,
   "routes": [
     {
       "path": "/api/account",
@@ -3147,6 +3147,43 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": null
+        },
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "PATCH",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "conflict",
+            "highlight"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "baseNote",
+            "color",
+            "note"
+          ]
         }
       ]
     },
@@ -3244,7 +3281,10 @@
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
-          "responseKeys": null,
+          "responseKeys": [
+            "attempt",
+            "best"
+          ],
           "queryParamNames": null,
           "bodyFieldNames": null
         }

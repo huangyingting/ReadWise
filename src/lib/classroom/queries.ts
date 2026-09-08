@@ -57,6 +57,7 @@ export type ClassroomAssignmentMetaRow = {
   points: number | null;
   publishState: AssignmentPublishState;
   publishAt: Date | null;
+  wholeClass: boolean;
   targetStudentIds: string[];
 };
 
@@ -108,6 +109,7 @@ export async function listClassroomAssignmentMeta(
       points: true,
       publishState: true,
       publishAt: true,
+      wholeClass: true,
       article: { select: { title: true } },
       targets: { select: { studentId: true } },
     },
@@ -121,6 +123,7 @@ export async function listClassroomAssignmentMeta(
     points: r.points,
     publishState: r.publishState,
     publishAt: r.publishAt,
+    wholeClass: r.wholeClass !== false,
     targetStudentIds: r.targets.map((t) => t.studentId),
   }));
 }
@@ -143,6 +146,14 @@ export async function listClassroomsForTeacher(
   return prisma.classroom.findMany({
     where: {
       ...ACTIVE_CLASSROOM_WHERE,
+      org: {
+        memberships: {
+          some: {
+            userId: teacherId,
+            role: { in: ["OrgAdmin", "Teacher"] },
+          },
+        },
+      },
       OR: [
         { teacherId },
         classroomMembership(teacherId, "Teacher"),
@@ -162,6 +173,14 @@ export function listArchivedClassroomsForTeacher(
   return prisma.classroom.findMany({
     where: {
       ...ARCHIVED_CLASSROOM_WHERE,
+      org: {
+        memberships: {
+          some: {
+            userId: teacherId,
+            role: { in: ["OrgAdmin", "Teacher"] },
+          },
+        },
+      },
       OR: [
         { teacherId },
         classroomMembership(teacherId, "Teacher"),
@@ -280,6 +299,14 @@ export async function listAssignmentsForTeacher(
     where: {
       classroom: {
         ...ACTIVE_CLASSROOM_WHERE,
+        org: {
+          memberships: {
+            some: {
+              userId: teacherId,
+              role: { in: ["OrgAdmin", "Teacher"] },
+            },
+          },
+        },
         OR: [{ teacherId }, classroomMembership(teacherId, "Teacher")],
       },
     },
@@ -290,6 +317,7 @@ export async function listAssignmentsForTeacher(
       points: true,
       publishState: true,
       publishAt: true,
+      wholeClass: true,
       classroom: {
         select: {
           id: true,
@@ -307,7 +335,7 @@ export async function listAssignmentsForTeacher(
       const audience = new Set(
         effectiveStudentIds(
           r.classroom.members.map((m) => m.userId),
-          r.targets.map((t) => t.studentId),
+          r.wholeClass !== false ? null : r.targets.map((t) => t.studentId),
         ),
       );
       return {
@@ -322,7 +350,7 @@ export async function listAssignmentsForTeacher(
         publishState: r.publishState,
         publishAt: r.publishAt,
         targetCount: r.targets.length,
-        completedCount: r.targets.length === 0
+        completedCount: r.wholeClass !== false
           ? r.completions.length
           : r.completions.filter((c) => audience.has(c.studentId)).length,
         studentCount: audience.size,
@@ -355,12 +383,16 @@ export type AssignmentDetail = {
   publishState: AssignmentPublishState;
   publishAt: Date | null;
   instructions: string | null;
+  wholeClass: boolean;
   targetStudentIds: string[];
   completions: AssignmentDetailCompletion[];
 };
 
-/** One assignment + its per-student completions (teacher/admin drilldown; caller must manage the classroom). */
-export async function getAssignmentDetail(assignmentId: string): Promise<AssignmentDetail | null> {
+/** One assignment plus optional per-student completions for authorized drilldown viewers. */
+export async function getAssignmentDetail(
+  assignmentId: string,
+  options: { includeIndividualData?: boolean } = {},
+): Promise<AssignmentDetail | null> {
   const row = await prisma.assignment.findUnique({
     where: { id: assignmentId },
     select: {
@@ -372,6 +404,7 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
       points: true,
       publishState: true,
       publishAt: true,
+      wholeClass: true,
       classroom: { select: { name: true } },
       article: { select: { id: true, title: true } },
       targets: { select: { studentId: true } },
@@ -392,9 +425,12 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
   });
   if (!row) return null;
   const targetIds = new Set(row.targets.map((t) => t.studentId));
-  const keptCompletions = row.targets.length === 0
+  const audienceCompletions = row.wholeClass !== false
     ? row.completions
     : row.completions.filter((c) => targetIds.has(c.studentId));
+  const keptCompletions = options.includeIndividualData === false
+    ? []
+    : audienceCompletions;
   return {
     id: row.id,
     classroomId: row.classroomId,
@@ -407,6 +443,7 @@ export async function getAssignmentDetail(assignmentId: string): Promise<Assignm
     publishState: row.publishState,
     publishAt: row.publishAt,
     instructions: row.instructions,
+    wholeClass: row.wholeClass !== false,
     targetStudentIds: row.targets.map((t) => t.studentId),
     completions: keptCompletions.map((c) => ({
       studentId: c.studentId,

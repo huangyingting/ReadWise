@@ -37,8 +37,8 @@ function sampleData(): import("@/lib/classroom/progress").ClassroomProgressData 
       { userId: "s2", name: "Sky", email: "s2@example.com" },
     ],
     assignments: [
-      { id: "a1", articleId: "art1", articleTitle: "Article 1", dueDate: null, createdAt: new Date(), targetedStudentIds: null },
-      { id: "a2", articleId: "art2", articleTitle: "Article 2", dueDate: null, createdAt: new Date(), targetedStudentIds: null },
+      { id: "a1", articleId: "art1", articleTitle: "Article 1", dueDate: null, createdAt: new Date(), targetedStudentIds: null, everTargeted: false },
+      { id: "a2", articleId: "art2", articleTitle: "Article 2", dueDate: null, createdAt: new Date(), targetedStudentIds: null, everTargeted: false },
     ],
     completions: [
       { assignmentId: "a1", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, pointsAwarded: null, completionSource: null, completedAt: new Date(), feedback: null },
@@ -60,8 +60,8 @@ function targetedData(): import("@/lib/classroom/progress").ClassroomProgressDat
       { userId: "s3", name: "Sol", email: "s3@example.com" },
     ],
     assignments: [
-      { id: "whole", articleId: "art1", articleTitle: "Whole", dueDate: null, createdAt, targetedStudentIds: null },
-      { id: "targeted", articleId: "art2", articleTitle: "Targeted", dueDate: null, createdAt, targetedStudentIds: ["s1", "s3", "ghost"] },
+      { id: "whole", articleId: "art1", articleTitle: "Whole", dueDate: null, createdAt, targetedStudentIds: null, everTargeted: false },
+      { id: "targeted", articleId: "art2", articleTitle: "Targeted", dueDate: null, createdAt, targetedStudentIds: ["s1", "s3", "ghost"], everTargeted: true },
     ],
     completions: [
       { assignmentId: "whole", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, pointsAwarded: null, completionSource: null, completedAt: createdAt, feedback: null },
@@ -304,20 +304,40 @@ test("viewerRoleForClassroom resolves a concrete viewer to an analytics role", (
   const classroom = { teacherId: "t1", orgId: "o1" };
 
   assert.equal(
-    ta.viewerRoleForClassroom({ viewer: { id: "x", role: "Admin" }, classroom, isOrgAdmin: false }),
+    ta.viewerRoleForClassroom({
+      viewer: { id: "x", role: "Admin" },
+      classroom,
+      isTeacher: false,
+      isOrgAdmin: false,
+    }),
     "systemAdmin",
   );
   assert.equal(
-    ta.viewerRoleForClassroom({ viewer: { id: "t1", role: "Reader" }, classroom, isOrgAdmin: false }),
+    ta.viewerRoleForClassroom({
+      viewer: { id: "t1", role: "Reader" },
+      classroom,
+      isTeacher: true,
+      isOrgAdmin: false,
+    }),
     "teacher",
   );
   // An org admin who is NOT the teacher gets aggregate-only `orgAdmin`.
   assert.equal(
-    ta.viewerRoleForClassroom({ viewer: { id: "z", role: "Reader" }, classroom, isOrgAdmin: true }),
+    ta.viewerRoleForClassroom({
+      viewer: { id: "z", role: "Reader" },
+      classroom,
+      isTeacher: false,
+      isOrgAdmin: true,
+    }),
     "orgAdmin",
   );
   assert.equal(
-    ta.viewerRoleForClassroom({ viewer: { id: "z", role: "Reader" }, classroom, isOrgAdmin: false }),
+    ta.viewerRoleForClassroom({
+      viewer: { id: "z", role: "Reader" },
+      classroom,
+      isTeacher: false,
+      isOrgAdmin: false,
+    }),
     "learner",
   );
 });

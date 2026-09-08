@@ -34,7 +34,7 @@ export const OFFLINE_PAYLOAD_VERSION = 2;
  * `CACHE_VERSION` constant in `public/sw.js` (the SW can't import this module).
  * Bumping it makes the SW drop every older runtime cache on activate.
  */
-export const SW_CACHE_VERSION = "v3";
+export const SW_CACHE_VERSION = "v4";
 
 /** The runtime cache name derived from {@link SW_CACHE_VERSION}. */
 export const SW_CACHE_PREFIX = "readwise-";

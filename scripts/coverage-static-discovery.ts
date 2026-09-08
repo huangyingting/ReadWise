@@ -1,7 +1,7 @@
 /**
  * Static coverage denominator discovery (Issue #992).
  *
- * Discovers eligible runtime TypeScript files on disk, classifies non-executable
+ * Discovers eligible runtime source files on disk, classifies non-executable
  * (type-only, pure-barrel) exclusions deterministically, manages exact-path debt,
  * and builds a route inventory. Files absent from Node coverage become synthetic
  * 0% entries that fail the gate unless exact-debt-excused.
@@ -274,8 +274,8 @@ const defaultDiscoveryDeps: DiscoveryDeps = {
 };
 
 /**
- * Recursively discover TypeScript files under the given directories,
- * excluding test files, declaration files, and TSX.
+ * Recursively discover executable Node source files under the given directories,
+ * excluding tests, declarations, and TSX client surfaces.
  */
 function walkDirectory(dir: string, rootDir: string, deps: DiscoveryDeps): string[] {
   const files: string[] = [];
@@ -298,8 +298,8 @@ function walkDirectory(dir: string, rootDir: string, deps: DiscoveryDeps): strin
     if (stat.isDirectory()) {
       files.push(...walkDirectory(fullPath, rootDir, deps));
     } else if (
-      entry.endsWith(".ts") &&
-      !entry.endsWith(".test.ts") &&
+      /\.(?:ts|js|mjs|cjs)$/.test(entry) &&
+      !/\.(?:test|spec)\.(?:ts|js|mjs|cjs)$/.test(entry) &&
       !entry.endsWith(".d.ts") &&
       !entry.endsWith(".tsx")
     ) {
@@ -315,7 +315,7 @@ function walkDirectory(dir: string, rootDir: string, deps: DiscoveryDeps): strin
 export const ELIGIBLE_DIRS = ["src/lib", "scripts", "eslint-rules"];
 
 /**
- * Discover all eligible TypeScript files and classify them.
+ * Discover all eligible runtime source files and classify them.
  */
 export function discoverEligibleFiles(
   rootDir: string,

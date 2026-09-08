@@ -76,15 +76,29 @@ function flashAndScroll(hlId: string) {
 
 interface NoteEditorProps {
   initialNote: string;
-  onSave: (note: string | null) => void;
+  onSave: (note: string | null) => Promise<boolean>;
   onCancel: () => void;
 }
 
 function NoteEditor({ initialNote, onSave, onCancel }: NoteEditorProps) {
   const [text, setText] = useState(initialNote);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const nearLimit = text.length > NOTE_MAX * NOTE_NEAR_LIMIT_RATIO;
   const atLimit = text.length >= NOTE_MAX;
   const counterClass = getCounterClass(nearLimit, atLimit);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      if (!await onSave(text.trim() || null)) {
+        setSaveError("Could not save this note. Keep it open and try again.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [onSave, text]);
 
   return (
     <div className="rw-note-inline-edit">
@@ -95,7 +109,11 @@ function NoteEditor({ initialNote, onSave, onCancel }: NoteEditorProps) {
         rows={3}
         placeholder="Add a note…"
         aria-label="Highlight note"
-        onChange={(e) => setText(e.target.value)}
+        disabled={saving}
+        onChange={(e) => {
+          setText(e.target.value);
+          setSaveError(null);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             e.preventDefault();
@@ -117,15 +135,20 @@ function NoteEditor({ initialNote, onSave, onCancel }: NoteEditorProps) {
       <div className="rw-note-inline-actions">
         <Button
           size="sm"
-          onClick={() => onSave(text.trim() || null)}
-          disabled={atLimit && text.length > NOTE_MAX}
+          onClick={() => void handleSave()}
+          disabled={saving || (atLimit && text.length > NOTE_MAX)}
         >
           Save
         </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel}>
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
       </div>
+      {saveError ? (
+        <p className="text-[length:var(--text-xs)] text-danger" role="alert">
+          {saveError}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -137,7 +160,7 @@ function NoteEditor({ initialNote, onSave, onCancel }: NoteEditorProps) {
 interface NoteRowProps {
   highlight: Highlight;
   isOrphaned: boolean;
-  onUpdateNote: (note: string | null) => void;
+  onUpdateNote: (note: string | null) => Promise<boolean>;
   onDelete: () => Promise<void>;
 }
 
@@ -190,9 +213,10 @@ function NoteRow({
         {editingNote ? (
           <NoteEditor
             initialNote={highlight.note ?? ""}
-            onSave={(note) => {
-              onUpdateNote(note);
-              setEditingNote(false);
+            onSave={async (note) => {
+              const saved = await onUpdateNote(note);
+              if (saved) setEditingNote(false);
+              return saved;
             }}
             onCancel={() => setEditingNote(false)}
           />
@@ -292,7 +316,7 @@ export default function ReaderNotesPanel() {
           key={hl.id}
           highlight={hl}
           isOrphaned={orphanedIds.has(hl.id)}
-          onUpdateNote={(note) => void updateNote(hl.id, note)}
+          onUpdateNote={(note) => updateNote(hl.id, note)}
           onDelete={() => remove(hl.id)}
         />
       ))}

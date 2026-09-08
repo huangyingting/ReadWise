@@ -114,6 +114,10 @@ forces a currently published article to `DRAFT`, so it leaves public feeds
 immediately. Restoring `active` does not publish automatically; an editor must
 explicitly publish after review.
 
+Moderation uses a dedicated resource predicate: scoped Moderators can manage
+ownerless global `PUBLIC`/`UNLISTED` library rows even while they are drafts or
+taken down, but cannot read or mutate private or organization articles.
+
 Publishing is refused while `takedownState !== "active"`. This makes rights
 policy stronger than editorial intent.
 

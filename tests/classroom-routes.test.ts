@@ -188,6 +188,7 @@ let updateAssignmentResult:
   assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
 };
 let assignmentDetailResult: unknown = null;
+let assignmentDetailArgs: unknown[] = [];
 
 // org stubs — controls requireOrgCapabilityApi (for POST /classrooms) and
 // the inline RBAC check in GET /classrooms/[id]/analytics.
@@ -267,7 +268,10 @@ before(() => {
         return deleteClassroomResult;
       },
       getAssignmentClassroom: async () => assignmentClassroomResult,
-      getAssignmentDetail: async () => assignmentDetailResult,
+      getAssignmentDetail: async (...args: unknown[]) => {
+        assignmentDetailArgs = args;
+        return assignmentDetailResult;
+      },
       deleteAssignment: async (assignmentId: string) => {
         deleteAssignmentCalls.push(assignmentId);
       },
@@ -421,7 +425,13 @@ before(() => {
         userId === currentSession.user.id ? membershipStub : targetMembershipStub,
       // hasOrgCapability controls both requireOrgCapabilityApi (POST /classrooms) and
       // the inline isOrgAdmin check in the analytics route.
-      hasOrgCapability: () => isOrgAdminStub,
+      hasOrgCapability: (
+        membership: { role?: string } | null,
+        capability: string,
+      ) =>
+        capability === "org.manage"
+          ? isOrgAdminStub
+          : membership?.role === "Teacher" || membership?.role === "OrgAdmin",
       isSystemAdmin: () => false,
       // re-export canManageClassroom alias that tenant-api doesn't use via org barrel
     },
@@ -434,7 +444,13 @@ before(() => {
   });
   mock.module("@/lib/org/guards", {
     namedExports: {
-      hasOrgCapability: () => isOrgAdminStub,
+      hasOrgCapability: (
+        membership: { role?: string } | null,
+        capability: string,
+      ) =>
+        capability === "org.manage"
+          ? isOrgAdminStub
+          : membership?.role === "Teacher" || membership?.role === "OrgAdmin",
       isSystemAdmin: () => false,
     },
   });
@@ -513,7 +529,7 @@ beforeEach(() => {
   assignmentContext = { id: "asgn1" };
   assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
   articleAssignmentFailure = null;
-  membershipStub = null;
+  membershipStub = { role: "Teacher" };
   targetMembershipStub = { role: "Member" };
   isOrgAdminStub = false;
   analyticsViewerRoleStub = "teacher";
@@ -536,6 +552,7 @@ beforeEach(() => {
   reviewAssignmentCompletionCalls.length = 0;
   reopenAssignmentCalls.length = 0;
   assignmentDetailResult = null;
+  assignmentDetailArgs = [];
   updateAssignmentResult = {
     ok: true,
     assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
@@ -1001,12 +1018,22 @@ test("GET /api/classrooms/[id]/analytics/export preserves org-admin redaction in
     redacted: true,
   };
 
-  const res = await getClassroomAnalyticsExport("c1", "?format=csv&assignmentId=a1");
+  const res = await getClassroomAnalyticsExport("c1", "?format=csv");
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type") ?? "", /text\/csv/);
   const text = await res.text();
   assert.match(text, /assignment/);
   assert.doesNotMatch(text, /Sam|s@example/);
+});
+
+test("GET /api/classrooms/[id]/analytics/export rejects org-admin cohort filters", async () => {
+  currentSession = { user: { id: "orgadmin-1", role: "Reader", name: "A", email: "a@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
+  isOrgAdminStub = true;
+  analyticsViewerRoleStub = "orgAdmin";
+
+  const res = await getClassroomAnalyticsExport("c1", "?format=csv&assignmentId=a1");
+  assert.equal(res.status, 403);
 });
 
 test("GET /api/classrooms/[id]/analytics/export includes teacher drilldown CSV rows", async () => {
@@ -1873,6 +1900,34 @@ test("GET /api/assignments/[id] returns 200 with assignment detail on success", 
   const body = await res.json() as { assignment: { id: string; classroomId: string } };
   assert.equal(body.assignment.id, "a1");
   assert.equal(body.assignment.classroomId, "c1");
+});
+
+test("GET /api/assignments/[id] redacts learner records for aggregate-only org admins", async () => {
+  currentSession = {
+    user: {
+      id: "orgadmin-1",
+      role: "Reader",
+      name: "Admin",
+      email: "admin@example.com",
+    },
+  };
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  isOrgAdminStub = true;
+  analyticsViewerRoleStub = "orgAdmin";
+  assignmentDetailResult = {
+    id: "a1",
+    classroomId: "c1",
+    completions: [],
+  };
+
+  const res = await getAssignmentRoute("asgn1");
+
+  assert.equal(res.status, 200);
+  assert.deepEqual(assignmentDetailArgs, [
+    "asgn1",
+    { includeIndividualData: false },
+  ]);
 });
 
 // ===========================================================================

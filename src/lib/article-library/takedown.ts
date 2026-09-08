@@ -11,6 +11,10 @@
  */
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus } from "@prisma/client";
+import {
+  moderatableArticleWhere,
+  type ArticleAccessContext,
+} from "@/lib/article-library/policy";
 
 // ---------------------------------------------------------------------------
 // Takedown / rights policy
@@ -47,6 +51,7 @@ export type ApplyTakedownInput = {
   articleId: string;
   state: TakedownState;
   reviewerId?: string | null;
+  accessContext?: ArticleAccessContext | null;
   note?: string | null;
   rightsNote?: string | null;
 };
@@ -119,10 +124,25 @@ export async function applyTakedown(
   }
 
   return prisma.$transaction(async (tx) => {
-    const existing = await tx.article.findUnique({
-      where: { id: input.articleId },
-      select: { id: true, takedownState: true, status: true, rightsNote: true },
-    }) as ExistingArticleForTakedown | null;
+    const select = {
+      id: true,
+      takedownState: true,
+      status: true,
+      rightsNote: true,
+    } as const;
+    const existing = (
+      input.accessContext === undefined
+        ? await tx.article.findUnique({
+            where: { id: input.articleId },
+            select,
+          })
+        : await tx.article.findFirst({
+            where: moderatableArticleWhere(input.accessContext, {
+              id: input.articleId,
+            }),
+            select,
+          })
+    ) as ExistingArticleForTakedown | null;
     if (!existing) {
       return articleNotFound();
     }

@@ -165,6 +165,7 @@ test("flushQueue flags permanent (4xx) failures immediately", async () => {
   const result = await flushQueue(deps);
   assert.equal(result.failed, 1);
   assert.equal(updated[0].patch.status, "failed");
+  assert.equal(updated[0].patch.retryCount, MAX_MUTATION_RETRIES);
 });
 
 test("flushQueue flags failed after exhausting retries", async () => {
@@ -212,4 +213,192 @@ test("flushQueue delivers in FIFO order", async () => {
   });
   await flushQueue(deps);
   assert.deepEqual(order, ["early", "late"]);
+});
+
+test("flushQueue defers destructive dependents when their create is not delivered", async () => {
+  const sent: string[] = [];
+  const queue = [
+    mut({ clientMutationId: "create", type: "highlight.create" }),
+    {
+      ...mut({
+        clientMutationId: "delete-original",
+        type: "highlight.delete",
+      }),
+      dependsOnClientMutationId: "create",
+    } as QueuedMutation,
+  ];
+  const { deps, removed } = recordingDeps(queue, async (mutation) => {
+    sent.push(mutation.clientMutationId);
+    return { status: mutation.clientMutationId === "create" ? 503 : 204 };
+  });
+
+  const result = await flushQueue(deps);
+
+  assert.deepEqual(sent, ["create"]);
+  assert.deepEqual(removed, []);
+  assert.equal(result.retried, 1);
+  assert.equal(result.attempted, 1);
+});
+
+test("flushQueue delivers a dependent delete only after its create succeeds", async () => {
+  const sent: string[] = [];
+  const createdAt = "2026-01-01T00:00:00.000Z";
+  const queue = [
+    {
+      ...mut({
+        clientMutationId: "a-delete",
+        type: "highlight.delete",
+        createdAt,
+      }),
+      dependsOnClientMutationId: "z-create",
+    },
+    mut({
+      clientMutationId: "z-create",
+      type: "highlight.create",
+      createdAt,
+    }),
+  ];
+  const { deps, removed } = recordingDeps(queue, async (mutation) => {
+    sent.push(mutation.clientMutationId);
+    return { status: mutation.type === "highlight.create" ? 201 : 204 };
+  });
+
+  const result = await flushQueue(deps);
+
+  assert.deepEqual(sent, ["z-create", "a-delete"]);
+  assert.deepEqual(removed, ["z-create", "a-delete"]);
+  assert.equal(result.succeeded, 2);
+});
+
+test("flushQueue defers anchor recreation until a transient delete succeeds", async () => {
+  let queue = [
+    mut({
+      clientMutationId: "delete-old",
+      type: "highlight.delete",
+      method: "DELETE",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }),
+    {
+      ...mut({
+        clientMutationId: "create-new",
+        type: "highlight.create",
+        createdAt: "2026-01-01T00:00:01.000Z",
+      }),
+      dependsOnClientMutationId: "delete-old",
+    },
+  ];
+  const sent: string[] = [];
+  let deleteAttempts = 0;
+  const deps: FlushDeps = {
+    list: async () => queue,
+    send: async (mutation) => {
+      sent.push(mutation.clientMutationId);
+      if (mutation.clientMutationId === "delete-old") {
+        deleteAttempts += 1;
+        return { status: deleteAttempts === 1 ? 503 : 204 };
+      }
+      return { status: 201 };
+    },
+    remove: async (id) => {
+      queue = queue.filter((mutation) => mutation.clientMutationId !== id);
+    },
+    update: async (id, patch) => {
+      queue = queue.map((mutation) =>
+        mutation.clientMutationId === id
+          ? { ...mutation, ...patch }
+          : mutation,
+      );
+    },
+  };
+
+  const first = await flushQueue(deps);
+  assert.deepEqual(sent, ["delete-old"]);
+  assert.equal(first.retried, 1);
+  assert.equal(queue.length, 2);
+
+  const second = await flushQueue(deps);
+  assert.deepEqual(sent, ["delete-old", "delete-old", "create-new"]);
+  assert.equal(second.succeeded, 2);
+  assert.deepEqual(queue, []);
+});
+
+test("flushQueue waits for every replacement dependency before deleting an optimistic original", async () => {
+  const sent: string[] = [];
+  const queue = [
+    mut({
+      clientMutationId: "original-create",
+      type: "highlight.create",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }),
+    mut({
+      clientMutationId: "replacement-create",
+      type: "highlight.create",
+      createdAt: "2026-01-01T00:00:01.000Z",
+    }),
+    {
+      ...mut({
+        clientMutationId: "delete-original",
+        type: "highlight.delete",
+        createdAt: "2026-01-01T00:00:02.000Z",
+      }),
+      dependsOnClientMutationIds: [
+        "original-create",
+        "replacement-create",
+      ],
+    },
+  ];
+  const { deps, removed } = recordingDeps(queue, async (mutation) => {
+    sent.push(mutation.clientMutationId);
+    return {
+      status: mutation.clientMutationId === "replacement-create" ? 503 : 201,
+    };
+  });
+
+  const result = await flushQueue(deps);
+
+  assert.deepEqual(sent, ["original-create", "replacement-create"]);
+  assert.deepEqual(removed, ["original-create"]);
+  assert.equal(result.retried, 1);
+  assert.equal(result.attempted, 2);
+});
+
+test("flushQueue deletes an optimistic original only after both creates succeed", async () => {
+  const sent: string[] = [];
+  const queue = [
+    mut({
+      clientMutationId: "original-create",
+      type: "highlight.create",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }),
+    mut({
+      clientMutationId: "replacement-create",
+      type: "highlight.create",
+      createdAt: "2026-01-01T00:00:01.000Z",
+    }),
+    {
+      ...mut({
+        clientMutationId: "delete-original",
+        type: "highlight.delete",
+        createdAt: "2026-01-01T00:00:02.000Z",
+      }),
+      dependsOnClientMutationIds: [
+        "original-create",
+        "replacement-create",
+      ],
+    },
+  ];
+  const { deps, removed } = recordingDeps(queue, async (mutation) => {
+    sent.push(mutation.clientMutationId);
+    return { status: mutation.type === "highlight.delete" ? 204 : 201 };
+  });
+
+  const result = await flushQueue(deps);
+
+  assert.deepEqual(sent, [
+    "original-create",
+    "replacement-create",
+    "delete-original",
+  ]);
+  assert.deepEqual(removed, sent);
+  assert.equal(result.succeeded, 3);
 });

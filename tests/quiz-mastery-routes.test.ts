@@ -38,6 +38,13 @@ const ALL_CORRECT_ANSWERS: SubmittedAnswer[] = [
 let quizQuestions: StubQuestion[] = [];
 let quizFallback = false;
 let quizAttemptCreateError: Error | null = null;
+let existingQuizAttempt: Record<string, unknown> | null = null;
+let quizAttemptCreateCount = 0;
+let articleMasteryUpdates = 0;
+let learnerEvidenceWrites = 0;
+let quizAnalyticsEvents = 0;
+let todayCompletions = 0;
+let assignmentCompletions = 0;
 
 // ---------------------------------------------------------------------------
 // Module mocks (registered once before any imports of the modules under test)
@@ -57,25 +64,32 @@ before(() => {
         },
         membership: { findMany: async () => [] },
         quizAttempt: {
+          findUnique: async () => existingQuizAttempt,
           create: async (args: {
             data: Record<string, unknown>;
             select: Record<string, unknown>;
           }) => {
             if (quizAttemptCreateError) throw quizAttemptCreateError;
+            quizAttemptCreateCount += 1;
             const data = args.data as {
               userId: string;
               articleId: string;
               correctCount: number;
               totalQuestions: number;
               scorePct: number;
+              clientMutationId?: string | null;
             };
-            return {
+            const created = {
               id: "attempt-1",
+              userId: data.userId,
+              articleId: data.articleId,
               correctCount: data.correctCount,
               totalQuestions: data.totalQuestions,
               scorePct: data.scorePct,
               completedAt: new Date("2026-01-01T00:00:00Z"),
             };
+            if (data.clientMutationId) existingQuizAttempt = created;
+            return created;
           },
           aggregate: async (args: { _max?: unknown; _count?: unknown; _avg?: unknown }) => {
             if (args._max) return maxAggResult;
@@ -97,6 +111,43 @@ before(() => {
       }),
     },
   });
+
+  mock.module("@/lib/learning/article-mastery", {
+    namedExports: {
+      updateArticleMastery: async () => {
+        articleMasteryUpdates += 1;
+      },
+    },
+  });
+  mock.module("@/lib/learning/learner-evidence", {
+    namedExports: {
+      recordLearnerEvidence: async () => {
+        learnerEvidenceWrites += 1;
+      },
+    },
+  });
+  mock.module("@/lib/analytics/events", {
+    namedExports: {
+      ANALYTICS_EVENT_TYPES: { quizComplete: "quiz_complete" },
+      recordEvent: async () => {
+        quizAnalyticsEvents += 1;
+      },
+    },
+  });
+  mock.module("@/lib/engagement/today-session/integrations", {
+    namedExports: {
+      markTodayComprehensionComplete: async () => {
+        todayCompletions += 1;
+      },
+    },
+  });
+  mock.module("@/lib/classroom", {
+    namedExports: {
+      markAssignmentQuizComplete: async () => {
+        assignmentCompletions += 1;
+      },
+    },
+  });
 });
 
 beforeEach(() => {
@@ -113,6 +164,13 @@ beforeEach(() => {
   ];
   quizFallback = false;
   quizAttemptCreateError = null;
+  existingQuizAttempt = null;
+  quizAttemptCreateCount = 0;
+  articleMasteryUpdates = 0;
+  learnerEvidenceWrites = 0;
+  quizAnalyticsEvents = 0;
+  todayCompletions = 0;
+  assignmentCompletions = 0;
 });
 
 function quizRouteContext(id = "a1"): QuizRouteContext {
@@ -262,6 +320,28 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
     const body = await res.json();
     assert.equal(body.attempt.correctCount, 2);
     assert.equal(body.attempt.scorePct, 67);
+  });
+
+  test("→ replayed mutation ids do not repeat completion side effects", async () => {
+    maxAggResult = { _max: { scorePct: 100 } };
+    const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
+    const request = () =>
+      quizAttemptRequest(ALL_CORRECT_ANSWERS, {
+        extraBody: { clientMutationId: "offline-replay-key" },
+      });
+
+    const first = await POST(request(), quizRouteContext());
+    const replay = await POST(request(), quizRouteContext());
+
+    assert.equal(first.status, 200);
+    assert.equal(replay.status, 200);
+    assert.equal(quizAttemptCreateCount, 1);
+    assert.equal(articleMasteryUpdates, 1);
+    assert.equal(learnerEvidenceWrites, 1);
+    assert.equal(quizAnalyticsEvents, 1);
+    assert.equal(todayCompletions, 1);
+    assert.equal(assignmentCompletions, 1);
+    assert.equal("created" in (await replay.json()), false);
   });
 });
 

@@ -52,6 +52,12 @@ const QUIZ_ATTEMPT_RECORD_SELECT = {
   completedAt: true,
 } as const;
 
+const SCOPED_QUIZ_ATTEMPT_RECORD_SELECT = {
+  ...QUIZ_ATTEMPT_RECORD_SELECT,
+  userId: true,
+  articleId: true,
+} as const;
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -71,30 +77,45 @@ export async function recordQuizAttempt(
   correctCount: number,
   totalQuestions: number,
   options: { clientMutationId?: string | null } = {},
-): Promise<{ attempt: QuizAttemptRecord; best: number }> {
+): Promise<{ attempt: QuizAttemptRecord; best: number; created: boolean }> {
   validateCountScore(correctCount, totalQuestions);
 
   const scorePct = computeCountScorePct(correctCount, totalQuestions);
   const clientMutationId = options.clientMutationId?.trim() || null;
 
   // Idempotency (RW-042): a duplicate offline delivery returns the original row.
-  const { record: attempt } = await findOrCreateIdempotent({
+  const { record: attempt, created } = await findOrCreateIdempotent({
     clientMutationId,
     find: (id) =>
       prisma.quizAttempt.findUnique({
         where: { clientMutationId: id },
-        select: QUIZ_ATTEMPT_RECORD_SELECT,
+        select: SCOPED_QUIZ_ATTEMPT_RECORD_SELECT,
       }),
     create: () =>
       prisma.quizAttempt.create({
         data: { userId, articleId, correctCount, totalQuestions, scorePct, clientMutationId },
-        select: QUIZ_ATTEMPT_RECORD_SELECT,
+        select: SCOPED_QUIZ_ATTEMPT_RECORD_SELECT,
       }),
     isUniqueConstraintViolation: (err) =>
       err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002",
   });
 
-  return { attempt, best: await bestScore(userId, articleId, attempt.scorePct) };
+  if (attempt.userId !== userId || attempt.articleId !== articleId) {
+    throw new Error("Quiz attempt mutation id is already in use");
+  }
+
+  const record: QuizAttemptRecord = {
+    id: attempt.id,
+    correctCount: attempt.correctCount,
+    totalQuestions: attempt.totalQuestions,
+    scorePct: attempt.scorePct,
+    completedAt: attempt.completedAt,
+  };
+  return {
+    attempt: record,
+    best: await bestScore(userId, articleId, record.scorePct),
+    created,
+  };
 }
 
 /** Best scorePct across all attempts for this user+article (>= fallback). */

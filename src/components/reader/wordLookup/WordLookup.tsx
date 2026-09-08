@@ -412,9 +412,9 @@ export default function WordLookup({
     void updateColor(editHlId, color);
   }, [editHlId, updateColor]);
 
-  const handleEditNoteSave = useCallback((note: string | null) => {
-    if (!editHlId) return;
-    void updateNote(editHlId, note);
+  const handleEditNoteSave = useCallback(async (note: string | null) => {
+    if (!editHlId) return false;
+    return updateNote(editHlId, note);
   }, [editHlId, updateNote]);
 
   const handleEditDelete = useCallback(async () => {

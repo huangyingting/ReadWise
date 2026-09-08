@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-09-08"
 description: "Documents client-side offline mutation queue, conflict resolution, cache versioning, Today offline replay, and push/background-sync resilience. Captures current IndexedDB queue, idempotency keys, retry/backoff, conflict statuses, service-worker cache versions, and privacy purge behavior."
 ---
 
@@ -55,7 +55,10 @@ store. Each queued mutation row is:
   endpoint: string,         // URL to POST/PATCH/DELETE
   method: string,
   payload: unknown,         // JSON payload
+  purgeGeneration?: string, // session fence captured before first async work
   dedupeKey?: string,       // collapses superseded mutations (e.g. "progress:<articleId>")
+  dependsOnClientMutationId?: string, // causal predecessor for ordered follow-ups
+  dependsOnClientMutationIds?: string[], // all listed predecessors must succeed
   status: "pending" | "syncing" | "failed" | "conflict",
   retryCount: number,
   createdAt: string,        // ISO timestamp used for FIFO ordering
@@ -66,6 +69,12 @@ store. Each queued mutation row is:
 `dedupeKey` lets a newer mutation **replace** a stale queued one (e.g. only the
 latest reading-progress value for an article needs to survive — older percents
 are forward-only-dominated anyway).
+
+The dependency fields protect causal mutation chains. A dependent row is sent
+only after every referenced predecessor succeeds; if any predecessor fails
+permanently, the dependent is marked failed without being sent. Pending
+highlight edits and deletes use this to prevent a failed replacement or
+not-yet-delivered optimistic original from deleting existing annotations.
 
 ### Sync engine — `src/lib/offline-sync.ts` (pure) + `src/lib/offline/sync-runtime.ts` / `src/lib/offline/mutation-store.ts` (glue)
 
@@ -87,6 +96,25 @@ throw; `flushOfflineQueue()` drains the queue with retry/backoff;
 `sync` message; `subscribeSyncState()/getSyncState()` expose
 `{ online, pending, syncing }` to the UI.
 
+Queue draining is serialized across every open tab with an origin-wide Web
+Lock. A tab acquires the lock before reading IndexedDB, then drains a fresh
+snapshot; later tabs acquire the lock only after that pass and see the updated
+queue. This prevents two service-worker notifications or simultaneous online
+events from replaying the same destructive mutation around its dependent
+recreation. Browsers without origin-wide Web Locks retain queued work rather
+than draining unsafely.
+
+Privacy purge advances a cross-tab generation before clearing private stores.
+Every queued network send verifies the generation immediately before calling
+`fetch`, so a drain that already captured a queue snapshot cannot resume after
+sign-out and send the previous account's remaining mutations under a new
+session. If durable generation storage is unavailable, purge takes the same
+origin lock before clearing. Purge advances the generation again after storage
+is empty, fencing drains that started during cleanup. New queue records retain
+the generation captured before their first network attempt; stale late
+fallbacks are rejected and stale persisted records are discarded without
+delivery.
+
 IndexedDB `lastError` never receives exception or response prose. It contains
 only client-generated, controlled delivery diagnostics such as `network_error`,
 `HTTP 503`, or the fixed invalid-payload reason.
@@ -104,8 +132,8 @@ double-apply:
 | Saved word save | Upsert on the `@@unique([userId, word])` constraint. |
 | Saved word unsave | `deleteMany` — deleting an already-deleted row is a no-op. |
 | Highlight create | Upsert on `(userId, articleId, startOffset, endOffset)`. |
-| Highlight update/delete | Targets a stable id; PATCH/DELETE are naturally idempotent. |
-| **Quiz attempt** | `QuizAttempt.clientMutationId @unique` — `recordQuizAttempt` does find-by-mutation-id-then-create and is P2002-safe, so a replay returns the original attempt instead of inserting a duplicate. |
+| Highlight update/delete | Persisted rows target their stable id. Follow-ups to a pending create target the immutable article anchor and depend on the create. Recreating a deleted anchor also waits for its queued delete, so a retry cannot erase the replacement. |
+| **Quiz attempt** | `QuizAttempt.clientMutationId @unique` — `recordQuizAttempt` does find-by-mutation-id-then-create and is P2002-safe. A replay returns the original attempt and does not repeat mastery, analytics, Today, or assignment-completion effects. |
 
 ### Reader learning-tool coverage
 
@@ -168,6 +196,11 @@ saw). If the server row is newer, it returns `{ ok, highlight, conflict: true }`
 with a merged note instead of overwriting. `ReaderHighlightsProvider` keeps the
 optimistic text and announces the merge; `InlineNoteEditor` enqueues the PATCH
 on failure and keeps the user's text.
+
+Pending highlight creates use anchor-addressed PATCH/DELETE operations on
+`/api/reader/:articleId/highlights`. Note updates carry the note from the
+original create as their base value, allowing the server to preserve both texts
+if another device changed the row before replay.
 
 ---
 

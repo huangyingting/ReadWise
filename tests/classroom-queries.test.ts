@@ -71,6 +71,9 @@ before(() => {
               ...assignmentStub,
               publishState: assignmentStub.publishState ?? "PUBLISHED",
               publishAt: assignmentStub.publishAt ?? null,
+              wholeClass:
+                assignmentStub.wholeClass ??
+                (((assignmentStub.targets as unknown[]) ?? []).length === 0),
               targets: (assignmentStub.targets as unknown[]) ?? [],
               classroom: {
                 ...((assignmentStub.classroom as Record<string, unknown> | undefined) ?? {}),
@@ -85,6 +88,9 @@ before(() => {
               ...assignment,
               publishState: assignment.publishState ?? "PUBLISHED",
               publishAt: assignment.publishAt ?? null,
+              wholeClass:
+                assignment.wholeClass ??
+                (((assignment.targets as unknown[]) ?? []).length === 0),
               article: assignment.article ?? { title: "Article One" },
               targets: (assignment.targets as unknown[]) ?? [],
             }));
@@ -152,6 +158,7 @@ test("listClassroomAssignmentMeta maps editable assignment metadata", async () =
       points: 20,
       publishState: "DRAFT",
       publishAt: new Date("2026-08-01T10:00:00.000Z"),
+      wholeClass: false,
       article: { title: "Article One" },
       targets: [{ studentId: "s1" }],
     },
@@ -168,6 +175,7 @@ test("listClassroomAssignmentMeta maps editable assignment metadata", async () =
       points: 20,
       publishState: "DRAFT",
       publishAt: new Date("2026-08-01T10:00:00.000Z"),
+      wholeClass: false,
       targetStudentIds: ["s1"],
     },
   ]);
@@ -393,8 +401,8 @@ test("countPendingAssignmentsForStudent passes classroom archivedAt:null and mem
   assert.equal(where.classroom.archivedAt, null, "must exclude archived classrooms");
   assert.equal(where.classroom.members.some.userId, "student-42", "must scope to the student");
   assert.deepEqual(where.AND[0].OR, [
-    { targets: { none: {} } },
-    { targets: { some: { studentId: "student-42" } } },
+    { wholeClass: true },
+    { wholeClass: false, targets: { some: { studentId: "student-42" } } },
   ]);
   assert.deepEqual(where.AND[1].OR[0], { publishState: "PUBLISHED" });
 });

@@ -41,6 +41,10 @@ before(() => {
         return { count: 1 };
       },
     },
+    membership: {
+      findMany: async () => [],
+      count: async () => 0,
+    },
     auditLog: {
       create: async (args: { data: Record<string, unknown> }) => {
         if (auditCreateThrows) throw new Error("audit unavailable");
@@ -74,6 +78,10 @@ before(() => {
               pendingDeleteManyArgs = args;
               return { count: 1 };
             },
+          },
+          membership: {
+            findMany: async () => [],
+            count: async () => 0,
           },
           auditLog: {
             create: async (args: { data: Record<string, unknown> }) => {

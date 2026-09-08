@@ -13,6 +13,7 @@ type QueuedSpec = {
   body?: unknown;
   clientMutationId?: string;
   dedupeKey?: string;
+  generation?: { local: number; shared: string | null };
 };
 
 class MockApiResponseError extends Error {
@@ -32,6 +33,7 @@ let requestError: Error | null;
 let requestCalls: RequestCall[];
 let queuedSpecs: QueuedSpec[];
 let allowPayload = true;
+let queueSucceeds = true;
 
 before(async () => {
   Object.defineProperty(globalThis, "navigator", {
@@ -56,10 +58,14 @@ before(async () => {
 
   mock.module("@/lib/offline/sync-runtime", {
     namedExports: {
+      captureOfflineMutationGeneration: () => ({
+        local: 0,
+        shared: "generation-1",
+      }),
       MUTATION_HEADER: "x-client-mutation-id",
       queueMutation: async (spec: QueuedSpec) => {
         queuedSpecs.push(spec);
-        return { sent: false, queued: true };
+        return { sent: false, queued: queueSucceeds };
       },
       submitMutation: async () => ({ sent: false, queued: true }),
     },
@@ -90,6 +96,7 @@ beforeEach(() => {
   requestCalls = [];
   queuedSpecs = [];
   allowPayload = true;
+  queueSucceeds = true;
 });
 
 test("Today action delivery selects HTTP or queue without leaking adapter choice", async () => {
@@ -146,6 +153,7 @@ test("Today action delivery selects HTTP or queue without leaking adapter choice
       },
       clientMutationId: "today-comp-user-1-2026-07-18",
       dedupeKey: "today-comp-user-1-2026-07-18",
+      generation: { local: 0, shared: "generation-1" },
     },
   ]);
 });
@@ -175,6 +183,7 @@ test("Today action delivery queues transient failures once and preserves permane
       },
       clientMutationId: "today-read-user-2-2026-07-18",
       dedupeKey: "today-read-user-2-2026-07-18",
+      generation: { local: 0, shared: "generation-1" },
     },
   ]);
 
@@ -214,4 +223,23 @@ test("Today action delivery rejects invalid context and disallowed payloads befo
   );
   assert.deepEqual(requestCalls, []);
   assert.deepEqual(queuedSpecs, []);
+});
+
+test("Today action delivery rejects when offline persistence fails", async () => {
+  const { submitTodayAction } = await import("@/lib/offline/today-client");
+  online = false;
+  queueSucceeds = false;
+
+  await assert.rejects(
+    submitTodayAction(
+      {
+        userId: "user-4",
+        localDate: "2026-07-18",
+        timezone: "UTC",
+      },
+      { type: "today.read-complete" },
+    ),
+    /Unable to save Today action offline/,
+  );
+  assert.equal(queuedSpecs.length, 1);
 });

@@ -30,6 +30,7 @@ import {
 import {
   chatComplete,
   chatCompleteWithRetry,
+  VllmClientError,
   type ChatMessage,
 } from "../scripts/translation-prompt-lab/vllm-client";
 
@@ -197,13 +198,22 @@ test("vLLM client covers explicit options and absent usage", async (t) => {
 
 test("vLLM client reports HTTP and empty-completion failures", async (t) => {
   const responses = [
-    new Response("provider down", { status: 503, statusText: "Unavailable" }),
+    new Response("private source text echoed by provider", { status: 503, statusText: "Unavailable" }),
     new Response(JSON.stringify({ choices: [{ message: { content: null, reasoning: "thinking" }, finish_reason: "length" }] }), { status: 200 }),
     new Response(JSON.stringify({ choices: [] }), { status: 200 }),
   ];
   t.mock.method(globalThis, "fetch", (async () => responses.shift()!) as typeof fetch);
 
-  await assert.rejects(() => chatComplete(MESSAGES, { timeoutMs: 500 }), /503 Unavailable provider down/);
+  await assert.rejects(
+    () => chatComplete(MESSAGES, { timeoutMs: 500 }),
+    (error: unknown) => {
+      assert.ok(error instanceof VllmClientError);
+      assert.equal(error.code, "http_error");
+      assert.equal(error.status, 503);
+      assert.doesNotMatch(error.message, /private source text/);
+      return true;
+    },
+  );
   await assert.rejects(() => chatComplete(MESSAGES, { timeoutMs: 500 }), /only reasoning tokens/);
   await assert.rejects(() => chatComplete(MESSAGES, { timeoutMs: 500 }), /finish_reason=unknown/);
 });
