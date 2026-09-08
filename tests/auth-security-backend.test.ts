@@ -17,6 +17,8 @@ let ambientContext: { userId?: string; requestId?: string; path?: string } | nul
 let trustedProxy: { header: string | null; list: string[]; hops: number | null };
 let metricsSnapshot: unknown;
 let localCounters: Map<string, number>;
+let deletedSessionTokens: string[];
+let baseDeleteSessionCalls: number;
 
 async function withPatchedClock<T>(run: () => Promise<T>): Promise<T> {
   const realDateNow = Date.now;
@@ -47,12 +49,29 @@ class MockApiError extends Error {
 before(() => {
   mock.module("@auth/prisma-adapter", {
     namedExports: {
-      PrismaAdapter: () => ({ adapter: "prisma" }),
+      PrismaAdapter: () => ({
+        adapter: "prisma",
+        deleteSession: async () => {
+          baseDeleteSessionCalls += 1;
+          throw new Error("session was already deleted");
+        },
+      }),
     },
   });
   mock.module("@/lib/prisma", {
     namedExports: {
-      prisma: {},
+      prisma: {
+        session: {
+          deleteMany: async ({
+            where,
+          }: {
+            where: { sessionToken: string };
+          }) => {
+            deletedSessionTokens.push(where.sessionToken);
+            return { count: 0 };
+          },
+        },
+      },
     },
   });
   mock.module("@/lib/auth/providers", {
@@ -159,6 +178,8 @@ beforeEach(() => {
   trustedProxy = { header: null, list: [], hops: null };
   metricsSnapshot = { counters: [], gauges: [], histograms: [] };
   localCounters = new Map();
+  deletedSessionTokens = [];
+  baseDeleteSessionCalls = 0;
 });
 
 test("auth options enrich sessions and bootstrap first users", async () => {
@@ -188,6 +209,16 @@ test("auth options enrich sessions and bootstrap first users", async () => {
 
   await authOptions.events?.createUser?.({ user: { id: "new-user" } } as never);
   assert.deepEqual(bootstrappedUsers, ["new-user"]);
+});
+
+test("auth session deletion is idempotent after account deletion cascades", async () => {
+  const { authOptions } = await import("@/lib/auth/index");
+
+  assert.ok(authOptions.adapter?.deleteSession);
+  await authOptions.adapter.deleteSession("already-deleted-session");
+
+  assert.deepEqual(deletedSessionTokens, ["already-deleted-session"]);
+  assert.equal(baseDeleteSessionCalls, 0);
 });
 
 test("rate limiter maps scopes, propagates 429s, and falls back to memory on store errors", async () => {

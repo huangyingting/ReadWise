@@ -270,6 +270,20 @@ export async function setOfflineSyncActor(actorId: string | null): Promise<void>
   }
 
   if (
+    !offlineActorInitialized &&
+    durableActorId === actorId &&
+    !accessBlocked &&
+    lsGet(STORAGE_KEYS.OFFLINE_PURGE_GENERATION) !== null
+  ) {
+    // A fresh same-account tab must not toggle shared ownership keys: sibling
+    // tabs would interpret that transient write as an account transition.
+    offlineActorInitialized = true;
+    currentOfflineActorId = actorId;
+    offlineActorReady = true;
+    return;
+  }
+
+  if (
     offlineActorInitialized &&
     currentOfflineActorId === actorId &&
     (actorId === null || offlineActorReady)

@@ -27,7 +27,7 @@ function itemClass(active: boolean): string {
     "min-h-[var(--bottom-bar-h)] px-[var(--space-1)] py-[var(--space-1)]",
     "text-[length:var(--text-xs)] font-medium",
     "transition-colors [transition-duration:var(--duration-fast)]",
-    active ? "text-[var(--teal)]" : "text-text-muted hover:text-text",
+    active ? "text-[var(--teal-text)]" : "text-text-muted hover:text-text",
     focusRing,
   );
 }

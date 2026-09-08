@@ -201,6 +201,7 @@ export default function ProfileSettingsForm({
               hint="Optional — tunes article length, difficulty, and topics."
             >
               <Select
+                aria-label="Reading goal"
                 value={goalPath}
                 onChange={handleGoalPathChange}
               >

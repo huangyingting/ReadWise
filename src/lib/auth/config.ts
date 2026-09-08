@@ -15,6 +15,16 @@ const SESSION_UPDATE_AGE_SECONDS = 24 * 60 * 60;
 // Index 0 → development, index 1 → production (matches useSecureCookies posture).
 const SESSION_COOKIE_NAME = IS_PRODUCTION ? SESSION_COOKIES[1] : SESSION_COOKIES[0];
 
+function createAuthAdapter(): Adapter {
+  const adapter = PrismaAdapter(prisma) as Adapter;
+  return {
+    ...adapter,
+    async deleteSession(sessionToken) {
+      await prisma.session.deleteMany({ where: { sessionToken } });
+    },
+  };
+}
+
 const authCallbacks: NonNullable<NextAuthOptions["callbacks"]> = {
   async session({ session, user }) {
     return assignSessionIdentity(session, user);
@@ -28,7 +38,7 @@ const authEvents: NonNullable<NextAuthOptions["events"]> = {
 };
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as Adapter,
+  adapter: createAuthAdapter(),
   providers: buildProviders(),
   session: {
     strategy: "database",
