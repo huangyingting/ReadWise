@@ -1,0 +1,21 @@
+{
+  "name": "readwise-operations",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal dependencies for ReadWise production database operations.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "dependencies": {
+    "prisma": "7.9.1"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2",
+    "fast-xml-parser": "^5.10.1",
+    "fast-uri": "^3.1.6",
+    "js-yaml": "^4.3.2",
+    "mysql2": "^3.24.3"
+  }
+}

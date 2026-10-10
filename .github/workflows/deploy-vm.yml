@@ -1,0 +1,46 @@
+name: Deploy VM
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+jobs:
+  deploy:
+    if: >-
+      vars.VM_DEPLOY_ENABLED == 'true'
+      && (
+        github.event_name == 'workflow_dispatch'
+        || (
+          github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.event == 'push'
+          && github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      )
+    uses: huangyingting/webstack/.github/workflows/webstack-deploy.yml@v1.0.0
+    with:
+      mode: deploy-webapp
+      app_name: ${{ vars.VM_APP_NAME || 'readwise' }}
+      app_domain: readwise.genisisiq.com
+      container_port: 3000
+      host_port: 10005
+      ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.ref }}
+      operations_dockerfile: Dockerfile.ops
+      operations_command: node scripts/validate-database-schema-config.mjs && node node_modules/prisma/build/index.js migrate deploy --schema prisma/postgresql/schema.prisma
+      release_env_var: APP_VERSION
+      database_url_query: schema=public&sslmode=require&connection_limit=8&pool_timeout=10&connect_timeout=5
+    secrets:
+      APPLICATION_ENV: ${{ secrets.VM_APP_ENV }}

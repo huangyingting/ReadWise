@@ -378,23 +378,33 @@ development.
 ### Docker
 
 ```bash
-docker build --build-arg PRISMA_SCHEMA_PATH=prisma/schema.prisma -t readwise:sqlite .
+docker build \
+  --target runner \
+  --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
+  -t readwise:postgres .
+docker build -f Dockerfile.ops -t readwise-ops:postgres .
+
+docker run --rm \
+  -e DATABASE_URL="postgresql://<user>:<password>@<host>:5432/<database>?schema=public" \
+  readwise-ops:postgres \
+  sh -c 'node scripts/validate-database-schema-config.mjs &&
+    node node_modules/prisma/build/index.js migrate deploy \
+      --schema prisma/postgresql/schema.prisma'
 
 docker run -p 3000:3000 \
-  -v readwise-data:/data \
-  -e DATABASE_URL="file:/data/readwise.db" \
-  -e PRISMA_SCHEMA_PATH=prisma/schema.prisma \
+  -e DATABASE_URL="postgresql://<user>:<password>@<host>:5432/<database>?schema=public" \
+  -e PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
   -e NEXTAUTH_SECRET="$(openssl rand -hex 32)" \
   -e NEXTAUTH_URL="http://localhost:3000" \
-  readwise:sqlite
+  readwise:postgres
 ```
 
-The entrypoint runs Prisma migrations before starting the standalone Next.js
-server. Docker images are PostgreSQL-first by default, so the local SQLite
-example explicitly aligns the build and runtime schema. For production, prefer
-a managed PostgreSQL database and follow
-[`docs/platform/database.md`](./docs/platform/database.md#docker-image-with-postgresql-schema)
-to keep the generated client, runtime schema, and `DATABASE_URL` aligned.
+The serving image contains only the Next.js standalone runtime, static/public
+assets, dictionary data, and PostgreSQL migration metadata required by
+`/api/ready`; it does not contain the Prisma CLI or the full production
+dependency tree. Run the separate operations image before activating the web
+image. For the production WebStack workflow and environment contract, see
+[`docs/operations/vm-deployment.md`](./docs/operations/vm-deployment.md).
 
 Build the dedicated background-worker/maintenance artifact from the same source
 and schema selection. Start it only after the web tier has applied migrations and

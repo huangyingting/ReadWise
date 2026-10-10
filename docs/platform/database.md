@@ -72,11 +72,20 @@ and listing/feed benchmark guidance, see
 
 Docker images are PostgreSQL-first by default. The build arg and runtime
 environment both default to `prisma/postgresql/schema.prisma`; keep the explicit
-values below in deployment manifests so the generated Prisma client, startup
-validation, and runtime migration command agree:
+values below in deployment manifests so the generated Prisma client, migration
+image, and startup validation agree:
 
 ```bash
-docker build --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma -t readwise:postgres .
+docker build --target runner \
+  --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
+  -t readwise:postgres .
+docker build -f Dockerfile.ops -t readwise-ops:postgres .
+docker run --rm \
+  -e DATABASE_URL="postgresql://<user>:<password>@<host>:5432/<database>?schema=public" \
+  readwise-ops:postgres \
+  sh -c 'node scripts/validate-database-schema-config.mjs &&
+    node node_modules/prisma/build/index.js migrate deploy \
+      --schema prisma/postgresql/schema.prisma'
 docker run \
   -e PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma \
   -e DATABASE_URL="postgresql://<user>:<password>@<host>:5432/<database>?schema=public" \
@@ -99,20 +108,10 @@ docker run --rm \
 ```
 
 The worker target validates the database/schema pairing but deliberately does
-not deploy migrations; the web release entrypoint owns migration deployment so
-multiple worker replicas cannot race release ordering.
-
-For a local SQLite container, explicitly override both values:
-
-```bash
-docker build --build-arg PRISMA_SCHEMA_PATH=prisma/schema.prisma -t readwise:sqlite .
-docker run \
-  -e PRISMA_SCHEMA_PATH=prisma/schema.prisma \
-  -e DATABASE_URL="file:./dev.db" \
-  -e NEXTAUTH_SECRET="<32-byte-random-secret>" \
-  -e NEXTAUTH_URL="http://localhost:3000" \
-  readwise:sqlite
-```
+not deploy migrations. The transient operations image owns migration deployment
+before the web image is activated, so neither web nor worker replicas race
+release ordering. SQLite remains the default local `npm run dev` workflow;
+production containers use PostgreSQL.
 
 ## Migrating existing SQLite data
 

@@ -21,8 +21,9 @@
 # =============================================================================
 
 # ---- Stage 1: install ALL dependencies (needed for prisma generate + build) -
-FROM node:24-alpine AS deps
+FROM node:24.18.1-alpine@sha256:f70403e87646dc51b45295f4b8b70cdad0b63d2297c4c9899119b03f7af7a6b3 AS deps
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY package*.json ./
 COPY prisma.config.ts ./
@@ -32,8 +33,9 @@ COPY src/lib/database-provider-policy.mjs ./src/lib/database-provider-policy.mjs
 RUN npm ci
 
 # ---- Stage 2: build the Next.js application -----------------------------
-FROM node:24-alpine AS build
+FROM node:24.18.1-alpine@sha256:f70403e87646dc51b45295f4b8b70cdad0b63d2297c4c9899119b03f7af7a6b3 AS build
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 ARG PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -61,10 +63,11 @@ RUN npm prune --omit=dev --ignore-scripts
 # ---- Stage 3: background worker / maintenance CLI runtime -----------------
 # Build explicitly with `--target worker`. The default final target remains the
 # web runner below, preserving existing `docker build .` behavior.
-FROM node:24-alpine AS worker
+FROM node:24.18.1-alpine@sha256:f70403e87646dc51b45295f4b8b70cdad0b63d2297c4c9899119b03f7af7a6b3 AS worker
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 ARG PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma
 ENV PRISMA_SCHEMA_PATH=$PRISMA_SCHEMA_PATH
 
@@ -92,11 +95,12 @@ USER nextjs
 ENTRYPOINT ["./docker-worker-entrypoint.sh"]
 CMD ["npm", "run", "worker"]
 
-# ---- Stage 3: lean production runner ------------------------------------
-FROM node:24-alpine AS runner
+# ---- Stage 4: lean production web runner --------------------------------
+FROM node:24.18.1-alpine@sha256:f70403e87646dc51b45295f4b8b70cdad0b63d2297c4c9899119b03f7af7a6b3 AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ARG PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma
@@ -117,26 +121,16 @@ COPY --from=build --chown=nextjs:nodejs /app/public ./public
 # Bundled local dictionary files used by LocalDictionaryProvider.
 COPY --from=build --chown=nextjs:nodejs /app/dict ./dict
 
-# Include production dependencies because the Prisma migration CLI loads modules
-# dynamically that the Next.js standalone tracer cannot discover.
-COPY --from=production-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
-
-# Use the schema-selected generated client and native query engine from build,
-# overriding the default client generated during dependency installation.
-COPY --from=build --chown=nextjs:nodejs /app/node_modules/.prisma        ./node_modules/.prisma
-COPY --from=build --chown=nextjs:nodejs /app/node_modules/@prisma/client  ./node_modules/@prisma/client
-
-# Migration files (the schema + SQL migration history).
-COPY --from=build --chown=nextjs:nodejs /app/prisma                      ./prisma
-COPY --from=build --chown=nextjs:nodejs /app/prisma.config.ts             ./prisma.config.ts
+# Readiness compares the deployed database with the packaged migration history.
+COPY --from=build --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=build --chown=nextjs:nodejs /app/src/lib/database-provider-policy.mjs ./src/lib/database-provider-policy.mjs
 
-# Startup script: runs `prisma migrate deploy` then `node server.js`
 COPY --chown=nextjs:nodejs scripts/validate-database-schema-config.mjs ./scripts/validate-database-schema-config.mjs
-COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
-RUN chmod +x ./docker-entrypoint.sh
 
 USER nextjs
 EXPOSE 3000
 
-ENTRYPOINT ["./docker-entrypoint.sh"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/ready >/dev/null || exit 1
+
+CMD ["sh", "-c", "node scripts/validate-database-schema-config.mjs && exec node server.js"]

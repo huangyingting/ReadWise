@@ -224,6 +224,11 @@ results.
 
 ## 3. Application deployment steps
 
+The production WebStack implementation of this sequence is documented in
+[`vm-deployment.md`](./vm-deployment.md). Its operations image applies
+PostgreSQL migrations before WebStack activates the minimal standalone web
+image and waits for `/api/ready`.
+
 Order of operations for a standard release (no major schema change):
 
 1. **Verify CI is green** on the release commit (`main` branch after merge).

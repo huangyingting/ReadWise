@@ -202,12 +202,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Production container artifacts. Both targets share the same Docker build
-  # stages and PostgreSQL schema selection; the second build reuses the first
-  # build's local layer cache. No production credentials enter build args.
+  # Production container artifacts. The web target is standalone-only; the
+  # separate operations image owns migrations so the web image never carries
+  # the Prisma CLI or the full production dependency tree.
   # ---------------------------------------------------------------------------
   container-builds:
-    name: Container builds (web + worker)
+    name: Container builds (web + worker + operations)
     runs-on: ubuntu-latest
 
     steps:
@@ -220,10 +220,20 @@ jobs:
       - name: Build PostgreSQL worker image
         run: docker build --target worker --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma --tag readwise-ci-worker:postgres .
 
+      - name: Build PostgreSQL operations image
+        run: docker build --file Dockerfile.ops --tag readwise-ci-ops:postgres .
+
       - name: Verify non-root runtime users
         run: |
           test "$(docker image inspect readwise-ci-web:postgres --format '{{.Config.User}}')" = "nextjs"
           test "$(docker image inspect readwise-ci-worker:postgres --format '{{.Config.User}}')" = "nextjs"
+          test "$(docker image inspect readwise-ci-ops:postgres --format '{{.Config.User}}')" = "node"
+
+      - name: Verify lean web runtime
+        run: |
+          test "$(docker run --rm --entrypoint sh readwise-ci-web:postgres -c 'test ! -e node_modules/prisma/build/index.js && echo lean')" = "lean"
+          size="$(docker image inspect readwise-ci-web:postgres --format '{{.Size}}')"
+          test "$size" -lt 536870912
 
   # ---------------------------------------------------------------------------
   # Tier 4 — Database integration + authoritative multi-provider coverage.

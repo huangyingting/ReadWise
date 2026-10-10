@@ -166,7 +166,9 @@ No storage secrets are emitted in readiness JSON.
   and `npm run db:reset` when you intentionally want a clean SQLite database.
 - For Docker production, use the PostgreSQL schema path
   (`PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma`) with a PostgreSQL
-  `DATABASE_URL`. Startup validates this before running migrations.
+  `DATABASE_URL`. The WebStack operations image validates this pairing and
+  deploys migrations before activating the standalone web image; web startup
+  validates the pairing again before serving traffic.
 
 ## Troubleshooting
 
@@ -178,4 +180,3 @@ No storage secrets are emitted in readiness JSON.
 | `checks.migrations = error`, `unapplied > 0` | Repo has migration directories not present in `_prisma_migrations`. | Run the correct migration command for the configured schema. |
 | `checks.providers.ai = degraded` | Some but not all Azure OpenAI env vars are set. | Fill all four vars or clear unused placeholders. |
 | `checks.providers.storage = degraded` | `MEDIA_STORAGE=azure` without credentials, or an unsupported storage value. | Configure Azure Storage or set `MEDIA_STORAGE=local`. |
-

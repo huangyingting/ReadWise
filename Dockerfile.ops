@@ -1,0 +1,24 @@
+FROM node:24.18.1-alpine@sha256:f70403e87646dc51b45295f4b8b70cdad0b63d2297c4c9899119b03f7af7a6b3 AS operations
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma
+
+COPY ops/package.json ops/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts \
+ && npm cache clean --force \
+ && rm -rf /root/.npm
+
+COPY prisma.config.ts ./
+COPY prisma/postgresql ./prisma/postgresql
+COPY src/lib/database-provider-policy.mjs ./src/lib/database-provider-policy.mjs
+COPY scripts/validate-database-schema-config.mjs ./scripts/validate-database-schema-config.mjs
+
+RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5432/readwise_build?schema=public" \
+  node ./node_modules/prisma/build/index.js validate \
+  --schema prisma/postgresql/schema.prisma \
+ && rm -rf /root/.cache /tmp/*
+
+USER node
+CMD ["sh"]

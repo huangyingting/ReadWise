@@ -1,7 +1,7 @@
 ---
 type: "index"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-10-10"
 description: "Maps durable subsystem documentation for the current ReadWise codebase. Keeps docs flat by subsystem and links feature docs, ADRs, runbooks, generated catalogs, and governance references."
 ---
 
@@ -122,6 +122,7 @@ flowchart LR
 | --- | --- |
 | [`operations/admin-operations.md`](./operations/admin-operations.md) | Persistent job queue, processing-step state, audit logs, provider operations, admin endpoints, and operator workflows. |
 | [`operations/release-management.md`](./operations/release-management.md) | End-to-end release process: preflight quality gates, migration steps for both database targets, deployment, smoke verification, rollback decision tree, and post-release monitoring. |
+| [`operations/vm-deployment.md`](./operations/vm-deployment.md) | WebStack VM deployment: GitHub OIDC, PostgreSQL migrations, minimal Alpine images, environment configuration, health verification, and rollback. |
 | [`operations/incident-response.md`](./operations/incident-response.md) | On-call SLO breach runbooks: detection, triage, mitigation, and post-incident review workflow. |
 | [`operations/capacity-planning.md`](./operations/capacity-planning.md) | Known subsystem limits, observable signals, baseline assumptions, scaling levers, Redis adoption gate, and follow-up gaps for each major ReadWise subsystem. |
 | [`operations/provider-operations.md`](./operations/provider-operations.md) | Common lifecycle model for all external providers: health states, credential rotation, outage response, and provider-drift handling. |
@@ -201,4 +202,3 @@ flowchart LR
   output.
 - Keep schema/model descriptions consistent with both `prisma/schema.prisma` and
   `prisma/postgresql/schema.prisma` when PostgreSQL parity is affected.
-
