@@ -41,6 +41,6 @@ jobs:
       operations_dockerfile: Dockerfile.ops
       operations_command: node scripts/validate-database-schema-config.mjs && node node_modules/prisma/build/index.js migrate deploy --schema prisma/postgresql/schema.prisma
       release_env_var: APP_VERSION
-      database_url_query: schema=public&sslmode=require&connection_limit=8&pool_timeout=10&connect_timeout=5
+      database_url_query: schema=public&sslmode=require&uselibpqcompat=true&connection_limit=8&pool_timeout=10&connect_timeout=5
     secrets:
       APPLICATION_ENV: ${{ secrets.VM_APP_ENV }}

@@ -150,7 +150,10 @@ test("VM deployment follows the pinned WebStack PostgreSQL release contract", ()
     /migrate deploy --schema prisma\/postgresql\/schema\.prisma/,
   );
   assert.match(deployWorkflow, /release_env_var: APP_VERSION/);
-  assert.match(deployWorkflow, /database_url_query: schema=public&sslmode=require/);
+  assert.match(
+    deployWorkflow,
+    /database_url_query: schema=public&sslmode=require&uselibpqcompat=true/,
+  );
 });
 
 test("CI database coverage installs native dependencies before SQLite tests", () => {

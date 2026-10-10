@@ -82,7 +82,10 @@ TRUSTED_PROXY_HOPS=1
 Do not include `DATABASE_URL`, PostgreSQL credentials, or `APP_VERSION`.
 WebStack owns those values and rejects attempts to override them. The image
 sets `PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma`; the workflow appends
-bounded PostgreSQL pool, timeout, schema, and TLS parameters.
+bounded PostgreSQL pool, timeout, schema, and TLS parameters. It also enables
+node-postgres libpq compatibility with `uselibpqcompat=true` so
+`sslmode=require` accepts WebStack's self-signed certificate while keeping the
+connection encrypted, matching the Prisma CLI migration behavior.
 
 Optional AI, Speech, Push, OAuth, tracing, and Azure Storage settings may be
 added to `VM_APP_ENV`. Without Azure Storage configuration, local speech media
