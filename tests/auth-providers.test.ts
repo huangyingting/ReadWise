@@ -84,6 +84,7 @@ test("buildProviders returns non-empty array when Google credentials are set", a
       providers.length >= 1,
       `Expected at least 1 provider but got ${providers.length} — GoogleProvider was likely not called as a function`,
     );
+    assert.equal(providers[0].options?.allowDangerousEmailAccountLinking, true);
   });
 });
 
@@ -131,4 +132,3 @@ test("authOptions.providers is non-empty when Google credentials are set", async
     );
   });
 });
-

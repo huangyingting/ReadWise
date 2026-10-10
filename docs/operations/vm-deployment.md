@@ -91,6 +91,10 @@ Optional AI, Speech, Push, OAuth, tracing, and Azure Storage settings may be
 added to `VM_APP_ENV`. Without Azure Storage configuration, local speech media
 is container-local cache and is not durable across deployments.
 
+Google OAuth is invite-only at the application layer. A Google account must
+return a verified email that already exists in the production `User` table;
+otherwise sign-in is denied before NextAuth creates or links an account.
+
 Set repository variables:
 
 ```text

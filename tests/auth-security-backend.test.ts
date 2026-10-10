@@ -19,6 +19,8 @@ let metricsSnapshot: unknown;
 let localCounters: Map<string, number>;
 let deletedSessionTokens: string[];
 let baseDeleteSessionCalls: number;
+let existingUserEmails: Set<string>;
+let userEmailLookups: string[];
 
 async function withPatchedClock<T>(run: () => Promise<T>): Promise<T> {
   const realDateNow = Date.now;
@@ -61,6 +63,17 @@ before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
+        user: {
+          findUnique: async ({
+            where,
+          }: {
+            where: { email: string };
+            select: { id: true };
+          }) => {
+            userEmailLookups.push(where.email);
+            return existingUserEmails.has(where.email) ? { id: `user:${where.email}` } : null;
+          },
+        },
         session: {
           deleteMany: async ({
             where,
@@ -180,6 +193,51 @@ beforeEach(() => {
   localCounters = new Map();
   deletedSessionTokens = [];
   baseDeleteSessionCalls = 0;
+  existingUserEmails = new Set();
+  userEmailLookups = [];
+});
+
+test("Google sign-in only permits verified existing ReadWise users", async () => {
+  const { authOptions } = await import("@/lib/auth/index");
+  const signIn = authOptions.callbacks?.signIn;
+  assert.ok(signIn);
+
+  existingUserEmails.add("current@example.com");
+
+  assert.equal(
+    await signIn({
+      account: { provider: "google" },
+      profile: { email: " Current@Example.com ", email_verified: true },
+      user: {},
+    } as never),
+    true,
+  );
+  assert.equal(
+    await signIn({
+      account: { provider: "google" },
+      profile: { email: "new@example.com", email_verified: true },
+      user: {},
+    } as never),
+    false,
+  );
+  assert.equal(
+    await signIn({
+      account: { provider: "google" },
+      profile: { email: "current@example.com", email_verified: false },
+      user: {},
+    } as never),
+    false,
+  );
+  assert.equal(
+    await signIn({
+      account: { provider: "azure-ad" },
+      profile: { email: "new@example.com" },
+      user: {},
+    } as never),
+    true,
+  );
+
+  assert.deepEqual(userEmailLookups, ["current@example.com", "new@example.com"]);
 });
 
 test("auth options enrich sessions and bootstrap first users", async () => {

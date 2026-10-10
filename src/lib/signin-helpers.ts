@@ -14,7 +14,7 @@ const GENERIC_SIGNIN_ERROR_MESSAGE =
 export const SIGNIN_ERROR_MESSAGES: Record<string, string> = {
   OAuthAccountNotLinked:
     "That email is already linked to a different sign-in method.",
-  AccessDenied: "Sign-in was cancelled or denied.",
+  AccessDenied: "This account is not authorized to access ReadWise.",
 };
 
 /**

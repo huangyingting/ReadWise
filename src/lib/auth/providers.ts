@@ -35,6 +35,9 @@ export function buildProviders(): NextAuthOptions["providers"] {
       GoogleProvider({
         clientId: google.clientId,
         clientSecret: google.clientSecret,
+        // The signIn callback only permits verified Google emails that already
+        // belong to a ReadWise user, so linking cannot create open registration.
+        allowDangerousEmailAccountLinking: true,
       }),
     );
   }
