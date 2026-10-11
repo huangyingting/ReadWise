@@ -2,8 +2,8 @@
  * StatCard — metric summary card used in analytics sections (REF-059).
  *
  * Pure presentational component; safe to render with fixture data without
- * database access. The `icon` prop is optional; omit it to render a compact
- * label/value card without an icon chip (suitable for admin stat grids).
+ * database access. Use it when a metric carries an icon identity (learner
+ * progress). For plain label/value summary rows prefer `MetricStrip`.
  */
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/Card";
@@ -29,7 +29,7 @@ function StatIcon({ Icon, color }: { Icon: LucideIcon; color: string }) {
       style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)` }}
       aria-hidden
     >
-      <Icon size={20} style={{ color }} />
+      <Icon size={18} style={{ color }} />
     </span>
   );
 }
@@ -42,18 +42,18 @@ export function StatCard({
   color = "var(--teal)",
 }: StatCardProps) {
   return (
-    <Card>
-      <div className={Icon ? "flex items-start gap-[var(--space-3)]" : undefined}>
+    <Card className="sm:p-[var(--surface-pad-compact)]">
+      <div className={Icon ? "flex items-center gap-[var(--space-3)]" : undefined}>
         {Icon && <StatIcon Icon={Icon} color={color} />}
-        <div>
-          <p className="text-[length:var(--text-sm)] text-text-subtle">{label}</p>
+        <div className="min-w-0">
+          <p className="m-0 text-[length:var(--type-ui)] text-text-subtle">{label}</p>
           <p
-            className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text leading-tight"
+            className="m-0 font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-metric)] text-text leading-tight tabular-nums"
           >
             {value}
           </p>
           {sub && (
-            <p className="text-[length:var(--text-xs)] text-text-subtle mt-[var(--space-1)]">
+            <p className="m-0 text-[length:var(--type-label)] text-text-subtle mt-[var(--space-1)]">
               {sub}
             </p>
           )}

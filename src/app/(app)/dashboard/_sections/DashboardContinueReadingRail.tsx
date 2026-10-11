@@ -17,7 +17,7 @@ interface DashboardContinueReadingRailProps {
 function ContinueReadingHeader({ count }: { count: number }) {
   return (
     <div className="flex items-center justify-between mb-[var(--space-4)]">
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0">
+      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text m-0">
         Continue reading
       </h2>
       <span className="text-text-muted text-[length:var(--text-sm)]">
@@ -57,7 +57,7 @@ export function DashboardContinueReadingRail({
   if (inProgressEntries.length === 0) return null;
 
   return (
-    <section className="mt-[var(--space-7)]" aria-label="Continue reading">
+    <section className="mt-[var(--section-gap)]" aria-label="Continue reading">
       <ContinueReadingHeader count={inProgressEntries.length} />
       <RailScroller>
         <ContinueReadingCards

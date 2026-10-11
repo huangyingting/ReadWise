@@ -118,7 +118,7 @@ export function ListingLoadingShell({
             {statCardIndexes.map((i) => (
               <div
                 key={i}
-                className="bg-surface border border-border rounded-[var(--radius-lg)] p-[var(--space-4)] flex flex-col gap-[var(--space-2)]"
+                className="bg-surface shadow-[var(--shadow-surface)] rounded-[var(--radius-lg)] p-[var(--space-4)] flex flex-col gap-[var(--space-2)]"
               >
                 <Skeleton shape="text" className="w-2/3 h-4" />
                 <Skeleton shape="block" className="h-8 w-3/4 rounded-[var(--radius-sm)]" />

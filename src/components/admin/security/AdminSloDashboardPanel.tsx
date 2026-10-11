@@ -154,7 +154,7 @@ function SloSummary({ label, value }: { label: string; value: number }) {
   return (
     <Card className="p-[var(--space-4)]">
       <p className="muted m-0">{label}</p>
-      <p className="m-0 text-[length:var(--text-2xl)] font-semibold text-text">
+      <p className="m-0 text-[length:var(--type-metric)] font-semibold text-text tabular-nums">
         {value}
       </p>
     </Card>

@@ -96,6 +96,15 @@ export {
   type TableSurfaceProps,
 } from "./TableSurface";
 export {
+  MetricStrip,
+  Metric,
+  metricStripVariants,
+  type MetricStripProps,
+  type MetricProps,
+} from "./MetricStrip";
+export { Disclosure, type DisclosureProps } from "./Disclosure";
+export { navItemVariants, type NavItemVariantProps } from "./navItemVariants";
+export {
   FormActions,
   formActionsVariants,
   type FormActionsProps,

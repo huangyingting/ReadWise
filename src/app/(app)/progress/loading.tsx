@@ -18,7 +18,7 @@ export default function ProgressLoading() {
           {Array.from({ length: STAT_CARD_COUNT }).map((_, index) => (
             <div
               key={index}
-              className="bg-surface border border-border rounded-[var(--radius-lg)] p-[var(--space-4)] flex flex-col gap-[var(--space-2)]"
+              className="bg-surface shadow-[var(--shadow-surface)] rounded-[var(--radius-lg)] p-[var(--space-4)] flex flex-col gap-[var(--space-2)]"
             >
               <Skeleton shape="text" className="w-2/3 h-4" />
               <Skeleton shape="block" className="h-8 w-3/4 rounded-[var(--radius-sm)]" />
@@ -27,7 +27,7 @@ export default function ProgressLoading() {
         </div>
 
         {/* Weekly activity chart placeholder */}
-        <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-[var(--space-6)] mb-[var(--space-8)]">
+        <div className="bg-surface shadow-[var(--shadow-surface)] rounded-[var(--radius-lg)] p-[var(--space-6)] mb-[var(--space-8)]">
           <Skeleton shape="text" className="w-1/4 h-5 mb-[var(--space-4)]" />
           <div className="flex items-end gap-[var(--space-2)] h-32">
             {CHART_BAR_HEIGHTS.map((height, index) => (
@@ -47,7 +47,7 @@ export default function ProgressLoading() {
           {Array.from({ length: RECENT_ARTICLE_ROW_COUNT }).map((_, index) => (
             <div
               key={index}
-              className="bg-surface border border-border rounded-[var(--radius-lg)] p-[var(--space-4)] flex items-center gap-[var(--space-4)]"
+              className="bg-surface shadow-[var(--shadow-surface)] rounded-[var(--radius-lg)] p-[var(--space-4)] flex items-center gap-[var(--space-4)]"
             >
               <div className="flex-1 flex flex-col gap-[var(--space-2)]">
                 <Skeleton shape="text" className="w-3/4 h-4" />

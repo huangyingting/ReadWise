@@ -5,13 +5,18 @@ import { listAdminJobs, getJobDashboard, type AdminJobRow } from "@/lib/admin/jo
 import { JobStatus, JobType } from "@prisma/client";
 import AdminJobActions from "@/components/AdminJobActions";
 import AdminBackfillForm from "@/components/AdminBackfillForm";
-import { StatCard } from "@/components/analytics/StatCard";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge, type BadgeProps } from "@/components/ui/Badge";
-import { Card, CardTitle } from "@/components/ui/Card";
+import {
+  Disclosure,
+  Metric,
+  MetricStrip,
+  Section,
+  type MetricProps,
+} from "@/components/ui";
 import {
   AdminPageHeader,
   AdminFilterBar,
@@ -48,6 +53,12 @@ function statusVariant(status: string): BadgeProps["variant"] {
   if (status === JobStatus.DEAD_LETTER || status === JobStatus.FAILED) return "danger";
   if (status === JobStatus.RUNNING || status === JobStatus.CLAIMED) return "warning";
   return "neutral";
+}
+
+function statusMetricTone(status: string, count: number): MetricProps["tone"] {
+  if (count === 0) return "default";
+  if (status === JobStatus.DEAD_LETTER || status === JobStatus.FAILED) return "danger";
+  return "default";
 }
 
 function buildHref(sp: Record<string, string | number | undefined>): string {
@@ -153,31 +164,41 @@ export default async function AdminJobsPage({
     <section className="stack">
       <AdminPageHeader>Jobs</AdminPageHeader>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-4)]">
-        <StatCard label="Total jobs" value={dashboard.total} />
+      <MetricStrip columns={4} aria-label="Job totals">
+        <Metric label="Total jobs" value={dashboard.total} />
         {STATUS_VALUES.map((s) => (
-          <StatCard key={s} label={s} value={dashboard.byStatus[s] ?? 0} />
+          <Metric
+            key={s}
+            label={s}
+            value={dashboard.byStatus[s] ?? 0}
+            tone={statusMetricTone(s, dashboard.byStatus[s] ?? 0)}
+          />
         ))}
-        <StatCard label="Stuck / locked" value={dashboard.stuck} />
-      </div>
+        <Metric
+          label="Stuck / locked"
+          value={dashboard.stuck}
+          tone={dashboard.stuck > 0 ? "warning" : "default"}
+        />
+      </MetricStrip>
 
-      <Card>
+      <Disclosure
+        title="Backfill & rebuild"
+        description="Enqueue capped jobs to (re)generate derived content"
+      >
         <div className="stack">
-          <CardTitle level="h3">Backfill &amp; rebuild</CardTitle>
-          <p className="m-0 muted">
-            Enqueue controlled, capped jobs to (re)generate derived content. Use{" "}
-            <strong>Dry run</strong> first to preview the plan. Rebuilds clear cached
+          <p className="m-0 muted text-[length:var(--type-ui)]">
+            Use <strong>Dry run</strong> first to preview the plan. Rebuilds clear cached
             AI content only — never saved words or reading progress.
           </p>
           <AdminBackfillForm />
         </div>
-      </Card>
+      </Disclosure>
 
       <AdminFilterBar>
         <Select
           name="status"
           defaultValue={status}
-          selectSize="md"
+          selectSize="sm"
           className="w-auto"
           aria-label="Filter by status"
         >
@@ -191,7 +212,7 @@ export default async function AdminJobsPage({
         <Select
           name="type"
           defaultValue={type}
-          selectSize="md"
+          selectSize="sm"
           className="w-auto"
           aria-label="Filter by type"
         >
@@ -207,7 +228,7 @@ export default async function AdminJobsPage({
           name="articleId"
           defaultValue={articleId}
           placeholder="Article id…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_180px]"
           aria-label="Filter by article id"
         />
@@ -216,7 +237,7 @@ export default async function AdminJobsPage({
           name="reason"
           defaultValue={reason}
           placeholder="Failure reason…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_180px]"
           aria-label="Filter by failure reason"
         />
@@ -224,7 +245,7 @@ export default async function AdminJobsPage({
           <input type="checkbox" name="stuck" value="1" defaultChecked={stuck} />
           Stuck only
         </label>
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Filter
         </Button>
       </AdminFilterBar>
@@ -270,12 +291,9 @@ export default async function AdminJobsPage({
       />
 
       {dashboard.deadLetter.length > 0 && (
-        <Card>
-          <div className="stack">
-            <CardTitle level="h3">Recent dead-letter jobs</CardTitle>
-            <JobsTable jobs={dashboard.deadLetter} />
-          </div>
-        </Card>
+        <Section title="Recent dead-letter jobs" density="compact">
+          <JobsTable jobs={dashboard.deadLetter} />
+        </Section>
       )}
     </section>
   );

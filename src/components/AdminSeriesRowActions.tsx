@@ -235,7 +235,7 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
         label={`Edit series: ${series.title}`}
       >
         <div className="flex items-center justify-between border-b border-border px-[var(--space-5)] py-[var(--space-4)]">
-          <h2 className="m-0 text-[length:var(--text-lg)] font-semibold text-text">
+          <h2 className="m-0 text-[length:var(--type-section-title)] font-semibold text-text">
             Edit series
           </h2>
           <Button variant="outline" size="sm" onClick={() => setActivePanel(null)}>
@@ -254,7 +254,7 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
                 value={form.title}
                 onChange={(e) => set("title", e.target.value)}
                 placeholder="Series title"
-                inputSize="md"
+                inputSize="sm"
                 required
                 aria-required="true"
                 autoFocus
@@ -266,7 +266,7 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
                 value={form.slug}
                 onChange={(e) => set("slug", e.target.value)}
                 placeholder="series-slug"
-                inputSize="md"
+                inputSize="sm"
                 required
                 aria-required="true"
               />
@@ -286,7 +286,7 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
                 value={form.topic}
                 onChange={(e) => set("topic", e.target.value)}
                 placeholder="e.g. Business, Science"
-                inputSize="md"
+                inputSize="sm"
               />
             </Field>
 
@@ -296,7 +296,7 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
                   value={form.targetLevelMin}
                   onChange={(e) => set("targetLevelMin", e.target.value)}
                   placeholder="e.g. B1"
-                  inputSize="md"
+                  inputSize="sm"
                 />
               </Field>
               <Field label="Max level">
@@ -304,7 +304,7 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
                   value={form.targetLevelMax}
                   onChange={(e) => set("targetLevelMax", e.target.value)}
                   placeholder="e.g. C2"
-                  inputSize="md"
+                  inputSize="sm"
                 />
               </Field>
             </div>
@@ -313,7 +313,7 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
               <Select
                 value={form.status}
                 onChange={(e) => set("status", e.target.value as SeriesStatus)}
-                selectSize="md"
+                selectSize="sm"
               >
                 <option value="draft">Draft</option>
                 <option value="active">Active</option>
@@ -343,7 +343,7 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
             <Button
               type="submit"
               variant="primary"
-              size="md"
+              size="sm"
               loading={busy}
               disabled={!form.title.trim() || !form.slug.trim()}
             >
@@ -352,7 +352,7 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
             <Button
               type="button"
               variant="outline"
-              size="md"
+              size="sm"
               disabled={busy}
               onClick={() => setActivePanel(null)}
             >

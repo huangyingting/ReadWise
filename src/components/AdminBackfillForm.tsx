@@ -180,7 +180,7 @@ export default function AdminBackfillForm() {
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason (required) — e.g. new quiz prompt v3"
-        inputSize="md"
+        inputSize="sm"
         aria-label="Backfill reason"
       />
 

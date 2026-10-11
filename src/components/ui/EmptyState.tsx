@@ -23,15 +23,15 @@ export interface EmptyStateProps
 
 const EMPTY_STATE_CLASS = [
   "col-span-full flex flex-col items-center text-center",
-  "gap-[var(--space-3)] px-[var(--space-6)] py-[var(--space-7)]",
-  "rounded-[var(--radius-lg)] border border-dashed border-border bg-bg-subtle",
+  "gap-[var(--space-2)] px-[var(--space-5)] py-[var(--space-6)]",
+  "rounded-[var(--radius-lg)] bg-bg-subtle",
 ];
 const ICON_CHIP_CLASS =
-  "inline-flex h-[var(--space-8)] w-[var(--space-8)] items-center justify-center rounded-[var(--radius-full)] border border-border bg-surface text-text-subtle";
+  "inline-flex h-[var(--space-8)] w-[var(--space-8)] items-center justify-center rounded-[var(--radius-full)] bg-surface text-text-subtle shadow-[var(--shadow-surface)]";
 const TITLE_CLASS =
-  "m-0 font-[family-name:var(--font-display)] text-[length:var(--text-lg)] font-semibold text-text";
+  "m-0 font-[family-name:var(--font-display)] text-[length:var(--type-section-title-compact)] font-semibold text-text";
 const DESCRIPTION_CLASS =
-  "m-0 max-w-[40ch] text-[length:var(--text-sm)] leading-[var(--leading-normal)] text-text-muted";
+  "m-0 max-w-[40ch] text-[length:var(--type-ui)] leading-[var(--leading-normal)] text-text-muted";
 
 function isLinkAction(action: EmptyStateProps["action"]): action is EmptyStateLinkAction {
   return (

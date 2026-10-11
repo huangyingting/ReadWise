@@ -5,9 +5,9 @@ import { cn } from "@/lib/cn";
 const pageHeaderVariants = cva("", {
   variants: {
     density: {
-      default: "mb-[var(--space-6)]",
+      default: "mb-[var(--space-5)]",
       compact: "mb-[var(--space-4)]",
-      reader: "mb-[var(--space-5)]",
+      reader: "mb-[var(--space-4)]",
       marketing: "mb-[var(--space-8)]",
     },
     align: {
@@ -21,15 +21,30 @@ const pageHeaderVariants = cva("", {
 const titleVariants = cva(
   cn(
     "m-0 font-[family-name:var(--font-display)] font-semibold text-text",
-    "leading-[var(--leading-tight)]",
+    "leading-[var(--leading-snug)] tracking-[-0.01em]",
   ),
   {
     variants: {
       density: {
-        default: "text-[length:var(--text-3xl)]",
-        compact: "text-[length:var(--text-2xl)]",
-        reader: "text-[length:var(--text-2xl)]",
+        default: "text-[length:var(--type-page-title)]",
+        compact: "text-[length:var(--type-page-title-compact)]",
+        reader: "text-[length:var(--type-page-title)]",
         marketing: "text-[length:var(--text-4xl)]",
+      },
+    },
+    defaultVariants: { density: "default" },
+  },
+);
+
+const descriptionVariants = cva(
+  "mt-[var(--space-1)] max-w-[70ch] leading-[var(--leading-normal)] text-text-muted",
+  {
+    variants: {
+      density: {
+        default: "text-[length:var(--type-ui)]",
+        compact: "text-[length:var(--type-ui)]",
+        reader: "text-[length:var(--type-ui)]",
+        marketing: "text-[length:var(--text-base)]",
       },
     },
     defaultVariants: { density: "default" },
@@ -56,7 +71,7 @@ type HeadingTag = NonNullable<PageHeaderProps["level"]>;
 function getHeaderBodyClass(align: PageHeaderProps["align"]): string {
   return align === "center"
     ? "items-center justify-center"
-    : "items-start justify-between";
+    : "items-start justify-between sm:items-center";
 }
 
 function getCenteredClass(align: PageHeaderProps["align"]): string | false {
@@ -95,7 +110,7 @@ export function PageHeader({
       {eyebrow ? (
         <div
           className={cn(
-            "mb-[var(--space-2)] text-[length:var(--text-sm)] font-semibold uppercase tracking-[0.08em] text-primary-text",
+            "mb-[var(--space-1)] text-[length:var(--type-label)] font-semibold uppercase tracking-[var(--tracking-label)] text-primary-text",
             align === "center" && "mx-auto w-fit",
           )}
         >
@@ -104,7 +119,7 @@ export function PageHeader({
       ) : null}
       <div
         className={cn(
-          "flex flex-col gap-[var(--space-4)] sm:flex-row",
+          "flex flex-col gap-[var(--space-3)] sm:flex-row",
           getHeaderBodyClass(align),
         )}
       >
@@ -113,7 +128,7 @@ export function PageHeader({
           {description ? (
             <p
               className={cn(
-                "mt-[var(--space-2)] max-w-[70ch] text-[length:var(--text-base)] leading-[var(--leading-normal)] text-text-muted",
+                descriptionVariants({ density }),
                 getCenteredClass(align),
               )}
             >

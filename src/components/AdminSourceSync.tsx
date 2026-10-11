@@ -35,7 +35,7 @@ export default function AdminSourceSync() {
 
   return (
     <div className="flex items-center gap-[var(--space-3)]">
-      <Button variant="secondary" size="md" onClick={sync} disabled={busy} className="w-auto">
+      <Button variant="secondary" size="sm" onClick={sync} disabled={busy} className="w-auto">
         {busy ? "Syncing…" : "Sync from registry"}
       </Button>
       {message && !error && (

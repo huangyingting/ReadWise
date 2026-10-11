@@ -133,7 +133,7 @@ function WeakSentenceResurface({
         {candidates.slice(0, 3).map((item) => (
           <li
             key={`${item.index}:${item.referenceText}`}
-            className="rounded-[var(--radius-md)] border border-border p-[var(--space-3)]"
+            className="rounded-[var(--radius-md)] bg-bg-subtle p-[var(--space-3)]"
           >
             <div className="flex flex-col gap-[var(--space-2)] sm:flex-row sm:items-center sm:justify-between">
               <p className="text-[length:var(--text-sm)] text-text-muted m-0 line-clamp-2">

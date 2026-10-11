@@ -23,7 +23,7 @@ export default function NotesLoading() {
             {Array.from({ length: cardCount }).map((_, cardIndex) => (
               <div
                 key={cardIndex}
-                className="bg-surface border border-border rounded-[var(--radius-lg)] p-[var(--space-4)] flex flex-col gap-[var(--space-2)]"
+                className="bg-surface shadow-[var(--shadow-surface)] rounded-[var(--radius-lg)] p-[var(--space-4)] flex flex-col gap-[var(--space-2)]"
               >
                 <Skeleton shape="block" className="h-3 w-10 rounded-full" />
                 <SkeletonText lines={2} />

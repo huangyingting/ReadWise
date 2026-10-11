@@ -9,7 +9,7 @@ import type { EnglishLevel } from "@/lib/option-registries";
 
 const HEADING_ID = "timeline-h";
 const HEADING_CLASS_NAME =
-  "font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]";
+  "font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text mb-[var(--space-3)]";
 
 interface LevelTimelineSectionProps {
   levelHistory: LevelEntry[];

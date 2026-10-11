@@ -28,10 +28,10 @@ export function DashboardProgressBand({
   dueCount,
 }: DashboardProgressBandProps) {
   return (
-    <section aria-labelledby="progress-h" className="mt-[var(--space-7)]">
+    <section aria-labelledby="progress-h" className="mt-[var(--section-gap)]">
       <h2
         id="progress-h"
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0 mb-[var(--space-4)]"
+        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text m-0 mb-[var(--space-3)]"
       >
         Your progress
       </h2>

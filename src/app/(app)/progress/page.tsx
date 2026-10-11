@@ -35,7 +35,7 @@ export default async function ProgressPage() {
           action={{ label: "Browse articles", href: "/browse" }}
         />
       ) : (
-        <Stack gap="7">
+        <Stack gap="6">
           {vm.hasAnyData && (
             <>
               <ProgressOverviewSection analytics={vm.analytics} speedStats={vm.speedStats} />

@@ -147,11 +147,11 @@ export default function DeletedArticleQueue({
           value={providerDraft}
           onChange={(e) => setProviderDraft(e.target.value)}
           placeholder="Provider key…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_180px]"
           aria-label="Filter by provider key"
         />
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Filter
         </Button>
       </form>
@@ -216,7 +216,7 @@ function FeedbackBanner({
     return (
       <div
         role="status"
-        className="flex flex-wrap items-center justify-between gap-[var(--space-3)] rounded-[var(--radius-md)] border border-border bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)] text-[length:var(--text-sm)] text-success-text"
+        className="flex flex-wrap items-center justify-between gap-[var(--space-3)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)] text-[length:var(--text-sm)] text-success-text"
       >
         <span>{feedback.message}</span>
         <Button variant="ghost" size="sm" onClick={onDismiss}>

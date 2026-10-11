@@ -1,5 +1,3 @@
-const ZERO_MARGIN_STYLE = { margin: 0 };
-
 function formatResultCount({
   noun,
   page,
@@ -39,7 +37,7 @@ export function AdminResultCount({
   const resultText = formatResultCount({ noun, page, pageSize, total });
 
   return (
-    <p className="muted" style={ZERO_MARGIN_STYLE}>
+    <p className="m-0 text-[length:var(--type-ui)] text-text-subtle">
       {resultText}
     </p>
   );

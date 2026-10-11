@@ -188,7 +188,7 @@ flowchart LR
 | Document | Scope |
 | --- | --- |
 | [`ui/accessibility.md`](./ui/accessibility.md) | Accessibility baseline, automated axe/Playwright checks, configuration, and outstanding manual-verification gaps. |
-| [`ui/design-system-governance.md`](./ui/design-system-governance.md) | Design-system governance and visual regression plan: component ownership, token conventions, primitive import rules, density rules, ESLint drift checks, and CI screenshot gating. |
+| [`ui/design-system-governance.md`](./ui/design-system-governance.md) | Design-system governance and visual regression plan: component ownership, token conventions, typography roles, borderless surfaces, layout patterns by job, primitive import rules, density rules, ESLint drift checks, and CI screenshot gating. |
 | [`ui/mobile-reader-pwa.md`](./ui/mobile-reader-pwa.md) | Mobile/touch baseline for shell safe areas, Reader floating surfaces, the offline library, and PWA install/caching behavior. |
 
 ## Maintenance rules

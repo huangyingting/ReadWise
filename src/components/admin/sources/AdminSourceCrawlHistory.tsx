@@ -114,7 +114,7 @@ export default function AdminSourceCrawlHistory({
       >
         <div className="flex items-center justify-between border-b border-border px-[var(--space-5)] py-[var(--space-4)]">
           <div>
-            <h2 className="m-0 text-[length:var(--text-lg)] font-semibold text-text">
+            <h2 className="m-0 text-[length:var(--type-section-title)] font-semibold text-text">
               Crawl history
             </h2>
             <p className="m-0 text-[length:var(--text-sm)] text-text-muted">{displayName}</p>
@@ -165,7 +165,7 @@ export default function AdminSourceCrawlHistory({
                 <Select
                   value={outcome}
                   onChange={(e) => setOutcome(e.target.value)}
-                  selectSize="md"
+                  selectSize="sm"
                   className="w-auto"
                   aria-label="Filter by outcome"
                 >

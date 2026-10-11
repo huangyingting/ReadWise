@@ -15,7 +15,7 @@ const CARD_GAP_PX = 16;
 const RAIL_BUTTON_CLASS = cn(
   "absolute top-1/2 -translate-y-1/2 z-10",
   "h-9 w-9 inline-flex items-center justify-center shrink-0",
-  "rounded-full bg-surface border border-border shadow-[var(--shadow-md)]",
+  "rounded-full bg-surface shadow-[var(--shadow-md)]",
   "text-text-muted hover:text-text hover:bg-bg-subtle",
   "transition-[opacity,transform] [transition-duration:var(--duration-fast)]",
 );

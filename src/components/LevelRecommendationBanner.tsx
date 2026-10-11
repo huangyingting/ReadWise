@@ -116,7 +116,7 @@ export default function LevelRecommendationBanner({
 
   if (loadError) {
     return (
-      <div className="rw-fade-up flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] border border-border bg-surface p-[var(--space-4)] mb-[var(--space-6)]">
+      <div className="rw-fade-up flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] bg-surface shadow-[var(--shadow-surface)] p-[var(--space-4)] mb-[var(--space-4)]">
         <PanelError message={loadError} />
         <div className="flex flex-wrap items-center gap-[var(--space-2)]">
           <Button type="button" variant="secondary" size="sm" onClick={() => void loadRecommendation()}>
@@ -151,7 +151,7 @@ export default function LevelRecommendationBanner({
     return (
       <div
         role="status"
-        className="rw-fade-up flex items-center gap-[var(--space-3)] p-[var(--space-4)] rounded-[var(--radius-lg)] border border-border bg-surface mb-[var(--space-6)]"
+        className="rw-fade-up flex items-center gap-[var(--space-3)] p-[var(--space-4)] rounded-[var(--radius-lg)] bg-surface shadow-[var(--shadow-surface)] mb-[var(--space-4)]"
       >
         <Icon size={20} aria-hidden className={cn("shrink-0", accentIconClass)} />
         <p className="text-[length:var(--text-sm)] text-text m-0">
@@ -166,7 +166,7 @@ export default function LevelRecommendationBanner({
       role="note"
       aria-label="Level recommendation"
       onAnimationEnd={dismissing ? handleDismissAnimationEnd : undefined}
-      className={`${dismissing ? "rw-dismiss-out" : "rw-fade-up"} flex items-start gap-[var(--space-3)] p-[var(--space-4)] rounded-[var(--radius-lg)] border border-border bg-surface mb-[var(--space-6)]`}
+      className={`${dismissing ? "rw-dismiss-out" : "rw-fade-up"} flex items-start gap-[var(--space-3)] p-[var(--space-4)] rounded-[var(--radius-lg)] bg-surface shadow-[var(--shadow-surface)] mb-[var(--space-4)]`}
     >
       <div
         className={cn(

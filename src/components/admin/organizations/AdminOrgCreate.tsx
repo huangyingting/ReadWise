@@ -44,7 +44,7 @@ export default function AdminOrgCreate() {
 
   return (
     <Card className="stack">
-      <h2 className="font-semibold text-[length:var(--text-lg)]">
+      <h2 className="font-semibold text-[length:var(--type-section-title)]">
         Create organization
       </h2>
       <div className="flex flex-wrap gap-[var(--space-2)]">
@@ -53,7 +53,7 @@ export default function AdminOrgCreate() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Organization name"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_200px]"
           aria-label="Organization name"
           disabled={creating}
@@ -63,7 +63,7 @@ export default function AdminOrgCreate() {
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
           placeholder="Slug (optional)"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_160px]"
           aria-label="Organization slug (optional)"
           disabled={creating}
@@ -73,7 +73,7 @@ export default function AdminOrgCreate() {
           value={ownerUserId}
           onChange={(e) => setOwnerUserId(e.target.value)}
           placeholder="Owner user ID (first OrgAdmin)"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_220px]"
           aria-label="Owner user ID"
           disabled={creating}
@@ -81,7 +81,7 @@ export default function AdminOrgCreate() {
         <Button
           type="button"
           variant="primary"
-          size="md"
+          size="sm"
           className="w-auto"
           onClick={submit}
           disabled={!canCreate || creating}

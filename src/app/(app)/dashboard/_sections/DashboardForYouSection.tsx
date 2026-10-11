@@ -39,11 +39,11 @@ export function DashboardForYouSection({
   const initialSavedIds = getInitialSavedIds(bookmarkedIds, feedIds);
 
   return (
-    <section aria-labelledby="foryou-h" className="mt-[var(--space-7)]">
+    <section aria-labelledby="foryou-h" className="mt-[var(--section-gap)]">
       <div className="flex flex-wrap items-center justify-between gap-[var(--space-3)] mb-[var(--space-2)]">
         <h2
           id="foryou-h"
-          className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0"
+          className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text m-0"
         >
           For You
         </h2>

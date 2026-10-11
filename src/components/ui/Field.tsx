@@ -19,7 +19,7 @@ export function Label({ required, className, children, ...props }: LabelProps) {
   return (
     <label
       className={cn(
-        "font-medium text-text text-[length:var(--text-sm)]",
+        "font-medium text-text text-[length:var(--type-ui)]",
         className,
       )}
       {...props}
@@ -124,7 +124,7 @@ export function Field({
 
   return (
     <div
-      className={cn("flex flex-col gap-[var(--space-2)]", className)}
+      className={cn("flex flex-col gap-[var(--space-1)]", className)}
       {...props}
     >
       {label && (
@@ -133,14 +133,14 @@ export function Field({
         </Label>
       )}
       {hint && (
-        <p id={hintId} className="text-text-subtle text-[length:var(--text-xs)]">
+        <p id={hintId} className="m-0 text-text-subtle text-[length:var(--type-label)]">
           {hint}
         </p>
       )}
       {control}
       <p
         id={errorId}
-        className="min-h-[1.25em] text-danger-text text-[length:var(--text-sm)]"
+        className="m-0 min-h-[1.25em] text-danger-text text-[length:var(--type-ui)]"
         role={error ? "alert" : undefined}
       >
         {error}

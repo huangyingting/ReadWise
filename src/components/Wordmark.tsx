@@ -10,7 +10,7 @@ interface WordmarkProps {
 }
 
 const WORDMARK_SIZE = {
-  header: { textClass: "text-[length:var(--text-xl)]", markSize: 22 },
+  header: { textClass: "text-[length:var(--text-lg)]", markSize: 20 },
   large: { textClass: "text-[length:var(--text-2xl)]", markSize: 28 },
   marketing: { textClass: "text-[length:var(--text-xl)]", markSize: 16 },
   error: { textClass: "text-[length:var(--text-xl)]", markSize: 20 },

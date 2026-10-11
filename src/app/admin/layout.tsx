@@ -26,8 +26,9 @@ function toShellUser(session: Awaited<ReturnType<typeof requireCapability>>): Sh
  * also requires its own capability) and reuses the returned session to derive
  * the display-only shell user exactly like the `(app)` route group.
  *
- * `AdminNav` is demoted to an in-content secondary sub-nav rendered above the
- * page content inside the shell's main column.
+ * `AdminNav` is an in-content secondary nav: a grouped sticky rail beside the
+ * page content on lg+, and a compact picker/tab strip above it below lg. Admin
+ * pages use the wide, compact page density.
  */
 export default async function AdminLayout({ children }: AdminLayoutProps) {
   const session = await requireCapability(CAPABILITIES.adminAccess, "/admin");
@@ -35,9 +36,11 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <AppShell user={user}>
-      <PageShell>
-        <AdminNav />
-        {children}
+      <PageShell variant="wide" density="compact">
+        <div className="admin-layout">
+          <AdminNav />
+          <div className="min-w-0">{children}</div>
+        </div>
       </PageShell>
     </AppShell>
   );

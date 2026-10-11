@@ -23,7 +23,8 @@ const OPTION_CHECK_SIZE = 14;
    {
      variants: {
        selectSize: {
-         sm: "h-8",
+         /* Compact text only from sm+: 16px on phones avoids iOS focus zoom. */
+         sm: "h-8 sm:text-[length:var(--type-ui)]",
          md: "h-10",
        },
        invalid: {

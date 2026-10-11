@@ -2,10 +2,10 @@ import Link from "next/link";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { getAiCostOverview, getContentOpsOverview } from "@/lib/processing/admin-ops";
-import { StatCard } from "@/components/analytics/StatCard";
 import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";
 import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { Card } from "@/components/ui/Card";
+import { Metric, MetricStrip } from "@/components/ui";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -15,9 +15,9 @@ type SearchParams = { hours?: string };
 
 const DEFAULT_WINDOW_HOURS = 168;
 const SECTION_TITLE_CLASS =
-  "font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text";
+  "m-0 font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text";
 const SUBSECTION_TITLE_CLASS =
-  "font-[family-name:var(--font-display)] font-semibold text-text";
+  "m-0 font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title-compact)] text-text";
 
 const HOUR_PRESETS = [
   { hours: 24, label: "Last 24 hours" },
@@ -55,12 +55,12 @@ export default async function AdminAiOpsPage({
       </AdminPageHeader>
 
       <form method="get" className="flex flex-wrap items-end gap-[var(--space-2)]">
-        <label className="flex flex-col gap-[var(--space-1)] text-[length:var(--text-sm)]">
+        <label className="flex flex-col gap-[var(--space-1)] text-[length:var(--type-label)]">
           <span className="muted">Time range</span>
           <Select
             name="hours"
             defaultValue={String(ai.windowHours)}
-            selectSize="md"
+            selectSize="sm"
             className="w-auto"
           >
             {HOUR_PRESETS.map((p) => (
@@ -70,30 +70,30 @@ export default async function AdminAiOpsPage({
             ))}
           </Select>
         </label>
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Apply
         </Button>
       </form>
 
-      <p className="muted" style={{ margin: 0 }}>
+      <p className="m-0 text-[length:var(--type-ui)] text-text-subtle">
         {ai.range.since.slice(0, 10)} → {ai.range.until.slice(0, 10)}
       </p>
 
       <h2 className={SECTION_TITLE_CLASS}>AI usage &amp; cost</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-[var(--space-4)]">
-        <StatCard label="Total calls" value={ai.summary.total.count} />
-        <StatCard label="Est. cost" value={formatUSD(ai.summary.total.estimatedCostUsd)} />
-        <StatCard label="Total tokens" value={ai.summary.total.totalTokens} />
-        <StatCard label="Fallbacks" value={ai.summary.total.fallbackCount} />
-        <StatCard label="Cache hits" value={ai.summary.total.cacheHitCount} />
-        <StatCard
+      <MetricStrip columns={6}>
+        <Metric label="Total calls" value={ai.summary.total.count} />
+        <Metric label="Est. cost" value={formatUSD(ai.summary.total.estimatedCostUsd)} />
+        <Metric label="Total tokens" value={ai.summary.total.totalTokens} />
+        <Metric label="Fallbacks" value={ai.summary.total.fallbackCount} />
+        <Metric label="Cache hits" value={ai.summary.total.cacheHitCount} />
+        <Metric
           label="Avg latency"
           value={ai.latency.avgMs !== null ? `${ai.latency.avgMs}ms` : "—"}
         />
-      </div>
+      </MetricStrip>
 
       {ai.highFallbackFeatures.length > 0 && (
-        <Card className="border-danger">
+        <Card className="border border-danger">
           <div className="stack">
             <strong className="text-danger-text">High-fallback features</strong>
             <p className="muted m-0">
@@ -114,222 +114,214 @@ export default async function AdminAiOpsPage({
       {ai.fallbackReasons.length > 0 && (
         <>
           <h3 className={SUBSECTION_TITLE_CLASS}>Fallback reasons</h3>
-          <Card>
-            <AdminTableWrap ariaLabel="AI fallback reasons (scrollable)">
-              <thead>
-                <tr>
-                  <th>Reason</th>
-                  <th>Count</th>
+          <AdminTableWrap ariaLabel="AI fallback reasons (scrollable)">
+            <thead>
+              <tr>
+                <th>Reason</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ai.fallbackReasons.map((r) => (
+                <tr key={r.reason}>
+                  <td>{r.reason}</td>
+                  <td>{r.count}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {ai.fallbackReasons.map((r) => (
-                  <tr key={r.reason}>
-                    <td>{r.reason}</td>
-                    <td>{r.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </AdminTableWrap>
-          </Card>
+              ))}
+            </tbody>
+          </AdminTableWrap>
         </>
       )}
 
       <h3 className={SUBSECTION_TITLE_CLASS}>By feature</h3>
-      <Card>
-        <AdminTableWrap ariaLabel="AI usage by feature (scrollable)">
-          <thead>
+      <AdminTableWrap ariaLabel="AI usage by feature (scrollable)">
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Calls</th>
+            <th>Tokens</th>
+            <th>Est. cost</th>
+            <th>Fallback rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ai.byFeatureCost.length === 0 ? (
             <tr>
-              <th>Feature</th>
-              <th>Calls</th>
-              <th>Tokens</th>
-              <th>Est. cost</th>
-              <th>Fallback rate</th>
+              <td colSpan={5} className="muted">
+                No AI invocations recorded for this period.
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {ai.byFeatureCost.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="muted">
-                  No AI invocations recorded for this period.
+          ) : (
+            ai.byFeatureCost.map((f) => (
+              <tr key={f.key}>
+                <td>{f.key}</td>
+                <td>{f.count}</td>
+                <td>{f.totalTokens}</td>
+                <td>{formatUSD(f.estimatedCostUsd)}</td>
+                <td className={f.fallbackRatePct >= 25 ? "text-danger-text" : "muted"}>
+                  {f.fallbackRatePct}%
                 </td>
               </tr>
-            ) : (
-              ai.byFeatureCost.map((f) => (
-                <tr key={f.key}>
-                  <td>{f.key}</td>
-                  <td>{f.count}</td>
-                  <td>{f.totalTokens}</td>
-                  <td>{formatUSD(f.estimatedCostUsd)}</td>
-                  <td className={f.fallbackRatePct >= 25 ? "text-danger-text" : "muted"}>
-                    {f.fallbackRatePct}%
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </AdminTableWrap>
-      </Card>
+            ))
+          )}
+        </tbody>
+      </AdminTableWrap>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--space-4)]">
         <div className="stack">
           <h3 className={SUBSECTION_TITLE_CLASS}>Top users by cost</h3>
-          <Card>
-            <AdminTableWrap ariaLabel="Top users by AI cost (scrollable)">
-              <thead>
+          <AdminTableWrap ariaLabel="Top users by AI cost (scrollable)">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Calls</th>
+                <th>Est. cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ai.topUsers.length === 0 ? (
                 <tr>
-                  <th>User</th>
-                  <th>Calls</th>
-                  <th>Est. cost</th>
+                  <td colSpan={3} className="muted">
+                    No data.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {ai.topUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="muted">
-                      No data.
+              ) : (
+                ai.topUsers.map((u) => (
+                  <tr key={u.key}>
+                    <td>
+                      {u.key === "—" ? (
+                        <span className="muted">system / anonymous</span>
+                      ) : (
+                        <Link href={`/admin/members/${u.key}`}>{compactId(u.key)}</Link>
+                      )}
                     </td>
+                    <td>{u.count}</td>
+                    <td>{formatUSD(u.estimatedCostUsd)}</td>
                   </tr>
-                ) : (
-                  ai.topUsers.map((u) => (
-                    <tr key={u.key}>
-                      <td>
-                        {u.key === "—" ? (
-                          <span className="muted">system / anonymous</span>
-                        ) : (
-                          <Link href={`/admin/members/${u.key}`}>{compactId(u.key)}</Link>
-                        )}
-                      </td>
-                      <td>{u.count}</td>
-                      <td>{formatUSD(u.estimatedCostUsd)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </AdminTableWrap>
-          </Card>
+                ))
+              )}
+            </tbody>
+          </AdminTableWrap>
         </div>
 
         <div className="stack">
           <h3 className={SUBSECTION_TITLE_CLASS}>Top articles by cost</h3>
-          <Card>
-            <AdminTableWrap ariaLabel="Top articles by AI cost (scrollable)">
-              <thead>
+          <AdminTableWrap ariaLabel="Top articles by AI cost (scrollable)">
+            <thead>
+              <tr>
+                <th>Article</th>
+                <th>Calls</th>
+                <th>Est. cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ai.topArticles.length === 0 ? (
                 <tr>
-                  <th>Article</th>
-                  <th>Calls</th>
-                  <th>Est. cost</th>
+                  <td colSpan={3} className="muted">
+                    No data.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {ai.topArticles.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="muted">
-                      No data.
+              ) : (
+                ai.topArticles.map((a) => (
+                  <tr key={a.key}>
+                    <td>
+                      <Link href={`/admin/articles/${a.key}`}>{compactId(a.key)}</Link>
                     </td>
+                    <td>{a.count}</td>
+                    <td>{formatUSD(a.estimatedCostUsd)}</td>
                   </tr>
-                ) : (
-                  ai.topArticles.map((a) => (
-                    <tr key={a.key}>
-                      <td>
-                        <Link href={`/admin/articles/${a.key}`}>{compactId(a.key)}</Link>
-                      </td>
-                      <td>{a.count}</td>
-                      <td>{formatUSD(a.estimatedCostUsd)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </AdminTableWrap>
-          </Card>
+                ))
+              )}
+            </tbody>
+          </AdminTableWrap>
         </div>
       </div>
 
       <h2 className={SECTION_TITLE_CLASS}>Content operations</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-[var(--space-4)]">
-        <StatCard label="Steps generated" value={ops.totals.generated} />
-        <StatCard label="Skipped" value={ops.totals.skipped} />
-        <StatCard label="Fallback" value={ops.totals.fallback} />
-        <StatCard label="Failed" value={ops.totals.failed} />
-        <StatCard label="Pending" value={ops.totals.pending} />
-        <StatCard label="Job backlog" value={ops.jobs.total} />
-      </div>
+      <MetricStrip columns={6}>
+        <Metric label="Steps generated" value={ops.totals.generated} />
+        <Metric label="Skipped" value={ops.totals.skipped} />
+        <Metric label="Fallback" value={ops.totals.fallback} />
+        <Metric
+          label="Failed"
+          value={ops.totals.failed}
+          tone={ops.totals.failed > 0 ? "danger" : "default"}
+        />
+        <Metric label="Pending" value={ops.totals.pending} />
+        <Metric label="Job backlog" value={ops.jobs.total} />
+      </MetricStrip>
 
       <h3 className={SUBSECTION_TITLE_CLASS}>Processing steps</h3>
-      <Card>
-        <AdminTableWrap ariaLabel="Processing steps (scrollable)">
-          <thead>
-            <tr>
-              <th>Step</th>
-              <th>Generated</th>
-              <th>Skipped</th>
-              <th>Fallback</th>
-              <th>Failed</th>
-              <th>Pending</th>
-              <th>Total</th>
+      <AdminTableWrap ariaLabel="Processing steps (scrollable)">
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>Generated</th>
+            <th>Skipped</th>
+            <th>Fallback</th>
+            <th>Failed</th>
+            <th>Pending</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ops.steps.map((s) => (
+            <tr key={s.step}>
+              <td>{s.step}</td>
+              <td>{s.counts.generated}</td>
+              <td className="muted">{s.counts.skipped}</td>
+              <td className={s.counts.fallback > 0 ? "text-danger-text" : "muted"}>
+                {s.counts.fallback}
+              </td>
+              <td className={s.counts.failed > 0 ? "text-danger-text" : "muted"}>
+                {s.counts.failed}
+              </td>
+              <td className="muted">{s.counts.pending}</td>
+              <td>{s.counts.total}</td>
             </tr>
-          </thead>
-          <tbody>
-            {ops.steps.map((s) => (
-              <tr key={s.step}>
-                <td>{s.step}</td>
-                <td>{s.counts.generated}</td>
-                <td className="muted">{s.counts.skipped}</td>
-                <td className={s.counts.fallback > 0 ? "text-danger-text" : "muted"}>
-                  {s.counts.fallback}
-                </td>
-                <td className={s.counts.failed > 0 ? "text-danger-text" : "muted"}>
-                  {s.counts.failed}
-                </td>
-                <td className="muted">{s.counts.pending}</td>
-                <td>{s.counts.total}</td>
-              </tr>
-            ))}
-          </tbody>
-        </AdminTableWrap>
-      </Card>
+          ))}
+        </tbody>
+      </AdminTableWrap>
 
       {ops.problemArticles.length > 0 && (
         <>
           <h3 className={SUBSECTION_TITLE_CLASS}>Articles needing attention</h3>
-          <Card>
-            <AdminTableWrap ariaLabel="Problem articles (scrollable)">
-              <thead>
-                <tr>
-                  <th>Article</th>
-                  <th>Status</th>
-                  <th>Failed</th>
-                  <th>Fallback</th>
-                  <th>Steps</th>
+          <AdminTableWrap ariaLabel="Problem articles (scrollable)">
+            <thead>
+              <tr>
+                <th>Article</th>
+                <th>Status</th>
+                <th>Failed</th>
+                <th>Fallback</th>
+                <th>Steps</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ops.problemArticles.map((a) => (
+                <tr key={a.articleId}>
+                  <td>
+                    <Link href={`/admin/articles/${a.articleId}`}>
+                      {a.title ?? a.articleId.slice(0, 12)}
+                    </Link>
+                  </td>
+                  <td>
+                    <Badge variant="neutral">{a.status}</Badge>
+                  </td>
+                  <td className={a.failed > 0 ? "text-danger-text" : "muted"}>{a.failed}</td>
+                  <td className="muted">{a.fallback}</td>
+                  <td className="muted">
+                    {a.steps
+                      .map((st) =>
+                        st.fallbackReason
+                          ? `${st.step}:${st.status}(${st.fallbackReason})`
+                          : `${st.step}:${st.status}`,
+                      )
+                      .join(", ")}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {ops.problemArticles.map((a) => (
-                  <tr key={a.articleId}>
-                    <td>
-                      <Link href={`/admin/articles/${a.articleId}`}>
-                        {a.title ?? a.articleId.slice(0, 12)}
-                      </Link>
-                    </td>
-                    <td>
-                      <Badge variant="neutral">{a.status}</Badge>
-                    </td>
-                    <td className={a.failed > 0 ? "text-danger-text" : "muted"}>{a.failed}</td>
-                    <td className="muted">{a.fallback}</td>
-                    <td className="muted">
-                      {a.steps
-                        .map((st) =>
-                          st.fallbackReason
-                            ? `${st.step}:${st.status}(${st.fallbackReason})`
-                            : `${st.step}:${st.status}`,
-                        )
-                        .join(", ")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </AdminTableWrap>
-          </Card>
+              ))}
+            </tbody>
+          </AdminTableWrap>
         </>
       )}
 

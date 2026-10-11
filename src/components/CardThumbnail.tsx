@@ -71,7 +71,7 @@ export default function CardThumbnail({
 
   return (
     <div
-      className="relative w-full overflow-hidden aspect-[16/9] rounded-[var(--radius-md)] border border-border"
+      className="relative w-full overflow-hidden aspect-[16/9] rounded-[var(--radius-md)]"
       style={{
         background: thumbnailBackground(grad),
       }}

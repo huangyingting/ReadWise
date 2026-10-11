@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { adminNavLinkVariants } from "./adminNavLinkVariants";
+import { navItemVariants } from "@/components/ui";
 
 const TABS = [
   { key: "product", href: "/admin/analytics", label: "Product" },
@@ -15,7 +15,7 @@ type AnalyticsTabKey = (typeof TABS)[number]["key"];
  */
 export function AnalyticsTabs({ active }: { active: AnalyticsTabKey }) {
   return (
-    <nav className="flex flex-wrap gap-[var(--space-2)]" aria-label="Analytics views">
+    <nav className="flex flex-wrap gap-[var(--space-1)]" aria-label="Analytics views">
       {TABS.map((tab) => {
         const isActive = tab.key === active;
         return (
@@ -23,7 +23,7 @@ export function AnalyticsTabs({ active }: { active: AnalyticsTabKey }) {
             key={tab.key}
             href={tab.href}
             aria-current={isActive ? "page" : undefined}
-            className={adminNavLinkVariants(isActive, "outline")}
+            className={navItemVariants({ active: isActive })}
           >
             {tab.label}
           </Link>

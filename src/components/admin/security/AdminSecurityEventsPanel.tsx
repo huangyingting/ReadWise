@@ -89,14 +89,14 @@ export default function AdminSecurityEventsPanel() {
           value={typeDraft}
           onChange={(e) => setTypeDraft(e.target.value)}
           placeholder="Event type…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_180px]"
           aria-label="Filter by event type"
         />
         <Select
           value={severityDraft}
           onChange={(e) => setSeverityDraft(e.target.value)}
-          selectSize="md"
+          selectSize="sm"
           className="w-auto"
           aria-label="Filter by severity"
         >
@@ -107,13 +107,13 @@ export default function AdminSecurityEventsPanel() {
             </option>
           ))}
         </Select>
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Filter
         </Button>
         <Button
           type="button"
           variant="outline"
-          size="md"
+          size="sm"
           className="w-auto"
           onClick={refresh}
         >

@@ -13,7 +13,7 @@ import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { formatShortDate } from "@/lib/display-format";
 
 const SECTION_HEADING_CLASS =
-  "font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text";
+  "m-0 font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text";
 
 type OrganizationDetail = NonNullable<
   Awaited<ReturnType<typeof getOrganizationDetail>>

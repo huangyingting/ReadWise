@@ -93,7 +93,7 @@ export default function AdminAuditLogPanel() {
           value={actionDraft}
           onChange={(e) => setActionDraft(e.target.value)}
           placeholder="Action…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_160px]"
           aria-label="Filter by action"
         />
@@ -102,7 +102,7 @@ export default function AdminAuditLogPanel() {
           value={actorDraft}
           onChange={(e) => setActorDraft(e.target.value)}
           placeholder="Actor id…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_160px]"
           aria-label="Filter by actor id"
         />
@@ -111,11 +111,11 @@ export default function AdminAuditLogPanel() {
           value={targetDraft}
           onChange={(e) => setTargetDraft(e.target.value)}
           placeholder="Target type…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_160px]"
           aria-label="Filter by target type"
         />
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Filter
         </Button>
       </form>

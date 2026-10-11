@@ -97,7 +97,7 @@ export default function PersonalImports({
   if (articles.length === 0) return null;
 
   return (
-    <section className="mt-[var(--space-7)]">
+    <section className="mt-[var(--section-gap)]">
       <h2 className="font-semibold text-[length:var(--text-lg)] text-text mb-[var(--space-4)]">
         My Imports
       </h2>

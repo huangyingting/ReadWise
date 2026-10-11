@@ -7,12 +7,12 @@ const sectionVariants = cva("w-full", {
     surface: {
       plain: "",
       card:
-        "rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)]",
-      subtle: "rounded-[var(--radius-lg)] border border-border bg-bg-subtle",
+        "rounded-[var(--radius-lg)] bg-surface shadow-[var(--shadow-surface)]",
+      subtle: "rounded-[var(--radius-lg)] bg-bg-subtle",
     },
     density: {
       default: "",
-      compact: "text-[length:var(--text-sm)]",
+      compact: "text-[length:var(--type-ui)]",
       reader: "",
       marketing: "",
     },
@@ -21,17 +21,17 @@ const sectionVariants = cva("w-full", {
     {
       surface: ["card", "subtle"],
       density: "default",
-      className: "p-[var(--space-5)] sm:p-[var(--space-6)]",
+      className: "p-[var(--surface-pad-compact)] sm:p-[var(--surface-pad)]",
     },
     {
       surface: ["card", "subtle"],
       density: "compact",
-      className: "p-[var(--space-4)]",
+      className: "p-[var(--surface-pad-compact)]",
     },
     {
       surface: ["card", "subtle"],
       density: "reader",
-      className: "p-[var(--space-5)]",
+      className: "p-[var(--surface-pad)]",
     },
     {
       surface: ["card", "subtle"],
@@ -43,7 +43,7 @@ const sectionVariants = cva("w-full", {
 });
 
 const sectionHeaderClasses =
-  "mb-[var(--space-4)] flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-start sm:justify-between";
+  "mb-[var(--space-3)] flex flex-col gap-[var(--space-2)] sm:flex-row sm:items-center sm:justify-between";
 
 const sectionTitleBaseClasses =
   "m-0 font-[family-name:var(--font-display)] font-semibold leading-[var(--leading-snug)] text-text";
@@ -52,8 +52,8 @@ function sectionTitleClasses(density: SectionProps["density"]) {
   return cn(
     sectionTitleBaseClasses,
     density === "compact"
-      ? "text-[length:var(--text-lg)]"
-      : "text-[length:var(--text-2xl)]",
+      ? "text-[length:var(--type-section-title-compact)]"
+      : "text-[length:var(--type-section-title)]",
   );
 }
 
@@ -143,7 +143,7 @@ function SectionHeader({
           </Title>
         ) : null}
         {description ? (
-          <p className="mt-[var(--space-2)] max-w-[70ch] text-[length:var(--text-sm)] leading-[var(--leading-normal)] text-text-muted">
+          <p className="mt-[var(--space-1)] max-w-[70ch] text-[length:var(--type-ui)] leading-[var(--leading-normal)] text-text-muted">
             {description}
           </p>
         ) : null}

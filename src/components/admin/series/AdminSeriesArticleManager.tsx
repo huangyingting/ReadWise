@@ -206,7 +206,7 @@ export default function AdminSeriesArticleManager({
         label={`Manage articles: ${title}`}
       >
         <div className="flex items-center justify-between border-b border-border px-[var(--space-5)] py-[var(--space-4)]">
-          <h2 className="m-0 text-[length:var(--text-lg)] font-semibold text-text">
+          <h2 className="m-0 text-[length:var(--type-section-title)] font-semibold text-text">
             Manage articles
           </h2>
           <Button variant="outline" size="sm" onClick={closeSheet}>
@@ -261,7 +261,7 @@ export default function AdminSeriesArticleManager({
                       return (
                         <li
                           key={id}
-                          className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] border border-border px-[var(--space-3)] py-[var(--space-2)]"
+                          className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-3)] py-[var(--space-2)]"
                         >
                           <span className="tabular-nums text-text-muted text-[length:var(--text-sm)] min-w-[var(--space-6)]">
                             {index + 1}
@@ -330,7 +330,7 @@ export default function AdminSeriesArticleManager({
                     value={query}
                     onChange={(e) => onQueryChange(e.target.value)}
                     placeholder="Search articles to add…"
-                    inputSize="md"
+                    inputSize="sm"
                     autoComplete="off"
                   />
                 </Field>
@@ -367,7 +367,7 @@ export default function AdminSeriesArticleManager({
                     {searchHits.map((hit) => (
                       <li
                         key={hit.id}
-                        className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] border border-border px-[var(--space-3)] py-[var(--space-2)]"
+                        className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-3)] py-[var(--space-2)]"
                       >
                         <div className="flex min-w-0 flex-1 flex-col">
                           <span
@@ -420,7 +420,7 @@ export default function AdminSeriesArticleManager({
               <div className="flex flex-wrap gap-[var(--space-2)]">
                 <Button
                   variant="primary"
-                  size="md"
+                  size="sm"
                   loading={busy}
                   disabled={!dirty || busy}
                   onClick={save}
@@ -429,7 +429,7 @@ export default function AdminSeriesArticleManager({
                 </Button>
                 <Button
                   variant="outline"
-                  size="md"
+                  size="sm"
                   disabled={!dirty || busy}
                   onClick={reset}
                 >
@@ -437,7 +437,7 @@ export default function AdminSeriesArticleManager({
                 </Button>
                 <Button
                   variant="outline"
-                  size="md"
+                  size="sm"
                   disabled={busy}
                   onClick={closeSheet}
                 >

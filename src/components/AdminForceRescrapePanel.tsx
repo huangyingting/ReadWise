@@ -70,7 +70,7 @@ export default function AdminForceRescrapePanel({ articleId }: { articleId: stri
         onChange={(e) => setReason(e.target.value)}
         maxLength={REASON_MAX_LENGTH}
         placeholder="Reason (required) — operator justification, e.g. stale extraction v2"
-        inputSize="md"
+        inputSize="sm"
         aria-label="Force re-scrape reason"
       />
 

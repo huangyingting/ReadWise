@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { requireOnboardedSession } from "@/lib/session";
 import { DAILY_GOAL_DEFAULT } from "@/lib/option-registries";
 import { getProfile } from "@/features/profile-preferences/repository";
@@ -13,6 +14,7 @@ import {
   PageShell,
   Stack,
   Avatar,
+  navItemVariants,
 } from "@/components/ui";
 import ProfileSettingsForm from "./ProfileSettingsForm";
 import RetakePlacement from "./RetakePlacement";
@@ -131,6 +133,58 @@ function PrivacyAccountCard() {
   );
 }
 
+const SETTINGS_SECTIONS = {
+  profile: { id: "profile", label: "Profile & reading" },
+  placement: { id: "placement", label: "Reading placement" },
+  appearance: { id: "appearance", label: "Appearance" },
+  account: { id: "account", label: "Account" },
+  signIn: { id: "sign-in", label: "Sign-in methods" },
+  notifications: { id: "notifications", label: "Notifications" },
+  privacy: { id: "privacy", label: "Privacy & account" },
+} as const;
+
+type SettingsSection = (typeof SETTINGS_SECTIONS)[keyof typeof SETTINGS_SECTIONS];
+
+/**
+ * In-page index for the settings cards (lg+ only). Plain anchor links, so it
+ * works without JS and keeps native Tab/Enter behaviour.
+ */
+function SettingsIndex({ sections }: { sections: readonly SettingsSection[] }) {
+  return (
+    <nav
+      aria-label="Settings sections"
+      className="sticky top-[calc(var(--header-height)+var(--space-4))] flex flex-col gap-px"
+    >
+      {sections.map((section) => (
+        <a
+          key={section.id}
+          href={`#${section.id}`}
+          className={navItemVariants({ className: "w-full" })}
+        >
+          {section.label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+function SettingsAnchor({
+  section,
+  children,
+}: {
+  section: SettingsSection;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      id={section.id}
+      className="scroll-mt-[calc(var(--header-height)+var(--space-4))]"
+    >
+      {children}
+    </div>
+  );
+}
+
 export default async function SettingsPage() {
   const session = await requireOnboardedSession("/settings");
   const user = session.user;
@@ -138,36 +192,65 @@ export default async function SettingsPage() {
     getProfile(user.id),
     listAuthenticationMethods(user.id),
   ]);
+  const showNotifications = pushConfig.isConfigured();
+  const sections = Object.values(SETTINGS_SECTIONS).filter(
+    (section) =>
+      section.id !== SETTINGS_SECTIONS.notifications.id || showNotifications,
+  );
 
   return (
-    <PageShell variant="narrow">
-      <PageHeader title="Settings" />
+    <PageShell>
+      <div className="grid gap-[var(--space-6)] lg:grid-cols-[var(--rail-w)_minmax(0,var(--container-narrow))] lg:justify-center">
+        <div className="hidden lg:block">
+          <SettingsIndex sections={sections} />
+        </div>
 
-      <Stack gap="6">
-        {/* ProfileSettingsForm renders Profile + Reading preferences cards */}
-        <ProfileSettingsForm defaults={getProfileDefaults(profile)} />
+        <div className="min-w-0">
+          <PageHeader title="Settings" />
 
-        {/* Reading placement (#806) — retake affordance posts attempt="retake" */}
-        <RetakePlacement seedLevel={seedLevelForProfile(profile?.englishLevel)} />
+          <Stack gap="4">
+            {/* ProfileSettingsForm renders Profile + Reading preferences cards */}
+            <SettingsAnchor section={SETTINGS_SECTIONS.profile}>
+              <ProfileSettingsForm defaults={getProfileDefaults(profile)} />
+            </SettingsAnchor>
 
-        {/* App theme card — outside the profile form, no submit needed */}
-        <AppearanceCard />
+            {/* Reading placement (#806) — retake affordance posts attempt="retake" */}
+            <SettingsAnchor section={SETTINGS_SECTIONS.placement}>
+              <RetakePlacement seedLevel={seedLevelForProfile(profile?.englishLevel)} />
+            </SettingsAnchor>
 
-        {/* Account card — read-only, outside the form */}
-        <AccountCard user={user} />
+            {/* App theme card — outside the profile form, no submit needed */}
+            <SettingsAnchor section={SETTINGS_SECTIONS.appearance}>
+              <AppearanceCard />
+            </SettingsAnchor>
 
-        <AuthenticationSettings
-          initialHasPassword={authenticationMethods.hasPassword}
-          linkedProviders={authenticationMethods.providers}
-          configuredProviders={getConfiguredProviders()}
-        />
+            {/* Account card — read-only, outside the form */}
+            <SettingsAnchor section={SETTINGS_SECTIONS.account}>
+              <AccountCard user={user} />
+            </SettingsAnchor>
 
-        {/* Notifications card — hidden server-side when VAPID is not configured */}
-        {pushConfig.isConfigured() ? <NotificationsCard /> : null}
+            <SettingsAnchor section={SETTINGS_SECTIONS.signIn}>
+              <AuthenticationSettings
+                initialHasPassword={authenticationMethods.hasPassword}
+                linkedProviders={authenticationMethods.providers}
+                configuredProviders={getConfiguredProviders()}
+              />
+            </SettingsAnchor>
 
-        {/* Privacy & account management */}
-        <PrivacyAccountCard />
-      </Stack>
+            {/* Notifications card — hidden server-side when VAPID is not configured */}
+            {showNotifications ? (
+              <SettingsAnchor section={SETTINGS_SECTIONS.notifications}>
+                <NotificationsCard />
+              </SettingsAnchor>
+            ) : null}
+
+            {/* Privacy & account management */}
+            <SettingsAnchor section={SETTINGS_SECTIONS.privacy}>
+              <PrivacyAccountCard />
+            </SettingsAnchor>
+          </Stack>
+        </div>
+      </div>
     </PageShell>
   );
 }

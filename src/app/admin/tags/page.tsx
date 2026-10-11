@@ -67,11 +67,11 @@ export default async function AdminTagsPage({
           name="q"
           defaultValue={query}
           placeholder="Search tag name or slug…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_240px]"
           aria-label="Search tags"
         />
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Search
         </Button>
       </AdminFilterBar>

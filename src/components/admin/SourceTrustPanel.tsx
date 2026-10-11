@@ -186,7 +186,7 @@ export default function SourceTrustPanel({ sourceId }: { sourceId: string }) {
       {!eligibility.eligible && eligibility.blockers.length > 0 && (
         <div
           role="status"
-          className="flex flex-col gap-[var(--space-1)] rounded-[var(--radius-md)] border border-border bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)]"
+          className="flex flex-col gap-[var(--space-1)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)]"
         >
           <strong className="text-[length:var(--text-sm)]">Promotion blocked</strong>
           <ul className="m-0 flex flex-col gap-[var(--space-1)] pl-[var(--space-4)] text-[length:var(--text-sm)] text-text-muted">

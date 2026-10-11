@@ -242,7 +242,7 @@ export default async function AdminMembersPage({
           name="q"
           defaultValue={query}
           placeholder="Search name or email…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_240px]"
           aria-label="Search members"
         />
@@ -252,7 +252,7 @@ export default async function AdminMembersPage({
           <Select
             name="role"
             defaultValue={role}
-            selectSize="md"
+            selectSize="sm"
             className="w-auto"
             aria-label="Filter by role"
           >
@@ -264,7 +264,7 @@ export default async function AdminMembersPage({
             ))}
           </Select>
         </div>
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Search
         </Button>
       </AdminFilterBar>

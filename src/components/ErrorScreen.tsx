@@ -46,7 +46,7 @@ const DEFAULT_WRAPPER_CLASS =
 const DEFAULT_TITLE_CLASS =
   "font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0";
 const ICON_CHIP_CLASS =
-  "inline-flex items-center justify-center h-14 w-14 rounded-[var(--radius-full)] bg-surface border border-border text-warning";
+  "inline-flex items-center justify-center h-14 w-14 rounded-[var(--radius-full)] bg-surface shadow-[var(--shadow-surface)] text-warning";
 const COPY_STACK_CLASS = "flex flex-col gap-[var(--space-2)]";
 const DESCRIPTION_CLASS =
   "text-text-muted text-[length:var(--text-base)] max-w-[40ch] m-0";

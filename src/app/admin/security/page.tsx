@@ -1,6 +1,6 @@
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { StatCard } from "@/components/analytics/StatCard";
+import { Metric, MetricStrip } from "@/components/ui";
 import { AdminPageHeader } from "@/components/admin";
 import AdminSloDashboardPanel from "@/components/admin/security/AdminSloDashboardPanel";
 import AdminSecurityEventsPanel from "@/components/admin/security/AdminSecurityEventsPanel";
@@ -33,34 +33,38 @@ function formatProxyMode(proxy: TrustedProxyConfig): string {
 export default async function AdminSecurityPage() {
   await requireCapability(CAPABILITIES.securityView, "/admin/security");
   const proxy = trustedProxyConfig();
+  const proxyConfigured = isTrustedProxyConfigured();
+  const csrfEnforced = csrfEnforceSameOrigin();
 
   return (
     <section className="stack">
       <AdminPageHeader>Security</AdminPageHeader>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
-        <StatCard
+      <MetricStrip columns={3} aria-label="Security posture">
+        <Metric
           label="Trusted proxy"
-          value={isTrustedProxyConfigured() ? "configured" : "unconfigured"}
+          value={proxyConfigured ? "configured" : "unconfigured"}
+          tone={proxyConfigured ? "success" : "warning"}
         />
-        <StatCard label="Proxy mode" value={formatProxyMode(proxy)} />
-        <StatCard
+        <Metric label="Proxy mode" value={formatProxyMode(proxy)} />
+        <Metric
           label="CSRF same-origin"
-          value={csrfEnforceSameOrigin() ? "enforced" : "disabled"}
+          value={csrfEnforced ? "enforced" : "disabled"}
+          tone={csrfEnforced ? "success" : "warning"}
         />
-      </div>
+      </MetricStrip>
 
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
+      <h2 className="m-0 font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text">
         Service-level objectives
       </h2>
       <AdminSloDashboardPanel />
 
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
+      <h2 className="m-0 font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text">
         Recent security events
       </h2>
       <AdminSecurityEventsPanel />
 
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
+      <h2 className="m-0 font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text">
         Audit log
       </h2>
       <AdminAuditLogPanel />

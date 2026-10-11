@@ -108,7 +108,7 @@ export default async function NotesPage({
       {/* ── Filters ── */}
       <form
         method="GET"
-        className="flex flex-wrap items-center gap-[var(--space-3)] mb-[var(--space-6)]"
+        className="flex flex-wrap items-center gap-[var(--space-3)] mb-[var(--space-4)]"
       >
         <Input
           type="search"

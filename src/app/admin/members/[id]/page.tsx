@@ -6,7 +6,7 @@ import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { getMemberDetail } from "@/lib/account-lifecycle";
 import AdminMemberSupportActions from "@/components/AdminMemberSupportActions";
-import { StatCard } from "@/components/analytics/StatCard";
+import { Metric, MetricStrip } from "@/components/ui";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { buttonVariants } from "@/components/ui/Button";
@@ -14,7 +14,7 @@ import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { formatShortDate } from "@/lib/display-format";
 
 const SECTION_HEADING_CLASS =
-  "font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text";
+  "m-0 font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text";
 
 type MemberDetail = NonNullable<Awaited<ReturnType<typeof getMemberDetail>>>;
 type MemberProfile = NonNullable<MemberDetail["profile"]>;
@@ -86,7 +86,7 @@ export default async function AdminMemberDetailPage({
             className="admin-member-avatar"
           />
           <div className="admin-member-name">
-            <span className="text-[length:var(--text-lg)] font-semibold">
+            <span className="text-[length:var(--type-card-title)] font-semibold">
               {detail.user.name ?? "—"}
               <Badge
                 variant={detail.user.role === "Admin" ? "primary" : "neutral"}
@@ -116,12 +116,12 @@ export default async function AdminMemberDetailPage({
       </Card>
 
       <SectionHeading>Activity summary</SectionHeading>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-4)]">
-        <StatCard label="Articles started" value={detail.progress.started} />
-        <StatCard label="Articles completed" value={detail.progress.completed} />
-        <StatCard label="Saved words" value={detail.savedWords} />
-        <StatCard label="Quiz attempts" value={detail.quizAttempts} />
-      </div>
+      <MetricStrip columns={4}>
+        <Metric label="Articles started" value={detail.progress.started} />
+        <Metric label="Articles completed" value={detail.progress.completed} />
+        <Metric label="Saved words" value={detail.savedWords} />
+        <Metric label="Quiz attempts" value={detail.quizAttempts} />
+      </MetricStrip>
 
       <SectionHeading>Profile</SectionHeading>
       <Card>

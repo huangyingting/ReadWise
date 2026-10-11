@@ -1,4 +1,3 @@
-import { Card } from "@/components/ui/Card";
 import { Tooltip } from "@/components/ui";
 import { AdminTableWrap } from "./AdminTableWrap";
 import type { RetentionCohort } from "@/lib/analytics/queries";
@@ -61,8 +60,7 @@ export function RetentionTable({ cohorts }: RetentionTableProps) {
   const maxWeeks = getMaxWeekCount(nonEmpty);
 
   return (
-    <Card>
-      <AdminTableWrap ariaLabel="Retention cohorts (scrollable)">
+    <AdminTableWrap ariaLabel="Retention cohorts (scrollable)">
         <caption className="sr-only">
           Weekly retention by cohort. Each cell shows the percentage of the
           cohort active that many weeks after their first week.
@@ -95,7 +93,6 @@ export function RetentionTable({ cohorts }: RetentionTableProps) {
             </tr>
           ))}
         </tbody>
-      </AdminTableWrap>
-    </Card>
+    </AdminTableWrap>
   );
 }

@@ -112,7 +112,7 @@ export default async function AdminArticlesPage({
           name="q"
           defaultValue={query}
           placeholder="Search title, author or source…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_240px]"
           aria-label="Search articles"
         />
@@ -122,7 +122,7 @@ export default async function AdminArticlesPage({
           <Select
             name="status"
             defaultValue={status}
-            selectSize="md"
+            selectSize="sm"
             className="w-auto"
             aria-label="Filter by status"
           >
@@ -134,7 +134,7 @@ export default async function AdminArticlesPage({
             ))}
           </Select>
         </div>
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Search
         </Button>
       </AdminFilterBar>

@@ -445,7 +445,7 @@
 /* ---- Mobile: Tools FAB + bottom sheet ---- */
 .reader-tools-fab {
   position: fixed;
-  bottom: calc(var(--header-height) + var(--space-3) + env(safe-area-inset-bottom, 0px)); /* above mini-player */
+  bottom: calc(var(--reader-mini-player-bar-h) + var(--space-3) + env(safe-area-inset-bottom, 0px)); /* above mini-player */
   right: var(--space-4);
   z-index: var(--z-fab);
   display: inline-flex;

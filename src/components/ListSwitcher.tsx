@@ -186,7 +186,7 @@ function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: 
     <div
       role="region"
       aria-label={`Manage ${list.name}`}
-      className="mt-[var(--space-3)] p-[var(--space-3)] rounded-[var(--radius-md)] border border-border bg-bg-subtle flex flex-col gap-[var(--space-3)]"
+      className="mt-[var(--space-3)] p-[var(--space-3)] rounded-[var(--radius-md)] bg-bg-subtle flex flex-col gap-[var(--space-3)]"
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-[var(--space-2)]">
@@ -356,13 +356,13 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "inline-flex items-center gap-[var(--space-1)] shrink-0 snap-start",
-                "h-9 px-[var(--space-4)]",
+                "h-8 px-[var(--space-3)]",
                 "rounded-[var(--radius-full)]",
                 "text-[length:var(--text-sm)] font-medium no-underline",
                 "transition-colors [transition-duration:var(--duration-fast)]",
                 isActive
-                  ? "bg-primary border border-primary text-on-primary"
-                  : "bg-surface border border-border text-text-muted hover:border-border-strong hover:text-text hover:bg-bg-subtle",
+                  ? "bg-primary text-on-primary"
+                  : "bg-bg-subtle text-text-muted hover:text-text hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)]",
                 focusRing,
               )}
             >

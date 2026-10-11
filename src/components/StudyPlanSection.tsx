@@ -13,7 +13,7 @@ function StudyPlanHeader({ summary }: { summary: string }) {
         <Target size={20} aria-hidden className="text-[var(--primary-text)] shrink-0" />
         <h2
           id="study-plan-h"
-          className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0"
+          className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text m-0"
         >
           Your weekly study plan
         </h2>
@@ -117,7 +117,7 @@ export default function StudyPlanSection({
   history?: StudyPlanHistoryEntry[];
 }) {
   return (
-    <section aria-labelledby="study-plan-h" className="mt-[var(--space-7)]">
+    <section aria-labelledby="study-plan-h" className="mt-[var(--section-gap)]">
       <StudyPlanHeader summary={plan.summary} />
 
       {/* Weak areas — only shown when grounded in activity. */}

@@ -20,7 +20,7 @@ export function LevelDistributionSection({ completedByLevel }: LevelDistribution
     <section aria-labelledby="level-h">
       <h2
         id="level-h"
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
+        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text mb-[var(--space-3)]"
       >
         Level distribution
         <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">

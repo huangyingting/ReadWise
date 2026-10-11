@@ -97,7 +97,7 @@ export default async function ListsPage({
           {!isDefaultList && (
             <div className="lists-panel-header">
               <h2
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mt-0 mb-[var(--space-4)]"
+                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text mt-0 mb-[var(--space-3)]"
               >
                 {activeList?.name ?? "Saved"}
               </h2>

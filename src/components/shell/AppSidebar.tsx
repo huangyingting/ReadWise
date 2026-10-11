@@ -16,9 +16,9 @@ import type { ShellUser } from "./types";
 import { useSidebarState } from "./useSidebarState";
 
 const SIDEBAR_CONTROL_HEIGHT =
-  "h-[5dvh] min-h-[var(--space-6)] max-h-11";
+  "h-[5dvh] min-h-[var(--space-6)] max-h-9";
 const SIDEBAR_STACK_GAP =
-  "gap-[clamp(0px,0.5dvh,var(--space-1))]";
+  "gap-[clamp(0px,0.3dvh,2px)]";
 const SIDEBAR_STACK_PADDING =
   "p-[clamp(var(--space-1),1dvh,var(--space-2))]";
 
@@ -67,7 +67,7 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
       className={cn(
         "hidden md:flex shrink-0 flex-col",
         "sticky top-[var(--header-height)] h-[calc(100dvh-var(--header-height))] self-start",
-        "border-r border-border bg-surface",
+        "bg-bg",
         "transition-[width] [transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
       )}
     >
@@ -82,7 +82,7 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
       >
         {primaryNav.map(renderNavItem)}
 
-        <hr className="my-[clamp(var(--space-1),1dvh,var(--space-2))] shrink-0 border-t border-border" />
+        <hr className="mx-[var(--space-3)] my-[clamp(var(--space-1),1dvh,var(--space-2))] shrink-0 border-t border-[var(--divider)]" />
 
         {secondaryNav.map(renderNavItem)}
       </nav>
@@ -90,7 +90,7 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
       {/* Utility area: admin link (role-gated) + collapse toggle. */}
       <div
         className={cn(
-          "flex shrink-0 flex-col border-t border-border",
+          "flex shrink-0 flex-col",
           SIDEBAR_STACK_GAP,
           SIDEBAR_STACK_PADDING,
         )}
@@ -113,9 +113,9 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             leadingIcon={
               collapsed ? (
-                <PanelLeft size={20} aria-hidden className="shrink-0" />
+                <PanelLeft size={18} aria-hidden className="shrink-0" />
               ) : (
-                <ChevronsLeft size={20} aria-hidden className="shrink-0" />
+                <ChevronsLeft size={18} aria-hidden className="shrink-0" />
               )
             }
             className={cn(
@@ -168,8 +168,8 @@ function SidebarNavLink({
           : "gap-[var(--space-3)] px-[var(--space-3)]",
         "transition-colors [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
         active
-          ? "bg-bg-subtle font-semibold text-primary-text"
-          : "font-medium text-text-muted hover:bg-bg-subtle hover:text-text",
+          ? "bg-[color-mix(in_srgb,var(--primary)_9%,transparent)] font-semibold text-primary-text"
+          : "font-medium text-text-muted hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)] hover:text-text",
         focusRing,
       )}
     >
@@ -180,7 +180,7 @@ function SidebarNavLink({
         />
       ) : null}
       <span className="relative shrink-0">
-        <Icon size={20} aria-hidden className="shrink-0" />
+        <Icon size={18} aria-hidden className="shrink-0" />
         {showBadge && collapsed ? (
           <span
             aria-hidden

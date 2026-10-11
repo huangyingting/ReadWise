@@ -78,7 +78,7 @@ export default async function StudyPage() {
 
       {/* ── Highlights & notes (#812) — aggregate, content-free counts only. ── */}
       {reviewAssets.totalHighlights > 0 && (
-        <Section title="Highlights & notes" className="mt-[var(--space-7)]">
+        <Section title="Highlights & notes" className="mt-[var(--section-gap)]">
           <Card>
             <div className="flex items-start gap-[var(--space-4)]">
               <Highlighter
@@ -126,7 +126,7 @@ export default async function StudyPage() {
       )}
 
       {/* ── Comprehension section (M14) — demoted below actionable items (#212) ── */}
-      <Section title="Comprehension" className="mt-[var(--space-7)]">
+      <Section title="Comprehension" className="mt-[var(--section-gap)]">
         {hasAttempts ? (
           <Card>
             <div className="flex flex-col gap-[var(--space-5)] sm:flex-row sm:items-center sm:gap-[var(--space-6)]">

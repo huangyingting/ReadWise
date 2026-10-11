@@ -64,7 +64,7 @@ export default function HeaderSearch() {
       {/* Desktop/tablet: faux search-box (hidden on mobile) */}
       <Button
         ref={buttonRef}
-        variant="outline"
+        variant="ghost"
         size="sm"
         onClick={open}
         aria-label={SEARCH_LABEL}

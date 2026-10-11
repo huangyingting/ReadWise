@@ -138,7 +138,7 @@ export default function OrgMembersCard({
               return (
                 <li
                   key={member.userId}
-                  className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] border border-border p-[var(--space-3)]"
+                  className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] bg-bg-subtle p-[var(--space-3)]"
                 >
                   <div>
                     <p className="m-0 font-medium text-text">{displayName}</p>

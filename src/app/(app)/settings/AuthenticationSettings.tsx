@@ -190,7 +190,7 @@ export default function AuthenticationSettings({
                   return (
                     <div
                       key={provider.id}
-                      className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-md)] border border-border p-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-md)] bg-bg-subtle p-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div>
                         <div className="font-medium text-text">

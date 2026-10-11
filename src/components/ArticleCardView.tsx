@@ -123,7 +123,7 @@ export default function ArticleCardView({
         data-article-id={article.id}
         className={cn(
           "group flex flex-col h-full no-underline",
-          "bg-surface border border-border rounded-[var(--radius-lg)] shadow-[var(--shadow-sm)]",
+          "bg-surface rounded-[var(--radius-lg)] shadow-[var(--shadow-surface)]",
           "text-text gap-[var(--space-3)]",
           variant === "rail"
             ? "p-[var(--space-4)]"

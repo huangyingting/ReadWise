@@ -246,7 +246,7 @@ export default function CandidateReviewQueue({
           value={providerDraft}
           onChange={(e) => setProviderDraft(e.target.value)}
           placeholder="Provider key…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_180px]"
           aria-label="Filter by provider key"
         />
@@ -256,11 +256,11 @@ export default function CandidateReviewQueue({
           value={sourceDraft}
           onChange={(e) => setSourceDraft(e.target.value)}
           placeholder="Discovery source id…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_180px]"
           aria-label="Filter by discovery source id"
         />
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Filter
         </Button>
       </form>
@@ -345,7 +345,7 @@ function FeedbackBanner({
     return (
       <div
         role="status"
-        className="rounded-[var(--radius-md)] border border-border bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)] text-[length:var(--text-sm)] text-success-text"
+        className="rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)] text-[length:var(--text-sm)] text-success-text"
       >
         {feedback.message}
       </div>
@@ -383,7 +383,7 @@ function FeedbackBanner({
   return (
     <div
       role="status"
-      className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] border border-border bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)] text-[length:var(--text-sm)]"
+      className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)] text-[length:var(--text-sm)]"
     >
       <div className="flex flex-wrap items-center justify-between gap-[var(--space-2)]">
         <strong>{summarizeBatch(response)}</strong>
@@ -429,7 +429,7 @@ function BatchToolbar({
   onClear: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-[var(--space-3)] rounded-[var(--radius-md)] border border-border bg-surface px-[var(--space-4)] py-[var(--space-3)]">
+    <div className="flex flex-wrap items-center gap-[var(--space-3)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)]">
       <span className="text-[length:var(--text-sm)] font-medium" aria-live="polite">
         {count} selected
       </span>

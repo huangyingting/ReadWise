@@ -46,7 +46,7 @@ export default function KeepReadingSection({
           <span>Article completed! Here&rsquo;s what to read next.</span>
         </div>
       ) : null}
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)] mt-0">
+      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text mb-[var(--space-3)] mt-0">
         Keep reading
       </h2>
       <p className="muted" style={{ marginTop: 0 }}>

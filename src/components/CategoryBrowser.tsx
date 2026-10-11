@@ -214,14 +214,14 @@ export default function CategoryBrowser({
             aria-current={tab.key === activeView ? "page" : undefined}
             className={cn(
               "inline-flex items-center shrink-0",
-              "h-9 px-[var(--space-4)]",
+              "h-8 px-[var(--space-3)]",
               "rounded-[var(--radius-full)]",
               "text-[length:var(--text-sm)] font-medium",
               "no-underline",
               "transition-colors [transition-duration:var(--duration-fast)]",
               tab.key === activeView
-                ? "bg-primary border border-primary text-on-primary"
-                : "bg-surface border border-border text-text-muted hover:border-border-strong hover:text-text hover:bg-bg-subtle",
+                ? "bg-primary text-on-primary"
+                : "bg-bg-subtle text-text-muted hover:text-text hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)]",
               focusRing,
             )}
           >
@@ -299,7 +299,7 @@ export default function CategoryBrowser({
 
       {/* Section heading */}
       <h2
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mt-0 mb-[var(--space-4)]"
+        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text mt-0 mb-[var(--space-3)]"
       >
         {heading}
       </h2>

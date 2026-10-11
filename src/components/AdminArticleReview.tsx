@@ -152,7 +152,7 @@ export default function AdminArticleReview({
           <Select
             value={reviewState}
             onChange={(e) => setReviewState(e.target.value)}
-            selectSize="md"
+            selectSize="sm"
           >
             {reviewStateOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -165,7 +165,7 @@ export default function AdminArticleReview({
           <Select
             value={status}
             onChange={(e) => setStatus(e.target.value as PublicationStatus)}
-            selectSize="md"
+            selectSize="sm"
           >
             {STATUS_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -184,7 +184,7 @@ export default function AdminArticleReview({
           <Select
             value={visibility}
             onChange={(e) => setVisibility(e.target.value as VisibilityChoice)}
-            selectSize="md"
+            selectSize="sm"
           >
             {VISIBILITY_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -203,7 +203,7 @@ export default function AdminArticleReview({
       )}
 
       <Field label="Title">
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} inputSize="md" />
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} inputSize="sm" />
       </Field>
 
       <Field label="Excerpt">
@@ -219,7 +219,7 @@ export default function AdminArticleReview({
           <Select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            selectSize="md"
+            selectSize="sm"
           >
             <option value="">— None —</option>
             {CATEGORIES.map((c) => (
@@ -233,7 +233,7 @@ export default function AdminArticleReview({
           <Select
             value={difficulty}
             onChange={(e) => setDifficulty(e.target.value)}
-            selectSize="md"
+            selectSize="sm"
           >
             <option value="">— Unassessed —</option>
             {LEVELS.map((lvl) => (
@@ -274,14 +274,14 @@ export default function AdminArticleReview({
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={onTagInputKeyDown}
-              inputSize="md"
+              inputSize="sm"
               placeholder="Add a tag…"
               aria-label="Add a tag"
             />
             <Button
               type="button"
               variant="secondary"
-              size="md"
+              size="sm"
               className="w-auto"
               disabled={!tagInput.trim()}
               onClick={() => addTag(tagInput)}
@@ -322,7 +322,7 @@ export default function AdminArticleReview({
       </Field>
 
       <div className="flex items-center gap-[var(--space-3)]">
-        <Button variant="primary" size="md" onClick={save} disabled={busy} className="w-auto">
+        <Button variant="primary" size="sm" onClick={save} disabled={busy} className="w-auto">
           {busy ? "Saving…" : "Save review"}
         </Button>
         {savedAt && !error && (

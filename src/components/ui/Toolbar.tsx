@@ -6,7 +6,7 @@ const toolbarVariants = cva("flex w-full flex-wrap", {
   variants: {
     density: {
       default: "gap-[var(--space-3)]",
-      compact: "gap-[var(--space-2)] text-[length:var(--text-sm)]",
+      compact: "gap-[var(--space-2)] text-[length:var(--type-ui)]",
       reader: "gap-[var(--space-2)]",
       marketing: "gap-[var(--space-4)]",
     },
@@ -25,9 +25,9 @@ const toolbarVariants = cva("flex w-full flex-wrap", {
     surface: {
       plain: "",
       subtle:
-        "rounded-[var(--radius-lg)] border border-border bg-bg-subtle p-[var(--space-3)]",
+        "rounded-[var(--radius-md)] bg-bg-subtle p-[var(--space-2)]",
       card:
-        "rounded-[var(--radius-lg)] border border-border bg-surface p-[var(--space-3)] shadow-[var(--shadow-sm)]",
+        "rounded-[var(--radius-lg)] bg-surface p-[var(--space-2)] shadow-[var(--shadow-surface)]",
     },
   },
   defaultVariants: {

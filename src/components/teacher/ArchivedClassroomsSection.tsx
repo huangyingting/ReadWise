@@ -130,7 +130,7 @@ export default function ArchivedClassroomsSection() {
           {classrooms.map((classroom) => (
             <li
               key={classroom.id}
-              className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] border border-border p-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] bg-bg-subtle p-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
                 <p className="m-0 font-medium text-text">{classroom.name}</p>

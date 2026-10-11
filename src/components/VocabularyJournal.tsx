@@ -332,7 +332,7 @@ export default function VocabularyJournal({
 
       {error ? <PanelError message={error} /> : null}
       {fetchError ? (
-        <div className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] border border-border bg-surface p-[var(--space-3)]">
+        <div className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] bg-bg-subtle p-[var(--space-3)]">
           <PanelError message={fetchError} />
           <p className="m-0 text-[length:var(--text-xs)] text-text-muted">
             The table below may be stale until retry succeeds.

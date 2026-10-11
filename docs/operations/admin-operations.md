@@ -52,8 +52,10 @@ flowchart TD
 | Metrics/SLO | `/api/admin/metrics`, `/api/admin/slo` | `security.view` | Prometheus-style metrics and SLO evaluation. |
 
 Admin pages are rendered inside `src/app/admin/layout.tsx`, which requires admin
-access and shows `AdminNav`. Section pages and APIs still perform their own
-capability/admin checks for defense in depth.
+access and shows `AdminNav`: sections grouped as Insights, Content, People, and
+Operations, rendered as a sticky rail beside the content on lg+ screens, wrapping
+tabs on tablets, and a section picker on phones. Section pages and APIs still
+perform their own capability/admin checks for defense in depth.
 
 Security-event and audit-log operator workflows have a focused runbook in
 [`security-audit.md`](./security-audit.md). Keep this document as the broad

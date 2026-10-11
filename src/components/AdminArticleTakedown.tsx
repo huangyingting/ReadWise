@@ -63,7 +63,7 @@ export default function AdminArticleTakedown({
     <div className="stack">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-[var(--space-4)]">
         <Field label="Rights state">
-          <Select value={state} onChange={(e) => setState(e.target.value)} selectSize="md">
+          <Select value={state} onChange={(e) => setState(e.target.value)} selectSize="sm">
             {stateOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
@@ -75,14 +75,14 @@ export default function AdminArticleTakedown({
           <Input
             value={rightsNote}
             onChange={(e) => setRightsNote(e.target.value)}
-            inputSize="md"
+            inputSize="sm"
             placeholder="e.g. removed at publisher request"
           />
         </Field>
       </div>
 
       <Field label="Action note (optional)">
-        <Input value={note} onChange={(e) => setNote(e.target.value)} inputSize="md" />
+        <Input value={note} onChange={(e) => setNote(e.target.value)} inputSize="sm" />
       </Field>
 
       {willUnpublish && (
@@ -94,7 +94,7 @@ export default function AdminArticleTakedown({
       <div className="flex items-center gap-[var(--space-3)]">
         <Button
           variant={willUnpublish ? "danger" : "primary"}
-          size="md"
+          size="sm"
           onClick={apply}
           disabled={busy}
           className="w-auto"

@@ -83,7 +83,7 @@ export default async function StudyWordsPage({
         Back to Study hub
       </Link>
 
-      <Toolbar className="mb-[var(--space-6)]">
+      <Toolbar className="mb-[var(--space-4)]">
         <PageHeader title="Vocabulary journal" className="mb-0" />
         <VocabularyExportButtons />
       </Toolbar>

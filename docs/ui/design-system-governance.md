@@ -1,8 +1,8 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-19"
-description: "Documents design-system ownership, token/primitive governance, import rules, density variants, and visual regression boundaries. Captures current token usage, shared UI primitives, ESLint drift checks, density rules, focus states, and CI screenshot plan."
+last_updated: "2026-10-11"
+description: "Documents design-system ownership, token/primitive governance, typography roles, borderless surface rules, layout patterns, import rules, density variants, and visual regression boundaries. Captures current token usage, shared UI primitives, ESLint drift checks, density rules, focus states, and CI screenshot plan."
 ---
 
 # Design-System Governance & Visual Regression Plan
@@ -65,14 +65,16 @@ or any other location.
 | Family | Prefix(es) | Applied on | Notes |
 |--------|-----------|-----------|-------|
 | **Type scale** | `--text-*`, `--leading-*` | `:root` (invariant) | 1.20 minor-third scale, base 16 px |
+| **Typography roles** | `--type-*`, `--weight-*`, `--tracking-label` | `:root` (invariant) | Semantic aliases over the scale; product UI picks a role (§2.6) |
 | **Spacing** | `--space-*` | `:root` (invariant) | 4 px base; steps 1–12 |
+| **Layout rhythm roles** | `--page-gutter*`, `--page-block*`, `--section-gap`, `--surface-pad*` | `:root` (invariant) | Page padding, section separation, surface padding (§2.7) |
 | **Radii** | `--radius-*` | `:root` (invariant) | xs / sm / md / lg / xl / full |
 | **Motion** | `--duration-*`, `--ease-*` | `:root` (invariant) | Collapsed to `0.01ms` under `prefers-reduced-motion` |
 | **Z-index** | `--z-*` | `:root` (invariant) | Named stacking layers; preserve ascending order |
 | **Breakpoints** | `--bp-*` | `:root` (doc-only) | Cannot be used in `@media`; use literal values |
-| **Layout constants** | `--header-height`, `--bottom-bar-h`, `--sidebar-w`, etc. | `:root` (invariant) | |
+| **Layout constants** | `--header-height` (48 px), `--bottom-bar-h`, `--reader-mini-player-bar-h`, `--sidebar-w`, `--rail-w`, `--container-*`, etc. | `:root` (invariant) | `--container-wide` backs data-dense consoles (admin) |
 | **Semantic colour** | `--bg`, `--surface`, `--text`, `--primary`, `--danger`, `--success`, `--warning`, etc. | `:root` (light) + `:root[data-theme="dark"]` | See §3 |
-| **Elevation** | `--shadow-*` | `:root` / dark override | |
+| **Elevation** | `--shadow-*` | `:root` / dark override | `--shadow-surface` is the borderless resting-surface ring (§2.8) |
 | **Reading surface** | `--reading-*` | `[data-reading-mode="light|sepia|dark"]` | Reader-scoped; never apply to `<html>` |
 | **Reading typography** | `--font-reading`, `--reading-line-height`, `--reading-letter-spacing` | `[data-reading-font="…"]`, `[data-reading-spacing="…"]` | |
 | **Highlight markers** | `--hl-*` (dot swatches on notes page), `--hl-yellow/green/blue/pink` (reading fills) | Reading-mode blocks | User-authored content; separate from teal (reading-state) and indigo (interactive) |
@@ -93,7 +95,8 @@ or any other location.
 | `--bg-subtle` | Inset or secondary surfaces (sidebar, table striping) |
 | `--surface` | Default card / panel surface |
 | `--surface-raised` | Elevated panels (popovers, sheets) |
-| `--border` / `--border-strong` | Hairlines and input strokes |
+| `--border` / `--border-strong` | Input strokes and the few remaining structural hairlines |
+| `--divider` | Hairlines inside borderless surfaces (table rows, metric cells); derived from `--border` |
 | `--text` / `--text-muted` / `--text-subtle` | Body text hierarchy |
 | `--focus-ring` / `--ring-offset` | Focus indicators — consumed by `focusRing` in `src/lib/cn.ts` |
 | `--overlay` | Modal / scrim backdrops |
@@ -117,6 +120,71 @@ Follow the pattern `--{family}-{modifier}`:
 Changes that add, rename, or remove semantic colour tokens require a design
 review.  Invariant-scale tokens (type, spacing, radii, motion) require design
 sign-off and a migration note for any affected component.
+
+### 2.6 Typography roles
+
+Product UI picks a **role**, never a raw `--text-*` step. Primitives already
+consume the roles; feature code should only reach for them when composing
+custom headings, labels, or numbers.
+
+| Role | Maps to | Use for |
+| --- | --- | --- |
+| `--type-page-title` / `-compact` | `--text-2xl` / `--text-xl` | Page `h1` (`PageHeader`; admin uses compact via `AdminPageHeader`) |
+| `--type-section-title` / `-compact` | `--text-lg` / `--text-base` | Section `h2`/`h3`, panel and sheet titles |
+| `--type-card-title` | `--text-lg` | `CardTitle` |
+| `--type-metric` / `-compact` | `--text-2xl` / `--text-xl` | KPI numbers (`StatCard`, `MetricStrip`) |
+| `--type-body` | `--text-base` | Running copy |
+| `--type-ui` | `--text-sm` | Controls, nav items, table cells, descriptions, field labels |
+| `--type-label` | `--text-xs` | Eyebrows, nav group labels, table headers, metric labels, hints |
+
+Headings use `--font-display` + `font-semibold`; uppercase labels pair
+`--type-label` with `--tracking-label`. Display-only content (flashcard faces,
+streak hero numbers, the wordmark, marketing) may keep explicit scale steps.
+
+### 2.7 Layout rhythm
+
+| Token | Value | Used by |
+| --- | --- | --- |
+| `--page-gutter` / `--page-gutter-mobile` | `--space-5` / `--space-4` | `PageShell` inline padding |
+| `--page-block` / `--page-block-compact` | `--space-5` / `--space-4` | `PageShell` block padding (`default` / `compact`) |
+| `--section-gap` | `--space-6` | Space between page-level sections |
+| `--surface-pad` / `--surface-pad-compact` | `--space-5` / `--space-4` | `Card` and `Section` surface padding |
+
+Do not add ad-hoc `mt-[var(--space-7)]`-style section margins; use
+`--section-gap` or a `Stack` gap.
+
+### 2.8 Surfaces: borderless by default
+
+Containers separate from the page through tone and `--shadow-surface`, not a
+1 px stroke:
+
+- `Card`, `Section surface="card"`, `TableSurface`, `MetricStrip`,
+  `Disclosure`, and `Toolbar surface="card"` render `bg-surface` +
+  `--shadow-surface` with no border.
+- Rows and tiles **inside** a surface use a tonal fill (`bg-bg-subtle`) or
+  `--divider` hairlines instead of their own border.
+- App chrome (header, sidebar, footer) sits on `--bg` with no border; the
+  header gains `--shadow-sm` only once the page scrolls.
+- Filter chips and nav items are filled/tinted, not outlined: inactive
+  `bg-bg-subtle` (chips) or transparent (nav), active tinted primary.
+- Strokes stay where they carry meaning: form controls, focus rings, selectable
+  tiles, status emphasis (`border border-danger`), popovers/modals, and
+  empty-day markers in data visualisations.
+
+### 2.9 Layout patterns by job
+
+Pick the UI that matches the job instead of stacking generic cards:
+
+| Job | Pattern |
+| --- | --- |
+| Many sibling destinations inside an area (admin) | Grouped sticky rail (`AdminNav`, lg+) → wrapping tabs (md) → picker (mobile) |
+| Long single-column form page (settings) | Sticky in-page index beside a `--container-narrow` column on lg+ |
+| Summary numbers | `MetricStrip` (one surface, hairline cells); `StatCard` only for icon-led learner stats |
+| Distribution of a whole | Proportional bar + legend (admin processing status) |
+| Rare/advanced tools that would push primary content down | `Disclosure` |
+| Switching views of the same data | `navItemVariants` link tabs (routes) or `SegmentedControl` (state) |
+| Collections with row actions | `TableSurface`/`AdminTableWrap`; row actions stay inline on one line |
+| Related charts/tables | Two-up grid on `xl` (`grid xl:grid-cols-2`) |
 
 ---
 
@@ -187,7 +255,7 @@ semantics; pure aliases are drift.
 | **Badge** | `Badge.tsx` | `variant`: neutral · primary · success · warning · danger; `uppercase` | Status labels, counts, tag chips |
 | **CefrBadge** | `Badge.tsx` | `level`: A1–C2 | Difficulty-level indicators — uses `--cefr-*` palette |
 | **CategoryBadge** | `Badge.tsx` | `selected` | Topic/category selection chips |
-| **Card** | `Card.tsx` | `interactive` (hover lift) | Content containers; `CardHeader`, `CardTitle`, `CardMeta`, `CardBody`, `CardFooter` sub-components |
+| **Card** | `Card.tsx` | `interactive` (hover lift) | Borderless content containers; `CardHeader`, `CardTitle`, `CardMeta`, `CardBody`, `CardFooter` sub-components |
 | **Input** | `Input.tsx` | `variant`: default · error; `size`: sm · md · lg | Single-line text inputs |
 | **Textarea** | `Textarea.tsx` | `variant`: default · error | Multi-line text inputs |
 | **Select** | `Select.tsx` | `selectSize`: sm · md; `invalid`; `menuWidth`: trigger · content | Shared single-value dropdown: token-driven Popover/listbox after hydration, with a native no-JS/form fallback |
@@ -202,13 +270,16 @@ semantics; pure aliases are drift.
 | **SegmentedControl** | `SegmentedControl.tsx` | `options`, `value`, `onChange` | Mutually exclusive view-mode tabs |
 | **HighlightColorSwatch** / **HighlightColorSwatchGroup** | `HighlightColorSwatch.tsx`, `highlight-colors.ts` | `color`, `tone`: fill · dot, `size`: xs · sm · md · bar; group `value`, `onChange`, `onEscape` | Highlight colour indicators and accessible colour radiogroups for Reader and Notes UI |
 | **Avatar** | `Avatar.tsx` | `src`, `name`, `size` | User identity — initials fallback |
-| **PageShell** | `PageShell.tsx` | `variant`: listing · narrow · reading · marketing · full; `density`: default · compact · reader · marketing | Standard centred page container |
+| **PageShell** | `PageShell.tsx` | `variant`: listing · narrow · reading · wide · marketing · full; `density`: default · compact · reader · marketing | Standard centred page container (`wide` + `compact` for admin) |
 | **PageHeader** | `PageHeader.tsx` | `density`, `align`, `title`, `description`, `actions`, `level` | Page title/description/action rows |
 | **Section** | `Section.tsx` | `surface`: plain · card · subtle; `density`, `title`, `description`, `actions` | Reusable page regions |
 | **Stack** | `Stack.tsx` | token gap + alignment variants | Vertical layout rhythm |
 | **Inline** | `Inline.tsx` | token gap, alignment, justify, wrap variants | Horizontal layout rhythm |
 | **Toolbar** | `Toolbar.tsx` | `density`, `align`, `justify`, `surface` | Related action/filter rows |
-| **TableSurface** | `TableSurface.tsx` | `density`: default · compact · reader · marketing | Tokenised scroll surface around semantic tables |
+| **TableSurface** | `TableSurface.tsx` | `density`: default · compact · reader · marketing | Borderless tokenised scroll surface around semantic tables |
+| **MetricStrip** / **Metric** | `MetricStrip.tsx` | `columns`: 2 · 3 · 4 · 6; metric `tone`: default · success · warning · danger; `label`, `value`, `sub` | KPI summary rows — one surface split by `--divider` hairlines (`<dl>` semantics) |
+| **Disclosure** | `Disclosure.tsx` | `title`, `description`, `defaultOpen` | Collapsible secondary tools on native `<details>`/`<summary>` |
+| **navItemVariants** | `navItemVariants.ts` | `active` | Class helper for link-based secondary nav (admin rail, view tabs, settings index) |
 | **FormActions** | `FormActions.tsx` | `density`, `align` | Submit/cancel action rows |
 | **EmptyState** | `EmptyState.tsx` | `icon`, `title`, `description`, `action`, `titleAs` | Empty collection/page states |
 | **PanelLoading** | `ReaderToolPanelState.tsx` | `message` | Tool/study-panel loading state |

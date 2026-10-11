@@ -33,7 +33,7 @@ export function QuizTrendSection({
     <section aria-labelledby="quiz-h">
       <h2
         id="quiz-h"
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
+        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text mb-[var(--space-3)]"
       >
         Quiz performance
       </h2>

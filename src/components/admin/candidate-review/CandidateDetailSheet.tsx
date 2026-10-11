@@ -64,7 +64,7 @@ export default function CandidateDetailSheet({ candidateId, onClose }: Candidate
   return (
     <Sheet open={candidateId !== null} onClose={onClose} side="right" label="Candidate details">
       <div className="flex items-center justify-between gap-[var(--space-3)] border-b border-border px-[var(--space-5)] py-[var(--space-4)]">
-        <h2 className="m-0 text-[length:var(--text-lg)] font-[family-name:var(--font-display)] font-semibold">
+        <h2 className="m-0 text-[length:var(--type-section-title)] font-[family-name:var(--font-display)] font-semibold">
           Candidate details
         </h2>
         <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close details">
@@ -159,7 +159,7 @@ function CandidateDetailBody({ detail }: { detail: ReviewCandidateDetail }) {
               return (
                 <li
                   key={conflict.id}
-                  className="flex flex-col gap-[var(--space-1)] rounded-[var(--radius-md)] border border-border bg-bg-subtle px-[var(--space-3)] py-[var(--space-2)]"
+                  className="flex flex-col gap-[var(--space-1)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-3)] py-[var(--space-2)]"
                 >
                   <div className="flex items-center justify-between gap-[var(--space-2)]">
                     <Badge variant={cBadge.variant}>{cBadge.label}</Badge>

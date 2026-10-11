@@ -150,7 +150,7 @@ export default async function AdminReportsPage({
         <Select
           name="status"
           defaultValue={status}
-          selectSize="md"
+          selectSize="sm"
           className="w-auto"
           aria-label="Filter by status"
         >

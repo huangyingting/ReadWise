@@ -1,17 +1,20 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 
+/* Borderless: the surface separates from --bg through tone + --shadow-surface.
+ * Callers may still opt into a stroke (e.g. `border border-danger`) for status. */
 const CARD_BASE_CLASS =
-  "bg-surface border border-border rounded-[var(--radius-lg)] shadow-[var(--shadow-sm)]";
-const CARD_PADDING_CLASS = "p-[var(--space-5)] sm:p-[var(--space-6)]";
+  "bg-surface rounded-[var(--radius-lg)] shadow-[var(--shadow-surface)]";
+const CARD_PADDING_CLASS =
+  "p-[var(--surface-pad-compact)] sm:p-[var(--surface-pad)]";
 const CARD_INTERACTIVE_CLASS = cn(
-  "transition-[box-shadow,border-color,transform] cursor-pointer",
+  "transition-[box-shadow,transform] cursor-pointer",
   "[transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
-  "hover:shadow-[var(--shadow-md)] hover:border-border-strong hover:-translate-y-0.5",
+  "hover:shadow-[var(--shadow-md)] hover:-translate-y-0.5",
 );
 const CARD_TITLE_CLASS = cn(
   "font-[family-name:var(--font-display)] font-semibold text-text",
-  "text-[length:var(--text-xl)] leading-[var(--leading-snug)]",
+  "text-[length:var(--type-card-title)] leading-[var(--leading-snug)]",
 );
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -70,7 +73,7 @@ export function CardMeta({
   return (
     <p
       className={cn(
-        "text-text-subtle text-[length:var(--text-sm)]",
+        "text-text-subtle text-[length:var(--type-ui)]",
         className,
       )}
       {...props}
@@ -84,7 +87,7 @@ export function CardBody({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("mt-[var(--space-4)] text-text", className)}
+      className={cn("mt-[var(--space-3)] text-text", className)}
       {...props}
     />
   );
@@ -97,7 +100,7 @@ export function CardFooter({
   return (
     <div
       className={cn(
-        "mt-[var(--space-5)] flex items-center gap-[var(--space-3)]",
+        "mt-[var(--space-4)] flex items-center gap-[var(--space-3)]",
         className,
       )}
       {...props}

@@ -24,9 +24,9 @@ import AdminArticleReview from "@/components/AdminArticleReview";
 import AdminArticleTakedown from "@/components/AdminArticleTakedown";
 import AdminForceRescrapePanel from "@/components/AdminForceRescrapePanel";
 import { scraperForceRescrapeEnabled } from "@/lib/runtime-config/scraper";
-import { Card, CardMeta, CardTitle } from "@/components/ui/Card";
+import { Card, CardTitle } from "@/components/ui/Card";
 import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
-import { StatCard } from "@/components/analytics/StatCard";
+import { Metric, MetricStrip } from "@/components/ui";
 import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { formatDateTime } from "@/lib/display-format";
 
@@ -169,11 +169,11 @@ function DerivedContentCard({
     <Card>
       <div className="stack">
         <CardTitle level="h3">Derived content</CardTitle>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
+        <MetricStrip columns={3}>
           {derivedContentItems(counts).map((item) => (
-            <StatCard key={item.label} label={item.label} value={item.value} />
+            <Metric key={item.label} label={item.label} value={item.value} />
           ))}
-        </div>
+        </MetricStrip>
         <AdminArticleActions articleId={articleId} redirectOnDelete="/admin/articles" />
       </div>
     </Card>
@@ -367,23 +367,6 @@ function ProcessingStateCard({
   );
 }
 
-function DifficultyStatCard({
-  value,
-  label,
-}: {
-  value: number;
-  label: string;
-}) {
-  return (
-    <Card className="p-[var(--space-4)]">
-      <div className="text-[length:var(--text-2xl)] font-bold font-[family-name:var(--font-display)] text-text">
-        {value}
-      </div>
-      <CardMeta>{label}</CardMeta>
-    </Card>
-  );
-}
-
 function DifficultyFeedbackCard({
   difficultyFeedback,
 }: {
@@ -404,14 +387,14 @@ function DifficultyFeedbackCard({
     <Card>
       <div className="stack">
         <CardTitle level="h3">Difficulty feedback</CardTitle>
-        <p className="muted" style={{ margin: 0 }}>
+        <p className="muted m-0">
           {difficultyFeedback.total} reader{difficultyFeedback.total !== 1 ? "s" : ""} rated this article.
         </p>
-        <div className="grid grid-cols-3 gap-[var(--space-4)]">
-          <DifficultyStatCard value={difficultyFeedback.tooEasy} label="😴 Too Easy" />
-          <DifficultyStatCard value={difficultyFeedback.justRight} label="🎯 Just Right" />
-          <DifficultyStatCard value={difficultyFeedback.tooHard} label="🤯 Too Hard" />
-        </div>
+        <MetricStrip columns={3}>
+          <Metric value={difficultyFeedback.tooEasy} label="😴 Too Easy" />
+          <Metric value={difficultyFeedback.justRight} label="🎯 Just Right" />
+          <Metric value={difficultyFeedback.tooHard} label="🤯 Too Hard" />
+        </MetricStrip>
       </div>
     </Card>
   );
@@ -471,7 +454,7 @@ export default async function AdminArticleDetailPage({
 
       <ProcessingStateCard processingSteps={processingSteps} />
 
-      <h3>Content</h3>
+      <CardTitle level="h3">Content</CardTitle>
       <Card>
         <article
           className="article prose"

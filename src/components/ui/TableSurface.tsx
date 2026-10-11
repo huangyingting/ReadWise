@@ -3,8 +3,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
 const TABLE_SURFACE_BASE_CLASS = cn(
-  "w-full overflow-x-auto rounded-[var(--radius-lg)] border border-border bg-surface",
-  "shadow-[var(--shadow-sm)]",
+  "w-full overflow-x-auto rounded-[var(--radius-lg)] bg-surface",
+  "shadow-[var(--shadow-surface)]",
 );
 
 const tableSurfaceVariants = cva(
@@ -12,9 +12,9 @@ const tableSurfaceVariants = cva(
   {
     variants: {
       density: {
-        default: "text-[length:var(--text-sm)]",
-        compact: "text-[length:var(--text-xs)]",
-        reader: "text-[length:var(--text-sm)]",
+        default: "text-[length:var(--type-ui)]",
+        compact: "text-[length:var(--type-ui)]",
+        reader: "text-[length:var(--type-ui)]",
         marketing: "text-[length:var(--text-base)]",
       },
     },

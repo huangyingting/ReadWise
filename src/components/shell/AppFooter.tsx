@@ -7,9 +7,9 @@ import { cn, focusRing } from "@/lib/cn";
 // Footer is hidden on the immersive reader and the utility settings page.
 const HIDDEN_PREFIXES = ["/reader", "/settings"];
 const FOOTER_CONTAINER_CLASS =
-  "mx-auto flex max-w-[1280px] flex-col items-center gap-[var(--space-2)]";
+  "flex flex-col items-center gap-[var(--space-2)]";
 const FOOTER_TEXT_CLASS =
-  "px-[var(--space-6)] py-[var(--space-6)] text-[length:var(--text-sm)] text-text-subtle";
+  "px-[var(--page-gutter)] py-[var(--space-4)] text-[length:var(--type-label)] text-text-subtle";
 
 function isFooterHidden(pathname: string) {
   return HIDDEN_PREFIXES.some(
@@ -30,7 +30,7 @@ export default function AppFooter() {
   );
 
   return (
-    <footer className="border-t border-border">
+    <footer>
       <div
         className={cn(
           FOOTER_CONTAINER_CLASS,

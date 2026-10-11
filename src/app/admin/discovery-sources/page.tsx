@@ -65,14 +65,14 @@ export default async function AdminDiscoverySourcesPage({
           name="providerKey"
           defaultValue={providerKey}
           placeholder="Provider key…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_200px]"
           aria-label="Filter by provider key"
         />
         <Select
           name="lifecycleMode"
           defaultValue={lifecycleMode ?? ""}
-          selectSize="md"
+          selectSize="sm"
           className="w-auto"
           aria-label="Filter by lifecycle mode"
         >
@@ -83,7 +83,7 @@ export default async function AdminDiscoverySourcesPage({
             </option>
           ))}
         </Select>
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Filter
         </Button>
       </AdminFilterBar>

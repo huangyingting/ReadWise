@@ -184,14 +184,14 @@ body {
 .container {
   max-width: var(--container-reading);
   margin: 0 auto;
-  padding: 2rem 1.25rem;
+  padding: var(--page-block) var(--page-gutter);
 }
 
 /* M4 — wider container for listing/discovery pages (var(--marketing-container-w)=1200px vs 880px reading width). */
 .listing-container {
   max-width: var(--marketing-container-w);
   margin: 0 auto;
-  padding: 2rem 1.25rem;
+  padding: var(--page-block) var(--page-gutter);
 }
 
 .card {
@@ -241,15 +241,15 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 0.15rem 0.6rem;
-  border: 1px solid var(--border);
   border-radius: var(--radius-full);
-  background: var(--surface);
-  font-size: var(--text-sm);
+  background: var(--bg-subtle);
+  font-size: var(--type-ui);
   text-decoration: none;
 }
 
 .tag-chip:hover {
-  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  text-decoration: none;
 }
 
 /* Coarse-pointer / touch: 44px minimum hit area for tag links (WCAG 2.5.8) */
@@ -437,23 +437,37 @@ body {
   align-items: center;
 }
 
-/* Secondary admin sub-nav: use a compact picker on mobile and wrapping tabs
-   when there is enough room to scan the section labels. */
-.admin-subnav {
-  margin-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border);
+/* Admin console layout: content only below lg; grouped section rail + content
+   on lg+ (see AdminNav). */
+.admin-layout {
+  display: block;
 }
 
-.admin-subnav-mobile {
-  padding-bottom: var(--space-3);
+/* Admin section nav — one DOM, three layouts:
+   <md  compact section picker
+   md   wrapping borderless tabs (groups flow inline, labels hidden)
+   lg+  sticky grouped rail beside the page content */
+.admin-subnav {
+  margin-bottom: var(--space-4);
 }
 
 .admin-subnav-track {
   display: none;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
   width: 100%;
-  padding-bottom: var(--space-3);
+}
+
+.admin-subnav-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-subnav-group-label {
+  display: none;
 }
 
 @media (min-width: 768px) {
@@ -466,18 +480,61 @@ body {
   }
 }
 
+@media (min-width: 1024px) {
+  .admin-layout {
+    display: grid;
+    grid-template-columns: var(--rail-w) minmax(0, 1fr);
+    gap: var(--space-6);
+    align-items: start;
+  }
+
+  .admin-subnav {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-4));
+    max-height: calc(100dvh - var(--header-height) - var(--space-8));
+    overflow-y: auto;
+    margin-bottom: 0;
+    scrollbar-width: thin;
+  }
+
+  .admin-subnav-track {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    row-gap: var(--space-4);
+  }
+
+  .admin-subnav-group {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 1px;
+  }
+
+  .admin-subnav-group > a {
+    width: 100%;
+  }
+
+  .admin-subnav-group-label {
+    display: block;
+    padding: 0 var(--space-3) var(--space-1);
+    font-size: var(--type-label);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+  }
+}
+
+/* Borderless data table: the TableSurface supplies the surface; rows are
+   separated by --divider hairlines. Scroll-shadow affordance: subtle left/right
+   edge shadows reveal more content and fade once that edge is reached. The
+   `local`-attachment cover gradients mask the shadow at the resting edge. */
 .admin-table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  /* Scroll-shadow affordance: subtle left/right edge shadows that reveal there
-     is more content to scroll to and fade away once that edge is reached. The
-     `local`-attachment cover gradients mask the shadow at the resting edge. */
   background:
-    linear-gradient(to right, var(--bg) 0, transparent 24px) 0 0 / 24px 100%
+    linear-gradient(to right, var(--surface) 0, transparent 24px) 0 0 / 24px 100%
       local no-repeat,
-    linear-gradient(to left, var(--bg) 0, transparent 24px) 100% 0 / 24px 100%
+    linear-gradient(to left, var(--surface) 0, transparent 24px) 100% 0 / 24px 100%
       local no-repeat,
     radial-gradient(
         farthest-side at 0 50%,
@@ -490,7 +547,8 @@ body {
         color-mix(in srgb, var(--text) 14%, transparent),
         transparent
       )
-      100% 0 / 14px 100% scroll no-repeat;
+      100% 0 / 14px 100% scroll no-repeat,
+    var(--surface);
 }
 
 .admin-table {
@@ -499,22 +557,40 @@ body {
      Actions column is never clipped on 360–768px viewports. */
   min-width: 720px;
   border-collapse: collapse;
-  font-size: var(--text-sm);
+  font-size: var(--type-ui);
 }
 
 .admin-table th,
 .admin-table td {
   text-align: left;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--divider);
   vertical-align: top;
 }
 
+.admin-table td {
+  line-height: var(--leading-normal);
+}
+
 .admin-table th {
-  font-weight: 600;
+  padding-top: var(--space-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
   color: var(--text-subtle);
   white-space: nowrap;
-  background: var(--bg-subtle);
+  border-bottom-color: var(--border);
+}
+
+.admin-table th:first-child,
+.admin-table td:first-child {
+  padding-left: var(--space-4);
+}
+
+.admin-table th:last-child,
+.admin-table td:last-child {
+  padding-right: var(--space-4);
 }
 
 .admin-sort-link {
@@ -536,7 +612,7 @@ body {
   box-shadow: 0 0 0 2px var(--ring-offset), 0 0 0 4px var(--focus-ring);
 }
 
-.admin-table tr:hover td {
+.admin-table tbody tr:hover td {
   background: color-mix(in srgb, var(--primary) 4%, transparent);
 }
 
@@ -544,33 +620,50 @@ body {
   border-bottom: none;
 }
 
+/* Row actions: inline, content-sized controls (never stretched full-width).
+   ConfirmAction reuses the class as its own wrapper, so the nested instance
+   drops the column min-width. */
 .admin-actions {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  min-width: 220px;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 180px;
+}
+
+.admin-actions .admin-actions {
+  min-width: 0;
 }
 
 .admin-actions-row {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Inside data tables keep a row's actions on one line; the table scrolls
+   horizontally instead of doubling every row's height. */
+.admin-table .admin-actions-row {
+  flex-wrap: nowrap;
 }
 
 .admin-confirm {
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-subtle);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  max-width: 320px;
 }
 
 .admin-pagination {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  justify-content: flex-end;
+  gap: var(--space-3);
+  font-size: var(--type-ui);
 }
 
 .admin-member-cell {
@@ -617,7 +710,7 @@ body {
 
 .admin-bar-track {
   display: block;
-  height: 12px;
+  height: var(--space-2);
   border-radius: var(--radius-full);
   background: var(--bg-subtle);
   overflow: hidden;

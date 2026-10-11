@@ -8,13 +8,16 @@ const pageShellVariants = cva("mx-auto w-full", {
       listing: "max-w-[var(--container-listing)]",
       narrow: "max-w-[var(--container-narrow)]",
       reading: "max-w-[var(--container-reading)]",
+      wide: "max-w-[var(--container-wide)]",
       marketing: "max-w-[var(--marketing-container-w)]",
       full: "max-w-none",
     },
     density: {
-      default: "px-[var(--space-5)] py-[var(--space-7)]",
-      compact: "px-[var(--space-4)] py-[var(--space-5)]",
-      reader: "px-[var(--space-4)] py-[var(--space-6)]",
+      default:
+        "px-[var(--page-gutter-mobile)] py-[var(--page-block-compact)] sm:px-[var(--page-gutter)] sm:py-[var(--page-block)]",
+      compact:
+        "px-[var(--page-gutter-mobile)] py-[var(--page-block-compact)]",
+      reader: "px-[var(--space-4)] py-[var(--space-5)]",
       marketing:
         "px-[var(--space-5)] py-[var(--space-10)] sm:py-[var(--space-12)]",
     },

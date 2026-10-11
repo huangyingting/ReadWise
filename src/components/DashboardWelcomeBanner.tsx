@@ -51,9 +51,9 @@ export default function DashboardWelcomeBanner() {
   return (
     <div
       className={cn(
-        "mt-[var(--space-5)] p-[var(--space-5)]",
-        "rounded-[var(--radius-lg)] border",
-        "bg-[color-mix(in_srgb,var(--primary)_6%,var(--surface))] border-[color-mix(in_srgb,var(--primary)_20%,transparent)]",
+        "mt-[var(--space-4)] p-[var(--surface-pad-compact)]",
+        "rounded-[var(--radius-lg)]",
+        "bg-[color-mix(in_srgb,var(--primary)_7%,var(--surface))]",
         "flex items-start gap-[var(--space-4)]",
       )}
       role="note"

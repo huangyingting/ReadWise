@@ -3,7 +3,7 @@ import { cn } from "@/lib/cn";
 
 const CARD_CLASS_NAMES = [
   "flex flex-col gap-[var(--space-3)]",
-  "bg-surface border border-border rounded-[var(--radius-lg)] shadow-[var(--shadow-sm)]",
+  "bg-surface rounded-[var(--radius-lg)] shadow-[var(--shadow-surface)]",
   "overflow-hidden",
   "h-full",
 ];

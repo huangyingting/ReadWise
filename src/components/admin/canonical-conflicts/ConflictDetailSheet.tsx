@@ -79,7 +79,7 @@ export default function ConflictDetailSheet({ conflictId, onClose, onResolved }:
   return (
     <Sheet open={conflictId !== null} onClose={onClose} side="right" label="Canonical conflict details">
       <div className="flex items-center justify-between gap-[var(--space-3)] border-b border-border px-[var(--space-5)] py-[var(--space-4)]">
-        <h2 className="m-0 text-[length:var(--text-lg)] font-[family-name:var(--font-display)] font-semibold">
+        <h2 className="m-0 text-[length:var(--type-section-title)] font-[family-name:var(--font-display)] font-semibold">
           Conflict details
         </h2>
         <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close details">
@@ -206,7 +206,7 @@ function ConflictDetailBody({
 function ArticleCountsRow({ article }: { article: ConflictArticle }) {
   const items = dependentDataItems(article.dependentData);
   return (
-    <li className="flex flex-col gap-[var(--space-1)] rounded-[var(--radius-md)] border border-border bg-bg-subtle px-[var(--space-3)] py-[var(--space-2)]">
+    <li className="flex flex-col gap-[var(--space-1)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-3)] py-[var(--space-2)]">
       <code className="text-[length:var(--text-xs)] break-all">{article.articleId}</code>
       <span className="text-text-muted text-[length:var(--text-xs)]">
         {items.length === 0
@@ -256,7 +256,7 @@ function ResolveFormTypeA({
   }
 
   return (
-    <section className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-md)] border border-border bg-surface px-[var(--space-4)] py-[var(--space-4)]">
+    <section className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-4)] py-[var(--space-4)]">
       <h3 className="m-0 text-[length:var(--text-sm)] font-semibold">Resolve conflict</h3>
       <p className="m-0 text-text-muted text-[length:var(--text-xs)]">
         Pick the surviving article. The other contested articles are archived out of
@@ -272,7 +272,7 @@ function ResolveFormTypeA({
           return (
             <label
               key={article.articleId}
-              className="flex items-start gap-[var(--space-2)] rounded-[var(--radius-md)] border border-border px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]"
+              className="flex items-start gap-[var(--space-2)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]"
             >
               <input
                 type="radio"
@@ -397,7 +397,7 @@ function ResolveFormTypeB({
       : "Incumbent candidate";
 
   return (
-    <section className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-md)] border border-border bg-surface px-[var(--space-4)] py-[var(--space-4)]">
+    <section className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-4)] py-[var(--space-4)]">
       <h3 className="m-0 text-[length:var(--text-sm)] font-semibold">Resolve runtime conflict</h3>
       <p className="m-0 text-text-muted text-[length:var(--text-xs)]">
         A live challenger resolved to an identity an incumbent already owns. Choose which
@@ -409,7 +409,7 @@ function ResolveFormTypeB({
           Canonical decision
         </legend>
 
-        <label className="flex items-start gap-[var(--space-2)] rounded-[var(--radius-md)] border border-border px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]">
+        <label className="flex items-start gap-[var(--space-2)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]">
           <input
             type="radio"
             name={groupName}
@@ -434,7 +434,7 @@ function ResolveFormTypeB({
           </span>
         </label>
 
-        <label className="flex items-start gap-[var(--space-2)] rounded-[var(--radius-md)] border border-border px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]">
+        <label className="flex items-start gap-[var(--space-2)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]">
           <input
             type="radio"
             name={groupName}

@@ -148,13 +148,13 @@ export default async function AdminOrganizationsPage({
           name="q"
           defaultValue={query}
           placeholder="Search name or slug…"
-          inputSize="md"
+          inputSize="sm"
           className="flex-[1_1_240px]"
           aria-label="Search organizations"
         />
         <input type="hidden" name="sort" value={result.sort} />
         <input type="hidden" name="order" value={result.order} />
-        <Button type="submit" variant="primary" size="md" className="w-auto">
+        <Button type="submit" variant="primary" size="sm" className="w-auto">
           Search
         </Button>
       </AdminFilterBar>

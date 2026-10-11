@@ -7,35 +7,37 @@ interface AdminPageHeaderProps {
   className?: string;
 }
 
-/** Shared admin page `<h1>` with consistent display-font styling. */
+const ADMIN_TITLE_CLASS =
+  "m-0 font-[family-name:var(--font-display)] text-[length:var(--type-page-title-compact)] font-semibold leading-[var(--leading-snug)] tracking-[-0.01em] text-text";
+
+/**
+ * Shared admin page `<h1>` using the compact page-title role. Title, actions,
+ * and subtitle share one header row so admin pages start with content, not
+ * whitespace.
+ */
 export function AdminPageHeader({
   children,
   actions,
   subtitle,
   className,
 }: AdminPageHeaderProps) {
-  const title = (
-    <h1
-      className={cn(
-        "m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text",
-        className,
-      )}
-    >
-      {children}
-    </h1>
-  );
+  const title = <h1 className={cn(ADMIN_TITLE_CLASS, className)}>{children}</h1>;
 
   if (!actions && !subtitle) {
     return title;
   }
 
   return (
-    <div className="flex flex-col gap-[var(--space-2)]">
-      <div className="flex flex-wrap items-center justify-between gap-[var(--space-2)]">
+    <div className="flex flex-wrap items-center justify-between gap-x-[var(--space-4)] gap-y-[var(--space-2)]">
+      <div className="min-w-0">
         {title}
-        {actions ? <div>{actions}</div> : null}
+        {subtitle ? (
+          <p className="m-0 mt-[var(--space-1)] text-[length:var(--type-ui)] text-text-muted">
+            {subtitle}
+          </p>
+        ) : null}
       </div>
-      {subtitle ? <p className="muted m-0">{subtitle}</p> : null}
+      {actions ? <div className="shrink-0">{actions}</div> : null}
     </div>
   );
 }

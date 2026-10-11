@@ -27,7 +27,7 @@ export function VocabularyGrowthSection({
     <section aria-labelledby="vocab-h">
       <h2
         id="vocab-h"
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
+        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--type-section-title)] text-text mb-[var(--space-3)]"
       >
         Vocabulary growth
         <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">

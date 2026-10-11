@@ -25,7 +25,7 @@ export default function AppHeader({ user }: AppHeaderProps) {
 
       <div className="flex shrink-0 items-center gap-[var(--space-2)]">
         <HeaderSearch />
-        <ThemeToggle />
+        <ThemeToggle className="h-9 w-9" />
         {user ? <UserMenu user={user} /> : null}
       </div>
     </HeaderShell>

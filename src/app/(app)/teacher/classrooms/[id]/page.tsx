@@ -24,12 +24,13 @@ import {
   CardBody,
   CardHeader,
   CardTitle,
+  Metric,
+  MetricStrip,
   PageHeader,
   PageShell,
   Select,
 } from "@/components/ui";
 import { buttonVariants } from "@/components/ui/Button";
-import { StatCard } from "@/components/analytics/StatCard";
 import AddStudentForm from "@/components/teacher/AddStudentForm";
 import AssignReadingSheet from "@/components/teacher/AssignReadingSheet";
 import AssignmentFeedbackForm from "@/components/teacher/AssignmentFeedbackForm";
@@ -127,11 +128,11 @@ function studentSummary(student: ClassroomAnalytics["perStudent"][number]) {
 
 function AnalyticsSummary({ analytics }: { analytics: ClassroomAnalytics }) {
   return (
-    <section className="mb-[var(--space-6)] grid grid-cols-2 gap-[var(--space-3)] md:grid-cols-4">
-      <StatCard label="Students" value={analytics.studentCount} />
-      <StatCard label="Assignments" value={analytics.assignmentCount} />
-      <StatCard label="Completion" value={pct(analytics.completionRate)} />
-      <StatCard
+    <MetricStrip columns={4} aria-label="Classroom summary" className="mb-[var(--space-5)]">
+      <Metric label="Students" value={analytics.studentCount} />
+      <Metric label="Assignments" value={analytics.assignmentCount} />
+      <Metric label="Completion" value={pct(analytics.completionRate)} />
+      <Metric
         label="Avg. quiz"
         value={
           analytics.averageQuizScore == null
@@ -139,7 +140,7 @@ function AnalyticsSummary({ analytics }: { analytics: ClassroomAnalytics }) {
             : pct(analytics.averageQuizScore)
         }
       />
-    </section>
+    </MetricStrip>
   );
 }
 
@@ -343,7 +344,7 @@ function StudentProgressCard({
   }) {
     const canFilterStudents = analytics ? !analytics.redacted : false;
     return (
-      <Card className="mb-[var(--space-6)]">
+      <Card className="mb-[var(--space-5)]">
         <CardBody>
           <form method="get" className="flex flex-wrap items-end gap-[var(--space-3)]">
             <label className="flex flex-col gap-[var(--space-1)] text-[length:var(--text-sm)]">
@@ -421,7 +422,7 @@ function StudentProgressCard({
                 return (
                   <li
                     key={`${row.assignmentId}:${row.studentId}`}
-                    className="rounded-[var(--radius-md)] border border-border p-[var(--space-3)]"
+                    className="rounded-[var(--radius-md)] bg-bg-subtle p-[var(--space-3)]"
                   >
                     <div className="flex flex-col gap-[var(--space-1)] sm:flex-row sm:items-center sm:justify-between">
                       <span className="font-medium text-text">

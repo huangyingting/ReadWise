@@ -10,7 +10,7 @@ const browseButtonClassName = buttonVariants({ variant: "secondary", size: "md" 
 
 export function DashboardBrowseCta() {
   return (
-    <section className="mt-[var(--space-7)]">
+    <section className="mt-[var(--section-gap)]">
       <Card>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-[var(--space-4)]">
           <div>

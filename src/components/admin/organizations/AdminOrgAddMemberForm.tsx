@@ -51,7 +51,7 @@ export default function AdminOrgAddMemberForm({
 
   return (
     <Card className="stack">
-      <h3 className="m-0 font-semibold text-[length:var(--text-lg)]">
+      <h3 className="m-0 font-semibold text-[length:var(--type-section-title)]">
         Add member
       </h3>
       <form onSubmit={submit} className="stack">
@@ -66,7 +66,7 @@ export default function AdminOrgAddMemberForm({
               name="userId"
               value={userId}
               onChange={(event) => setUserId(event.target.value)}
-              inputSize="md"
+              inputSize="sm"
               disabled={busy}
               autoComplete="off"
             />
@@ -76,7 +76,7 @@ export default function AdminOrgAddMemberForm({
               name="role"
               value={role}
               onChange={(event) => setRole(event.target.value as MembershipRole)}
-              selectSize="md"
+              selectSize="sm"
               disabled={busy}
             >
               {ADMIN_ORG_MEMBER_ROLES.map((option) => (
@@ -89,7 +89,7 @@ export default function AdminOrgAddMemberForm({
           <Button
             type="submit"
             variant="primary"
-            size="md"
+            size="sm"
             className="w-auto mt-[var(--space-7)]"
             disabled={!canSubmit}
             loading={busy}

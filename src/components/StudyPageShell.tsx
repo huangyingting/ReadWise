@@ -54,7 +54,7 @@ export default function StudyPageShell({
       {/* Saved words list — dimmed + inert while a review session is active */}
       <Section
         title="Saved words"
-        className="mt-[var(--space-7)]"
+        className="mt-[var(--section-gap)]"
       >
         <Toolbar className="mb-[var(--space-4)]">
           <p className="text-text-muted text-[length:var(--text-sm)] m-0">
