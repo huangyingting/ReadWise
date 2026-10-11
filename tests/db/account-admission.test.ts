@@ -16,6 +16,10 @@ import {
   setPasswordForUser,
 } from "@/lib/account-admission";
 import { verifyPassword } from "@/lib/account-admission/passwords";
+import {
+  acknowledgeAccountMail,
+  claimAccountMail,
+} from "@/lib/account-admission/account-mail-outbox";
 
 import { enabled } from "./support/db-config";
 import { id, registerIntegrationCleanup } from "./support/db-helpers";
@@ -23,6 +27,10 @@ import { id, registerIntegrationCleanup } from "./support/db-helpers";
 registerIntegrationCleanup();
 
 const PASSWORD = "correct horse battery staple";
+process.env.ACCOUNT_MAIL_WORKFLOW_ENABLED = "true";
+process.env.ACCOUNT_MAIL_WORKER_SECRET = "db-integration-mail-worker";
+process.env.APP_URL = "https://readwise.example.test";
+process.env.NEXTAUTH_SECRET ??= "db-integration-nextauth-secret";
 
 async function createAdmin(): Promise<string> {
   const adminId = id("admission_admin");
@@ -139,6 +147,59 @@ test("Account Invitation rotation invalidates the old token and revocation is id
     (await inspectAccountInvitation(rotated.token)).status,
     "invalid",
   );
+});
+
+test("Account email outbox claims only the active rotated link and fences acknowledgement", { skip: !enabled }, async () => {
+  const invitedById = await createAdmin();
+  const email = `${id("mail_queue")}@example.invalid`;
+  const created = await createAccountInvitation({ email, invitedById });
+  const rotated = await rotateAccountInvitation(created.invitation.id);
+
+  assert.deepEqual(created.delivery, { queued: true });
+  assert.deepEqual(rotated.delivery, { queued: true });
+  const queuedRows = await prisma.accountEmailOutbox.findMany({
+    where: { invitationId: created.invitation.id },
+    orderBy: { createdAt: "asc" },
+  });
+  assert.equal(queuedRows.length, 2);
+  assert.doesNotMatch(queuedRows[0]!.payload, new RegExp(email));
+  assert.doesNotMatch(queuedRows[0]!.payload, new RegExp(created.token));
+
+  const batches = await Promise.all([
+    claimAccountMail(),
+    claimAccountMail(),
+  ]);
+  const claimed = batches.flat();
+  assert.equal(claimed.length, 1);
+  assert.equal(claimed[0]!.to, email);
+  assert.match(claimed[0]!.body, new RegExp(rotated.token));
+  assert.doesNotMatch(claimed[0]!.body, new RegExp(created.token));
+
+  assert.equal(
+    await acknowledgeAccountMail(
+      claimed[0]!.id,
+      "wrong-claim",
+      "sent",
+    ),
+    false,
+  );
+  assert.equal(
+    await acknowledgeAccountMail(
+      claimed[0]!.id,
+      claimed[0]!.claimToken,
+      "sent",
+    ),
+    true,
+  );
+  const finalRows = await prisma.accountEmailOutbox.findMany({
+    where: { invitationId: created.invitation.id },
+    orderBy: { createdAt: "asc" },
+  });
+  assert.deepEqual(
+    finalRows.map((row) => row.status).sort(),
+    ["failed", "sent"],
+  );
+  assert.equal(finalRows.every((row) => row.payload === ""), true);
 });
 
 test("Public Account Admission verifies email before creating the User", { skip: !enabled }, async () => {

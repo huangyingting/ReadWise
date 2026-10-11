@@ -29,6 +29,7 @@ export function id(label: string): string {
 
 /** Deletes all rows created by the integration suite (identified by PREFIX). */
 export async function cleanIntegrationRows(): Promise<void> {
+  await prisma.accountEmailOutbox.deleteMany();
   await prisma.pendingRegistration.deleteMany({
     where: { normalizedEmail: { startsWith: PREFIX } },
   });

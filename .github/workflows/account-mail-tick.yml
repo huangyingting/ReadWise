@@ -1,0 +1,31 @@
+name: Account email configuration check
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: account-mail-tick
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Check workflow mail backend configuration
+        env:
+          MAIL_URL: ${{ vars.ACCOUNT_MAIL_TICK_URL }}
+          MAIL_SECRET: ${{ secrets.ACCOUNT_MAIL_WORKER_SECRET }}
+        run: |
+          set -Eeuo pipefail
+          if [ -z "$MAIL_URL" ] || [ -z "$MAIL_SECRET" ]; then
+            echo "Account email is not enabled."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 300 \
+            --proto '=https' \
+            --request POST \
+            --header "Authorization: Bearer $MAIL_SECRET" \
+            "$MAIL_URL?check=1"

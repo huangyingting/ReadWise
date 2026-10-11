@@ -174,6 +174,7 @@ export async function resetE2eDatabase(): Promise<void> {
     prisma.session.deleteMany(),
     prisma.verificationToken.deleteMany(),
     prisma.pendingRegistration.deleteMany(),
+    prisma.accountEmailOutbox.deleteMany(),
     prisma.accountInvitation.deleteMany(),
     prisma.passwordCredential.deleteMany(),
     prisma.user.deleteMany(),

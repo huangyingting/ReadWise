@@ -1,19 +1,12 @@
 import assert from "node:assert/strict";
-import { generateKeyPairSync } from "node:crypto";
 import { test } from "node:test";
 
 import {
   accountAdmissionRetentionDays,
-  emailDeliveryConfig,
+  accountMailWorkflowConfig,
   inspectAccountAdmissionConfig,
   inspectEmailDeliveryConfig,
 } from "@/lib/runtime-config/account-admission";
-
-const directPrivateKey = generateKeyPairSync("rsa", {
-  modulusLength: 2048,
-  privateKeyEncoding: { type: "pkcs8", format: "pem" },
-  publicKeyEncoding: { type: "spki", format: "pem" },
-}).privateKey;
 
 function restoreEnv(
   values: Record<string, string | undefined>,
@@ -24,108 +17,25 @@ function restoreEnv(
   }
 }
 
-test("email delivery is optional and supports authenticated SMTP", () => {
+test("GitHub Actions account mail is optional and requires an enabled worker secret", () => {
   const previous = {
-    SMTP_URL: process.env.SMTP_URL,
-    EMAIL_FROM: process.env.EMAIL_FROM,
-    ACCOUNT_MAIL_FROM: process.env.ACCOUNT_MAIL_FROM,
-    ACCOUNT_MAIL_DKIM_SELECTOR:
-      process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
-    ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
-      process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
-    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
+    ACCOUNT_MAIL_WORKFLOW_ENABLED:
+      process.env.ACCOUNT_MAIL_WORKFLOW_ENABLED,
+    ACCOUNT_MAIL_WORKER_SECRET: process.env.ACCOUNT_MAIL_WORKER_SECRET,
   };
   try {
-    delete process.env.SMTP_URL;
-    delete process.env.EMAIL_FROM;
-    delete process.env.ACCOUNT_MAIL_FROM;
-    delete process.env.ACCOUNT_MAIL_DKIM_SELECTOR;
-    delete process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64;
-    delete process.env.ACCOUNT_MAIL_HELO_DOMAIN;
-    assert.equal(emailDeliveryConfig.get(), null);
+    delete process.env.ACCOUNT_MAIL_WORKFLOW_ENABLED;
+    delete process.env.ACCOUNT_MAIL_WORKER_SECRET;
+    assert.equal(accountMailWorkflowConfig.get(), null);
+    assert.equal(inspectEmailDeliveryConfig().status, "unconfigured");
 
-    process.env.SMTP_URL = "smtps://mailer.example.invalid:465";
-    assert.equal(emailDeliveryConfig.get(), null);
-
-    process.env.EMAIL_FROM = "ReadWise <noreply@example.invalid>";
-    assert.deepEqual(emailDeliveryConfig.get(), {
-      kind: "smtp",
-      smtpUrl: "smtps://mailer.example.invalid:465",
-      from: "ReadWise <noreply@example.invalid>",
-    });
-  } finally {
-    restoreEnv(previous);
-  }
-});
-
-test("direct DKIM delivery supports a PTR-aligned HELO domain", () => {
-  const previous = {
-    SMTP_URL: process.env.SMTP_URL,
-    EMAIL_FROM: process.env.EMAIL_FROM,
-    ACCOUNT_MAIL_FROM: process.env.ACCOUNT_MAIL_FROM,
-    ACCOUNT_MAIL_DKIM_SELECTOR:
-      process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
-    ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
-      process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
-    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
-  };
-  try {
-    delete process.env.SMTP_URL;
-    delete process.env.EMAIL_FROM;
-    process.env.ACCOUNT_MAIL_FROM = "NOREPLY@genisisiq.example";
-    process.env.ACCOUNT_MAIL_DKIM_SELECTOR = "readwise-test";
-    process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64 =
-      Buffer.from(directPrivateKey).toString("base64");
-    process.env.ACCOUNT_MAIL_HELO_DOMAIN = "mail.genisisiq.example";
-
-    assert.deepEqual(emailDeliveryConfig.get(), {
-      kind: "direct",
-      from: "noreply@genisisiq.example",
-      heloDomain: "mail.genisisiq.example",
-      selector: "readwise-test",
-      privateKey: directPrivateKey.trim(),
-    });
-    assert.equal(inspectEmailDeliveryConfig().status, "configured");
-
-    process.env.ACCOUNT_MAIL_HELO_DOMAIN = "invalid hostname";
-    assert.equal(emailDeliveryConfig.get(), null);
+    process.env.ACCOUNT_MAIL_WORKFLOW_ENABLED = "true";
+    assert.equal(accountMailWorkflowConfig.get(), null);
     assert.equal(inspectEmailDeliveryConfig().status, "degraded");
 
-    delete process.env.ACCOUNT_MAIL_HELO_DOMAIN;
-    const fallbackConfig = emailDeliveryConfig.get();
-    assert.equal(
-      fallbackConfig?.kind === "direct" ? fallbackConfig.heloDomain : null,
-      "genisisiq.example",
-    );
-  } finally {
-    restoreEnv(previous);
-  }
-});
-
-test("authenticated SMTP takes precedence over complete direct DKIM delivery", () => {
-  const previous = {
-    SMTP_URL: process.env.SMTP_URL,
-    EMAIL_FROM: process.env.EMAIL_FROM,
-    ACCOUNT_MAIL_FROM: process.env.ACCOUNT_MAIL_FROM,
-    ACCOUNT_MAIL_DKIM_SELECTOR:
-      process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
-    ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
-      process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
-    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
-  };
-  try {
-    process.env.SMTP_URL = "smtps://mailer.example.invalid:465";
-    process.env.EMAIL_FROM = "ReadWise <noreply@example.invalid>";
-    process.env.ACCOUNT_MAIL_FROM = "NOREPLY@readwise.example.invalid";
-    process.env.ACCOUNT_MAIL_DKIM_SELECTOR = "readwise-test";
-    process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64 =
-      Buffer.from(directPrivateKey).toString("base64");
-    process.env.ACCOUNT_MAIL_HELO_DOMAIN = "mail.readwise.example.invalid";
-
-    assert.deepEqual(emailDeliveryConfig.get(), {
-      kind: "smtp",
-      smtpUrl: "smtps://mailer.example.invalid:465",
-      from: "ReadWise <noreply@example.invalid>",
+    process.env.ACCOUNT_MAIL_WORKER_SECRET = "worker-secret";
+    assert.deepEqual(accountMailWorkflowConfig.get(), {
+      secret: "worker-secret",
     });
     assert.equal(inspectEmailDeliveryConfig().status, "configured");
   } finally {
@@ -133,94 +43,53 @@ test("authenticated SMTP takes precedence over complete direct DKIM delivery", (
   }
 });
 
-test("invalid direct DKIM configuration degrades while SMTP remains usable", () => {
+test("invalid or inactive account mail workflow configuration degrades explicitly", () => {
   const previous = {
-    SMTP_URL: process.env.SMTP_URL,
-    EMAIL_FROM: process.env.EMAIL_FROM,
-    ACCOUNT_MAIL_FROM: process.env.ACCOUNT_MAIL_FROM,
-    ACCOUNT_MAIL_DKIM_SELECTOR:
-      process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
-    ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
-      process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
-    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
+    ACCOUNT_MAIL_WORKFLOW_ENABLED:
+      process.env.ACCOUNT_MAIL_WORKFLOW_ENABLED,
+    ACCOUNT_MAIL_WORKER_SECRET: process.env.ACCOUNT_MAIL_WORKER_SECRET,
   };
   try {
-    process.env.SMTP_URL = "smtps://mailer.example.invalid:465";
-    process.env.EMAIL_FROM = "ReadWise <noreply@example.invalid>";
-    process.env.ACCOUNT_MAIL_FROM = "noreply@readwise.example.invalid";
-    process.env.ACCOUNT_MAIL_DKIM_SELECTOR = "readwise-test";
-    process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64 = "not-a-private-key";
-    process.env.ACCOUNT_MAIL_HELO_DOMAIN = "mail.readwise.example.invalid";
-
-    assert.equal(emailDeliveryConfig.get()?.kind, "smtp");
-    const report = inspectEmailDeliveryConfig();
-    assert.equal(report.status, "degraded");
-    assert.equal(report.configured, true);
+    process.env.ACCOUNT_MAIL_WORKFLOW_ENABLED = "sometimes";
+    process.env.ACCOUNT_MAIL_WORKER_SECRET = "worker-secret";
+    assert.equal(accountMailWorkflowConfig.get(), null);
+    const invalid = inspectEmailDeliveryConfig();
+    assert.equal(invalid.status, "degraded");
     assert.match(
-      report.issues.map((item) => item.message).join(" "),
-      /2048-bit RSA private key/i,
+      invalid.issues.map((item) => item.message).join(" "),
+      /must be true or false/i,
+    );
+
+    process.env.ACCOUNT_MAIL_WORKFLOW_ENABLED = "false";
+    const inactive = inspectEmailDeliveryConfig();
+    assert.equal(inactive.status, "degraded");
+    assert.match(
+      inactive.issues.map((item) => item.message).join(" "),
+      /not enabled/i,
     );
   } finally {
     restoreEnv(previous);
   }
 });
 
-test("malformed SMTP does not satisfy public registration delivery", () => {
+test("public Account Admission requires queued email delivery", () => {
   const previous = {
     ACCOUNT_ADMISSION_MODE: process.env.ACCOUNT_ADMISSION_MODE,
-    SMTP_URL: process.env.SMTP_URL,
-    EMAIL_FROM: process.env.EMAIL_FROM,
-    ACCOUNT_MAIL_FROM: process.env.ACCOUNT_MAIL_FROM,
-    ACCOUNT_MAIL_DKIM_SELECTOR:
-      process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
-    ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
-      process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
-    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
+    ACCOUNT_MAIL_WORKFLOW_ENABLED:
+      process.env.ACCOUNT_MAIL_WORKFLOW_ENABLED,
+    ACCOUNT_MAIL_WORKER_SECRET: process.env.ACCOUNT_MAIL_WORKER_SECRET,
   };
   try {
     process.env.ACCOUNT_ADMISSION_MODE = "public";
-    process.env.SMTP_URL = "https://mailer.example.invalid";
-    process.env.EMAIL_FROM = "ReadWise <noreply@example.invalid>";
-    delete process.env.ACCOUNT_MAIL_FROM;
-    delete process.env.ACCOUNT_MAIL_DKIM_SELECTOR;
-    delete process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64;
-    delete process.env.ACCOUNT_MAIL_HELO_DOMAIN;
-
-    assert.equal(emailDeliveryConfig.get(), null);
-    assert.equal(inspectEmailDeliveryConfig().status, "degraded");
-    assert.equal(inspectAccountAdmissionConfig().configured, false);
-  } finally {
-    restoreEnv(previous);
-  }
-});
-
-test("public Account Admission reports missing email delivery as degraded", () => {
-  const previous = {
-    ACCOUNT_ADMISSION_MODE: process.env.ACCOUNT_ADMISSION_MODE,
-    SMTP_URL: process.env.SMTP_URL,
-    EMAIL_FROM: process.env.EMAIL_FROM,
-    ACCOUNT_MAIL_FROM: process.env.ACCOUNT_MAIL_FROM,
-    ACCOUNT_MAIL_DKIM_SELECTOR:
-      process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
-    ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
-      process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
-    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
-  };
-  try {
-    process.env.ACCOUNT_ADMISSION_MODE = "public";
-    delete process.env.SMTP_URL;
-    delete process.env.EMAIL_FROM;
-    delete process.env.ACCOUNT_MAIL_FROM;
-    delete process.env.ACCOUNT_MAIL_DKIM_SELECTOR;
-    delete process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64;
-    delete process.env.ACCOUNT_MAIL_HELO_DOMAIN;
+    delete process.env.ACCOUNT_MAIL_WORKFLOW_ENABLED;
+    delete process.env.ACCOUNT_MAIL_WORKER_SECRET;
 
     const report = inspectAccountAdmissionConfig();
     assert.equal(report.status, "degraded");
     assert.equal(report.configured, false);
     assert.match(
       report.issues[0]?.message ?? "",
-      /public registration requires either direct DKIM account mail or SMTP delivery/i,
+      /GitHub Actions account mail workflow/i,
     );
   } finally {
     restoreEnv(previous);

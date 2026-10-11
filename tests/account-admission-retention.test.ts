@@ -8,6 +8,7 @@ before(() => {
 });
 
 function retentionClient(counts = {
+  emails: 5,
   registrations: 2,
   invitations: 3,
   resets: 4,
@@ -16,6 +17,16 @@ function retentionClient(counts = {
   return {
     calls,
     client: {
+      accountEmailOutbox: {
+        count: async (args: unknown) => {
+          calls.emailCount = args;
+          return counts.emails;
+        },
+        deleteMany: async (args: unknown) => {
+          calls.emailDelete = args;
+          return { count: counts.emails };
+        },
+      },
       pendingRegistration: {
         count: async (args: unknown) => {
           calls.pendingCount = args;
@@ -63,7 +74,7 @@ test("Account Admission retention counts expired secrets and terminal invitation
     now,
   );
 
-  assert.equal(count, 9);
+  assert.equal(count, 14);
   const invitationWhere = (
     calls.invitationCount as {
       where: { updatedAt: { lt: Date }; status: { in: string[] } };
@@ -78,6 +89,19 @@ test("Account Admission retention counts expired secrets and terminal invitation
     "REVOKED",
     "EXPIRED",
   ]);
+  const outboxWhere = (
+    calls.emailCount as {
+      where: {
+        OR: Array<{
+          status: string | { notIn: string[] };
+        }>;
+      };
+    }
+  ).where;
+  assert.equal(outboxWhere.OR[0]?.status, "pending");
+  assert.deepEqual(outboxWhere.OR[1]?.status, {
+    notIn: ["pending", "sending"],
+  });
 });
 
 test("Account Admission retention deletes expired pending rows and clears reset tokens", async () => {
@@ -93,7 +117,7 @@ test("Account Admission retention deletes expired pending rows and clears reset 
     now,
   );
 
-  assert.equal(processed, 9);
+  assert.equal(processed, 14);
   assert.deepEqual(
     (calls.resetUpdate as { data: unknown }).data,
     { resetTokenHash: null, resetExpiresAt: null },

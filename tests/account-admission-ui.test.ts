@@ -39,12 +39,10 @@ test("Account Invitation expiry defaults to seven days with an optional calendar
   assert.match(invitationAdminSource, /md:grid-cols-2/);
 });
 
-test("Account Invitation UI does not claim ambiguous delivery failed", () => {
-  assert.match(invitationAdminSource, /delivery_unconfirmed/);
-  assert.match(invitationAdminSource, /could not be confirmed/);
-  assert.match(invitationAdminSource, /Do not resend automatically/);
-  assert.match(invitationAdminSource, /blocked the direct sender/);
-  assert.match(invitationAdminSource, /authenticated email relay/);
+test("Account Invitation UI distinguishes queued workflow delivery", () => {
+  assert.match(invitationAdminSource, /queued for the GitHub Actions sender/);
+  assert.match(invitationAdminSource, /public application URL is unavailable/);
+  assert.doesNotMatch(invitationAdminSource, /invitation email was sent/i);
 });
 
 test("Account Invitation management explains revoke and retention semantics", () => {

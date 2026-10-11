@@ -8,6 +8,7 @@ const counts = {
   ai: 0,
   audit: 0,
   jobs: 0,
+  accountEmails: 0,
   pendingRegistrations: 0,
   terminalInvitations: 0,
   resetTokens: 0,
@@ -17,6 +18,7 @@ const deletes = {
   ai: 0,
   audit: 0,
   jobs: 0,
+  accountEmails: 0,
   pendingRegistrations: 0,
   terminalInvitations: 0,
   resetTokens: 0,
@@ -41,6 +43,10 @@ type PrismaMock = {
     create: (args: { data: Record<string, unknown> }) => Promise<{ id: string }>;
   };
   job: {
+    count: (args: unknown) => Promise<number>;
+    deleteMany: (args: unknown) => Promise<{ count: number }>;
+  };
+  accountEmailOutbox: {
     count: (args: unknown) => Promise<number>;
     deleteMany: (args: unknown) => Promise<{ count: number }>;
   };
@@ -105,6 +111,16 @@ const prismaMock: PrismaMock = {
       return { count: deletes.jobs };
     },
   },
+  accountEmailOutbox: {
+    count: async (args: unknown) => {
+      countArgs.accountEmails = [args];
+      return counts.accountEmails;
+    },
+    deleteMany: async (args: unknown) => {
+      deleteArgs.accountEmails = [args];
+      return { count: deletes.accountEmails };
+    },
+  },
   pendingRegistration: {
     count: async (args: unknown) => {
       countArgs.pendingRegistrations = [args];
@@ -153,6 +169,7 @@ beforeEach(() => {
   counts.ai = 3;
   counts.audit = 4;
   counts.jobs = 5;
+  counts.accountEmails = 5;
   counts.pendingRegistrations = 6;
   counts.terminalInvitations = 7;
   counts.resetTokens = 8;
@@ -160,6 +177,7 @@ beforeEach(() => {
   deletes.ai = 30;
   deletes.audit = 40;
   deletes.jobs = 50;
+  deletes.accountEmails = 50;
   deletes.pendingRegistrations = 60;
   deletes.terminalInvitations = 70;
   deletes.resetTokens = 80;
@@ -196,7 +214,7 @@ test("retention maintenance defaults to dry-run count output", async () => {
     ["ai", 3, 0],
     ["audit", 4, 0],
     ["jobs", 5, 0],
-    ["account-admission", 21, 0],
+    ["account-admission", 26, 0],
   ]);
   assert.deepEqual(deleteArgs, {});
   assert.match(errors[0]!, /Dry run only/);
@@ -227,9 +245,9 @@ test("retention maintenance executes all retention helpers when explicit", async
     ["ai", 30],
     ["audit", 40],
     ["jobs", 50],
-    ["account-admission", 210],
+    ["account-admission", 260],
   ]);
-  assert.equal(Object.keys(deleteArgs).length, 7);
+  assert.equal(Object.keys(deleteArgs).length, 8);
   assert.deepEqual(errors, []);
 });
 

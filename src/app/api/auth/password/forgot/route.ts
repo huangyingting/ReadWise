@@ -4,7 +4,6 @@ import { object, string } from "@/lib/validation";
 import {
   enforceAccountAdmissionRateLimit,
   requestPasswordReset,
-  sendPasswordResetEmail,
 } from "@/lib/account-admission";
 
 const forgotPasswordBody = object({
@@ -15,13 +14,7 @@ export const POST = createPublicHandler(
   { body: forgotPasswordBody },
   async ({ req, body }) => {
     await enforceAccountAdmissionRateLimit(req, body.email);
-    const reset = await requestPasswordReset(body.email);
-    if (reset) {
-      await sendPasswordResetEmail({
-        email: reset.email,
-        token: reset.token,
-      });
-    }
+    await requestPasswordReset(body.email);
     return NextResponse.json(
       {
         ok: true,

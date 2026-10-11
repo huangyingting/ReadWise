@@ -157,10 +157,9 @@ The authoritative examples live in `.env.example`; the typed owners live in
 `src/lib/runtime-config/`. Keep both files aligned whenever a helper reads a new
 variable or changes a default.
 
-ReadWise-owned account email imports the patched Nodemailer 10 runtime through
-the `nodemailer10` npm alias. The separate Nodemailer 7 dependency remains only
-to satisfy NextAuth 4's peer range; do not move application delivery back to
-that vulnerable compatibility dependency.
+ReadWise-owned account email is encrypted and queued in PostgreSQL. The private
+GitHub Actions sender authenticates to `/api/account-mail/tick`; the application
+does not import an SMTP client or hold the shared DKIM private key.
 
 ### AI provider, ledger, budgets, and moderation
 
@@ -239,8 +238,8 @@ that vulnerable compatibility dependency.
 | `ANALYTICS_RETENTION_DAYS` | `400` | `analytics.ts` |
 | `ACCOUNT_ADMISSION_MODE` | `invitation-only`; accepts `invitation-only` or `public` | `account-admission.ts` |
 | `ACCOUNT_ADMISSION_RETENTION_DAYS` | `90`; positive integers only | `account-admission.ts` |
-| `SMTP_URL`, `EMAIL_FROM` | Optional authenticated SMTP relay; both required together | `account-admission.ts` |
-| `ACCOUNT_MAIL_FROM`, `ACCOUNT_MAIL_DKIM_SELECTOR`, `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64`, `ACCOUNT_MAIL_HELO_DOMAIN` | Optional direct-to-MX account email; sender, selector, and a base64-encoded 2048-bit-or-stronger RSA PEM key are required. The optional HELO hostname defaults to the sender domain. Valid SMTP takes precedence over direct delivery. | `account-admission.ts` |
+| `ACCOUNT_MAIL_WORKFLOW_ENABLED` | `false`; account mail queues only when exactly `true` | `account-admission.ts` |
+| `ACCOUNT_MAIL_WORKER_SECRET` | Required when the workflow is enabled; authenticates the private sender broker calls | `account-admission.ts` |
 
 ---
 
@@ -249,7 +248,7 @@ that vulnerable compatibility dependency.
 | Module | Exported as | Env vars owned |
 | --- | --- | --- |
 | `src/lib/runtime-config/ai.ts` | `ai` | `AZURE_OPENAI_*`, `AI_PROVIDER`, `AI_MODERATION_ENABLED`, `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, context/output token budgets, ledger, cost, quota env vars |
-| `src/lib/runtime-config/account-admission.ts` | — | `ACCOUNT_ADMISSION_MODE`, `ACCOUNT_ADMISSION_RETENTION_DAYS`, `SMTP_URL`, `EMAIL_FROM`, `ACCOUNT_MAIL_FROM`, `ACCOUNT_MAIL_HELO_DOMAIN`, `ACCOUNT_MAIL_DKIM_SELECTOR`, `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` |
+| `src/lib/runtime-config/account-admission.ts` | — | `ACCOUNT_ADMISSION_MODE`, `ACCOUNT_ADMISSION_RETENTION_DAYS`, `ACCOUNT_MAIL_WORKFLOW_ENABLED`, `ACCOUNT_MAIL_WORKER_SECRET` |
 | `src/lib/runtime-config/analytics.ts` | `analytics` | `ANALYTICS_ENABLED`, `ANALYTICS_RETENTION_DAYS` |
 | `src/lib/runtime-config/database.ts` | `database` | `DATABASE_URL`, `PRISMA_SCHEMA_PATH`, `DB_QUERY_TIMING_ENABLED`, `DB_SLOW_QUERY_THRESHOLD_MS` |
 | `src/lib/runtime-config/dictionary.ts` | `dictionary` | `DICTIONARY_PROVIDER`, `LOCAL_DICTIONARY_DIR`, `LOCAL_DICTIONARY_LANGUAGE` |

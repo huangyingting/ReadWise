@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { runSerializableTransaction } from "@/lib/database/serializable-transaction";
 import { AccountAdmissionError } from "./errors";
+import { queueRegistrationVerificationEmail } from "./email";
 import { hashPassword } from "./passwords";
 import {
   accountAdmissionMode,
@@ -170,34 +171,48 @@ export async function beginPublicRegistration(input: RegistrationInput) {
   const tokenHash = hashOpaqueToken(token);
   const expiresAt = new Date(Date.now() + PUBLIC_REGISTRATION_TTL_MS);
 
-  const existing = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-    select: { id: true },
-  });
-  if (existing) {
-    return { token: null, email: null, expiresAt };
-  }
+  return runSerializableTransaction(async (tx) => {
+    const existing = await tx.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+    if (existing) {
+      return { token: null, email: null, expiresAt };
+    }
 
-  await prisma.pendingRegistration.upsert({
-    where: { normalizedEmail },
-    create: {
-      email: input.email.trim(),
-      normalizedEmail,
-      name: normalizedName(input.name),
-      passwordHash,
-      tokenHash,
+    const pending = await tx.pendingRegistration.upsert({
+      where: { normalizedEmail },
+      create: {
+        email: input.email.trim(),
+        normalizedEmail,
+        name: normalizedName(input.name),
+        passwordHash,
+        tokenHash,
+        expiresAt,
+      },
+      update: {
+        email: input.email.trim(),
+        name: normalizedName(input.name),
+        passwordHash,
+        tokenHash,
+        expiresAt,
+      },
+    });
+    const delivery = await queueRegistrationVerificationEmail(tx, {
+      email: pending.email,
+      token,
       expiresAt,
-    },
-    update: {
-      email: input.email.trim(),
-      name: normalizedName(input.name),
-      passwordHash,
-      tokenHash,
-      expiresAt,
-    },
+      registrationHash: tokenHash,
+    });
+    if (!delivery.queued) {
+      throw new AccountAdmissionError(
+        503,
+        "email_unavailable",
+        "Registration email delivery is unavailable.",
+      );
+    }
+    return { token, email: normalizedEmail, expiresAt };
   });
-
-  return { token, email: normalizedEmail, expiresAt };
 }
 
 export async function completePublicRegistration(token: string) {

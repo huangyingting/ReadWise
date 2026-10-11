@@ -58,15 +58,17 @@ flowchart TD
 | `PasswordCredential` (passwordHash, resetTokenHash, resetExpiresAt) | Account Admission | **sensitive** | ⛔ | Cascade via `PasswordCredential.userId` | Not affected | Password hash lives with User; reset token hash expires after one hour and is cleared by daily retention maintenance | No |
 | `PendingRegistration` (email, passwordHash, tokenHash) | Account Admission | **sensitive** | ⛔ — no User exists yet | Not FK-linked; consumed on verification | Not affected | 24-hour expiry; expired rows deleted by daily retention maintenance | No |
 | `AccountInvitation` (email, tokenHash, lifecycle) | Account Admission | **personal + operational** | ⛔ | Inviter/acceptor references become null on deletion | Not affected | Pending token expires after seven days; terminal rows default to 90 days via `ACCOUNT_ADMISSION_RETENTION_DAYS` and are pruned by daily retention maintenance | No — recipient email/token/link are forbidden in logs and audit metadata |
+| `AccountEmailOutbox` (encrypted payload, claim/status timestamps) | Account Admission | **sensitive + operational** | ⛔ | Invitation deletion sets `invitationId` null; registration/reset rows have no User FK | Not affected | Link expiry bounds pending rows; terminal transitions clear payload immediately; retention maintenance and worker claim cleanup delete expired terminal rows | No — encrypted payload, recipient, subject, body, link context, and claim token are forbidden in logs and metadata |
 
 > `Account.access_token`, `refresh_token`, `id_token`, `providerAccountId`,
 > `scope`, and `session_state` are never included in exports, audit metadata, or
 > error context. `Session.sessionToken` is never logged.
 >
-> Invitation, verification, and reset email bodies are generated in memory and
-> are not persisted to a mail outbox. Direct delivery may be lost on process
-> termination; this deliberately preserves the rule that raw secret links are
-> never stored, including in encrypted payloads.
+> Invitation, verification, and reset messages are persisted only as
+> AES-256-GCM ciphertext derived from `NEXTAUTH_SECRET`. The plaintext exists
+> only in application/worker memory, and every terminal outbox transition clears
+> the payload. Queue responses and workflow logs must never expose recipient,
+> subject, body, token, or link-validation hashes.
 
 ---
 

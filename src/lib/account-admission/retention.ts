@@ -6,7 +6,10 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 type RetentionClient = Pick<
   Prisma.TransactionClient,
-  "accountInvitation" | "pendingRegistration" | "passwordCredential"
+  | "accountEmailOutbox"
+  | "accountInvitation"
+  | "pendingRegistration"
+  | "passwordCredential"
 >;
 
 function terminalInvitationCutoff(days: number, now: Date): Date {
@@ -30,13 +33,38 @@ function terminalInvitationWhere(days: number, now: Date) {
   };
 }
 
+function expiredOutboxWhere(now: Date) {
+  return {
+    OR: [
+      {
+        status: "pending",
+        expiresAt: { lte: now },
+      },
+      {
+        status: { notIn: ["pending", "sending"] },
+        OR: [
+          { expiresAt: { lte: now } },
+          {
+            createdAt: {
+              lt: new Date(now.getTime() - 7 * MS_PER_DAY),
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export async function countExpiredAccountAdmissionData(
   invitationRetentionDays = accountAdmissionRetentionDays(),
   client: RetentionClient = prisma,
   now = new Date(),
 ): Promise<number> {
-  const [pendingRegistrations, terminalInvitations, resetTokens] =
+  const [queuedEmails, pendingRegistrations, terminalInvitations, resetTokens] =
     await Promise.all([
+      client.accountEmailOutbox.count({
+        where: expiredOutboxWhere(now),
+      }),
       client.pendingRegistration.count({
         where: { expiresAt: { lte: now } },
       }),
@@ -50,7 +78,7 @@ export async function countExpiredAccountAdmissionData(
         },
       }),
     ]);
-  return pendingRegistrations + terminalInvitations + resetTokens;
+  return queuedEmails + pendingRegistrations + terminalInvitations + resetTokens;
 }
 
 export async function pruneExpiredAccountAdmissionData(
@@ -58,8 +86,11 @@ export async function pruneExpiredAccountAdmissionData(
   client: RetentionClient = prisma,
   now = new Date(),
 ): Promise<number> {
-  const [pendingRegistrations, terminalInvitations, resetTokens] =
+  const [queuedEmails, pendingRegistrations, terminalInvitations, resetTokens] =
     await Promise.all([
+      client.accountEmailOutbox.deleteMany({
+        where: expiredOutboxWhere(now),
+      }),
       client.pendingRegistration.deleteMany({
         where: { expiresAt: { lte: now } },
       }),
@@ -78,6 +109,7 @@ export async function pruneExpiredAccountAdmissionData(
       }),
     ]);
   return (
+    queuedEmails.count +
     pendingRegistrations.count +
     terminalInvitations.count +
     resetTokens.count

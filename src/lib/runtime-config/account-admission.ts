@@ -1,4 +1,3 @@
-import { createPrivateKey } from "node:crypto";
 import {
   defineFeatureConfig,
   envValue,
@@ -9,159 +8,59 @@ import {
 
 const ACCOUNT_ADMISSION_ENV = "ACCOUNT_ADMISSION_MODE";
 const ACCOUNT_ADMISSION_RETENTION_ENV = "ACCOUNT_ADMISSION_RETENTION_DAYS";
-const SMTP_EMAIL_ENV = ["SMTP_URL", "EMAIL_FROM"] as const;
-const DIRECT_EMAIL_ENV = [
-  "ACCOUNT_MAIL_FROM",
-  "ACCOUNT_MAIL_DKIM_SELECTOR",
-  "ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64",
-  "ACCOUNT_MAIL_HELO_DOMAIN",
+const ACCOUNT_MAIL_ENV = [
+  "ACCOUNT_MAIL_WORKFLOW_ENABLED",
+  "ACCOUNT_MAIL_WORKER_SECRET",
 ] as const;
-const EMAIL_DELIVERY_ENV = [...SMTP_EMAIL_ENV, ...DIRECT_EMAIL_ENV] as const;
 
-export type SmtpEmailDeliveryConfig = {
-  kind: "smtp";
-  smtpUrl: string;
-  from: string;
+export type AccountMailWorkflowConfig = {
+  secret: string;
 };
 
-export type DirectEmailDeliveryConfig = {
-  kind: "direct";
-  from: string;
-  heloDomain: string;
-  selector: string;
-  privateKey: string;
-};
-
-export type EmailDeliveryConfig =
-  | SmtpEmailDeliveryConfig
-  | DirectEmailDeliveryConfig;
-
-function readDirectPrivateKey(): string | null {
-  const encoded = envValue("ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64");
-  if (!encoded) return null;
-  try {
-    const privateKey = Buffer.from(encoded, "base64").toString("utf8").trim();
-    const key = createPrivateKey(privateKey);
-    if (
-      key.asymmetricKeyType !== "rsa" ||
-      (key.asymmetricKeyDetails?.modulusLength ?? 0) < 2048
-    ) {
-      return null;
-    }
-    return privateKey;
-  } catch {
-    return null;
-  }
+function readAccountMailWorkflowConfig(): AccountMailWorkflowConfig | null {
+  const enabled = envValue(ACCOUNT_MAIL_ENV[0])?.toLowerCase();
+  const secret = envValue(ACCOUNT_MAIL_ENV[1]);
+  return enabled === "true" && secret ? { secret } : null;
 }
 
-function validSmtpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "smtp:" || url.protocol === "smtps:";
-  } catch {
-    return false;
-  }
-}
-
-function validHostname(value: string): boolean {
-  return (
-    value.length <= 253 &&
-    value.split(".").every(
-      (label) =>
-        /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label),
-    )
-  );
-}
-
-function readSmtpEmailDeliveryConfig(): SmtpEmailDeliveryConfig | null {
-  const smtpUrl = envValue(SMTP_EMAIL_ENV[0]);
-  const smtpFrom = envValue(SMTP_EMAIL_ENV[1]);
-  return smtpUrl && smtpFrom && validSmtpUrl(smtpUrl)
-    ? { kind: "smtp", smtpUrl, from: smtpFrom }
-    : null;
-}
-
-function readDirectEmailDeliveryConfig(): DirectEmailDeliveryConfig | null {
-  const directFrom = envValue(DIRECT_EMAIL_ENV[0]);
-  const selector = envValue(DIRECT_EMAIL_ENV[1]);
-  const privateKey = readDirectPrivateKey();
-  const senderDomain = directFrom?.split("@")[1]?.toLowerCase();
-  const heloDomain =
-    envValue(DIRECT_EMAIL_ENV[3])?.toLowerCase() ?? senderDomain;
-  if (
-    directFrom &&
-    /^[^@\s]+@[^@\s]+$/.test(directFrom) &&
-    senderDomain &&
-    validHostname(senderDomain) &&
-    heloDomain &&
-    validHostname(heloDomain) &&
-    selector &&
-    /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(selector) &&
-    privateKey
-  ) {
-    return {
-      kind: "direct",
-      from: directFrom.toLowerCase(),
-      heloDomain,
-      selector,
-      privateKey,
-    };
-  }
-
-  return null;
-}
-
-function readEmailDeliveryConfig(): EmailDeliveryConfig | null {
-  return readSmtpEmailDeliveryConfig() ?? readDirectEmailDeliveryConfig();
-}
-
-export const emailDeliveryConfig: FeatureConfig<EmailDeliveryConfig> =
-  defineFeatureConfig(readEmailDeliveryConfig);
+export const accountMailWorkflowConfig: FeatureConfig<AccountMailWorkflowConfig> =
+  defineFeatureConfig(readAccountMailWorkflowConfig);
 
 export function inspectEmailDeliveryConfig(): ConfigCheckReport {
-  const directValues = DIRECT_EMAIL_ENV.map((name) => envValue(name));
-  const smtpValues = SMTP_EMAIL_ENV.map((name) => envValue(name));
-  const directPresent = directValues.some(Boolean);
-  const smtpPresent = smtpValues.some(Boolean);
-  const directConfig = readDirectEmailDeliveryConfig();
-  const smtpConfig = readSmtpEmailDeliveryConfig();
-  const configured = emailDeliveryConfig.get();
+  const enabled = envValue(ACCOUNT_MAIL_ENV[0])?.toLowerCase();
+  const secret = envValue(ACCOUNT_MAIL_ENV[1]);
+  const configured = accountMailWorkflowConfig.get();
   const issues = [];
 
-  if (directPresent && !directConfig) {
+  if (enabled && enabled !== "true" && enabled !== "false") {
     issues.push(
       issue(
         "warning",
-        "invalid_direct_email_config",
-        "Direct account email requires a sender address, valid optional HELO domain, DKIM selector, and base64-encoded 2048-bit RSA private key.",
-        [...DIRECT_EMAIL_ENV],
+        "invalid_account_mail_workflow_flag",
+        "ACCOUNT_MAIL_WORKFLOW_ENABLED must be true or false.",
+        [ACCOUNT_MAIL_ENV[0]],
       ),
     );
   }
-
-  if (smtpPresent && !smtpConfig) {
-    const smtpUrl = smtpValues[0];
-    if (!smtpUrl || !smtpValues[1]) {
-      issues.push(
-        issue(
-          "warning",
-          "incomplete_smtp_config",
-          "SMTP email requires both SMTP_URL and EMAIL_FROM.",
-          [...SMTP_EMAIL_ENV],
-        ),
-      );
-    } else {
-      if (!validSmtpUrl(smtpUrl)) {
-        issues.push(
-          issue(
-            "warning",
-            "invalid_smtp_url",
-            "SMTP_URL must be a valid smtp or smtps URL.",
-            ["SMTP_URL"],
-          ),
-        );
-      }
-    }
+  if (enabled === "true" && !secret) {
+    issues.push(
+      issue(
+        "warning",
+        "missing_account_mail_worker_secret",
+        "GitHub Actions account mail requires ACCOUNT_MAIL_WORKER_SECRET.",
+        [...ACCOUNT_MAIL_ENV],
+      ),
+    );
+  }
+  if (secret && enabled !== "true") {
+    issues.push(
+      issue(
+        "warning",
+        "inactive_account_mail_worker_secret",
+        "ACCOUNT_MAIL_WORKER_SECRET is set but the GitHub Actions account mail workflow is not enabled.",
+        [...ACCOUNT_MAIL_ENV],
+      ),
+    );
   }
 
   return {
@@ -169,12 +68,12 @@ export function inspectEmailDeliveryConfig(): ConfigCheckReport {
       ? issues.length
         ? "degraded"
         : "configured"
-      : directPresent || smtpPresent
+      : enabled || secret
         ? "degraded"
         : "unconfigured",
     configured: configured !== null,
     required: false,
-    env: [...EMAIL_DELIVERY_ENV],
+    env: [...ACCOUNT_MAIL_ENV],
     missing: [],
     issues,
   };
@@ -209,7 +108,7 @@ export function inspectAccountAdmissionConfig(): ConfigCheckReport {
       env: [
         ACCOUNT_ADMISSION_ENV,
         ACCOUNT_ADMISSION_RETENTION_ENV,
-        ...EMAIL_DELIVERY_ENV,
+        ...ACCOUNT_MAIL_ENV,
       ],
       missing: [],
       issues: [
@@ -224,7 +123,7 @@ export function inspectAccountAdmissionConfig(): ConfigCheckReport {
     };
   }
 
-  if (mode === "public" && !emailDeliveryConfig.isConfigured()) {
+  if (mode === "public" && !accountMailWorkflowConfig.isConfigured()) {
     return {
       status: "degraded",
       configured: false,
@@ -232,15 +131,15 @@ export function inspectAccountAdmissionConfig(): ConfigCheckReport {
       env: [
         ACCOUNT_ADMISSION_ENV,
         ACCOUNT_ADMISSION_RETENTION_ENV,
-        ...EMAIL_DELIVERY_ENV,
+        ...ACCOUNT_MAIL_ENV,
       ],
       missing: [],
       issues: [
         issue(
           "warning",
           "public_registration_email_unavailable",
-          "Public registration requires either direct DKIM account mail or SMTP delivery.",
-          [...EMAIL_DELIVERY_ENV],
+          "Public registration requires the GitHub Actions account mail workflow.",
+          [...ACCOUNT_MAIL_ENV],
         ),
         ...(retentionIssue ? [retentionIssue] : []),
       ],
@@ -254,7 +153,7 @@ export function inspectAccountAdmissionConfig(): ConfigCheckReport {
     env: [
       ACCOUNT_ADMISSION_ENV,
       ACCOUNT_ADMISSION_RETENTION_ENV,
-      ...EMAIL_DELIVERY_ENV,
+      ...ACCOUNT_MAIL_ENV,
     ],
     missing: [],
     issues: retentionIssue ? [retentionIssue] : [],

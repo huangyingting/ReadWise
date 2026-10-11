@@ -93,11 +93,9 @@ Optional AI, Speech, Push, OAuth, tracing, and Azure Storage settings may be
 added to `VM_APP_ENV`. Without Azure Storage configuration, local speech media
 is container-local cache and is not durable across deployments.
 
-Use authenticated SMTP as the primary production account-email path. When
-`SMTP_URL`/`EMAIL_FROM` and direct DKIM settings are both complete, ReadWise
-selects SMTP and does not retry through direct delivery after an SMTP attempt.
-Direct delivery from a cloud VM can still be rejected by recipient policy or
-sender-IP blocklists even when SPF, DKIM, DMARC, and STARTTLS are correct.
+Account email is queued transactionally in PostgreSQL and delivered by the
+private `vibewatch/sendmail` GitHub Actions repository. The WebStack VM does not
+open SMTP connections or hold the shared DKIM private key.
 
 Email/password is the primary account-creation path. In `invitation-only` mode,
 an administrator creates a time-bounded email invitation at
@@ -128,23 +126,27 @@ Set repository variables:
 ```text
 VM_APP_NAME=readwise
 VM_DEPLOY_ENABLED=true
-ACCOUNT_MAIL_FROM=noreply@genisisiq.com
-ACCOUNT_MAIL_HELO_DOMAIN=mail.genisisiq.com
-ACCOUNT_MAIL_DKIM_SELECTOR=<readwise-specific-selector>
+ACCOUNT_MAIL_WORKFLOW_ENABLED=true
+ACCOUNT_MAIL_TICK_URL=https://readwise.genisisiq.com/api/account-mail/tick
 RETENTION_MAINTENANCE_URL=https://readwise.genisisiq.com/api/maintenance/retention
 RETENTION_MAINTENANCE_ENABLED=true
 ```
 
-For authenticated relay delivery, store the complete credential-bearing
-connection URL as the repository secret `SMTP_URL`; for example, an SMTPS URL
-on port 465. Set the sender identity in the repository variable `EMAIL_FROM`
-only when `SMTP_URL` is configured. The deployment workflow injects both values
-without writing them to source or workflow output.
+Generate a dedicated worker bearer secret with `openssl rand -base64 48`. Store
+the same value as ReadWise repository secret `ACCOUNT_MAIL_WORKER_SECRET` and
+private sender repository secret `READWISE_QUEUE_SECRET`. The deployment
+workflow injects it into the web container; the manual
+`account-mail-tick.yml` check uses the same repository secret.
 
-For direct account email, add the base64-encoded PEM private key as the
-`ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` repository environment secret. The
-caller workflow appends that secret and the three direct-delivery variables to
-`APPLICATION_ENV`; they do not need to be duplicated in `VM_APP_ENV`.
+In `vibewatch/sendmail`, configure:
+
+```text
+READWISE_QUEUE_ENABLED=true
+READWISE_QUEUE_URL=https://readwise.genisisiq.com/api/account-mail/tick
+```
+
+The existing UniLink `QUEUE_*` settings remain independent and must not be
+replaced.
 
 Generate a separate retention bearer secret with `openssl rand -base64 48` and
 store the same value as the repository secret `RETENTION_WORKER_SECRET`. The
@@ -153,20 +155,12 @@ deployment workflow injects it into the web container, while
 daily request. `/api/ready` reports this optional worker configuration
 independently.
 
-All WebStack applications send from the shared identity
-`noreply@genisisiq.com`. Each application keeps a distinct DKIM selector and
-private key, while the apex SPF policy authorizes the shared WebStack IP,
-and Tencent Enterprise Mail:
-
-- `mail.genisisiq.com` A → `20.205.158.10`;
-- `genisisiq.com` TXT:
-  `v=spf1 ip4:20.205.158.10 include:spf.mail.qq.com -all`;
-- `<app-selector>._domainkey.genisisiq.com` TXT containing that application's
-  matching DKIM public key;
-- `_dmarc.genisisiq.com` TXT with the shared DMARC policy.
-
-Keep exactly one apex SPF record. Adding another webapp on the same VM requires
-only a new app-specific DKIM selector; it does not require another SPF entry.
+All participating webapps send from `noreply@genisisiq.com` through the shared
+sender. Keep its `vibewatch202610._domainkey.genisisiq.com` DKIM record, the
+single apex SPF record for legitimate mailbox providers, and the apex DMARC
+policy. Standard GitHub-hosted runners have dynamic IPs that cannot be safely
+authorized with a broad SPF rule or assigned a controlled PTR; DKIM/DMARC
+alignment does not guarantee recipient acceptance.
 
 The VM must allow outbound TCP 25, and its public sending IP should have aligned
 reverse DNS and acceptable mail reputation. Direct delivery requires verified

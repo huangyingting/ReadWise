@@ -456,11 +456,30 @@ model AccountInvitation {
 
   invitedBy  User? @relation("AccountInvitationInviter", fields: [invitedById], references: [id], onDelete: SetNull)
   acceptedBy User? @relation("AccountInvitationAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+  emails     AccountEmailOutbox[]
 
   @@index([status, expiresAt])
   @@index([normalizedEmail, createdAt])
   @@index([invitedById])
   @@index([acceptedById])
+}
+
+model AccountEmailOutbox {
+  id            String   @id @default(cuid())
+  payload       String
+  status        String   @default("pending")
+  claimToken    String?
+  lastAttemptAt DateTime?
+  lastError     String?
+  sentAt        DateTime?
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  invitationId  String?
+
+  invitation AccountInvitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([invitationId])
 }
 
 model ReadingList {

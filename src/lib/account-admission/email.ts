@@ -1,137 +1,101 @@
-import NodemailerImport from "nodemailer10";
-import type { Transporter } from "nodemailer10";
-import { createLogger } from "@/lib/observability/logger";
-import { emailDeliveryConfig } from "@/lib/runtime-config/account-admission";
-import { sendDirectEmail } from "./direct-email";
+import type { Prisma } from "@prisma/client";
+import { accountMailWorkflowConfig } from "@/lib/runtime-config/account-admission";
+import {
+  queueAccountMail,
+  type AccountMail,
+} from "./account-mail-outbox";
 import { accountAdmissionSecretLink } from "./links";
 
-type DefaultInterop<T> = { default: T };
-
-function hasDefaultInterop<T>(value: T | DefaultInterop<T>): value is DefaultInterop<T> {
-  return typeof value === "object" && value !== null && "default" in value;
-}
-
-const nodemailer = hasDefaultInterop(NodemailerImport)
-  ? NodemailerImport.default
-  : NodemailerImport;
-const logger = createLogger("account-admission-email");
-
 export type EmailDeliveryResult =
-  | { delivered: true }
+  | { queued: true }
   | {
-      delivered: false;
-      reason:
-        | "email_not_configured"
-        | "invalid_app_url"
-        | "delivery_failed"
-        | "delivery_unconfirmed"
-        | "connection_failed"
-        | "recipient_rejected"
-        | "recipient_unavailable"
-        | "sender_blocked";
+      queued: false;
+      reason: "email_not_configured" | "invalid_app_url";
     };
+
+type MailClient = Pick<Prisma.TransactionClient, "accountEmailOutbox">;
 
 type SecretLinkEmail = {
   email: string;
   token: string;
+  expiresAt: Date;
 };
 
-let cachedTransport:
-  | { smtpUrl: string; transport: Transporter }
-  | null = null;
-
-function transportFor(smtpUrl: string): Transporter {
-  if (cachedTransport?.smtpUrl === smtpUrl) return cachedTransport.transport;
-  const transport = nodemailer.createTransport(smtpUrl);
-  cachedTransport = { smtpUrl, transport };
-  return transport;
-}
-
-async function sendSecretLinkEmail(input: {
-  email: string;
-  subject: string;
-  intro: string;
-  linkLabel: string;
-  link: string | null;
-}): Promise<EmailDeliveryResult> {
-  const config = emailDeliveryConfig.get();
-  if (!config) {
-    return { delivered: false, reason: "email_not_configured" };
+async function queueSecretLinkEmail(
+  tx: MailClient,
+  input: SecretLinkEmail & {
+    subject: string;
+    intro: string;
+    linkLabel: string;
+    path: string;
+    context: Omit<AccountMail, "to" | "subject" | "body">;
+  },
+): Promise<EmailDeliveryResult> {
+  if (!accountMailWorkflowConfig.isConfigured()) {
+    return { queued: false, reason: "email_not_configured" };
   }
-  if (!input.link) {
-    return { delivered: false, reason: "invalid_app_url" };
+  const link = accountAdmissionSecretLink(input.path, input.token);
+  if (!link) {
+    return { queued: false, reason: "invalid_app_url" };
   }
-
-  const text = `${input.intro}\n\n${input.linkLabel}: ${input.link}\n\nIf you did not request this, you can ignore this email.`;
-
-  try {
-    if (config.kind === "direct") {
-      const status = await sendDirectEmail(
-        {
-          to: input.email,
-          subject: input.subject,
-          text,
-        },
-        config,
-      );
-      return status.status === "sent"
-        ? { delivered: true }
-        : {
-            delivered: false,
-            reason: status.reason,
-          };
-    }
-
-    const result = await transportFor(config.smtpUrl).sendMail({
-      from: config.from,
+  const body = `${input.intro}\n\n${input.linkLabel}: ${link}\n\nIf you did not request this, you can ignore this email.`;
+  await queueAccountMail(
+    tx,
+    {
       to: input.email,
       subject: input.subject,
-      text,
-      html: `<p>${input.intro}</p><p><a href="${input.link}">${input.linkLabel}</a></p><p>If you did not request this, you can ignore this email.</p>`,
-    });
-    return (result.accepted?.length ?? 0) > 0
-      ? { delivered: true }
-      : { delivered: false, reason: "recipient_rejected" };
-  } catch {
-    logger.error("email.delivery_failed", {
-      machineReason: "account_admission_email_delivery_failed",
-    });
-    return { delivered: false, reason: "delivery_failed" };
-  }
+      body,
+      ...input.context,
+    } as AccountMail,
+    input.expiresAt,
+  );
+  return { queued: true };
 }
 
-export function sendAccountInvitationEmail(
-  input: SecretLinkEmail,
+export function queueAccountInvitationEmail(
+  tx: MailClient,
+  input: SecretLinkEmail & {
+    invitationId: string;
+    invitationTokenHash: string;
+  },
 ): Promise<EmailDeliveryResult> {
-  return sendSecretLinkEmail({
-    email: input.email,
+  return queueSecretLinkEmail(tx, {
+    ...input,
     subject: "You are invited to ReadWise",
     intro: "An administrator invited you to create a ReadWise account.",
     linkLabel: "Accept invitation",
-    link: accountAdmissionSecretLink("/invite", input.token),
+    path: "/invite",
+    context: {
+      invitationId: input.invitationId,
+      invitationTokenHash: input.invitationTokenHash,
+    },
   });
 }
 
-export function sendRegistrationVerificationEmail(
-  input: SecretLinkEmail,
+export function queueRegistrationVerificationEmail(
+  tx: MailClient,
+  input: SecretLinkEmail & { registrationHash: string },
 ): Promise<EmailDeliveryResult> {
-  return sendSecretLinkEmail({
-    email: input.email,
+  return queueSecretLinkEmail(tx, {
+    ...input,
     subject: "Verify your ReadWise email",
     intro: "Confirm your email address to finish creating your ReadWise account.",
     linkLabel: "Verify email",
-    link: accountAdmissionSecretLink("/verify-email", input.token),
+    path: "/verify-email",
+    context: { registrationHash: input.registrationHash },
   });
 }
 
-export function sendPasswordResetEmail(
-  input: SecretLinkEmail,
+export function queuePasswordResetEmail(
+  tx: MailClient,
+  input: SecretLinkEmail & { passwordResetHash: string },
 ): Promise<EmailDeliveryResult> {
-  return sendSecretLinkEmail({
-    email: input.email,
+  return queueSecretLinkEmail(tx, {
+    ...input,
     subject: "Reset your ReadWise password",
     intro: "Use this single-use link to choose a new ReadWise password.",
     linkLabel: "Reset password",
-    link: accountAdmissionSecretLink("/reset-password", input.token),
+    path: "/reset-password",
+    context: { passwordResetHash: input.passwordResetHash },
   });
 }

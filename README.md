@@ -118,7 +118,9 @@ Edit `.env` and replace at least:
 - `NEXTAUTH_URL` — usually `http://localhost:3000` locally.
 - `ACCOUNT_ADMISSION_MODE` — keep the fail-closed `invitation-only` default or
   select `public`.
-- `SMTP_URL` and `EMAIL_FROM` for public registration and password recovery.
+- `ACCOUNT_MAIL_WORKFLOW_ENABLED` and `ACCOUNT_MAIL_WORKER_SECRET` when public
+  registration or password recovery should queue email for the private GitHub
+  Actions sender.
 - OAuth providers only if you want optional linked social sign-in.
 - Clear optional provider placeholders that you are not using; fake Azure/OAuth
   values are still non-empty values and may make the app try those providers.
@@ -204,13 +206,13 @@ backup, restore, reset, and SQLite-to-PostgreSQL notes.
 ### Account Admission and sign-in
 
 Email/password is always available for existing Password Credentials. Public
-registration and password recovery require SMTP. OAuth providers are optional
-linked sign-in methods and never create Users.
+registration and password recovery require the account-mail workflow. OAuth
+providers are optional linked sign-in methods and never create Users.
 
 | Area | Variables |
 | --- | --- |
 | Admission | `ACCOUNT_ADMISSION_MODE`, `ACCOUNT_ADMISSION_RETENTION_DAYS` |
-| Email | `SMTP_URL`, `EMAIL_FROM` |
+| Email | `ACCOUNT_MAIL_WORKFLOW_ENABLED`, `ACCOUNT_MAIL_WORKER_SECRET` |
 | Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | Azure Entra ID | `AZURE_AD_CLIENT_ID`, `AZURE_AD_CLIENT_SECRET`, `AZURE_AD_TENANT_ID` |
 

@@ -2,6 +2,10 @@ import { Prisma, type AccountInvitation } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { runSerializableTransaction } from "@/lib/database/serializable-transaction";
 import { AccountAdmissionError } from "./errors";
+import {
+  queueAccountInvitationEmail,
+  type EmailDeliveryResult,
+} from "./email";
 import { isValidAccountEmail, normalizeAccountEmail } from "./policy";
 import { createOpaqueToken, hashOpaqueToken } from "./tokens";
 
@@ -16,6 +20,7 @@ export type CreateAccountInvitationInput = {
 export type AccountInvitationGrant = {
   invitation: AccountInvitation;
   token: string;
+  delivery: EmailDeliveryResult;
 };
 
 export type PublicInvitationView = {
@@ -80,7 +85,7 @@ export async function createAccountInvitation(
   const expiresAt = invitationExpiry(now, input.expiresAt);
 
   try {
-    const invitation = await runSerializableTransaction(async (tx) => {
+    const result = await runSerializableTransaction(async (tx) => {
       await tx.accountInvitation.updateMany({
         where: {
           activeForEmail: normalizedEmail,
@@ -118,7 +123,7 @@ export async function createAccountInvitation(
         );
       }
 
-      return tx.accountInvitation.create({
+      const invitation = await tx.accountInvitation.create({
         data: {
           email: input.email.trim(),
           normalizedEmail,
@@ -128,8 +133,16 @@ export async function createAccountInvitation(
           expiresAt,
         },
       });
+      const delivery = await queueAccountInvitationEmail(tx, {
+        email: invitation.email,
+        token,
+        expiresAt: invitation.expiresAt,
+        invitationId: invitation.id,
+        invitationTokenHash: tokenHash,
+      });
+      return { invitation, delivery };
     });
-    return { invitation, token };
+    return { ...result, token };
   } catch (error) {
     if (isUniqueConflict(error)) {
       throw new AccountAdmissionError(
@@ -257,38 +270,48 @@ export async function rotateAccountInvitation(
   const now = new Date();
   const nextExpiry = invitationExpiry(now, expiresAt);
 
-  const invitation = await prisma.accountInvitation.findUnique({ where: { id } });
-  if (!invitation) {
-    throw new AccountAdmissionError(404, "not_found", "Invitation not found.");
-  }
-  if (invitation.status !== "PENDING" || invitation.expiresAt <= now) {
-    throw new AccountAdmissionError(
-      409,
-      "invalid_transition",
-      "Only a pending invitation can be rotated.",
-    );
-  }
+  const result = await runSerializableTransaction(async (tx) => {
+    const invitation = await tx.accountInvitation.findUnique({ where: { id } });
+    if (!invitation) {
+      throw new AccountAdmissionError(404, "not_found", "Invitation not found.");
+    }
+    if (invitation.status !== "PENDING" || invitation.expiresAt <= now) {
+      throw new AccountAdmissionError(
+        409,
+        "invalid_transition",
+        "Only a pending invitation can be rotated.",
+      );
+    }
 
-  const rotated = await prisma.accountInvitation.updateMany({
-    where: {
-      id,
-      status: "PENDING",
-      expiresAt: { gt: now },
-    },
-    data: { tokenHash, expiresAt: nextExpiry },
+    const rotated = await tx.accountInvitation.updateMany({
+      where: {
+        id,
+        status: "PENDING",
+        expiresAt: { gt: now },
+      },
+      data: { tokenHash, expiresAt: nextExpiry },
+    });
+    if (rotated.count !== 1) {
+      throw new AccountAdmissionError(
+        409,
+        "claim_conflict",
+        "The invitation changed before its link could be rotated.",
+      );
+    }
+    const updated = await tx.accountInvitation.findUnique({ where: { id } });
+    if (!updated) {
+      throw new AccountAdmissionError(404, "not_found", "Invitation not found.");
+    }
+    const delivery = await queueAccountInvitationEmail(tx, {
+      email: updated.email,
+      token,
+      expiresAt: updated.expiresAt,
+      invitationId: updated.id,
+      invitationTokenHash: tokenHash,
+    });
+    return { invitation: updated, delivery };
   });
-  if (rotated.count !== 1) {
-    throw new AccountAdmissionError(
-      409,
-      "claim_conflict",
-      "The invitation changed before its link could be rotated.",
-    );
-  }
-  const updated = await prisma.accountInvitation.findUnique({ where: { id } });
-  if (!updated) {
-    throw new AccountAdmissionError(404, "not_found", "Invitation not found.");
-  }
-  return { invitation: updated, token };
+  return { ...result, token };
 }
 
 export async function listAccountInvitations() {

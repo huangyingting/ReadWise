@@ -17,4 +17,8 @@ test("Prisma models Account Invitations and password registration lifecycle", as
   assert.match(schema, /userId\s+String\s+@unique/);
   assert.match(schema, /model PendingRegistration\s*\{/);
   assert.match(schema, /normalizedEmail\s+String\s+@unique/);
+  assert.match(schema, /model AccountEmailOutbox\s*\{/);
+  assert.match(schema, /status\s+String\s+@default\("pending"\)/);
+  assert.match(schema, /claimToken\s+String\?/);
+  assert.match(schema, /@@index\(\[status, createdAt\]\)/);
 });

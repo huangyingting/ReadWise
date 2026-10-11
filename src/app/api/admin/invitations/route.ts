@@ -8,7 +8,6 @@ import {
   createAccountInvitation,
   enforceAccountAdmissionRateLimit,
   listAccountInvitations,
-  sendAccountInvitationEmail,
 } from "@/lib/account-admission";
 import { AccountAdmissionError } from "@/lib/account-admission/errors";
 import {
@@ -90,10 +89,7 @@ export const POST = createCapabilityHandler(
       invitedById: session.user.id,
       expiresAt: requestedExpiry(body.expiresAt),
     });
-    const delivery = await sendAccountInvitationEmail({
-      email: grant.invitation.email,
-      token: grant.token,
-    });
+    const delivery = grant.delivery;
     await recordAuditFromRequest({
       req,
       session,
@@ -102,8 +98,8 @@ export const POST = createCapabilityHandler(
       targetType: "account_invitation",
       targetId: grant.invitation.id,
       metadata: {
-        delivered: delivery.delivered,
-        deliveryOutcome: delivery.delivered ? "sent" : delivery.reason,
+        queued: delivery.queued,
+        deliveryOutcome: delivery.queued ? "queued" : delivery.reason,
         expiresAt: grant.invitation.expiresAt.toISOString(),
       },
     });

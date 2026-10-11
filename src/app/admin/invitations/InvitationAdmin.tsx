@@ -31,7 +31,7 @@ type Invitation = {
 type InvitationMutation = {
   invitation: Invitation;
   acceptUrl?: string;
-  delivery?: { delivered: boolean; reason?: string };
+  delivery?: { queued: boolean; reason?: string };
 };
 
 const STATUS_VARIANT = {
@@ -80,12 +80,10 @@ export default function InvitationAdmin({
       setCopied(false);
     }
     setDeliveryMessage(
-      result.delivery?.delivered
-        ? "The invitation email was sent."
-        : result.delivery?.reason === "delivery_unconfirmed"
-          ? "Email delivery could not be confirmed. Do not resend automatically; copy the one-time link if the recipient does not receive it."
-          : result.delivery?.reason === "sender_blocked"
-            ? "The recipient provider blocked the direct sender. Copy the one-time link while an authenticated email relay is configured."
+      result.delivery?.queued
+        ? "The invitation email was queued for the GitHub Actions sender."
+        : result.delivery?.reason === "invalid_app_url"
+          ? "The invitation link could not be queued because the public application URL is unavailable."
           : "Email was not sent. Copy and share the one-time link securely.",
     );
   }

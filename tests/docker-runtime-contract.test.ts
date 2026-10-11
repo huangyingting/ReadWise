@@ -20,6 +20,10 @@ const deployWorkflow = readFileSync(
   new URL("../.github/workflows/deploy-vm.yml", import.meta.url),
   "utf8",
 );
+const accountMailWorkflow = readFileSync(
+  new URL("../.github/workflows/account-mail-tick.yml", import.meta.url),
+  "utf8",
+);
 
 const ALPINE_NODE_STAGE =
   /FROM node:24\.18\.1-alpine@sha256:[a-f0-9]{64} AS /;
@@ -156,16 +160,14 @@ test("VM deployment follows the pinned WebStack PostgreSQL release contract", ()
   );
   assert.match(
     deployWorkflow,
-    /SMTP_URL=\{0\}[\s\S]*secrets\.SMTP_URL/,
+    /ACCOUNT_MAIL_WORKER_SECRET=\{0\}[\s\S]*secrets\.ACCOUNT_MAIL_WORKER_SECRET/,
   );
   assert.match(
     deployWorkflow,
-    /EMAIL_FROM=\{0\}[\s\S]*vars\.EMAIL_FROM/,
+    /ACCOUNT_MAIL_WORKFLOW_ENABLED=\{0\}[\s\S]*vars\.ACCOUNT_MAIL_WORKFLOW_ENABLED/,
   );
-  assert.match(
-    deployWorkflow,
-    /ACCOUNT_MAIL_HELO_DOMAIN=\{0\}[\s\S]*vars\.ACCOUNT_MAIL_HELO_DOMAIN/,
-  );
+  assert.doesNotMatch(deployWorkflow, /SMTP_URL=\{0\}/);
+  assert.doesNotMatch(deployWorkflow, /ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64=\{0\}/);
 });
 
 test("CI database coverage installs native dependencies before SQLite tests", () => {
@@ -176,4 +178,19 @@ test("CI database coverage installs native dependencies before SQLite tests", ()
   const dbIntegrationJob = ciWorkflow.slice(dbIntegrationStart, supplyChainStart);
   assert.match(dbIntegrationJob, /run: npm ci\s*$/m);
   assert.doesNotMatch(dbIntegrationJob, /npm ci --ignore-scripts/);
+});
+
+test("account mail configuration workflow performs only an authenticated check", () => {
+  assert.match(accountMailWorkflow, /workflow_dispatch/);
+  assert.match(
+    accountMailWorkflow,
+    /vars\.ACCOUNT_MAIL_TICK_URL/,
+  );
+  assert.match(
+    accountMailWorkflow,
+    /secrets\.ACCOUNT_MAIL_WORKER_SECRET/,
+  );
+  assert.match(accountMailWorkflow, /--proto '=https'/);
+  assert.match(accountMailWorkflow, /\?check=1/);
+  assert.doesNotMatch(accountMailWorkflow, /recipient|subject|body=/i);
 });

@@ -2,7 +2,7 @@
 type: "reference"
 status: "current"
 last_updated: "2026-10-11"
-description: "Documents invitation-only and public account admission, password registration and recovery, direct DKIM or SMTP email delivery, explicit social-account linking, admin invitation operations, bootstrap, rate limits, and retention."
+description: "Documents invitation-only and public account admission, password registration and recovery, encrypted GitHub Actions email queueing, explicit social-account linking, admin invitation operations, bootstrap, rate limits, and retention."
 ---
 
 # Account admission and authentication methods
@@ -33,7 +33,7 @@ flowchart TD
 | Mode | New User policy |
 | --- | --- |
 | `invitation-only` | Requires a pending, unexpired Account Invitation whose normalized email exactly matches the registration email. This is the default and invalid values fail closed to it. |
-| `public` | Anyone may begin registration, but the User is not created until the email verification token is consumed. A complete email provider is required for a usable flow. |
+| `public` | Anyone may begin registration, but the User is not created until the email verification token is consumed. The account-mail workflow is required for a usable flow. |
 
 There is no runtime “test mode.” Tests select one of the real policies.
 
@@ -72,9 +72,9 @@ seven-day lifetime. Only one pending invitation may exist for an email.
 - Audit records contain invitation ids, state, delivery outcome, and expiry only;
   they never contain recipient email or secret links.
 
-Email delivery is optional in Invitation-only mode because the admin UI exposes
-the one-time link after create/rotate. Without delivery, forgotten-password
-recovery is unavailable until an email provider is configured.
+Email queueing is optional in Invitation-only mode because the admin UI exposes
+the one-time link after create/rotate. Without the workflow, forgotten-password
+recovery is unavailable.
 
 ## Password recovery
 
@@ -138,6 +138,7 @@ arguments or output.
 | `POST /api/auth/password/forgot` | Public | Request a generic, anti-enumeration reset outcome. |
 | `POST /api/auth/password/reset` | Public | Consume a reset token and revoke existing Sessions. |
 | `POST /api/auth/invitation` | Public | Inspect a token through a masked, secret-free invitation view. |
+| `POST /api/account-mail/tick` | Worker bearer secret | Check configuration, atomically claim up to ten encrypted-outbox messages, or acknowledge a claimed message. |
 | `GET /api/account/auth-methods` | Session | List password presence and linked provider names. |
 | `PUT /api/account/auth-methods` | Session | Add or change the current User's Password Credential. |
 | `GET`, `POST /api/admin/invitations` | `members.manage` | List or create Account Invitations. |
@@ -153,12 +154,8 @@ normalized-email key where an email is available.
 | Variable | Default / behavior |
 | --- | --- |
 | `ACCOUNT_ADMISSION_MODE` | `invitation-only`; accepts `invitation-only` or `public`. |
-| `SMTP_URL` | Optional authenticated SMTP/SMTPS relay connection URL. Preferred when both providers are complete. |
-| `EMAIL_FROM` | Sender identity paired with `SMTP_URL`. |
-| `ACCOUNT_MAIL_FROM` | Bare sender address for direct-to-MX account email. Its domain must align with SPF and DKIM. |
-| `ACCOUNT_MAIL_HELO_DOMAIN` | Optional SMTP EHLO hostname. Defaults to the sender domain; production should match the sending IP's forward-confirmed PTR hostname. |
-| `ACCOUNT_MAIL_DKIM_SELECTOR` | DNS selector for the direct-delivery DKIM record. |
-| `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` | Base64-encoded PEM RSA private key, at least 2048 bits, paired with the published DKIM record. |
+| `ACCOUNT_MAIL_WORKFLOW_ENABLED` | `false`; must be `true` before account mail is queued. |
+| `ACCOUNT_MAIL_WORKER_SECRET` | Shared bearer credential used only by the private sender workflow and `/api/account-mail/tick`. |
 | `ACCOUNT_ADMISSION_RETENTION_DAYS` | `90`; retention for terminal invitation records. |
 | `RATE_LIMIT_AUTH_REQUESTS` | `10` per shared rate-limit window by default. |
 | `APP_URL` | Preferred public origin for generated invitation, verification, and reset links. Falls back to `NEXT_PUBLIC_APP_URL`, `NEXTAUTH_URL`, then `NEXT_PUBLIC_SITE_URL`. |
@@ -167,29 +164,27 @@ Leave invitation expiry blank to use the seven-day default. The admin UI exposes
 an optional native date/time picker only when a custom expiry is needed.
 
 `/api/ready` reports Account Admission and email delivery independently. Public
-mode without either a complete direct-DKIM provider or both SMTP settings is
-degraded. Invalid admission mode is a blocking auth configuration error.
+mode without both workflow settings is degraded. Invalid admission mode is a
+blocking auth configuration error.
 
-Authenticated SMTP is the preferred production transport because recipient
-providers commonly reject cloud-VM addresses based on sender-IP reputation.
-When both providers are complete, ReadWise selects SMTP. Direct DKIM is selected
-only when authenticated SMTP is not valid; there is no automatic cross-provider
-retry after a delivery attempt because a post-`DATA` failure may be ambiguous.
+Invitation, verification, and reset messages are encrypted with AES-256-GCM
+using a key derived from `NEXTAUTH_SECRET`, then committed in the same database
+transaction as the matching token hash. Recipient, subject, body, and secret
+link never appear in plaintext outbox columns, logs, audit metadata, workflow
+inputs, or artifacts.
 
-Direct delivery resolves the recipient's preferred MX record, rejects private
-or mixed public/private destinations, connects to one public address on TCP 25,
-requires verified STARTTLS, and DKIM-signs a one-recipient envelope. It does
-not try another MX after SMTP `DATA`: a lost acknowledgement is reported as
-unconfirmed because the recipient server may already have accepted the message.
-Explicit policy/blocklist rejections are returned to the administrator as the
-safe machine reason `sender_blocked`; raw SMTP response prose is not exposed or
-persisted.
+The private `vibewatch/sendmail` repository polls the authenticated broker every
+five minutes. Claims atomically move a row from `pending` to `sending` and carry
+a random fencing token. Before returning a message, ReadWise confirms the
+invitation, pending registration, or password-reset hash is still current and
+unexpired. Rotation, revocation, consumption, or expiry therefore invalidates
+stale queued links.
 
-The invitation, verification, or reset token exists only in the request's
-in-memory message. ReadWise does not persist a durable email outbox because that
-would persist the raw secret link, even if encrypted. Process loss can therefore
-drop an in-progress delivery; invitation create/rotate always preserves the
-one-time copy-link fallback.
+The worker terminally acknowledges `sent`, `failed`, or `unconfirmed`. A lost
+or ambiguous SMTP acknowledgement is never retried automatically, and an
+abandoned 15-minute claim becomes `unconfirmed`. Every terminal transition
+clears the encrypted payload. Invitation create/rotate still preserves the
+one-time copy-link fallback for administrators.
 
 ## Retention and privacy
 
@@ -197,6 +192,8 @@ one-time copy-link fallback.
 
 - deletes expired pending registrations;
 - clears expired password-reset token hashes;
+- deletes expired or terminal account-mail outbox records after clearing their
+  encrypted payloads;
 - deletes terminal Account Invitations older than
   `ACCOUNT_ADMISSION_RETENTION_DAYS`.
 

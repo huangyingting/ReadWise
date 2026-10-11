@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-11T03:32:03.627Z",
-  "routeCount": 151,
-  "methodCount": 185,
+  "generatedAt": "2026-10-11T07:22:31.123Z",
+  "routeCount": 152,
+  "methodCount": 186,
   "routes": [
     {
       "path": "/api/account",
@@ -19,6 +19,33 @@
           "notes": [],
           "successStatus": 204,
           "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/account-mail/tick",
+      "file": "src/app/api/account-mail/tick/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "bearer",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "bearer token required"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "configured",
+            "emailSent",
+            "transport"
+          ],
           "queryParamNames": null,
           "bodyFieldNames": null
         }

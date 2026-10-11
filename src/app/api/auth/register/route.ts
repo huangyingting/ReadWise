@@ -6,10 +6,9 @@ import {
   beginPublicRegistration,
   enforceAccountAdmissionRateLimit,
   registerWithInvitation,
-  sendRegistrationVerificationEmail,
 } from "@/lib/account-admission";
 import { AccountAdmissionError } from "@/lib/account-admission/errors";
-import { emailDeliveryConfig } from "@/lib/runtime-config/account-admission";
+import { accountMailWorkflowConfig } from "@/lib/runtime-config/account-admission";
 import { setDatabaseSessionCookie } from "@/lib/auth/session-cookie";
 
 const registrationBody = object({
@@ -43,20 +42,14 @@ export const POST = createPublicHandler(
       return response;
     }
 
-    if (!emailDeliveryConfig.isConfigured()) {
+    if (!accountMailWorkflowConfig.isConfigured()) {
       throw new AccountAdmissionError(
         503,
         "email_unavailable",
         "Registration email delivery is unavailable.",
       );
     }
-    const pending = await beginPublicRegistration(body);
-    if (pending.token && pending.email) {
-      await sendRegistrationVerificationEmail({
-        email: pending.email,
-        token: pending.token,
-      });
-    }
+    await beginPublicRegistration(body);
     return NextResponse.json(
       {
         ok: true,

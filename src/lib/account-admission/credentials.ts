@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { runSerializableTransaction } from "@/lib/database/serializable-transaction";
 import { AccountAdmissionError } from "./errors";
+import { queuePasswordResetEmail } from "./email";
 import { createDatabaseSession } from "./session";
 import { normalizeAccountEmail } from "./policy";
 import { hashPassword, verifyPassword } from "./passwords";
@@ -33,26 +34,42 @@ export async function authenticatePassword(input: {
 
 export async function requestPasswordReset(email: string) {
   const normalizedEmail = normalizeAccountEmail(email);
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-    select: {
-      id: true,
-      email: true,
-      passwordCredential: { select: { id: true } },
-    },
-  });
-  if (!user?.email || !user.passwordCredential) return null;
-
   const token = createOpaqueToken();
+  const tokenHash = hashOpaqueToken(token);
   const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
-  await prisma.passwordCredential.update({
-    where: { userId: user.id },
-    data: {
-      resetTokenHash: hashOpaqueToken(token),
-      resetExpiresAt: expiresAt,
-    },
+  return runSerializableTransaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        passwordCredential: { select: { id: true } },
+      },
+    });
+    if (!user?.email || !user.passwordCredential) return null;
+
+    await tx.passwordCredential.update({
+      where: { userId: user.id },
+      data: {
+        resetTokenHash: tokenHash,
+        resetExpiresAt: expiresAt,
+      },
+    });
+    const delivery = await queuePasswordResetEmail(tx, {
+      email: user.email,
+      token,
+      expiresAt,
+      passwordResetHash: tokenHash,
+    });
+    if (!delivery.queued) {
+      throw new AccountAdmissionError(
+        503,
+        "email_unavailable",
+        "Password recovery email delivery is unavailable.",
+      );
+    }
+    return { token, email: user.email, expiresAt };
   });
-  return { token, email: user.email, expiresAt };
 }
 
 export async function resetPassword(input: {
