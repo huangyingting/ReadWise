@@ -9,6 +9,7 @@ import {
   Field,
   FormActions,
   Input,
+  Section,
   Stack,
 } from "@/components/ui";
 import { AdminTableWrap } from "@/components/admin";
@@ -83,7 +84,7 @@ export default function InvitationAdmin({
         ? "The invitation email was sent."
         : result.delivery?.reason === "delivery_unconfirmed"
           ? "Email delivery could not be confirmed. Do not resend automatically; copy the one-time link if the recipient does not receive it."
-        : "Email was not sent. Copy and share the one-time link securely.",
+          : "Email was not sent. Copy and share the one-time link securely.",
     );
   }
 
@@ -171,36 +172,51 @@ export default function InvitationAdmin({
 
   return (
     <Stack gap="6">
-      <form onSubmit={createInvitation}>
-        <Stack gap="3">
-          <div className="grid gap-[var(--space-3)] md:grid-cols-[minmax(0,1fr)_minmax(0,220px)]">
-            <Field label="Email" required>
-              <Input
-                name="email"
-                type="email"
-                autoComplete="off"
-                maxLength={320}
-                required
-              />
-            </Field>
-            <Field
-              label="Expiry (optional)"
-              hint="Leave blank for seven days, or choose a custom date and time."
+      <Section
+        surface="card"
+        density="compact"
+        title="Create invitation"
+        description="Send a one-time registration link. Invitations expire after seven days unless you choose a custom date."
+      >
+        <form onSubmit={createInvitation}>
+          <Stack gap="3">
+            <div className="grid gap-[var(--space-3)] md:grid-cols-2">
+              <Field label="Email" required>
+                <Input
+                  name="email"
+                  type="email"
+                  autoComplete="off"
+                  maxLength={320}
+                  required
+                />
+              </Field>
+              <Field label="Expiry (optional)">
+                <Input
+                  name="expiresAt"
+                  type="datetime-local"
+                  aria-describedby="invitation-expiry-hint"
+                />
+              </Field>
+            </div>
+            <p
+              id="invitation-expiry-hint"
+              className="text-[length:var(--text-xs)] text-text-subtle"
             >
-              <Input name="expiresAt" type="datetime-local" />
-            </Field>
-          </div>
-          <FormActions align="start">
-            <Button
-              type="submit"
-              loading={pending}
-              leadingIcon={<MailPlus size={16} aria-hidden />}
-            >
-              Create invitation
-            </Button>
-          </FormActions>
-        </Stack>
-      </form>
+              Leave expiry blank to use seven days. Custom dates use your local
+              time.
+            </p>
+            <FormActions align="start">
+              <Button
+                type="submit"
+                loading={pending}
+                leadingIcon={<MailPlus size={16} aria-hidden />}
+              >
+                Create invitation
+              </Button>
+            </FormActions>
+          </Stack>
+        </form>
+      </Section>
 
       {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
 
@@ -234,68 +250,74 @@ export default function InvitationAdmin({
         </div>
       ) : null}
 
-      {invitations.length === 0 ? (
-        <EmptyState
-          icon={MailPlus}
-          title="No invitations yet"
-          description="Create an invitation to admit the first reader."
-        />
-      ) : (
-        <AdminTableWrap ariaLabel="Account invitations table (scrollable)">
-          <thead>
-            <tr>
-              <th scope="col">Email</th>
-              <th scope="col">Status</th>
-              <th scope="col">Created</th>
-              <th scope="col">Expires</th>
-              <th scope="col">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invitations.map((invitation) => (
-              <tr key={invitation.id}>
-                <td>{invitation.email}</td>
-                <td>
-                  <Badge variant={STATUS_VARIANT[invitation.status]}>
-                    {invitation.status.toLowerCase()}
-                  </Badge>
-                </td>
-                <td className="muted">{formatDate(invitation.createdAt)}</td>
-                <td className="muted">{formatDate(invitation.expiresAt)}</td>
-                <td>
-                  {invitation.status === "PENDING" ? (
-                    <div className="flex flex-wrap gap-[var(--space-2)]">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        loading={rowPending === invitation.id}
-                        disabled={rowPending !== null}
-                        leadingIcon={<RefreshCw size={14} aria-hidden />}
-                        onClick={() => rotateInvitation(invitation.id)}
-                      >
-                        Rotate
-                      </Button>
-                      <Button
-                        variant="danger-ghost"
-                        size="sm"
-                        disabled={rowPending !== null}
-                        leadingIcon={<UserX size={14} aria-hidden />}
-                        onClick={() => revokeInvitation(invitation.id)}
-                      >
-                        Revoke
-                      </Button>
-                    </div>
-                  ) : (
-                    <span className="text-[length:var(--text-sm)] text-text-subtle">
-                      No actions
-                    </span>
-                  )}
-                </td>
+      <Section
+        density="compact"
+        title="Invitation history"
+        description="Pending invitations can be rotated or revoked. Terminal records stay visible for audit until retention maintenance removes them."
+      >
+        {invitations.length === 0 ? (
+          <EmptyState
+            icon={MailPlus}
+            title="No invitations yet"
+            description="Create an invitation to admit the first reader."
+          />
+        ) : (
+          <AdminTableWrap ariaLabel="Account invitations table (scrollable)">
+            <thead>
+              <tr>
+                <th scope="col">Email</th>
+                <th scope="col">Status</th>
+                <th scope="col">Created</th>
+                <th scope="col">Expires</th>
+                <th scope="col">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </AdminTableWrap>
-      )}
+            </thead>
+            <tbody>
+              {invitations.map((invitation) => (
+                <tr key={invitation.id}>
+                  <td>{invitation.email}</td>
+                  <td>
+                    <Badge variant={STATUS_VARIANT[invitation.status]}>
+                      {invitation.status.toLowerCase()}
+                    </Badge>
+                  </td>
+                  <td className="muted">{formatDate(invitation.createdAt)}</td>
+                  <td className="muted">{formatDate(invitation.expiresAt)}</td>
+                  <td>
+                    {invitation.status === "PENDING" ? (
+                      <div className="flex flex-wrap gap-[var(--space-2)]">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          loading={rowPending === invitation.id}
+                          disabled={rowPending !== null}
+                          leadingIcon={<RefreshCw size={14} aria-hidden />}
+                          onClick={() => rotateInvitation(invitation.id)}
+                        >
+                          Rotate
+                        </Button>
+                        <Button
+                          variant="danger-ghost"
+                          size="sm"
+                          disabled={rowPending !== null}
+                          leadingIcon={<UserX size={14} aria-hidden />}
+                          onClick={() => revokeInvitation(invitation.id)}
+                        >
+                          Revoke
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-[length:var(--text-sm)] text-text-subtle">
+                        No actions
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </AdminTableWrap>
+        )}
+      </Section>
     </Stack>
   );
 }
