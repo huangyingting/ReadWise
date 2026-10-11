@@ -156,15 +156,13 @@ independently.
 All WebStack applications send from the shared identity
 `noreply@genisisiq.com`. Each application keeps a distinct DKIM selector and
 private key, while the apex SPF policy authorizes the shared WebStack IP,
-Tencent Enterprise Mail, and Brevo:
+and Tencent Enterprise Mail:
 
 - `mail.genisisiq.com` A → `20.205.158.10`;
 - `genisisiq.com` TXT:
-  `v=spf1 ip4:20.205.158.10 include:spf.mail.qq.com include:spf.brevo.com -all`;
+  `v=spf1 ip4:20.205.158.10 include:spf.mail.qq.com -all`;
 - `<app-selector>._domainkey.genisisiq.com` TXT containing that application's
   matching DKIM public key;
-- `brevo1._domainkey.genisisiq.com` and `brevo2._domainkey.genisisiq.com`
-  CNAME records for authenticated Brevo delivery;
 - `_dmarc.genisisiq.com` TXT with the shared DMARC policy.
 
 Keep exactly one apex SPF record. Adding another webapp on the same VM requires
