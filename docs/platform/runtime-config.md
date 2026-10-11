@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-10-10"
+last_updated: "2026-10-11"
 description: "Documents server-side runtime-config ownership, the direct process.env allowlist, typed environment helpers, and narrow build/test/maintenance adapters. Captures current env-var ownership, feature switches, optional-provider config, and server-only import boundaries."
 ---
 
@@ -157,6 +157,11 @@ The authoritative examples live in `.env.example`; the typed owners live in
 `src/lib/runtime-config/`. Keep both files aligned whenever a helper reads a new
 variable or changes a default.
 
+ReadWise-owned account email imports the patched Nodemailer 10 runtime through
+the `nodemailer10` npm alias. The separate Nodemailer 7 dependency remains only
+to satisfy NextAuth 4's peer range; do not move application delivery back to
+that vulnerable compatibility dependency.
+
 ### AI provider, ledger, budgets, and moderation
 
 | Env var | Default / behavior | Owner |
@@ -234,7 +239,8 @@ variable or changes a default.
 | `ANALYTICS_RETENTION_DAYS` | `400` | `analytics.ts` |
 | `ACCOUNT_ADMISSION_MODE` | `invitation-only`; accepts `invitation-only` or `public` | `account-admission.ts` |
 | `ACCOUNT_ADMISSION_RETENTION_DAYS` | `90`; positive integers only | `account-admission.ts` |
-| `SMTP_URL`, `EMAIL_FROM` | Optional email delivery; both required for configured status | `account-admission.ts` |
+| `SMTP_URL`, `EMAIL_FROM` | Optional authenticated SMTP relay; both required together | `account-admission.ts` |
+| `ACCOUNT_MAIL_FROM`, `ACCOUNT_MAIL_DKIM_SELECTOR`, `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` | Optional direct-to-MX account email; all three required, and the private key must be a base64-encoded 2048-bit-or-stronger RSA PEM key. Complete direct configuration takes precedence over SMTP. | `account-admission.ts` |
 
 ---
 
@@ -243,7 +249,7 @@ variable or changes a default.
 | Module | Exported as | Env vars owned |
 | --- | --- | --- |
 | `src/lib/runtime-config/ai.ts` | `ai` | `AZURE_OPENAI_*`, `AI_PROVIDER`, `AI_MODERATION_ENABLED`, `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, context/output token budgets, ledger, cost, quota env vars |
-| `src/lib/runtime-config/account-admission.ts` | — | `ACCOUNT_ADMISSION_MODE`, `ACCOUNT_ADMISSION_RETENTION_DAYS`, `SMTP_URL`, `EMAIL_FROM` |
+| `src/lib/runtime-config/account-admission.ts` | — | `ACCOUNT_ADMISSION_MODE`, `ACCOUNT_ADMISSION_RETENTION_DAYS`, `SMTP_URL`, `EMAIL_FROM`, `ACCOUNT_MAIL_FROM`, `ACCOUNT_MAIL_DKIM_SELECTOR`, `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` |
 | `src/lib/runtime-config/analytics.ts` | `analytics` | `ANALYTICS_ENABLED`, `ANALYTICS_RETENTION_DAYS` |
 | `src/lib/runtime-config/database.ts` | `database` | `DATABASE_URL`, `PRISMA_SCHEMA_PATH`, `DB_QUERY_TIMING_ENABLED`, `DB_SLOW_QUERY_THRESHOLD_MS` |
 | `src/lib/runtime-config/dictionary.ts` | `dictionary` | `DICTIONARY_PROVIDER`, `LOCAL_DICTIONARY_DIR`, `LOCAL_DICTIONARY_LANGUAGE` |

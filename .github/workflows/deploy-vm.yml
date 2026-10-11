@@ -43,4 +43,8 @@ jobs:
       release_env_var: APP_VERSION
       database_url_query: schema=public&sslmode=require&uselibpqcompat=true&connection_limit=8&pool_timeout=10&connect_timeout=5
     secrets:
-      APPLICATION_ENV: ${{ secrets.VM_APP_ENV }}
+      APPLICATION_ENV: |
+        ${{ secrets.VM_APP_ENV }}
+        ${{ secrets.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64 != '' && format('ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64={0}', secrets.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64) || '' }}
+        ${{ vars.ACCOUNT_MAIL_FROM != '' && format('ACCOUNT_MAIL_FROM={0}', vars.ACCOUNT_MAIL_FROM) || '' }}
+        ${{ vars.ACCOUNT_MAIL_DKIM_SELECTOR != '' && format('ACCOUNT_MAIL_DKIM_SELECTOR={0}', vars.ACCOUNT_MAIL_DKIM_SELECTOR) || '' }}

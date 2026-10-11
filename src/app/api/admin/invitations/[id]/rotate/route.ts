@@ -53,6 +53,7 @@ export const POST = createCapabilityHandler(
       targetId: grant.invitation.id,
       metadata: {
         delivered: delivery.delivered,
+        deliveryOutcome: delivery.delivered ? "sent" : delivery.reason,
         expiresAt: grant.invitation.expiresAt.toISOString(),
       },
     });

@@ -1,7 +1,8 @@
-import NodemailerImport from "nodemailer";
-import type { Transporter } from "nodemailer";
+import NodemailerImport from "nodemailer10";
+import type { Transporter } from "nodemailer10";
 import { createLogger } from "@/lib/observability/logger";
 import { emailDeliveryConfig } from "@/lib/runtime-config/account-admission";
+import { sendDirectEmail } from "./direct-email";
 import { accountAdmissionSecretLink } from "./links";
 
 type DefaultInterop<T> = { default: T };
@@ -19,7 +20,11 @@ export type EmailDeliveryResult =
   | { delivered: true }
   | {
       delivered: false;
-      reason: "email_not_configured" | "invalid_app_url" | "delivery_failed";
+      reason:
+        | "email_not_configured"
+        | "invalid_app_url"
+        | "delivery_failed"
+        | "delivery_unconfirmed";
     };
 
 type SecretLinkEmail = {
@@ -53,15 +58,39 @@ async function sendSecretLinkEmail(input: {
     return { delivered: false, reason: "invalid_app_url" };
   }
 
+  const text = `${input.intro}\n\n${input.linkLabel}: ${input.link}\n\nIf you did not request this, you can ignore this email.`;
+
   try {
-    await transportFor(config.smtpUrl).sendMail({
+    if (config.kind === "direct") {
+      const status = await sendDirectEmail(
+        {
+          to: input.email,
+          subject: input.subject,
+          text,
+        },
+        config,
+      );
+      return status === "sent"
+        ? { delivered: true }
+        : {
+            delivered: false,
+            reason:
+              status === "unconfirmed"
+                ? "delivery_unconfirmed"
+                : "delivery_failed",
+          };
+    }
+
+    const result = await transportFor(config.smtpUrl).sendMail({
       from: config.from,
       to: input.email,
       subject: input.subject,
-      text: `${input.intro}\n\n${input.linkLabel}: ${input.link}\n\nIf you did not request this, you can ignore this email.`,
+      text,
       html: `<p>${input.intro}</p><p><a href="${input.link}">${input.linkLabel}</a></p><p>If you did not request this, you can ignore this email.</p>`,
     });
-    return { delivered: true };
+    return (result.accepted?.length ?? 0) > 0
+      ? { delivered: true }
+      : { delivered: false, reason: "delivery_failed" };
   } catch {
     logger.error("email.delivery_failed", {
       machineReason: "account_admission_email_delivery_failed",

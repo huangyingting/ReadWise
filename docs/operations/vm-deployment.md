@@ -1,8 +1,8 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-10-10"
-description: "Deploys ReadWise to the WebStack VM through the pinned reusable GitHub Actions workflow, a minimal Alpine web image, a separate migration image, and the shared PostgreSQL service."
+last_updated: "2026-10-11"
+description: "Deploys ReadWise to the WebStack VM through the pinned reusable GitHub Actions workflow, a minimal Alpine web image, a separate migration image, shared PostgreSQL, and optional direct-DKIM account email."
 ---
 
 # WebStack VM deployment
@@ -79,8 +79,6 @@ NEXT_PUBLIC_APP_URL=https://readwise.genisisiq.com
 TRUSTED_PROXY_HOPS=1
 ACCOUNT_ADMISSION_MODE=invitation-only
 ACCOUNT_ADMISSION_RETENTION_DAYS=90
-SMTP_URL=smtps://<smtp-user>:<smtp-password>@<smtp-host>:465
-EMAIL_FROM=ReadWise <noreply@example.com>
 ```
 
 Do not include `DATABASE_URL`, PostgreSQL credentials, or `APP_VERSION`.
@@ -91,14 +89,15 @@ node-postgres libpq compatibility with `uselibpqcompat=true` so
 `sslmode=require` accepts WebStack's self-signed certificate while keeping the
 connection encrypted, matching the Prisma CLI migration behavior.
 
-Optional AI, Speech, Push, OAuth, tracing, and Azure Storage settings may be
-added to `VM_APP_ENV`. Without Azure Storage configuration, local speech media
-is container-local cache and is not durable across deployments.
+Optional authenticated SMTP relay settings (`SMTP_URL` and `EMAIL_FROM`) and
+AI, Speech, Push, OAuth, tracing, and Azure Storage settings may be added to
+`VM_APP_ENV`. Without Azure Storage configuration, local speech media is
+container-local cache and is not durable across deployments.
 
 Email/password is the primary account-creation path. In `invitation-only` mode,
 an administrator creates a time-bounded email invitation at
-`/admin/invitations`; in `public` mode, SMTP email verification is mandatory.
-Password recovery also requires SMTP.
+`/admin/invitations`; in `public` mode, email verification is mandatory.
+Password recovery also requires email delivery.
 
 Google/Azure OAuth never creates a User or auto-links by matching email. An
 existing authenticated User links a provider from Settings, and the provider
@@ -124,7 +123,27 @@ Set repository variables:
 ```text
 VM_APP_NAME=readwise
 VM_DEPLOY_ENABLED=true
+ACCOUNT_MAIL_FROM=noreply@readwise.genisisiq.com
+ACCOUNT_MAIL_DKIM_SELECTOR=<readwise-specific-selector>
 ```
+
+For direct account email, add the base64-encoded PEM private key as the
+`ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` repository environment secret. The
+caller workflow appends that secret and the two variables to `APPLICATION_ENV`;
+they do not need to be duplicated in `VM_APP_ENV`.
+
+Publish these DNS records for the `ACCOUNT_MAIL_FROM` domain before enabling
+direct delivery:
+
+- `<selector>._domainkey.readwise.genisisiq.com` TXT containing the matching
+  DKIM public key;
+- `readwise.genisisiq.com` TXT with SPF authorizing the WebStack VM public IP;
+- `_dmarc.readwise.genisisiq.com` TXT with the chosen DMARC policy.
+
+The VM must allow outbound TCP 25, and its public sending IP should have aligned
+reverse DNS and acceptable mail reputation. Direct delivery requires verified
+STARTTLS from the recipient's preferred MX server. If these requirements cannot
+be met, use an authenticated SMTP relay instead.
 
 Enable `VM_DEPLOY_ENABLED` only after the production environment, Azure OIDC
 identity, DNS, and `VM_APP_ENV` secret are ready.

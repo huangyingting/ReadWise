@@ -1,8 +1,8 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-10-10"
-description: "Documents invitation-only and public account admission, password registration and recovery, explicit social-account linking, admin invitation operations, bootstrap, rate limits, and retention."
+last_updated: "2026-10-11"
+description: "Documents invitation-only and public account admission, password registration and recovery, direct DKIM or SMTP email delivery, explicit social-account linking, admin invitation operations, bootstrap, rate limits, and retention."
 ---
 
 # Account admission and authentication methods
@@ -19,7 +19,7 @@ flowchart TD
     n1 -->|yes| n2["Admin creates email-bound Account Invitation"]
     n2 --> n3["Invitee claims token with matching email + password"]
     n1 -->|no, Public| n4["Person submits email + password"]
-    n4 --> n5["SMTP verification link"]
+    n4 --> n5["Email verification link"]
     n5 --> n6["Verified email creates User"]
     n3 --> n7["Database session"]
     n6 --> n7
@@ -33,7 +33,7 @@ flowchart TD
 | Mode | New User policy |
 | --- | --- |
 | `invitation-only` | Requires a pending, unexpired Account Invitation whose normalized email exactly matches the registration email. This is the default and invalid values fail closed to it. |
-| `public` | Anyone may begin registration, but the User is not created until the email verification token is consumed. SMTP is required for a usable flow. |
+| `public` | Anyone may begin registration, but the User is not created until the email verification token is consumed. A complete email provider is required for a usable flow. |
 
 There is no runtime “test mode.” Tests select one of the real policies.
 
@@ -72,15 +72,15 @@ seven-day lifetime. Only one pending invitation may exist for an email.
 - Audit records contain invitation ids, state, delivery outcome, and expiry only;
   they never contain recipient email or secret links.
 
-SMTP is optional in Invitation-only mode because the admin UI exposes the
-one-time link after create/rotate. Without SMTP, forgotten-password recovery is
-unavailable until email delivery is configured.
+Email delivery is optional in Invitation-only mode because the admin UI exposes
+the one-time link after create/rotate. Without delivery, forgotten-password
+recovery is unavailable until an email provider is configured.
 
 ## Password recovery
 
 `POST /api/auth/password/forgot` always returns the same accepted response,
 whether or not a Password Credential exists. A real credential receives a
-single-use, one-hour reset link when SMTP is available.
+single-use, one-hour reset link when email delivery is available.
 
 Successful reset:
 
@@ -153,8 +153,11 @@ normalized-email key where an email is available.
 | Variable | Default / behavior |
 | --- | --- |
 | `ACCOUNT_ADMISSION_MODE` | `invitation-only`; accepts `invitation-only` or `public`. |
-| `SMTP_URL` | Optional SMTP/SMTPS connection URL. Required for public registration and password-recovery delivery. |
+| `SMTP_URL` | Optional authenticated SMTP/SMTPS relay connection URL. |
 | `EMAIL_FROM` | Sender identity paired with `SMTP_URL`. |
+| `ACCOUNT_MAIL_FROM` | Bare sender address for direct-to-MX account email. Its domain must align with SPF and DKIM. |
+| `ACCOUNT_MAIL_DKIM_SELECTOR` | DNS selector for the direct-delivery DKIM record. |
+| `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` | Base64-encoded PEM RSA private key, at least 2048 bits, paired with the published DKIM record. |
 | `ACCOUNT_ADMISSION_RETENTION_DAYS` | `90`; retention for terminal invitation records. |
 | `RATE_LIMIT_AUTH_REQUESTS` | `10` per shared rate-limit window by default. |
 | `APP_URL` | Preferred public origin for generated invitation, verification, and reset links. Falls back to `NEXT_PUBLIC_APP_URL`, `NEXTAUTH_URL`, then `NEXT_PUBLIC_SITE_URL`. |
@@ -163,8 +166,20 @@ Leave invitation expiry blank to use the seven-day default. The admin UI exposes
 an optional native date/time picker only when a custom expiry is needed.
 
 `/api/ready` reports Account Admission and email delivery independently. Public
-mode without both SMTP settings is degraded. Invalid admission mode is a
-blocking auth configuration error.
+mode without either a complete direct-DKIM provider or both SMTP settings is
+degraded. Invalid admission mode is a blocking auth configuration error.
+
+Direct delivery resolves the recipient's preferred MX record, rejects private
+or mixed public/private destinations, connects to one public address on TCP 25,
+requires verified STARTTLS, and DKIM-signs a one-recipient envelope. It does
+not try another MX after SMTP `DATA`: a lost acknowledgement is reported as
+unconfirmed because the recipient server may already have accepted the message.
+
+The invitation, verification, or reset token exists only in the request's
+in-memory message. ReadWise does not persist a durable email outbox because that
+would persist the raw secret link, even if encrypted. Process loss can therefore
+drop an in-progress delivery; invitation create/rotate always preserves the
+one-time copy-link fallback.
 
 ## Retention and privacy
 

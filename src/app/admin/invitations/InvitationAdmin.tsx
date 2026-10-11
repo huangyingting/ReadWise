@@ -81,6 +81,8 @@ export default function InvitationAdmin({
     setDeliveryMessage(
       result.delivery?.delivered
         ? "The invitation email was sent."
+        : result.delivery?.reason === "delivery_unconfirmed"
+          ? "Email delivery could not be confirmed. Do not resend automatically; copy the one-time link if the recipient does not receive it."
         : "Email was not sent. Copy and share the one-time link securely.",
     );
   }

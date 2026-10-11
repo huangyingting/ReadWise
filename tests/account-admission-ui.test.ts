@@ -30,3 +30,9 @@ test("Account Invitation expiry defaults to seven days with an optional calendar
   assert.match(invitationAdminSource, /name="expiresAt" type="datetime-local"/);
   assert.match(invitationAdminSource, /Leave blank for seven days/);
 });
+
+test("Account Invitation UI does not claim ambiguous delivery failed", () => {
+  assert.match(invitationAdminSource, /delivery_unconfirmed/);
+  assert.match(invitationAdminSource, /could not be confirmed/);
+  assert.match(invitationAdminSource, /Do not resend automatically/);
+});

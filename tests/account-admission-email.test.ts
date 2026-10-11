@@ -4,12 +4,16 @@ import { before, beforeEach, mock, test } from "node:test";
 let sentMessages: Array<Record<string, unknown>> = [];
 
 before(() => {
-  mock.module("nodemailer", {
+  mock.module("nodemailer10", {
     defaultExport: {
       createTransport: () => ({
         sendMail: async (message: Record<string, unknown>) => {
           sentMessages.push(message);
-          return { messageId: "message-1" };
+          return {
+            accepted: [String(message.to)],
+            rejected: [],
+            messageId: "message-1",
+          };
         },
       }),
     },
@@ -20,6 +24,9 @@ beforeEach(() => {
   sentMessages = [];
   delete process.env.SMTP_URL;
   delete process.env.EMAIL_FROM;
+  delete process.env.ACCOUNT_MAIL_FROM;
+  delete process.env.ACCOUNT_MAIL_DKIM_SELECTOR;
+  delete process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64;
   process.env.APP_URL = "https://readwise.example.test";
   process.env.NEXTAUTH_URL = "http://readwise:3000";
 });

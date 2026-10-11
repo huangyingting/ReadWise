@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-10-10"
+last_updated: "2026-10-11"
 description: "Documents data classification, retention, export, cascade, and privacy treatment across Prisma models and client stores. Captures current model-by-model classification, deletion behavior, retention windows, export handling, and follow-up gaps."
 ---
 
@@ -62,6 +62,11 @@ flowchart TD
 > `Account.access_token`, `refresh_token`, `id_token`, `providerAccountId`,
 > `scope`, and `session_state` are never included in exports, audit metadata, or
 > error context. `Session.sessionToken` is never logged.
+>
+> Invitation, verification, and reset email bodies are generated in memory and
+> are not persisted to a mail outbox. Direct delivery may be lost on process
+> termination; this deliberately preserves the rule that raw secret links are
+> never stored, including in encrypted payloads.
 
 ---
 
