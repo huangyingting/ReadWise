@@ -43,6 +43,8 @@ test("Account Invitation UI does not claim ambiguous delivery failed", () => {
   assert.match(invitationAdminSource, /delivery_unconfirmed/);
   assert.match(invitationAdminSource, /could not be confirmed/);
   assert.match(invitationAdminSource, /Do not resend automatically/);
+  assert.match(invitationAdminSource, /blocked the direct sender/);
+  assert.match(invitationAdminSource, /authenticated email relay/);
 });
 
 test("Account Invitation management explains revoke and retention semantics", () => {

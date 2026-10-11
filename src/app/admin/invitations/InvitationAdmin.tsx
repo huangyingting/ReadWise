@@ -84,6 +84,8 @@ export default function InvitationAdmin({
         ? "The invitation email was sent."
         : result.delivery?.reason === "delivery_unconfirmed"
           ? "Email delivery could not be confirmed. Do not resend automatically; copy the one-time link if the recipient does not receive it."
+          : result.delivery?.reason === "sender_blocked"
+            ? "The recipient provider blocked the direct sender. Copy the one-time link while an authenticated email relay is configured."
           : "Email was not sent. Copy and share the one-time link securely.",
     );
   }

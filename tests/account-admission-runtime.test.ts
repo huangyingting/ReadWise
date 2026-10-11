@@ -56,7 +56,7 @@ test("email delivery is optional and supports authenticated SMTP", () => {
   }
 });
 
-test("complete direct DKIM configuration takes precedence over SMTP", () => {
+test("authenticated SMTP takes precedence over complete direct DKIM delivery", () => {
   const previous = {
     SMTP_URL: process.env.SMTP_URL,
     EMAIL_FROM: process.env.EMAIL_FROM,
@@ -75,10 +75,9 @@ test("complete direct DKIM configuration takes precedence over SMTP", () => {
       Buffer.from(directPrivateKey).toString("base64");
 
     assert.deepEqual(emailDeliveryConfig.get(), {
-      kind: "direct",
-      from: "noreply@readwise.example.invalid",
-      selector: "readwise-test",
-      privateKey: directPrivateKey.trim(),
+      kind: "smtp",
+      smtpUrl: "smtps://mailer.example.invalid:465",
+      from: "ReadWise <noreply@example.invalid>",
     });
     assert.equal(inspectEmailDeliveryConfig().status, "configured");
   } finally {

@@ -1,4 +1,5 @@
 import { lookup, resolveMx } from "node:dns/promises";
+import type { LookupAddress, MxRecord } from "node:dns";
 import NodemailerImport from "nodemailer10";
 import { isPublicMailAddress } from "./public-mail-address";
 import type { DirectEmailDeliveryConfig } from "@/lib/runtime-config/account-admission";
@@ -15,12 +16,22 @@ const nodemailer = hasDefaultInterop(NodemailerImport)
   ? NodemailerImport.default
   : NodemailerImport;
 
-export type DirectEmailDeliveryStatus = "sent" | "failed" | "unconfirmed";
+export type DirectEmailDeliveryResult =
+  | { status: "sent" }
+  | {
+      status: "failed";
+      reason:
+        | "connection_failed"
+        | "recipient_rejected"
+        | "recipient_unavailable"
+        | "sender_blocked";
+    }
+  | { status: "unconfirmed"; reason: "delivery_unconfirmed" };
 
 export async function sendDirectEmail(
   message: { to: string; subject: string; text: string },
   config: DirectEmailDeliveryConfig,
-): Promise<DirectEmailDeliveryStatus> {
+): Promise<DirectEmailDeliveryResult> {
   const senderDomain = config.from.split("@")[1];
   const recipientDomain = message.to.split("@")[1];
   if (
@@ -31,23 +42,33 @@ export async function sendDirectEmail(
     throw new Error("Invalid direct email configuration or message.");
   }
 
-  const exchanges = (await resolveMx(recipientDomain)).sort(
-    (left, right) => left.priority - right.priority,
-  );
+  let exchanges: MxRecord[];
+  try {
+    exchanges = (await resolveMx(recipientDomain)).sort(
+      (left, right) => left.priority - right.priority,
+    );
+  } catch {
+    return { status: "failed", reason: "recipient_unavailable" };
+  }
   if (
     exchanges.length === 0 ||
     exchanges.some((exchange) => !exchange.exchange || exchange.exchange === ".")
   ) {
-    return "failed";
+    return { status: "failed", reason: "recipient_unavailable" };
   }
 
   const primaryMx = exchanges[0]!;
-  const addresses = await lookup(primaryMx.exchange, { all: true });
+  let addresses: LookupAddress[];
+  try {
+    addresses = await lookup(primaryMx.exchange, { all: true });
+  } catch {
+    return { status: "failed", reason: "recipient_unavailable" };
+  }
   if (
     addresses.length === 0 ||
     addresses.some(({ address }) => !isPublicMailAddress(address))
   ) {
-    return "failed";
+    return { status: "failed", reason: "recipient_unavailable" };
   }
 
   const transport = nodemailer.createTransport({
@@ -83,25 +104,45 @@ export async function sendDirectEmail(
         to: [message.to],
       },
     });
-    return result.accepted.length === 1 ? "sent" : "failed";
+    return result.accepted.length === 1
+      ? { status: "sent" }
+      : { status: "failed", reason: "recipient_rejected" };
   } catch (error) {
+    const response =
+      error instanceof Error && "response" in error
+        ? String(error.response)
+        : "";
+    if (
+      /spamhaus|blocklist|client host .*blocked|sender(?: ip)? .*blocked|sender reputation|spam policy/i.test(
+        response,
+      )
+    ) {
+      return { status: "failed", reason: "sender_blocked" };
+    }
     if (
       error instanceof Error &&
       "responseCode" in error &&
       typeof error.responseCode === "number" &&
       error.responseCode >= 400
     ) {
-      return "failed";
+      return { status: "failed", reason: "recipient_rejected" };
+    }
+    if (
+      error instanceof Error &&
+      "command" in error &&
+      String(error.command).toUpperCase() === "DATA"
+    ) {
+      return { status: "unconfirmed", reason: "delivery_unconfirmed" };
     }
     if (
       error instanceof Error &&
       "code" in error &&
       ["ECONNECTION", "EDNS"].includes(String(error.code))
     ) {
-      return "failed";
+      return { status: "failed", reason: "connection_failed" };
     }
     if (!(error instanceof Error)) throw error;
-    return "unconfirmed";
+    return { status: "unconfirmed", reason: "delivery_unconfirmed" };
   } finally {
     transport.close();
   }

@@ -2,7 +2,7 @@
 type: "runbook"
 status: "current"
 last_updated: "2026-10-11"
-description: "Deploys ReadWise to the WebStack VM through the pinned reusable GitHub Actions workflow, a minimal Alpine web image, a separate migration image, shared PostgreSQL, and optional direct-DKIM account email."
+description: "Deploys ReadWise to the WebStack VM through the pinned reusable GitHub Actions workflow, a minimal Alpine web image, a separate migration image, shared PostgreSQL, authenticated account email, and scheduled retention maintenance."
 ---
 
 # WebStack VM deployment
@@ -89,10 +89,15 @@ node-postgres libpq compatibility with `uselibpqcompat=true` so
 `sslmode=require` accepts WebStack's self-signed certificate while keeping the
 connection encrypted, matching the Prisma CLI migration behavior.
 
-Optional authenticated SMTP relay settings (`SMTP_URL` and `EMAIL_FROM`) and
-AI, Speech, Push, OAuth, tracing, and Azure Storage settings may be added to
-`VM_APP_ENV`. Without Azure Storage configuration, local speech media is
-container-local cache and is not durable across deployments.
+Optional AI, Speech, Push, OAuth, tracing, and Azure Storage settings may be
+added to `VM_APP_ENV`. Without Azure Storage configuration, local speech media
+is container-local cache and is not durable across deployments.
+
+Use authenticated SMTP as the primary production account-email path. When
+`SMTP_URL`/`EMAIL_FROM` and direct DKIM settings are both complete, ReadWise
+selects SMTP and does not retry through direct delivery after an SMTP attempt.
+Direct delivery from a cloud VM can still be rejected by recipient policy or
+sender-IP blocklists even when SPF, DKIM, DMARC, and STARTTLS are correct.
 
 Email/password is the primary account-creation path. In `invitation-only` mode,
 an administrator creates a time-bounded email invitation at
@@ -125,12 +130,28 @@ VM_APP_NAME=readwise
 VM_DEPLOY_ENABLED=true
 ACCOUNT_MAIL_FROM=noreply@readwise.genisisiq.com
 ACCOUNT_MAIL_DKIM_SELECTOR=<readwise-specific-selector>
+EMAIL_FROM=noreply@readwise.genisisiq.com
+RETENTION_MAINTENANCE_URL=https://readwise.genisisiq.com/api/maintenance/retention
+RETENTION_MAINTENANCE_ENABLED=true
 ```
+
+For authenticated relay delivery, store the complete credential-bearing
+connection URL as the repository secret `SMTP_URL`; for example, an SMTPS URL
+on port 465. Keep the sender identity in the repository variable `EMAIL_FROM`.
+The deployment workflow injects both values without writing them to source or
+workflow output.
 
 For direct account email, add the base64-encoded PEM private key as the
 `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` repository environment secret. The
 caller workflow appends that secret and the two variables to `APPLICATION_ENV`;
 they do not need to be duplicated in `VM_APP_ENV`.
+
+Generate a separate retention bearer secret with `openssl rand -base64 48` and
+store the same value as the repository secret `RETENTION_WORKER_SECRET`. The
+deployment workflow injects it into the web container, while
+`.github/workflows/retention-maintenance.yml` uses it for the authenticated
+daily request. `/api/ready` reports this optional worker configuration
+independently.
 
 Publish these DNS records for the `ACCOUNT_MAIL_FROM` domain before enabling
 direct delivery:
@@ -143,7 +164,8 @@ direct delivery:
 The VM must allow outbound TCP 25, and its public sending IP should have aligned
 reverse DNS and acceptable mail reputation. Direct delivery requires verified
 STARTTLS from the recipient's preferred MX server. If these requirements cannot
-be met, use an authenticated SMTP relay instead.
+be met, use an authenticated SMTP relay instead; copying the one-time invitation
+link remains the safe administrator fallback.
 
 Enable `VM_DEPLOY_ENABLED` only after the production environment, Azure OIDC
 identity, DNS, and `VM_APP_ENV` secret are ready.

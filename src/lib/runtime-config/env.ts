@@ -55,6 +55,7 @@ export type RuntimeConfigReport = {
     azureAdOAuth: ConfigCheckReport;
     email: ConfigCheckReport;
     accountAdmission: ConfigCheckReport;
+    retentionMaintenance: ConfigCheckReport;
     storage: ConfigCheckReport;
     scraper: ConfigCheckReport;
   };

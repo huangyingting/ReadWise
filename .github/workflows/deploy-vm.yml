@@ -45,6 +45,9 @@ jobs:
     secrets:
       APPLICATION_ENV: |
         ${{ secrets.VM_APP_ENV }}
+        ${{ secrets.SMTP_URL != '' && format('SMTP_URL={0}', secrets.SMTP_URL) || '' }}
+        ${{ vars.EMAIL_FROM != '' && format('EMAIL_FROM={0}', vars.EMAIL_FROM) || '' }}
         ${{ secrets.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64 != '' && format('ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64={0}', secrets.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64) || '' }}
         ${{ vars.ACCOUNT_MAIL_FROM != '' && format('ACCOUNT_MAIL_FROM={0}', vars.ACCOUNT_MAIL_FROM) || '' }}
         ${{ vars.ACCOUNT_MAIL_DKIM_SELECTOR != '' && format('ACCOUNT_MAIL_DKIM_SELECTOR={0}', vars.ACCOUNT_MAIL_DKIM_SELECTOR) || '' }}
+        ${{ secrets.RETENTION_WORKER_SECRET != '' && format('RETENTION_WORKER_SECRET={0}', secrets.RETENTION_WORKER_SECRET) || '' }}

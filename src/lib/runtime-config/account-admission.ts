@@ -61,7 +61,15 @@ function validSmtpUrl(value: string): boolean {
   }
 }
 
-function readEmailDeliveryConfig(): EmailDeliveryConfig | null {
+function readSmtpEmailDeliveryConfig(): SmtpEmailDeliveryConfig | null {
+  const smtpUrl = envValue(SMTP_EMAIL_ENV[0]);
+  const smtpFrom = envValue(SMTP_EMAIL_ENV[1]);
+  return smtpUrl && smtpFrom && validSmtpUrl(smtpUrl)
+    ? { kind: "smtp", smtpUrl, from: smtpFrom }
+    : null;
+}
+
+function readDirectEmailDeliveryConfig(): DirectEmailDeliveryConfig | null {
   const directFrom = envValue(DIRECT_EMAIL_ENV[0]);
   const selector = envValue(DIRECT_EMAIL_ENV[1]);
   const privateKey = readDirectPrivateKey();
@@ -80,10 +88,11 @@ function readEmailDeliveryConfig(): EmailDeliveryConfig | null {
     };
   }
 
-  const smtpUrl = envValue(SMTP_EMAIL_ENV[0]);
-  const from = envValue(SMTP_EMAIL_ENV[1]);
-  if (!smtpUrl || !from || !validSmtpUrl(smtpUrl)) return null;
-  return { kind: "smtp", smtpUrl, from };
+  return null;
+}
+
+function readEmailDeliveryConfig(): EmailDeliveryConfig | null {
+  return readSmtpEmailDeliveryConfig() ?? readDirectEmailDeliveryConfig();
 }
 
 export const emailDeliveryConfig: FeatureConfig<EmailDeliveryConfig> =
@@ -94,10 +103,12 @@ export function inspectEmailDeliveryConfig(): ConfigCheckReport {
   const smtpValues = SMTP_EMAIL_ENV.map((name) => envValue(name));
   const directPresent = directValues.some(Boolean);
   const smtpPresent = smtpValues.some(Boolean);
+  const directConfig = readDirectEmailDeliveryConfig();
+  const smtpConfig = readSmtpEmailDeliveryConfig();
   const configured = emailDeliveryConfig.get();
   const issues = [];
 
-  if (directPresent && configured?.kind !== "direct") {
+  if (directPresent && !directConfig) {
     issues.push(
       issue(
         "warning",
@@ -108,7 +119,7 @@ export function inspectEmailDeliveryConfig(): ConfigCheckReport {
     );
   }
 
-  if (smtpPresent) {
+  if (smtpPresent && !smtpConfig) {
     const smtpUrl = smtpValues[0];
     if (!smtpUrl || !smtpValues[1]) {
       issues.push(

@@ -102,6 +102,8 @@ export const GET = createPublicHandler({}, async () => {
           azureAdOAuth: config.optional.azureAdOAuth.status,
           email: config.optional.email.status,
           accountAdmission: config.optional.accountAdmission.status,
+          retentionMaintenance:
+            config.optional.retentionMaintenance.status,
           storage: config.optional.storage.status,
         },
       },

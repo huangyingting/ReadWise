@@ -1,0 +1,46 @@
+name: Retention maintenance
+
+on:
+  schedule:
+    # Daily at a non-round UTC minute to reduce GitHub Actions cron congestion.
+    - cron: "47 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Count matching records without deleting or clearing them
+        required: true
+        default: true
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: retention-maintenance
+  cancel-in-progress: false
+
+jobs:
+  retain:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || vars.RETENTION_MAINTENANCE_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Run retention maintenance
+        env:
+          RETENTION_URL: ${{ vars.RETENTION_MAINTENANCE_URL }}
+          RETENTION_SECRET: ${{ secrets.RETENTION_WORKER_SECRET }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0' }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$RETENTION_URL"
+          test -n "$RETENTION_SECRET"
+          suffix=""
+          if [ "$DRY_RUN" = "1" ]; then
+            suffix="?dryRun=1"
+          fi
+          curl --fail-with-body --silent --show-error --max-time 300 \
+            --proto '=https' \
+            --request POST \
+            --header "Authorization: Bearer ${RETENTION_SECRET}" \
+            "${RETENTION_URL}${suffix}"

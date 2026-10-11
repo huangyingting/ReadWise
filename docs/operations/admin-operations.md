@@ -279,7 +279,14 @@ and calls `runJobWorker`. All policy lives in `src/lib/worker/` and
 
 ### Scheduled retention maintenance
 
-Run all metadata retention helpers from cron/scheduler with:
+The `Retention maintenance` GitHub Actions workflow calls the production
+`POST /api/maintenance/retention` endpoint daily at `03:47 UTC`. Scheduled
+runs execute cleanup when `RETENTION_MAINTENANCE_ENABLED=true`; manual workflow
+dispatch defaults to a safe count-only dry run. The endpoint requires a
+constant-time-checked bearer secret from `RETENTION_WORKER_SECRET`, returns
+metadata-only counts, and disables response caching.
+
+The CLI remains available for trusted local or operations-container use:
 
 ```bash
 # Safe count-only preview (default)
@@ -292,16 +299,17 @@ npm run maintenance:retention -- --execute
 npm run maintenance:retention -- --execute --analytics-days 400 --ai-days 365 --audit-days 730 --jobs-days 90
 ```
 
-The script dispatches `pruneOldEvents`, `pruneOldAiInvocations`,
-`pruneOldAuditLogs`, and `pruneTerminalJobs`. It defaults to dry-run/count mode
-and emits metadata-only JSON: area, retention window, matched count, and deleted
-count. It never reads or logs prompts, article text, selected text, definitions,
-translations, tokens, cookies, or credentials.
+The CLI and authenticated endpoint share one orchestration module. It dispatches
+analytics, AI-ledger, audit-log, terminal-job, and Account Admission retention.
+Both surfaces emit metadata-only JSON: area, retention window, matched count,
+and deleted count. They never read or log prompts, article text, selected text,
+definitions, translations, tokens, cookies, or credentials.
 
 `JOB_TERMINAL_RETENTION_DAYS` sets the default window for completed and
 dead-letter jobs (90 days when unset). `--jobs-days` overrides that value for
-one maintenance run. Retention remains opt-in: the application does not invoke
-`pruneTerminalJobs` automatically.
+one CLI run. `ACCOUNT_ADMISSION_RETENTION_DAYS` controls terminal invitation
+retention; expired pending registrations and password-reset hashes are also
+cleaned by the Account Admission maintenance area.
 
 ### Reconcile stamped-but-unclaimed force-rescrape regeneration
 

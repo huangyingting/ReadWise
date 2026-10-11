@@ -77,6 +77,16 @@ export const GET = createPublicHandler({}, async () => {
 `,
   );
   addRoute(
+    "maintenance",
+    `
+import { createPublicHandler } from "@/lib/api-handler";
+/** @api-auth bearer */
+export const POST = createPublicHandler({}, async () => {
+  return Response.json({ ok: true });
+});
+`,
+  );
+  addRoute(
     "helper-download",
     `
 import { NextResponse } from "next/server";
@@ -340,6 +350,10 @@ test("api catalog parses synthetic routes and renders markdown summaries", async
 
   const auth = findRoute(catalog, "/api/auth/{...nextauth}");
   assert.deepEqual(auth?.methods.map((method) => method.responseFormat), ["nextauth", "nextauth"]);
+
+  const maintenance = findRoute(catalog, "/api/maintenance");
+  assert.equal(maintenance?.methods[0].authMode, "bearer");
+  assert.deepEqual(maintenance?.methods[0].notes, ["bearer token required"]);
 
   const download = findRoute(catalog, "/api/download");
   assert.equal(download?.methods[0].successStatus, 204);

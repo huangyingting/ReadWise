@@ -21,6 +21,7 @@ export * as storage from "./storage";
 export * as scraper from "./scraper";
 export * as dictionary from "./dictionary";
 export * as runtime from "./runtime";
+export * as maintenance from "./maintenance";
 export type {
   FeatureConfig,
   ConfigIssue,

@@ -64,7 +64,7 @@ const message = {
 test("direct email uses verified STARTTLS, DKIM, and one envelope recipient", async () => {
   const { sendDirectEmail } = await import("@/lib/account-admission/direct-email");
 
-  assert.equal(await sendDirectEmail(message, config), "sent");
+  assert.deepEqual(await sendDirectEmail(message, config), { status: "sent" });
   assert.deepEqual(transportOptions, {
     host: "8.8.8.8",
     port: 25,
@@ -100,7 +100,10 @@ test("direct email reports ambiguous post-DATA failures as unconfirmed", async (
   });
   const { sendDirectEmail } = await import("@/lib/account-admission/direct-email");
 
-  assert.equal(await sendDirectEmail(message, config), "unconfirmed");
+  assert.deepEqual(await sendDirectEmail(message, config), {
+    status: "unconfirmed",
+    reason: "delivery_unconfirmed",
+  });
   assert.equal(closeCalls, 1);
 });
 
@@ -110,14 +113,20 @@ test("direct email reports explicit recipient refusal as failed", async () => {
   });
   const { sendDirectEmail } = await import("@/lib/account-admission/direct-email");
 
-  assert.equal(await sendDirectEmail(message, config), "failed");
+  assert.deepEqual(await sendDirectEmail(message, config), {
+    status: "failed",
+    reason: "recipient_rejected",
+  });
 });
 
 test("direct email rejects null MX, header injection, and mixed public addresses", async () => {
   const { sendDirectEmail } = await import("@/lib/account-admission/direct-email");
 
   mxRecords = [{ priority: 0, exchange: "." }];
-  assert.equal(await sendDirectEmail(message, config), "failed");
+  assert.deepEqual(await sendDirectEmail(message, config), {
+    status: "failed",
+    reason: "recipient_unavailable",
+  });
   assert.equal(transportOptions, null);
 
   await assert.rejects(
@@ -133,6 +142,23 @@ test("direct email rejects null MX, header injection, and mixed public addresses
     { address: "8.8.8.8", family: 4 },
     { address: "169.254.169.254", family: 4 },
   ];
-  assert.equal(await sendDirectEmail(message, config), "failed");
+  assert.deepEqual(await sendDirectEmail(message, config), {
+    status: "failed",
+    reason: "recipient_unavailable",
+  });
   assert.equal(transportOptions, null);
+});
+
+test("direct email classifies blocklist rejection without exposing SMTP prose", async () => {
+  sentError = Object.assign(new Error("Sender blocked"), {
+    responseCode: 550,
+    response:
+      "550 5.7.1 Service unavailable, client host blocked using Spamhaus",
+  });
+  const { sendDirectEmail } = await import("@/lib/account-admission/direct-email");
+
+  assert.deepEqual(await sendDirectEmail(message, config), {
+    status: "failed",
+    reason: "sender_blocked",
+  });
 });

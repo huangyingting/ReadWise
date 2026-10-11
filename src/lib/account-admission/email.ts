@@ -24,7 +24,11 @@ export type EmailDeliveryResult =
         | "email_not_configured"
         | "invalid_app_url"
         | "delivery_failed"
-        | "delivery_unconfirmed";
+        | "delivery_unconfirmed"
+        | "connection_failed"
+        | "recipient_rejected"
+        | "recipient_unavailable"
+        | "sender_blocked";
     };
 
 type SecretLinkEmail = {
@@ -70,14 +74,11 @@ async function sendSecretLinkEmail(input: {
         },
         config,
       );
-      return status === "sent"
+      return status.status === "sent"
         ? { delivered: true }
         : {
             delivered: false,
-            reason:
-              status === "unconfirmed"
-                ? "delivery_unconfirmed"
-                : "delivery_failed",
+            reason: status.reason,
           };
     }
 
@@ -90,7 +91,7 @@ async function sendSecretLinkEmail(input: {
     });
     return (result.accepted?.length ?? 0) > 0
       ? { delivered: true }
-      : { delivered: false, reason: "delivery_failed" };
+      : { delivered: false, reason: "recipient_rejected" };
   } catch {
     logger.error("email.delivery_failed", {
       machineReason: "account_admission_email_delivery_failed",

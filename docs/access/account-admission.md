@@ -153,7 +153,7 @@ normalized-email key where an email is available.
 | Variable | Default / behavior |
 | --- | --- |
 | `ACCOUNT_ADMISSION_MODE` | `invitation-only`; accepts `invitation-only` or `public`. |
-| `SMTP_URL` | Optional authenticated SMTP/SMTPS relay connection URL. |
+| `SMTP_URL` | Optional authenticated SMTP/SMTPS relay connection URL. Preferred when both providers are complete. |
 | `EMAIL_FROM` | Sender identity paired with `SMTP_URL`. |
 | `ACCOUNT_MAIL_FROM` | Bare sender address for direct-to-MX account email. Its domain must align with SPF and DKIM. |
 | `ACCOUNT_MAIL_DKIM_SELECTOR` | DNS selector for the direct-delivery DKIM record. |
@@ -169,11 +169,20 @@ an optional native date/time picker only when a custom expiry is needed.
 mode without either a complete direct-DKIM provider or both SMTP settings is
 degraded. Invalid admission mode is a blocking auth configuration error.
 
+Authenticated SMTP is the preferred production transport because recipient
+providers commonly reject cloud-VM addresses based on sender-IP reputation.
+When both providers are complete, ReadWise selects SMTP. Direct DKIM is selected
+only when authenticated SMTP is not valid; there is no automatic cross-provider
+retry after a delivery attempt because a post-`DATA` failure may be ambiguous.
+
 Direct delivery resolves the recipient's preferred MX record, rejects private
 or mixed public/private destinations, connects to one public address on TCP 25,
 requires verified STARTTLS, and DKIM-signs a one-recipient envelope. It does
 not try another MX after SMTP `DATA`: a lost acknowledgement is reported as
 unconfirmed because the recipient server may already have accepted the message.
+Explicit policy/blocklist rejections are returned to the administrator as the
+safe machine reason `sender_blocked`; raw SMTP response prose is not exposed or
+persisted.
 
 The invitation, verification, or reset token exists only in the request's
 in-memory message. ReadWise does not persist a durable email outbox because that
@@ -189,6 +198,11 @@ one-time copy-link fallback.
 - clears expired password-reset token hashes;
 - deletes terminal Account Invitations older than
   `ACCOUNT_ADMISSION_RETENTION_DAYS`.
+
+Production invokes the same shared maintenance policy daily through
+`POST /api/maintenance/retention`, authenticated by
+`RETENTION_WORKER_SECRET`. Scheduled calls execute cleanup; manual GitHub
+workflow dispatch defaults to a count-only dry run.
 
 Password hashes, reset tokens, invitation tokens, Session tokens, provider
 tokens, email addresses, and secret links must never appear in logs, analytics,

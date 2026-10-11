@@ -55,6 +55,7 @@ const API_ROOT = join(ROOT, "src", "app", "api");
 // ── Public types ──────────────────────────────────────────────────────────
 
 export type { AuthMode } from "@/lib/api-handler";
+export type CatalogAuthMode = AuthMode | "bearer";
 export type ResponseFormat =
   | "json"
   | "binary"
@@ -66,7 +67,7 @@ export type ResponseFormat =
 
 export interface MethodEntry {
   method: string;
-  authMode: AuthMode;
+  authMode: CatalogAuthMode;
   capability: string | null;
   hasBodySchema: boolean;
   hasParamsSchema: boolean;
@@ -144,11 +145,12 @@ const HANDLER_WINDOW_CHARS = 5000;
 const IDENTIFIER_SOURCE = "[a-zA-Z_$][\\w$]*";
 const IDENTIFIER_RE = /^[a-zA-Z_$][\w$]*$/;
 const JSON_RESPONSE_CALL_RE = /\b(?:NextResponse|Response)\.json\s*\(/g;
-const DEFAULT_AUTH_COUNTS: Record<AuthMode, number> = {
+const DEFAULT_AUTH_COUNTS: Record<CatalogAuthMode, number> = {
   public: 0,
   session: 0,
   admin: 0,
   capability: 0,
+  bearer: 0,
 };
 
 // ── Contract-extraction helpers ───────────────────────────────────────────
@@ -1062,7 +1064,7 @@ function extractReferencedBodyFields(configWindow: string, fullSource: string): 
   return null;
 }
 
-function authModeForWrapper(wrapperName: string): AuthMode {
+function authModeForWrapper(wrapperName: string): CatalogAuthMode {
   if (wrapperName === "createAdminHandler") return "admin";
   if (wrapperName === "createPublicHandler") return "public";
   if (wrapperName === "createCapabilityHandler") return "capability";
@@ -1090,7 +1092,15 @@ function extractMethodEntry(method: string, source: string): MethodEntry | null 
   if (!match) return null;
 
   const wrapperName = match[1];
-  const authMode = authModeForWrapper(wrapperName);
+  const annotationPrefix = source.slice(
+    Math.max(0, match.index - 160),
+    match.index,
+  );
+  const authMode = /\/\*\*\s*@api-auth\s+bearer\s*\*\/\s*$/.test(
+    annotationPrefix,
+  )
+    ? "bearer"
+    : authModeForWrapper(wrapperName);
 
   let capability: string | null = null;
   if (authMode === "capability") {
@@ -1128,6 +1138,9 @@ function extractMethodEntry(method: string, source: string): MethodEntry | null 
   const notes: string[] = [];
   if (authMode === "capability" && capability) {
     notes.push(`capability: CAPABILITIES.${capability}`);
+  }
+  if (authMode === "bearer") {
+    notes.push("bearer token required");
   }
 
   return {
@@ -1261,11 +1274,12 @@ export function buildCatalog(): ApiCatalog {
 
 // ── Markdown renderer ─────────────────────────────────────────────────────
 
-const AUTH_BADGE: Record<AuthMode, string> = {
+const AUTH_BADGE: Record<CatalogAuthMode, string> = {
   public: "🔓 public",
   session: "🔐 session",
   admin: "🛡️ admin",
   capability: "⚡ capability",
+  bearer: "🔑 bearer",
 };
 
 const FORMAT_BADGE: Record<ResponseFormat, string> = {
@@ -1288,7 +1302,9 @@ function schemaBadges(method: MethodEntry): string {
     .join(" ") || "—";
 }
 
-function countAuthModes(routes: RouteEntry[]): Record<AuthMode, number> {
+function countAuthModes(
+  routes: RouteEntry[],
+): Record<CatalogAuthMode, number> {
   const counts = { ...DEFAULT_AUTH_COUNTS };
   for (const route of routes) {
     for (const method of route.methods) counts[method.authMode]++;
@@ -1352,6 +1368,7 @@ export function buildCatalogMarkdown(catalog: ApiCatalog): string {
     "| 🔐 session | Authenticated user session required |",
     "| 🛡️ admin | Admin role required |",
     "| ⚡ capability | Named RBAC capability required |",
+    "| 🔑 bearer | Pre-shared bearer token required |",
     "| `B` | Body schema validated |",
     "| `P` | Path params schema validated |",
     "| `Q` | Query schema validated |",
@@ -1375,7 +1392,10 @@ export function buildCatalogMarkdown(catalog: ApiCatalog): string {
   lines.push("", "## Summary by auth mode", "");
   const authCounts = countAuthModes(catalog.routes);
   lines.push("| Auth mode | Count |", "|-----------|-------|");
-  for (const [mode, count] of Object.entries(authCounts) as [AuthMode, number][]) {
+  for (const [mode, count] of Object.entries(authCounts) as [
+    CatalogAuthMode,
+    number,
+  ][]) {
     lines.push(`| ${AUTH_BADGE[mode]} | ${count} |`);
   }
 

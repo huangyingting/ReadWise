@@ -21,6 +21,7 @@ import {
   inspectAccountAdmissionConfig,
   inspectEmailDeliveryConfig,
 } from "./account-admission";
+import { inspectRetentionWorkerConfig } from "./maintenance";
 
 const SUPPORTED_SPEECH_OUTPUT_FORMATS = new Set([
   "audio-16khz-32kbitrate-mono-mp3",
@@ -274,6 +275,7 @@ function validateRuntimeSections() {
   const azureAdOAuth = evaluateOptional(["AZURE_AD_CLIENT_ID", "AZURE_AD_CLIENT_SECRET", "AZURE_AD_TENANT_ID"]);
   const email = inspectEmailDeliveryConfig();
   const accountAdmission = inspectAccountAdmissionConfig();
+  const retentionMaintenance = inspectRetentionWorkerConfig();
   const admissionError = accountAdmission.issues.find(
     (item) => item.severity === "error",
   );
@@ -299,6 +301,7 @@ function validateRuntimeSections() {
       azureAdOAuth,
       email,
       accountAdmission,
+      retentionMaintenance,
       storage,
       scraper,
     },

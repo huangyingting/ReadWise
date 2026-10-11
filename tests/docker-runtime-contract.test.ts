@@ -154,6 +154,14 @@ test("VM deployment follows the pinned WebStack PostgreSQL release contract", ()
     deployWorkflow,
     /database_url_query: schema=public&sslmode=require&uselibpqcompat=true/,
   );
+  assert.match(
+    deployWorkflow,
+    /SMTP_URL=\{0\}[\s\S]*secrets\.SMTP_URL/,
+  );
+  assert.match(
+    deployWorkflow,
+    /EMAIL_FROM=\{0\}[\s\S]*vars\.EMAIL_FROM/,
+  );
 });
 
 test("CI database coverage installs native dependencies before SQLite tests", () => {
