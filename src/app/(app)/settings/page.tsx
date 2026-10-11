@@ -24,6 +24,9 @@ import SettingsThemeRow from "@/components/SettingsThemeRow";
 import { settings } from "@/lib/copy/pages";
 import { pushConfig } from "@/lib/runtime-config/push";
 import { seedLevelForProfile } from "@/lib/learning/placement";
+import { listAuthenticationMethods } from "@/lib/account-admission";
+import { getConfiguredProviders } from "@/lib/auth/providers";
+import AuthenticationSettings from "./AuthenticationSettings";
 
 export const metadata = settings;
 
@@ -131,7 +134,10 @@ function PrivacyAccountCard() {
 export default async function SettingsPage() {
   const session = await requireOnboardedSession("/settings");
   const user = session.user;
-  const profile = await getProfile(user.id);
+  const [profile, authenticationMethods] = await Promise.all([
+    getProfile(user.id),
+    listAuthenticationMethods(user.id),
+  ]);
 
   return (
     <PageShell variant="narrow">
@@ -149,6 +155,12 @@ export default async function SettingsPage() {
 
         {/* Account card — read-only, outside the form */}
         <AccountCard user={user} />
+
+        <AuthenticationSettings
+          initialHasPassword={authenticationMethods.hasPassword}
+          linkedProviders={authenticationMethods.providers}
+          configuredProviders={getConfiguredProviders()}
+        />
 
         {/* Notifications card — hidden server-side when VAPID is not configured */}
         {pushConfig.isConfigured() ? <NotificationsCard /> : null}

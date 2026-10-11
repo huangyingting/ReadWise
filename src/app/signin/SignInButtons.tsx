@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { LogIn, AlertTriangle } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { Button } from "@/components/ui";
 
 type Provider = {
@@ -24,22 +24,6 @@ function getProviderLabel(provider: Provider): string {
   return PROVIDER_LABELS[provider.id] ?? `Continue with ${provider.name}`;
 }
 
-function NoProvidersNotice() {
-  return (
-    <div className="flex items-start gap-[var(--space-2)] text-text-muted text-[length:var(--text-sm)]">
-      <AlertTriangle
-        size={16}
-        aria-hidden
-        className="shrink-0 translate-y-[calc(var(--space-1)/4)]"
-      />
-      <span>
-        No authentication providers are configured. Set OAuth credentials in
-        the environment to enable sign-in.
-      </span>
-    </div>
-  );
-}
-
 export default function SignInButtons({
   providers,
   callbackUrl,
@@ -52,25 +36,37 @@ export default function SignInButtons({
   }
 
   if (providers.length === 0) {
-    return <NoProvidersNotice />;
+    return null;
   }
 
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
-      {providers.map((provider) => (
-        <Button
-          key={provider.id}
-          variant="secondary"
-          size="lg"
-          className="w-full"
-          loading={pending === provider.id}
-          disabled={pending !== null && pending !== provider.id}
-          leadingIcon={<LogIn size={18} aria-hidden />}
-          onClick={() => handleProviderSignIn(provider.id)}
-        >
-          {getProviderLabel(provider)}
-        </Button>
-      ))}
+      <div className="flex items-center gap-[var(--space-3)]" aria-hidden>
+        <span className="h-px flex-1 bg-border" />
+        <span className="text-[length:var(--text-xs)] uppercase tracking-wide text-text-subtle">
+          Linked accounts
+        </span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+      <p className="text-center text-[length:var(--text-xs)] text-text-subtle">
+        Social sign-in works after you link the provider from Settings.
+      </p>
+      <div className="flex flex-col gap-[var(--space-3)]">
+        {providers.map((provider) => (
+          <Button
+            key={provider.id}
+            variant="secondary"
+            size="lg"
+            className="w-full"
+            loading={pending === provider.id}
+            disabled={pending !== null && pending !== provider.id}
+            leadingIcon={<LogIn size={18} aria-hidden />}
+            onClick={() => handleProviderSignIn(provider.id)}
+          >
+            {getProviderLabel(provider)}
+          </Button>
+        ))}
+      </div>
     </div>
   );
 }

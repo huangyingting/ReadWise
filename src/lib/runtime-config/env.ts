@@ -53,6 +53,8 @@ export type RuntimeConfigReport = {
     push: ConfigCheckReport;
     googleOAuth: ConfigCheckReport;
     azureAdOAuth: ConfigCheckReport;
+    email: ConfigCheckReport;
+    accountAdmission: ConfigCheckReport;
     storage: ConfigCheckReport;
     scraper: ConfigCheckReport;
   };

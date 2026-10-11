@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-08T12:38:01.554Z",
-  "routeCount": 140,
-  "methodCount": 172,
+  "generatedAt": "2026-10-10T23:42:57.268Z",
+  "routeCount": 150,
+  "methodCount": 184,
   "routes": [
     {
       "path": "/api/account",
@@ -21,6 +21,47 @@
           "responseKeys": null,
           "queryParamNames": null,
           "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/account/auth-methods",
+      "file": "src/app/api/account/auth-methods/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "PUT",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "created",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "currentPassword",
+            "password"
+          ]
         }
       ]
     },
@@ -848,6 +889,111 @@
             "action",
             "definitionVersion",
             "reason"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/invitations",
+      "file": "src/app/api/admin/invitations/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "membersManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.membersManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "invitations"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "membersManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.membersManage"
+          ],
+          "successStatus": 201,
+          "responseKeys": [
+            "acceptUrl",
+            "delivery",
+            "invitation",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "email",
+            "expiresAt"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/invitations/{id}",
+      "file": "src/app/api/admin/invitations/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "capability",
+          "capability": "membersManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.membersManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "invitation",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/invitations/{id}/rotate",
+      "file": "src/app/api/admin/invitations/[id]/rotate/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "membersManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.membersManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "acceptUrl",
+            "delivery",
+            "invitation",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "expiresAt"
           ]
         }
       ]
@@ -1882,6 +2028,162 @@
           "responseKeys": null,
           "queryParamNames": null,
           "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/auth/invitation",
+      "file": "src/app/api/auth/invitation/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "invitation"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "token"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/auth/password/forgot",
+      "file": "src/app/api/auth/password/forgot/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 202,
+          "responseKeys": [
+            "message",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "email"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/auth/password/login",
+      "file": "src/app/api/auth/password/login/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "email",
+            "password"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/auth/password/reset",
+      "file": "src/app/api/auth/password/reset/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "password",
+            "token"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/auth/register",
+      "file": "src/app/api/auth/register/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "email",
+            "name",
+            "password",
+            "token"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/auth/verify-email",
+      "file": "src/app/api/auth/verify-email/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "token"
+          ]
         }
       ]
     },

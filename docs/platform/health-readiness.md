@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-10-10"
 description: "Documents /api/health, /api/ready, runtime configuration validation, migration checks, and optional-provider degradation. Captures current readiness JSON, provider check semantics, database/migration validation, and non-secret reporting."
 ---
 
@@ -56,6 +56,8 @@ checks fail. Response shape:
       "push": "unconfigured",
       "googleOAuth": "configured",
       "azureAdOAuth": "unconfigured",
+      "email": "configured",
+      "accountAdmission": "configured",
       "storage": "unconfigured"
     }
   },
@@ -118,6 +120,8 @@ Optional providers are evaluated independently:
 | Push | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Reminder sends become no-ops. |
 | Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Provider is omitted. |
 | Azure AD OAuth | `AZURE_AD_CLIENT_ID`, `AZURE_AD_CLIENT_SECRET`, `AZURE_AD_TENANT_ID` | Provider is omitted. |
+| Email | `SMTP_URL`, `EMAIL_FROM` | Invitation delivery and password recovery degrade; public registration cannot be completed without delivery. |
+| Account Admission | `ACCOUNT_ADMISSION_MODE`; SMTP is also checked in public mode | Invalid modes fail closed and block auth readiness; public mode without SMTP reports degraded. |
 | Storage | `MEDIA_STORAGE` plus backend-specific values | Local default works without cloud credentials; Azure degrades when credentials are missing. |
 
 Optional providers report:

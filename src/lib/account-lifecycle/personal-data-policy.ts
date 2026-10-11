@@ -281,6 +281,9 @@ export const USER_EXPORT_SELECT = {
 /** User relations intentionally excluded from the export, with policy reasons. */
 export const USER_EXPORT_RELATION_EXCLUSIONS = {
   sessions: "Session tokens are authentication secrets.",
+  passwordCredential: "Password hashes and reset tokens are authentication secrets.",
+  accountInvitationsSent: "Administrative invitation records are operational access-control data.",
+  accountInvitationsAccepted: "Accepted invitation records are operational access-control data.",
   pushSubscriptions: "Push endpoints and keys are authentication material.",
   ownedArticles: "Article text is not duplicated into personal-data exports.",
   ownedTags: "Private tag records are not part of the current export contract.",

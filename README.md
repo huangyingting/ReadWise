@@ -72,6 +72,9 @@ OpenTelemetry) degrades gracefully when it is not configured.
   structured logging, CSRF/same-origin checks, rate limiting, audit hooks,
   security-event monitoring, metrics, tracing spans, and production-safe error
   responses.
+- Invitation-only or public Account Admission, email/password registration,
+  email verification and recovery, explicit social-account linking, and
+  capability-gated invitation administration.
 
 ## Tech stack
 
@@ -113,7 +116,10 @@ Edit `.env` and replace at least:
 - `PRISMA_SCHEMA_PATH` — keep `prisma/schema.prisma` for SQLite.
 - `NEXTAUTH_SECRET` — use a real random string of at least 32 characters.
 - `NEXTAUTH_URL` — usually `http://localhost:3000` locally.
-- At least one OAuth provider if you want normal browser sign-in.
+- `ACCOUNT_ADMISSION_MODE` — keep the fail-closed `invitation-only` default or
+  select `public`.
+- `SMTP_URL` and `EMAIL_FROM` for public registration and password recovery.
+- OAuth providers only if you want optional linked social sign-in.
 - Clear optional provider placeholders that you are not using; fake Azure/OAuth
   values are still non-empty values and may make the app try those providers.
 
@@ -126,9 +132,18 @@ npm run dev
 ```
 
 Open <http://localhost:3000>. The content seeder scrapes and enriches sample
-articles; it does not create local login sessions. For safe local sign-in,
-OAuth setup, first-user admin bootstrap, and the Playwright-only test-session
-path, see [`docs/platform/authentication.md`](./docs/platform/authentication.md#local-sign-in-and-test-sessions).
+articles; it does not create local login sessions. Bootstrap the first
+administrator explicitly:
+
+```bash
+printf '%s\n' "$READWISE_ADMIN_PASSWORD" |
+  npm run bootstrap:admin -- --email admin@example.com --password-stdin
+```
+
+For Account Admission, social linking, password recovery, and the
+Playwright-only test-session path, see
+[`docs/access/account-admission.md`](./docs/access/account-admission.md) and
+[`docs/platform/authentication.md`](./docs/platform/authentication.md#local-sign-in-and-test-sessions).
 
 > AI, Speech, Push, storage, and tracing are optional. The app remains usable
 > without those credentials: AI panels show friendly fallbacks, article
@@ -186,13 +201,16 @@ backup, restore, reset, and SQLite-to-PostgreSQL notes.
 | `NEXT_PUBLIC_SITE_URL` | Public canonical URL used for metadata, `robots.txt`, and `sitemap.xml`; falls back to `NEXTAUTH_URL`. |
 | `APP_URL`, `NEXT_PUBLIC_APP_URL` | Optional deployment aliases whose origins are trusted by the same-origin mutation guard. |
 
-### Sign-in providers
+### Account Admission and sign-in
 
-At least one provider is needed for normal sign-in. Missing providers do not
-crash startup.
+Email/password is always available for existing Password Credentials. Public
+registration and password recovery require SMTP. OAuth providers are optional
+linked sign-in methods and never create Users.
 
-| Provider | Variables |
+| Area | Variables |
 | --- | --- |
+| Admission | `ACCOUNT_ADMISSION_MODE`, `ACCOUNT_ADMISSION_RETENTION_DAYS` |
+| Email | `SMTP_URL`, `EMAIL_FROM` |
 | Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | Azure Entra ID | `AZURE_AD_CLIENT_ID`, `AZURE_AD_CLIENT_SECRET`, `AZURE_AD_TENANT_ID` |
 
@@ -223,7 +241,7 @@ crash startup.
 | Feature switches | `FEATURE_AI_ENABLED`, `FEATURE_TTS_ENABLED`, `FEATURE_PUSH_ENABLED`, `FEATURE_SCRAPER_ENABLED`, `FEATURE_TODAY_SESSION_ENABLED` |
 | Scraper controls | `SCRAPER_FETCH_*`, `SCRAPER_MAX_BYTES`, `SCRAPER_TIMEOUT_MS`, `SCRAPER_HTML_NORMALIZE`, `SCRAPER_READABILITY`, `SCRAPER_QUALITY_CLASSIFIER`, `JINA_API_KEY` |
 | Database/cache timing | `DB_QUERY_TIMING_ENABLED`, `DB_SLOW_QUERY_THRESHOLD_MS`, `READWISE_DISABLE_LISTING_CACHE` |
-| Audit/job retention | `AUDIT_LOG_RETENTION_DAYS`, `JOB_TERMINAL_RETENTION_DAYS` |
+| Audit/job/admission retention | `AUDIT_LOG_RETENTION_DAYS`, `JOB_TERMINAL_RETENTION_DAYS`, `ACCOUNT_ADMISSION_RETENTION_DAYS` |
 | Product analytics | `ANALYTICS_ENABLED`, `ANALYTICS_RETENTION_DAYS` |
 | Developer/test tooling | `NEXT_DIST_DIR`, `PLAYWRIGHT_*`, `UI_AUDIT_*`, `RUN_DB_INTEGRATION`, `READWISE_BENCHMARK_ALLOW_REMOTE_DB` |
 

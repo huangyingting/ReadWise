@@ -60,6 +60,13 @@ enum JobStatus {
   DEAD_LETTER
 }
 
+enum AccountInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -72,6 +79,9 @@ model User {
 
   accounts              Account[]
   sessions              Session[]
+  passwordCredential    PasswordCredential?
+  accountInvitationsSent AccountInvitation[] @relation("AccountInvitationInviter")
+  accountInvitationsAccepted AccountInvitation[] @relation("AccountInvitationAcceptor")
   profile               Profile?
   readingProgress       ReadingProgress[]
   savedWords            SavedWord[]
@@ -398,6 +408,59 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model PasswordCredential {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  passwordHash      String
+  passwordChangedAt DateTime  @default(now())
+  resetTokenHash    String?   @unique
+  resetExpiresAt    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([resetExpiresAt])
+}
+
+model PendingRegistration {
+  id              String   @id @default(cuid())
+  email           String
+  normalizedEmail String   @unique
+  name            String?
+  passwordHash    String
+  tokenHash       String   @unique
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
+model AccountInvitation {
+  id              String                  @id @default(cuid())
+  email           String
+  normalizedEmail String
+  activeForEmail  String?                 @unique
+  tokenHash       String?                 @unique
+  status          AccountInvitationStatus @default(PENDING)
+  invitedById     String?
+  acceptedById    String?
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  invitedBy  User? @relation("AccountInvitationInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+  acceptedBy User? @relation("AccountInvitationAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@index([status, expiresAt])
+  @@index([normalizedEmail, createdAt])
+  @@index([invitedById])
+  @@index([acceptedById])
 }
 
 model ReadingList {

@@ -81,6 +81,26 @@ _Avoid_: Provider branch, scraper special case
 
 ### Account Lifecycle
 
+**Account Admission**:
+The policy decision that determines whether a person may create a new global ReadWise User.
+_Avoid_: Sign-in gate, user allowlist
+
+**Account Admission Mode**:
+The deployment-wide Account Admission policy: Invitation-only requires an Account Invitation, while Public permits anyone who proves control of an email address.
+_Avoid_: Test mode, auth mode
+
+**Account Invitation**:
+A time-bounded, email-bound authorization to create one global ReadWise User in Invitation-only Account Admission Mode.
+_Avoid_: Classroom invite, organization invite, email allowlist
+
+**Password Credential**:
+The email-and-password authentication method owned by one existing User.
+_Avoid_: Password account, credentials user
+
+**Linked Social Account**:
+An external identity provider account attached as an additional authentication method to an existing User.
+_Avoid_: Social user, OAuth account
+
 **Personal-data export policy**:
 The explicit field allowlist and include/exclude decision for every Prisma `User` relation; Prisma remains authoritative for relation and cascade behavior.
 _Avoid_: Lifecycle registry, export-all schema

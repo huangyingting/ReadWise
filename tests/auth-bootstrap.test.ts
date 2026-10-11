@@ -1,58 +1,105 @@
-/**
- * Tests for the first-user Admin bootstrap (REF-064).
- *
- * Verifies that the first user account is promoted to Admin, and that
- * subsequent users are not promoted.
- */
-import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import { before, beforeEach, mock, test } from "node:test";
 
-let fakeUserCount = 0;
-let lastUpdateArgs: { where?: unknown; data?: unknown } | null = null;
+let adminCount = 0;
+let existingUser: { id: string; email: string; emailVerified: Date | null } | null;
+let createdUser: Record<string, unknown> | null;
+let updatedUser: Record<string, unknown> | null;
+let upsertedCredential: Record<string, unknown> | null;
+
+const tx = {
+  user: {
+    count: async () => adminCount,
+    findUnique: async () => existingUser,
+    create: async ({ data }: { data: Record<string, unknown> }) => {
+      createdUser = data;
+      return { id: "created-admin", ...data };
+    },
+    update: async ({ data }: { data: Record<string, unknown> }) => {
+      updatedUser = data;
+      return { id: existingUser?.id ?? "existing-admin", ...data };
+    },
+  },
+  passwordCredential: {
+    upsert: async (args: Record<string, unknown>) => {
+      upsertedCredential = args;
+      return {};
+    },
+  },
+};
 
 before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
-        user: {
-          count: async () => fakeUserCount,
-          update: async (args: { where?: unknown; data?: unknown }) => {
-            lastUpdateArgs = args;
-            return {};
-          },
-        },
+        $transaction: async (operation: (client: typeof tx) => Promise<unknown>) =>
+          operation(tx),
       },
+    },
+  });
+  mock.module("@/lib/database/serializable-transaction", {
+    namedExports: {
+      runSerializableTransaction: async (
+        operation: (client: typeof tx) => Promise<unknown>,
+      ) => operation(tx),
     },
   });
 });
 
 beforeEach(() => {
-  lastUpdateArgs = null;
+  adminCount = 0;
+  existingUser = null;
+  createdUser = null;
+  updatedUser = null;
+  upsertedCredential = null;
 });
 
-async function bootstrapFirstUser(userId: string) {
-  const mod = await import("@/lib/auth/bootstrap");
-  return mod.bootstrapFirstUser(userId);
-}
-
-test("bootstrapFirstUser promotes the first user to Admin", async () => {
-  fakeUserCount = 1;
-  await bootstrapFirstUser("user-001");
-  assert.deepEqual(lastUpdateArgs, {
-    where: { id: "user-001" },
-    data: { role: "Admin" },
+test("bootstrapAdmin creates an explicit verified Admin with a Password Credential", async () => {
+  const { bootstrapAdmin } = await import("@/lib/auth/bootstrap");
+  const result = await bootstrapAdmin({
+    email: " Admin@Example.com ",
+    password: "correct horse battery staple",
   });
+
+  assert.equal(result.id, "created-admin");
+  assert.equal(createdUser?.email, "admin@example.com");
+  assert.equal(createdUser?.role, "Admin");
+  assert.ok(createdUser?.emailVerified instanceof Date);
+  const nested = createdUser?.passwordCredential as {
+    create?: { passwordHash?: string };
+  };
+  assert.match(nested.create?.passwordHash ?? "", /^scrypt\$/);
 });
 
-test("bootstrapFirstUser does not promote subsequent users", async () => {
-  fakeUserCount = 2;
-  await bootstrapFirstUser("user-002");
-  assert.equal(lastUpdateArgs, null, "update should not be called for non-first users");
+test("bootstrapAdmin can recover an existing user only when no Admin exists", async () => {
+  existingUser = {
+    id: "reader-1",
+    email: "reader@example.com",
+    emailVerified: null,
+  };
+  const { bootstrapAdmin } = await import("@/lib/auth/bootstrap");
+  const result = await bootstrapAdmin({
+    email: "reader@example.com",
+    password: "correct horse battery staple",
+  });
+
+  assert.equal(result.id, "reader-1");
+  assert.equal(updatedUser?.role, "Admin");
+  assert.ok(updatedUser?.emailVerified instanceof Date);
+  assert.ok(upsertedCredential);
 });
 
-test("bootstrapFirstUser does not promote when count is zero", async () => {
-  fakeUserCount = 0;
-  await bootstrapFirstUser("user-003");
-  assert.equal(lastUpdateArgs, null, "update should not be called when user count is 0");
-});
+test("bootstrapAdmin refuses to change access once an Admin exists", async () => {
+  adminCount = 1;
+  const { bootstrapAdmin } = await import("@/lib/auth/bootstrap");
 
+  await assert.rejects(
+    bootstrapAdmin({
+      email: "other@example.com",
+      password: "correct horse battery staple",
+    }),
+    /already has an administrator/i,
+  );
+  assert.equal(createdUser, null);
+  assert.equal(updatedUser, null);
+});

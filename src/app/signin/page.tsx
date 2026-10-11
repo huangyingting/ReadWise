@@ -11,7 +11,9 @@ import ThemeToggle from "@/components/shell/ThemeToggle";
 import { Card, PageShell, Stack } from "@/components/ui";
 import { cn, focusRing } from "@/lib/cn";
 import SignInButtons from "./SignInButtons";
+import PasswordSignInForm from "./PasswordSignInForm";
 import { signIn as signInPage } from "@/lib/copy/pages";
+import { accountAdmissionMode } from "@/lib/account-admission";
 
 export const metadata = signInPage;
 
@@ -59,7 +61,24 @@ export default async function SignInPage({
 
             {errorMessage ? <SignInErrorBanner message={errorMessage} /> : null}
 
+            <PasswordSignInForm callbackUrl={safeCallback} />
+
+            <p className="text-right text-[length:var(--text-sm)] text-text-muted">
+              <Link href="/forgot-password" className={textLinkClasses}>
+                Forgot password?
+              </Link>
+            </p>
+
             <SignInButtons providers={providers} callbackUrl={safeCallback} />
+
+            {accountAdmissionMode() === "public" ? (
+              <p className="text-center text-[length:var(--text-sm)] text-text-muted">
+                New to ReadWise?{" "}
+                <Link href="/register" className={textLinkClasses}>
+                  Create an account
+                </Link>
+              </p>
+            ) : null}
 
             <LegalDisclosure />
 

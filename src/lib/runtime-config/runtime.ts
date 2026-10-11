@@ -17,6 +17,7 @@ import { isSupportedDatabaseUrl } from "@/lib/database-provider-policy.mjs";
 import { isValidVapidSubject } from "./push";
 import { prismaSchemaMismatchIssue } from "./database";
 import { azureStorageConfig } from "./storage";
+import { inspectAccountAdmissionConfig } from "./account-admission";
 
 const SUPPORTED_SPEECH_OUTPUT_FORMATS = new Set([
   "audio-16khz-32kbitrate-mono-mp3",
@@ -268,6 +269,38 @@ function validateRuntimeSections() {
 
   const googleOAuth = evaluateOptional(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]);
   const azureAdOAuth = evaluateOptional(["AZURE_AD_CLIENT_ID", "AZURE_AD_CLIENT_SECRET", "AZURE_AD_TENANT_ID"]);
+  const email = evaluateOptional(["SMTP_URL", "EMAIL_FROM"], [
+    (values) => {
+      if (!values.SMTP_URL) return null;
+      try {
+        const url = new URL(values.SMTP_URL);
+        return url.protocol === "smtp:" || url.protocol === "smtps:"
+          ? null
+          : issue(
+              "warning",
+              "invalid_smtp_url_protocol",
+              "SMTP_URL must use smtp or smtps.",
+              ["SMTP_URL"],
+            );
+      } catch {
+        return issue(
+          "warning",
+          "invalid_smtp_url",
+          "SMTP_URL must be a valid SMTP URL.",
+          ["SMTP_URL"],
+        );
+      }
+    },
+  ]);
+  const accountAdmission = inspectAccountAdmissionConfig();
+  const admissionError = accountAdmission.issues.find(
+    (item) => item.severity === "error",
+  );
+  if (admissionError) {
+    auth.issues.push(admissionError);
+    auth.configured = false;
+    auth.status = "malformed";
+  }
 
   const storage = evaluateStorage();
 
@@ -277,7 +310,17 @@ function validateRuntimeSections() {
 
   return {
     required: { database, auth },
-    optional: { ai, speech, push, googleOAuth, azureAdOAuth, storage, scraper },
+    optional: {
+      ai,
+      speech,
+      push,
+      googleOAuth,
+      azureAdOAuth,
+      email,
+      accountAdmission,
+      storage,
+      scraper,
+    },
     tuning,
   };
 }

@@ -29,6 +29,12 @@ export function id(label: string): string {
 
 /** Deletes all rows created by the integration suite (identified by PREFIX). */
 export async function cleanIntegrationRows(): Promise<void> {
+  await prisma.pendingRegistration.deleteMany({
+    where: { normalizedEmail: { startsWith: PREFIX } },
+  });
+  await prisma.accountInvitation.deleteMany({
+    where: { normalizedEmail: { startsWith: PREFIX } },
+  });
   // Discovery ledger (#1081): conflicts reference candidates via SetNull, so
   // remove them by providerKey first; deleting candidates cascades UrlAlias and
   // candidate-scoped DiscoveryObservation rows, and deleting sources cascades

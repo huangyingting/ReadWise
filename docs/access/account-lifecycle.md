@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-10-10"
 description: "Documents account ownership, support/admin action boundaries, export/delete cascades, and access-related data lifecycle contracts. Captures current account APIs, admin support workflows, guardrails, privacy constraints, and deletion/export behavior."
 ---
 
@@ -34,6 +34,7 @@ flowchart TD
 | Support actions | `src/lib/account-lifecycle/support-commands.ts` | Revoke sessions, export member data, re-enqueue repair work, and record sign-in-help intent. |
 | Read models | `src/lib/account-lifecycle/member-list.ts`, `src/lib/account-lifecycle/member-detail.ts` | Admin/member detail data with no mutation side effects. |
 | API surfaces | `src/app/api/account/**`, `src/app/api/admin/members/**` | Route-layer auth, validation, request/audit context, and responses. |
+| Account Admission | `src/lib/account-admission/**`, `src/app/api/auth/**`, `src/app/api/admin/invitations/**` | New-User policy, Password Credentials, invitations, recovery, and social-linking boundaries. |
 
 ## Export contract
 
@@ -52,6 +53,8 @@ Non-negotiable boundaries:
 - OAuth token material is never exported. Linked providers expose only provider
   name/type; `access_token`, `refresh_token`, `id_token`, scopes, and provider
   account ids are intentionally omitted.
+- Password Credential hashes/reset tokens, pending registrations, and Account
+  Invitations are operational authentication data and are explicitly excluded.
 - Article text is not duplicated into the export through progress/list rows;
   rows identify associated article ids and user-created metadata.
 - Saved-word context sentences are not exported. For partial erasure requests,
@@ -142,4 +145,3 @@ must source the acting operator from the session.
 Relevant coverage lives in `tests/account.test.ts`, `tests/admin-members.test.ts`,
 `tests/admin-member-detail.test.ts`, `tests/auth-bootstrap.test.ts`, and route
 tests for admin/member APIs.
-

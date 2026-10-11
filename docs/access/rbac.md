@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-10-10"
 description: "Documents global, tenant, and classroom capability resolution boundaries. Captures current role-to-capability mappings, guard usage, denial behavior, and authorization testing expectations."
 ---
 
@@ -81,8 +81,9 @@ Capabilities are string literals exported by `CAPABILITIES`.
 A compile-time guard in `src/lib/rbac.ts` ensures the in-code active roles and
 Prisma enum cannot drift silently.
 
-The first user to sign in is promoted to `Admin` by the `events.createUser` hook
-in `src/lib/auth/config.ts`.
+No sign-in path grants `Admin`. Operators bootstrap the first administrator
+explicitly with `npm run bootstrap:admin -- --email <email> --password-stdin`;
+the command refuses to run after an Admin exists.
 
 ### System pseudo-principal
 
@@ -193,6 +194,7 @@ Admin UI sections use capabilities rather than raw role checks:
 | `/admin/sources` | `sources.manage` |
 | `/admin/tags` | `tags.manage` |
 | `/admin/members` | `members.manage` |
+| `/admin/invitations` | `members.manage` |
 | `/admin/jobs` | `jobs.manage` |
 | `/admin/analytics` and `/admin/analytics/ai` | `analytics.view` |
 | `/admin/security` | `security.view` |

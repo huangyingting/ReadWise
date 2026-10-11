@@ -129,6 +129,23 @@ test("handler catches ApiError thrown from foundation module import", async () =
   assert.equal((await res.json()).error, "gone");
 });
 
+test("handler surfaces controlled Account Admission errors", async () => {
+  const { createPublicHandler } = await loadApiHandler();
+  const { AccountAdmissionError } = await import(
+    "@/lib/account-admission/errors"
+  );
+  const handler = createPublicHandler({}, async () => {
+    throw new AccountAdmissionError(
+      410,
+      "expired",
+      "This invitation has expired.",
+    );
+  }) as RouteHandler;
+  const res = await handler(new Request("http://test/api/auth/register"));
+  assert.equal(res.status, 410);
+  assert.equal((await res.json()).error, "This invitation has expired.");
+});
+
 // ---- validation failure --------------------------------------------------
 
 test("body validation failure returns 400", async () => {

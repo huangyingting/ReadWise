@@ -6,6 +6,7 @@
  * See ADR-0010.
  */
 export * as ai from "./ai";
+export * as accountAdmission from "./account-admission";
 export * as featureFlags from "./feature-flags";
 export type { FeatureKey } from "./feature-flags";
 export * as database from "./database";

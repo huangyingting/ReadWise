@@ -77,6 +77,10 @@ NEXT_PUBLIC_SITE_URL=https://readwise.genisisiq.com
 APP_URL=https://readwise.genisisiq.com
 NEXT_PUBLIC_APP_URL=https://readwise.genisisiq.com
 TRUSTED_PROXY_HOPS=1
+ACCOUNT_ADMISSION_MODE=invitation-only
+ACCOUNT_ADMISSION_RETENTION_DAYS=90
+SMTP_URL=smtps://<smtp-user>:<smtp-password>@<smtp-host>:465
+EMAIL_FROM=ReadWise <noreply@example.com>
 ```
 
 Do not include `DATABASE_URL`, PostgreSQL credentials, or `APP_VERSION`.
@@ -91,9 +95,29 @@ Optional AI, Speech, Push, OAuth, tracing, and Azure Storage settings may be
 added to `VM_APP_ENV`. Without Azure Storage configuration, local speech media
 is container-local cache and is not durable across deployments.
 
-Google OAuth is invite-only at the application layer. A Google account must
-return a verified email that already exists in the production `User` table;
-otherwise sign-in is denied before NextAuth creates or links an account.
+Email/password is the primary account-creation path. In `invitation-only` mode,
+an administrator creates a time-bounded email invitation at
+`/admin/invitations`; in `public` mode, SMTP email verification is mandatory.
+Password recovery also requires SMTP.
+
+Google/Azure OAuth never creates a User or auto-links by matching email. An
+existing authenticated User links a provider from Settings, and the provider
+must return the same verified normalized email. After linking, that provider
+may be used to sign in.
+
+After the first deployment/migration, explicitly create the first administrator
+from a trusted operations context that has the production `DATABASE_URL`:
+
+```bash
+printf '%s\n' "$READWISE_ADMIN_PASSWORD" |
+  npm run bootstrap:admin -- \
+  --email admin@example.com \
+  --password-stdin
+```
+
+The command refuses to modify access once an Admin exists. Do not place the
+password in `VM_APP_ENV`, shell history, process arguments, logs, or GitHub
+workflow output.
 
 Set repository variables:
 
@@ -134,8 +158,8 @@ curl --fail https://readwise.genisisiq.com/api/health
 curl --fail https://readwise.genisisiq.com/api/ready
 ```
 
-Then verify sign-in, `/dashboard`, one reader article, `/settings`, and
-`/admin/jobs` with the appropriate accounts. Optional providers may report
+Then verify password sign-in, `/dashboard`, one reader article, `/settings`,
+`/admin/invitations`, and `/admin/jobs` with the appropriate accounts. Optional providers may report
 `degraded`; required configuration, PostgreSQL connectivity, and migration
 status must report healthy.
 

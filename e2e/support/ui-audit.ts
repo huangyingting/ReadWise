@@ -1,7 +1,7 @@
 /**
  * Shared Playwright UI audit matrix and runner.
  *
- * Matrix: 56 route/session profiles × 5 behavior intents × 2 presentations.
+ * Matrix: 59 route/session profiles × 5 behavior intents × 2 presentations.
  * Tests are intentionally data-driven so `--list` proves the registered count,
  * while normal Playwright `--grep` / `--shard` can run practical partitions.
  */
@@ -167,6 +167,24 @@ export const PUBLIC_AUTH_ONBOARDING_ROUTES: RouteProfile[] = [
     expectedPathname: "/signin",
     heading: "Sign in to ReadWise",
     expectedText: /problem|unable|try again/i,
+  },
+
+  {
+    id: "register-anon",
+    subsystem: "auth",
+    session: "anonymous",
+    path: "/register",
+    heading: "Create your account",
+    expectedText: /invitation-only|Name/i,
+  },
+
+  {
+    id: "forgot-password-anon",
+    subsystem: "auth",
+    session: "anonymous",
+    path: "/forgot-password",
+    heading: "Reset your password",
+    expectedText: "Send reset link",
   },
 
   {
@@ -566,6 +584,16 @@ export const ADMIN_OPERATIONS_ROUTES: RouteProfile[] = [
   },
 
   {
+    id: "admin-invitations",
+    subsystem: "admin",
+    session: "admin",
+    path: "/admin/invitations",
+    heading: "Invitations",
+    expectedText: /Create invitation|Public registration is enabled/i,
+    tags: ["@high-risk"],
+  },
+
+  {
     id: "admin-member-detail",
     subsystem: "admin",
     session: "admin",
@@ -693,6 +721,8 @@ const ORIGINAL_ROUTE_ORDER = [
   "marketing-home-anon",
   "signin-anon",
   "signin-error-anon",
+  "register-anon",
+  "forgot-password-anon",
   "marketing-home-reader",
   "auth-redirect-dashboard",
   "auth-redirect-browse",
@@ -732,6 +762,7 @@ const ORIGINAL_ROUTE_ORDER = [
   "admin-jobs",
   "admin-jobs-filtered",
   "admin-members",
+  "admin-invitations",
   "admin-member-detail",
   "admin-reports",
   "admin-tags",
@@ -763,8 +794,8 @@ export const SCENARIOS: Scenario[] = ROUTES.flatMap((route) =>
   caseId: `audit-case-${String(index + 1).padStart(3, "0")}`,
 }));
 
-if (SCENARIOS.length !== 560) {
-  throw new Error(`UI audit must register exactly 560 scenarios; got ${SCENARIOS.length}`);
+if (SCENARIOS.length !== 590) {
+  throw new Error(`UI audit must register exactly 590 scenarios; got ${SCENARIOS.length}`);
 }
 
 function regexSource(value: string | RegExp): string {
@@ -951,10 +982,14 @@ async function assertSemanticSmoke(page: Page, profile: RouteProfile): Promise<v
 
 async function assertKeyboardFocus(page: Page, profile: RouteProfile): Promise<void> {
   await assertCoreRender(page, profile);
-  await page.keyboard.press("Tab");
-  await expect
-    .poll(() => page.evaluate(() => document.activeElement?.tagName ?? ""))
-    .not.toBe("BODY");
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await page.keyboard.press("Tab");
+    const focusedTag = await page.evaluate(
+      () => document.activeElement?.tagName ?? "",
+    );
+    if (focusedTag && focusedTag !== "BODY" && focusedTag !== "HTML") return;
+  }
+  throw new Error(`Keyboard focus did not enter the UI for ${profile.id}`);
 }
 
 async function assertThemeAndOverflow(

@@ -6,11 +6,21 @@ import { aiLedgerRetentionDays } from "@/lib/runtime-config/ai";
 import { analyticsRetentionDays } from "@/lib/runtime-config/analytics";
 import { auditLogRetentionDays } from "@/lib/runtime-config/security";
 import { jobTerminalRetentionDays } from "@/lib/jobs/retention";
+import {
+  countExpiredAccountAdmissionData,
+  pruneExpiredAccountAdmissionData,
+} from "@/lib/account-admission/retention";
+import { accountAdmissionRetentionDays } from "@/lib/runtime-config/account-admission";
 import { isMain, parseFlag, parsePositiveInt, runCli, shouldDryRun } from "./lib/cli";
 
-const HELP = `Usage: npm run maintenance:retention -- [--dry-run|--execute] [day overrides]\n\nRuns all retention helpers for analytics events, AI invocation ledger rows,\naudit logs, and terminal jobs. Defaults to dry-run/count mode. Use --execute\nto delete matched rows. Output is metadata-only JSON counts.\n\nOptions:\n  --dry-run                 Count rows only (default)\n  --execute                 Delete matched rows after counting\n  --analytics-days <days>   Override ANALYTICS_RETENTION_DAYS for this run\n  --ai-days <days>          Override AI_LEDGER_RETENTION_DAYS for this run\n  --audit-days <days>       Override AUDIT_LOG_RETENTION_DAYS for this run\n  --jobs-days <days>        Override JOB_TERMINAL_RETENTION_DAYS for this run\n  --help, -h                Show this help\n`;
+const HELP = `Usage: npm run maintenance:retention -- [--dry-run|--execute] [day overrides]\n\nRuns all retention helpers for analytics events, AI invocation ledger rows,\naudit logs, terminal jobs, and expired account-admission records. Defaults to\ndry-run/count mode. Use --execute to delete or clear matched rows. Output is\nmetadata-only JSON counts.\n\nOptions:\n  --dry-run                 Count rows only (default)\n  --execute                 Delete matched rows after counting\n  --analytics-days <days>   Override ANALYTICS_RETENTION_DAYS for this run\n  --ai-days <days>          Override AI_LEDGER_RETENTION_DAYS for this run\n  --audit-days <days>       Override AUDIT_LOG_RETENTION_DAYS for this run\n  --jobs-days <days>        Override JOB_TERMINAL_RETENTION_DAYS for this run\n  --admission-days <days>   Override retention for terminal account invitations\n  --help, -h                Show this help\n`;
 
-type MaintenanceArea = "analytics" | "ai" | "audit" | "jobs";
+type MaintenanceArea =
+  | "analytics"
+  | "ai"
+  | "audit"
+  | "jobs"
+  | "account-admission";
 
 type RetentionOptions = {
   dryRun: boolean;
@@ -18,6 +28,7 @@ type RetentionOptions = {
   aiDays: number;
   auditDays: number;
   jobsDays: number;
+  admissionDays: number;
 };
 
 export type RetentionResult = {
@@ -46,6 +57,11 @@ function parseOptions(argv: string[]): RetentionOptions | "help" {
     aiDays: parsePositiveInt(argv, "--ai-days", aiLedgerRetentionDays()),
     auditDays: parsePositiveInt(argv, "--audit-days", auditLogRetentionDays()),
     jobsDays: parsePositiveInt(argv, "--jobs-days", jobTerminalRetentionDays()),
+    admissionDays: parsePositiveInt(
+      argv,
+      "--admission-days",
+      accountAdmissionRetentionDays(),
+    ),
   };
 }
 
@@ -72,6 +88,13 @@ export async function runRetentionMaintenance(options: RetentionOptions): Promis
       options.dryRun,
       (days) => countTerminalJobs(days, JOB_TERMINAL_STATUSES),
       (days) => pruneTerminalJobs(days, JOB_TERMINAL_STATUSES),
+    ),
+    runArea(
+      "account-admission",
+      options.admissionDays,
+      options.dryRun,
+      countExpiredAccountAdmissionData,
+      pruneExpiredAccountAdmissionData,
     ),
   ]);
   return { dryRun: options.dryRun, executed: !options.dryRun, results };

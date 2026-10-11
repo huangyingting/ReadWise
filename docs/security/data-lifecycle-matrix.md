@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-10-10"
 description: "Documents data classification, retention, export, cascade, and privacy treatment across Prisma models and client stores. Captures current model-by-model classification, deletion behavior, retention windows, export handling, and follow-up gaps."
 ---
 
@@ -55,6 +55,9 @@ flowchart TD
 | `Account` (OAuth provider link; access_token, refresh_token, id_token, scope, providerAccountId) | Auth | **sensitive** | ⛔ provider name + type only; token columns explicitly omitted | Cascade via `Account.userId` | Not affected | Tied to session; NextAuth manages refresh | No — token fields are secrets; must never appear in logs |
 | `Session` (sessionToken, expires) | Auth | **sensitive** | ⛔ | Cascade via `Session.userId`; also via `revokeMemberSessions` | Not affected | `expires` column (NextAuth `session.maxAge`) | No — token is a secret |
 | `VerificationToken` (token, expires) | Auth | **sensitive** | ⛔ | Not FK-linked to User; expires naturally | Not affected | `expires` column | No |
+| `PasswordCredential` (passwordHash, resetTokenHash, resetExpiresAt) | Account Admission | **sensitive** | ⛔ | Cascade via `PasswordCredential.userId` | Not affected | Password hash lives with User; reset token hash expires after one hour and is cleared by retention maintenance | No |
+| `PendingRegistration` (email, passwordHash, tokenHash) | Account Admission | **sensitive** | ⛔ — no User exists yet | Not FK-linked; consumed on verification | Not affected | 24-hour expiry; expired rows deleted by retention maintenance | No |
+| `AccountInvitation` (email, tokenHash, lifecycle) | Account Admission | **personal + operational** | ⛔ | Inviter/acceptor references become null on deletion | Not affected | Pending token expires after seven days; terminal rows default to 90 days via `ACCOUNT_ADMISSION_RETENTION_DAYS` | No — recipient email/token/link are forbidden in logs and audit metadata |
 
 > `Account.access_token`, `refresh_token`, `id_token`, `providerAccountId`,
 > `scope`, and `session_state` are never included in exports, audit metadata, or

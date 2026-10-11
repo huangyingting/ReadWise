@@ -1,8 +1,8 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-19"
-description: "Documents NextAuth provider registry, session persistence, local sign-in and test-session onboarding, first-user bootstrap, cookies, and auth guard layering. Captures current OAuth/provider fallbacks, database sessions, admin bootstrap, cookie posture, and route/session helpers."
+last_updated: "2026-10-10"
+description: "Documents NextAuth provider registry, database and password sessions, explicit social linking, operator admin bootstrap, cookies, and auth guard layering."
 ---
 
 # Authentication architecture
@@ -24,15 +24,16 @@ flowchart TD
 
 | Area | Code | Purpose |
 | --- | --- | --- |
-| NextAuth config | `src/lib/auth/config.ts` | Adapter, providers, database-session strategy, cookies, callbacks, first-user event. |
+| NextAuth config | `src/lib/auth/config.ts` | Adapter, providers, database-session strategy, cookies, and provider-safe callbacks. |
 | Auth barrel | `src/lib/auth/index.ts` | Canonical re-export barrel for auth config (`authOptions`). |
 | Provider registry | `src/lib/auth/providers.ts` | Env-driven Google/Azure AD provider construction and sign-in metadata. |
-| Bootstrap | `src/lib/auth/bootstrap.ts` | Promote the first user to global `Admin`. |
+| Account Admission | `src/lib/account-admission/` | Password Credentials, invitations, public verification, recovery, social-linking policy, email, rate limits, and retention. |
+| Bootstrap | `src/lib/auth/bootstrap.ts`, `scripts/bootstrap-admin.ts` | Explicitly create or recover the first global `Admin`. |
 | Session core | `src/lib/auth/session-core.ts` | Load session and check capabilities with no redirects/responses. |
 | Session guards | `src/lib/auth/session-guards.ts` | Redirect missing sessions to `/signin` and unauthorized users to `/forbidden`. |
 | Page-level session facade | `src/lib/session.ts` | Re-exports session guards for page/layout-level ownership; keeps page imports short. |
 | API guards | `src/lib/api-auth.ts` | Return `401`/`403` responses for route handlers. |
-| Auth route | `src/app/api/auth/[...nextauth]/route.ts` | NextAuth-owned route handler. |
+| Auth routes | `src/app/api/auth/**` | NextAuth social callbacks plus password registration, login, verification, and recovery. |
 
 ## Provider configuration
 
@@ -48,6 +49,11 @@ Missing provider config is normal in local/test environments. The provider is
 omitted rather than throwing. `getConfiguredProviders()` returns only provider id
 and display name for server-rendered sign-in UI; it never exposes secrets.
 
+OAuth providers cannot create Users. Unauthenticated provider sign-in requires
+an existing exact provider link. Authenticated linking begins in Settings and
+requires the provider's verified normalized email to match the current User.
+Automatic email-based linking is disabled.
+
 ## Local sign-in and test sessions
 
 ### Normal local browser sign-in
@@ -57,8 +63,10 @@ copying `.env.example` to `.env`, keep the required SQLite defaults and set:
 
 - `NEXTAUTH_SECRET` to a generated value of at least 32 characters.
 - `NEXTAUTH_URL` to `http://localhost:3000` unless you run the app elsewhere.
-- A complete Google or Azure AD OAuth provider if you need interactive browser
-  sign-in.
+- `ACCOUNT_ADMISSION_MODE=invitation-only` (default) or `public`.
+- SMTP settings when testing public registration or password recovery.
+- A complete Google or Azure AD provider only when testing optional social
+  linking/sign-in.
 
 Provider setup is external to the repository:
 
@@ -75,20 +83,22 @@ broken provider.
 
 The sample content seed (`npm run seed -- --limit 3 --no-tts`) only creates and
 enriches articles. It does not create users, accounts, sessions, OAuth links, or
-cookies. To create a real local account through the browser, configure OAuth and
-use `/signin`.
+cookies. Bootstrap a local administrator with `npm run bootstrap:admin`, then
+sign in with email/password. See
+[`../access/account-admission.md`](../access/account-admission.md).
 
-### First-user bootstrap
+### Explicit admin bootstrap
 
-The first successful OAuth sign-in that creates a `User` row triggers
-`events.createUser`, which calls `bootstrapFirstUser(user.id)`. If that new user
-is the only user in the database, they are promoted to global `Admin`; later
-users remain `Reader` until an authorized admin changes their role.
+No first visitor or OAuth user is promoted automatically. Run:
 
-If you reset the local development database, the first subsequent OAuth-created
-user becomes the new bootstrap admin for that database. The bootstrap path does
-not require documenting, sharing, or storing OAuth tokens; NextAuth owns the
-provider account records and session lifecycle.
+```bash
+printf '%s\n' "$READWISE_ADMIN_PASSWORD" |
+  npm run bootstrap:admin -- --email admin@example.com --password-stdin
+```
+
+The command works only while no Admin exists. It creates a verified Admin or
+promotes the matching existing User, and ensures that User has a Password
+Credential.
 
 ### Playwright test-session path
 
@@ -135,14 +145,9 @@ Session cookies are explicit:
 Cookie names come from `SESSION_COOKIES` in `src/lib/route-policy.ts` so
 middleware and NextAuth agree.
 
-## Runtime first-user bootstrap
-
-The NextAuth `createUser` event calls `bootstrapFirstUser(user.id)`. If the new
-user is the only user in the database, they are promoted to global `Admin`.
-Subsequent users remain `Reader` unless an authorized admin changes their role.
-
-Last-admin deletion/demotion protections are documented in
-[`../access/account-lifecycle.md`](../access/account-lifecycle.md).
+Password endpoints create the same database-backed Session rows and cookie
+posture as NextAuth. The NextAuth Credentials provider is intentionally not
+used because this project retains database sessions.
 
 ## Guard layering
 
@@ -172,7 +177,8 @@ UI are not security boundaries.
 
 Runtime config validation treats `NEXTAUTH_SECRET` and `NEXTAUTH_URL` as
 required auth config. Optional OAuth providers report configured/degraded/
-unconfigured independently in `/api/ready`; see
+unconfigured independently in `/api/ready`. Account Admission and SMTP delivery
+are also reported; see
 [`health-readiness.md`](./health-readiness.md).
 
 ## Tests
@@ -180,4 +186,3 @@ unconfigured independently in `/api/ready`; see
 Relevant tests include `tests/auth-core.test.ts`, `tests/auth-providers.test.ts`,
 `tests/auth-bootstrap.test.ts`, `tests/auth-security-backend.test.ts`,
 `tests/api-handler.test.ts`, `tests/rbac.test.ts`, and admin/tenant route tests.
-

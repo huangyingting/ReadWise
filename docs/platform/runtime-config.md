@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-10-10"
 description: "Documents server-side runtime-config ownership, the direct process.env allowlist, typed environment helpers, and narrow build/test/maintenance adapters. Captures current env-var ownership, feature switches, optional-provider config, and server-only import boundaries."
 ---
 
@@ -232,6 +232,9 @@ variable or changes a default.
 | `DB_SLOW_QUERY_THRESHOLD_MS` | `250` | `database.ts` |
 | `ANALYTICS_ENABLED` | on outside test, off when `0`/`false` | `analytics.ts` |
 | `ANALYTICS_RETENTION_DAYS` | `400` | `analytics.ts` |
+| `ACCOUNT_ADMISSION_MODE` | `invitation-only`; accepts `invitation-only` or `public` | `account-admission.ts` |
+| `ACCOUNT_ADMISSION_RETENTION_DAYS` | `90`; positive integers only | `account-admission.ts` |
+| `SMTP_URL`, `EMAIL_FROM` | Optional email delivery; both required for configured status | `account-admission.ts` |
 
 ---
 
@@ -240,6 +243,7 @@ variable or changes a default.
 | Module | Exported as | Env vars owned |
 | --- | --- | --- |
 | `src/lib/runtime-config/ai.ts` | `ai` | `AZURE_OPENAI_*`, `AI_PROVIDER`, `AI_MODERATION_ENABLED`, `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, context/output token budgets, ledger, cost, quota env vars |
+| `src/lib/runtime-config/account-admission.ts` | — | `ACCOUNT_ADMISSION_MODE`, `ACCOUNT_ADMISSION_RETENTION_DAYS`, `SMTP_URL`, `EMAIL_FROM` |
 | `src/lib/runtime-config/analytics.ts` | `analytics` | `ANALYTICS_ENABLED`, `ANALYTICS_RETENTION_DAYS` |
 | `src/lib/runtime-config/database.ts` | `database` | `DATABASE_URL`, `PRISMA_SCHEMA_PATH`, `DB_QUERY_TIMING_ENABLED`, `DB_SLOW_QUERY_THRESHOLD_MS` |
 | `src/lib/runtime-config/dictionary.ts` | `dictionary` | `DICTIONARY_PROVIDER`, `LOCAL_DICTIONARY_DIR`, `LOCAL_DICTIONARY_LANGUAGE` |

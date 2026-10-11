@@ -6,7 +6,7 @@
  */
 export { authOptions } from "@/lib/auth/config";
 export { buildProviders, getConfiguredProviders, type ProviderMeta } from "@/lib/auth/providers";
-export { bootstrapFirstUser } from "@/lib/auth/bootstrap";
+export { bootstrapAdmin } from "@/lib/auth/bootstrap";
 export { loadSession, sessionHasCapability, type AuthResult } from "@/lib/auth/session-core";
 export {
   requireSession,

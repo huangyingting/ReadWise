@@ -3,7 +3,6 @@ process.env.LOG_LEVEL = "error";
 import { before, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 
-let bootstrappedUsers: string[];
 let sharedStoreEnabled: boolean;
 let sharedCounterCount: number;
 let sharedCounterError: Error | null;
@@ -21,6 +20,9 @@ let deletedSessionTokens: string[];
 let baseDeleteSessionCalls: number;
 let existingUserEmails: Set<string>;
 let userEmailLookups: string[];
+let linkedProviderAccounts: Set<string>;
+let currentSessionToken: string | null;
+let sessionUsers: Map<string, { id: string; email: string | null }>;
 
 async function withPatchedClock<T>(run: () => Promise<T>): Promise<T> {
   const realDateNow = Date.now;
@@ -74,7 +76,30 @@ before(() => {
             return existingUserEmails.has(where.email) ? { id: `user:${where.email}` } : null;
           },
         },
+        account: {
+          findUnique: async ({
+            where,
+          }: {
+            where: {
+              provider_providerAccountId: {
+                provider: string;
+                providerAccountId: string;
+              };
+            };
+          }) => {
+            const key = `${where.provider_providerAccountId.provider}:${where.provider_providerAccountId.providerAccountId}`;
+            return linkedProviderAccounts.has(key) ? { userId: `linked:${key}` } : null;
+          },
+        },
         session: {
+          findUnique: async ({
+            where,
+          }: {
+            where: { sessionToken: string };
+          }) => {
+            const user = sessionUsers.get(where.sessionToken);
+            return user ? { user } : null;
+          },
           deleteMany: async ({
             where,
           }: {
@@ -87,17 +112,20 @@ before(() => {
       },
     },
   });
+  mock.module("next/headers", {
+    namedExports: {
+      cookies: async () => ({
+        get: () =>
+          currentSessionToken
+            ? { name: "dev-session", value: currentSessionToken }
+            : undefined,
+      }),
+    },
+  });
   mock.module("@/lib/auth/providers", {
     namedExports: {
       buildProviders: () => [{ id: "credentials" }],
       getConfiguredProviders: () => [{ id: "credentials", name: "Credentials" }],
-    },
-  });
-  mock.module("@/lib/auth/bootstrap", {
-    namedExports: {
-      bootstrapFirstUser: async (userId: string) => {
-        bootstrappedUsers.push(userId);
-      },
     },
   });
   mock.module("@/lib/route-policy", {
@@ -177,7 +205,6 @@ before(() => {
 });
 
 beforeEach(() => {
-  bootstrappedUsers = [];
   sharedStoreEnabled = true;
   sharedCounterCount = 1;
   sharedCounterError = null;
@@ -195,18 +222,22 @@ beforeEach(() => {
   baseDeleteSessionCalls = 0;
   existingUserEmails = new Set();
   userEmailLookups = [];
+  linkedProviderAccounts = new Set();
+  currentSessionToken = null;
+  sessionUsers = new Map();
 });
 
-test("Google sign-in only permits verified existing ReadWise users", async () => {
+test("social sign-in only permits linked accounts or explicit matching-email linking", async () => {
   const { authOptions } = await import("@/lib/auth/index");
   const signIn = authOptions.callbacks?.signIn;
   assert.ok(signIn);
 
   existingUserEmails.add("current@example.com");
+  linkedProviderAccounts.add("google:linked-google");
 
   assert.equal(
     await signIn({
-      account: { provider: "google" },
+      account: { provider: "google", providerAccountId: "linked-google" },
       profile: { email: " Current@Example.com ", email_verified: true },
       user: {},
     } as never),
@@ -214,15 +245,34 @@ test("Google sign-in only permits verified existing ReadWise users", async () =>
   );
   assert.equal(
     await signIn({
-      account: { provider: "google" },
-      profile: { email: "new@example.com", email_verified: true },
+      account: { provider: "google", providerAccountId: "unlinked-google" },
+      profile: { email: "current@example.com", email_verified: true },
+      user: {},
+    } as never),
+    false,
+  );
+
+  currentSessionToken = "session-1";
+  sessionUsers.set("session-1", { id: "user-1", email: "current@example.com" });
+  assert.equal(
+    await signIn({
+      account: { provider: "google", providerAccountId: "unlinked-google" },
+      profile: { email: "current@example.com", email_verified: true },
+      user: {},
+    } as never),
+    true,
+  );
+  assert.equal(
+    await signIn({
+      account: { provider: "google", providerAccountId: "wrong-google" },
+      profile: { email: "other@example.com", email_verified: true },
       user: {},
     } as never),
     false,
   );
   assert.equal(
     await signIn({
-      account: { provider: "google" },
+      account: { provider: "google", providerAccountId: "unverified-google" },
       profile: { email: "current@example.com", email_verified: false },
       user: {},
     } as never),
@@ -230,17 +280,18 @@ test("Google sign-in only permits verified existing ReadWise users", async () =>
   );
   assert.equal(
     await signIn({
-      account: { provider: "azure-ad" },
-      profile: { email: "new@example.com" },
+      account: { provider: "azure-ad", providerAccountId: "entra-subject" },
+      profile: {
+        email: "current@example.com",
+        sub: "entra-subject",
+      },
       user: {},
     } as never),
     true,
   );
-
-  assert.deepEqual(userEmailLookups, ["current@example.com", "new@example.com"]);
 });
 
-test("auth options enrich sessions and bootstrap first users", async () => {
+test("auth options enrich sessions without first-visitor admin promotion", async () => {
   const { authOptions } = await import("@/lib/auth/index");
 
   assert.equal(authOptions.session?.strategy, "database");
@@ -265,8 +316,7 @@ test("auth options enrich sessions and bootstrap first users", async () => {
   } as never);
   assert.deepEqual(withoutSessionUser, {});
 
-  await authOptions.events?.createUser?.({ user: { id: "new-user" } } as never);
-  assert.deepEqual(bootstrappedUsers, ["new-user"]);
+  assert.equal(authOptions.events?.createUser, undefined);
 });
 
 test("auth session deletion is idempotent after account deletion cascades", async () => {

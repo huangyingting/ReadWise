@@ -43,6 +43,7 @@ flowchart LR
 | Document | Scope |
 | --- | --- |
 | [`access/account-lifecycle.md`](./access/account-lifecycle.md) | Account export, self-service deletion, admin member deletion/role changes, support actions, cascades, and last-admin guards. |
+| [`access/account-admission.md`](./access/account-admission.md) | Invitation-only/public admission, password registration and recovery, social linking, admin invitations, bootstrap, and retention. |
 | [`access/multi-tenancy.md`](./access/multi-tenancy.md) | Organizations, memberships, classrooms, assignments, tenant-aware cache keys, and tenant analytics privacy. |
 | [`access/rbac.md`](./access/rbac.md) | Capability-based authorization for global roles and tenant/classroom memberships. |
 
