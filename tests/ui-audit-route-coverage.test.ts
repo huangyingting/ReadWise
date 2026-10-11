@@ -22,8 +22,8 @@ test("UI audit visits every admin governance surface", () => {
   }
 });
 
-test("UI audit registers 56 routes across every intent and presentation", () => {
-  assert.equal(SCENARIOS.length, 560);
+test("UI audit registers 59 routes across every intent and presentation", () => {
+  assert.equal(SCENARIOS.length, 590);
 });
 
 test("UI audit gives client-loaded route content a bounded cold-start budget", () => {

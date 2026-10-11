@@ -207,9 +207,9 @@ test("ui-audit ADMIN_OPERATIONS_ROUTES includes admin-series", () => {
   );
 });
 
-test("ui-audit admin operations split registers 190 scenarios", () => {
+test("ui-audit admin operations split registers 200 scenarios", () => {
   const scenarios = scenariosForRoutes(ADMIN_OPERATIONS_ROUTES);
-  assert.equal(scenarios.length, 190);
+  assert.equal(scenarios.length, 200);
   assert.ok(
     scenarios.some((scenario) => scenario.route.id === "admin-series"),
     "admin-series route must be part of the admin operations UI-audit split",

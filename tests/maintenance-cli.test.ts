@@ -8,12 +8,18 @@ const counts = {
   ai: 0,
   audit: 0,
   jobs: 0,
+  pendingRegistrations: 0,
+  terminalInvitations: 0,
+  resetTokens: 0,
 };
 const deletes = {
   analytics: 0,
   ai: 0,
   audit: 0,
   jobs: 0,
+  pendingRegistrations: 0,
+  terminalInvitations: 0,
+  resetTokens: 0,
 };
 let auditCreates: Array<{ data: Record<string, unknown> }> = [];
 let transactionCalls = 0;
@@ -37,6 +43,18 @@ type PrismaMock = {
   job: {
     count: (args: unknown) => Promise<number>;
     deleteMany: (args: unknown) => Promise<{ count: number }>;
+  };
+  pendingRegistration: {
+    count: (args: unknown) => Promise<number>;
+    deleteMany: (args: unknown) => Promise<{ count: number }>;
+  };
+  accountInvitation: {
+    count: (args: unknown) => Promise<number>;
+    deleteMany: (args: unknown) => Promise<{ count: number }>;
+  };
+  passwordCredential: {
+    count: (args: unknown) => Promise<number>;
+    updateMany: (args: unknown) => Promise<{ count: number }>;
   };
   $transaction: <T>(fn: (tx: PrismaMock) => Promise<T>) => Promise<T>;
   $disconnect: () => Promise<void>;
@@ -87,6 +105,36 @@ const prismaMock: PrismaMock = {
       return { count: deletes.jobs };
     },
   },
+  pendingRegistration: {
+    count: async (args: unknown) => {
+      countArgs.pendingRegistrations = [args];
+      return counts.pendingRegistrations;
+    },
+    deleteMany: async (args: unknown) => {
+      deleteArgs.pendingRegistrations = [args];
+      return { count: deletes.pendingRegistrations };
+    },
+  },
+  accountInvitation: {
+    count: async (args: unknown) => {
+      countArgs.terminalInvitations = [args];
+      return counts.terminalInvitations;
+    },
+    deleteMany: async (args: unknown) => {
+      deleteArgs.terminalInvitations = [args];
+      return { count: deletes.terminalInvitations };
+    },
+  },
+  passwordCredential: {
+    count: async (args: unknown) => {
+      countArgs.resetTokens = [args];
+      return counts.resetTokens;
+    },
+    updateMany: async (args: unknown) => {
+      deleteArgs.resetTokens = [args];
+      return { count: deletes.resetTokens };
+    },
+  },
   $transaction: async <T>(fn: (tx: typeof prismaMock) => Promise<T>) => {
     transactionCalls++;
     return fn(prismaMock);
@@ -105,10 +153,16 @@ beforeEach(() => {
   counts.ai = 3;
   counts.audit = 4;
   counts.jobs = 5;
+  counts.pendingRegistrations = 6;
+  counts.terminalInvitations = 7;
+  counts.resetTokens = 8;
   deletes.analytics = 20;
   deletes.ai = 30;
   deletes.audit = 40;
   deletes.jobs = 50;
+  deletes.pendingRegistrations = 60;
+  deletes.terminalInvitations = 70;
+  deletes.resetTokens = 80;
   auditCreates = [];
   transactionCalls = 0;
   countArgs = {};
@@ -142,6 +196,7 @@ test("retention maintenance defaults to dry-run count output", async () => {
     ["ai", 3, 0],
     ["audit", 4, 0],
     ["jobs", 5, 0],
+    ["account-admission", 21, 0],
   ]);
   assert.deepEqual(deleteArgs, {});
   assert.match(errors[0]!, /Dry run only/);
@@ -172,8 +227,9 @@ test("retention maintenance executes all retention helpers when explicit", async
     ["ai", 30],
     ["audit", 40],
     ["jobs", 50],
+    ["account-admission", 210],
   ]);
-  assert.equal(Object.keys(deleteArgs).length, 4);
+  assert.equal(Object.keys(deleteArgs).length, 7);
   assert.deepEqual(errors, []);
 });
 
