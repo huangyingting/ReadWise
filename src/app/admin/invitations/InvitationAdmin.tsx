@@ -87,11 +87,12 @@ export default function InvitationAdmin({
 
   async function createInvitation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setPending(true);
     setError("");
     setLatestLink("");
     setDeliveryMessage("");
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formElement);
     const rawExpiry = String(form.get("expiresAt") ?? "");
     try {
       const result = await accountAdmissionRequest<InvitationMutation>(
@@ -104,7 +105,7 @@ export default function InvitationAdmin({
         },
       );
       showMutation(result);
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -181,8 +182,8 @@ export default function InvitationAdmin({
               />
             </Field>
             <Field
-              label="Custom expiry"
-              hint="Optional; defaults to seven days."
+              label="Expiry (optional)"
+              hint="Leave blank for seven days, or choose a custom date and time."
             >
               <Input name="expiresAt" type="datetime-local" />
             </Field>

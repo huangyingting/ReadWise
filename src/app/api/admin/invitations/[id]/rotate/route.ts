@@ -3,6 +3,7 @@ import { createCapabilityHandler } from "@/lib/api-handler";
 import { CAPABILITIES } from "@/lib/rbac";
 import { idParams, object, optional, string } from "@/lib/validation";
 import {
+  accountAdmissionSecretLink,
   enforceAccountAdmissionRateLimit,
   rotateAccountInvitation,
   sendAccountInvitationEmail,
@@ -55,10 +56,18 @@ export const POST = createCapabilityHandler(
         expiresAt: grant.invitation.expiresAt.toISOString(),
       },
     });
-    const acceptUrl = new URL(
-      `/invite/${encodeURIComponent(grant.token)}`,
+    const acceptUrl = accountAdmissionSecretLink(
+      "/invite",
+      grant.token,
       req.url,
-    ).toString();
+    );
+    if (!acceptUrl) {
+      throw new AccountAdmissionError(
+        503,
+        "public_url_unavailable",
+        "The public application URL is unavailable.",
+      );
+    }
     return NextResponse.json({
       ok: true,
       invitation: {

@@ -157,6 +157,10 @@ normalized-email key where an email is available.
 | `EMAIL_FROM` | Sender identity paired with `SMTP_URL`. |
 | `ACCOUNT_ADMISSION_RETENTION_DAYS` | `90`; retention for terminal invitation records. |
 | `RATE_LIMIT_AUTH_REQUESTS` | `10` per shared rate-limit window by default. |
+| `APP_URL` | Preferred public origin for generated invitation, verification, and reset links. Falls back to `NEXT_PUBLIC_APP_URL`, `NEXTAUTH_URL`, then `NEXT_PUBLIC_SITE_URL`. |
+
+Leave invitation expiry blank to use the seven-day default. The admin UI exposes
+an optional native date/time picker only when a custom expiry is needed.
 
 `/api/ready` reports Account Admission and email delivery independently. Public
 mode without both SMTP settings is degraded. Invalid admission mode is a

@@ -46,9 +46,10 @@ export default function AuthenticationSettings({
 
   async function handlePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setError("");
     setMessage("");
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formElement);
     const password = String(form.get("password") ?? "");
     if (password !== String(form.get("confirmPassword") ?? "")) {
       setError("Passwords do not match.");
@@ -73,7 +74,7 @@ export default function AuthenticationSettings({
           ? "Password sign-in is now enabled."
           : "Your password was changed.",
       );
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (requestError) {
       setError(
         requestError instanceof Error

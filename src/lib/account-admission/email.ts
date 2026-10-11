@@ -2,7 +2,7 @@ import NodemailerImport from "nodemailer";
 import type { Transporter } from "nodemailer";
 import { createLogger } from "@/lib/observability/logger";
 import { emailDeliveryConfig } from "@/lib/runtime-config/account-admission";
-import { envValue } from "@/lib/runtime-config/env";
+import { accountAdmissionSecretLink } from "./links";
 
 type DefaultInterop<T> = { default: T };
 
@@ -36,16 +36,6 @@ function transportFor(smtpUrl: string): Transporter {
   const transport = nodemailer.createTransport(smtpUrl);
   cachedTransport = { smtpUrl, transport };
   return transport;
-}
-
-function appLink(path: string, token: string): string | null {
-  const baseUrl = envValue("NEXTAUTH_URL");
-  if (!baseUrl) return null;
-  try {
-    return new URL(`${path}/${encodeURIComponent(token)}`, baseUrl).toString();
-  } catch {
-    return null;
-  }
 }
 
 async function sendSecretLinkEmail(input: {
@@ -88,7 +78,7 @@ export function sendAccountInvitationEmail(
     subject: "You are invited to ReadWise",
     intro: "An administrator invited you to create a ReadWise account.",
     linkLabel: "Accept invitation",
-    link: appLink("/invite", input.token),
+    link: accountAdmissionSecretLink("/invite", input.token),
   });
 }
 
@@ -100,7 +90,7 @@ export function sendRegistrationVerificationEmail(
     subject: "Verify your ReadWise email",
     intro: "Confirm your email address to finish creating your ReadWise account.",
     linkLabel: "Verify email",
-    link: appLink("/verify-email", input.token),
+    link: accountAdmissionSecretLink("/verify-email", input.token),
   });
 }
 
@@ -112,6 +102,6 @@ export function sendPasswordResetEmail(
     subject: "Reset your ReadWise password",
     intro: "Use this single-use link to choose a new ReadWise password.",
     linkLabel: "Reset password",
-    link: appLink("/reset-password", input.token),
+    link: accountAdmissionSecretLink("/reset-password", input.token),
   });
 }

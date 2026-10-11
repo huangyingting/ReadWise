@@ -2,6 +2,7 @@ export * from "./credentials";
 export * from "./email";
 export * from "./errors";
 export * from "./invitations";
+export * from "./links";
 export * from "./passwords";
 export * from "./policy";
 export * from "./rate-limit";

@@ -20,7 +20,8 @@ beforeEach(() => {
   sentMessages = [];
   delete process.env.SMTP_URL;
   delete process.env.EMAIL_FROM;
-  process.env.NEXTAUTH_URL = "https://readwise.example.test";
+  process.env.APP_URL = "https://readwise.example.test";
+  process.env.NEXTAUTH_URL = "http://readwise:3000";
 });
 
 test("invitation email delivery degrades explicitly when SMTP is absent", async () => {
@@ -61,6 +62,8 @@ test("verification and reset emails use single-purpose secret links", async () =
   );
 
   assert.equal(sentMessages.length, 2);
+  assert.doesNotMatch(String(sentMessages[0]?.text), /readwise:3000/);
+  assert.doesNotMatch(String(sentMessages[1]?.text), /readwise:3000/);
   assert.match(String(sentMessages[0]?.text), /verify-email\/verify-token/);
   assert.match(String(sentMessages[1]?.text), /reset-password\/reset-token/);
   assert.doesNotMatch(String(sentMessages[0]?.text), /reset-token/);
