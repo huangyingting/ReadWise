@@ -162,6 +162,10 @@ test("VM deployment follows the pinned WebStack PostgreSQL release contract", ()
     deployWorkflow,
     /EMAIL_FROM=\{0\}[\s\S]*vars\.EMAIL_FROM/,
   );
+  assert.match(
+    deployWorkflow,
+    /ACCOUNT_MAIL_HELO_DOMAIN=\{0\}[\s\S]*vars\.ACCOUNT_MAIL_HELO_DOMAIN/,
+  );
 });
 
 test("CI database coverage installs native dependencies before SQLite tests", () => {

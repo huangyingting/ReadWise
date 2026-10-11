@@ -33,6 +33,7 @@ test("email delivery is optional and supports authenticated SMTP", () => {
       process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
     ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
       process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
+    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
   };
   try {
     delete process.env.SMTP_URL;
@@ -40,6 +41,7 @@ test("email delivery is optional and supports authenticated SMTP", () => {
     delete process.env.ACCOUNT_MAIL_FROM;
     delete process.env.ACCOUNT_MAIL_DKIM_SELECTOR;
     delete process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64;
+    delete process.env.ACCOUNT_MAIL_HELO_DOMAIN;
     assert.equal(emailDeliveryConfig.get(), null);
 
     process.env.SMTP_URL = "smtps://mailer.example.invalid:465";
@@ -56,6 +58,50 @@ test("email delivery is optional and supports authenticated SMTP", () => {
   }
 });
 
+test("direct DKIM delivery supports a PTR-aligned HELO domain", () => {
+  const previous = {
+    SMTP_URL: process.env.SMTP_URL,
+    EMAIL_FROM: process.env.EMAIL_FROM,
+    ACCOUNT_MAIL_FROM: process.env.ACCOUNT_MAIL_FROM,
+    ACCOUNT_MAIL_DKIM_SELECTOR:
+      process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
+    ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
+      process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
+    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
+  };
+  try {
+    delete process.env.SMTP_URL;
+    delete process.env.EMAIL_FROM;
+    process.env.ACCOUNT_MAIL_FROM = "NOREPLY@genisisiq.example";
+    process.env.ACCOUNT_MAIL_DKIM_SELECTOR = "readwise-test";
+    process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64 =
+      Buffer.from(directPrivateKey).toString("base64");
+    process.env.ACCOUNT_MAIL_HELO_DOMAIN = "mail.genisisiq.example";
+
+    assert.deepEqual(emailDeliveryConfig.get(), {
+      kind: "direct",
+      from: "noreply@genisisiq.example",
+      heloDomain: "mail.genisisiq.example",
+      selector: "readwise-test",
+      privateKey: directPrivateKey.trim(),
+    });
+    assert.equal(inspectEmailDeliveryConfig().status, "configured");
+
+    process.env.ACCOUNT_MAIL_HELO_DOMAIN = "invalid hostname";
+    assert.equal(emailDeliveryConfig.get(), null);
+    assert.equal(inspectEmailDeliveryConfig().status, "degraded");
+
+    delete process.env.ACCOUNT_MAIL_HELO_DOMAIN;
+    const fallbackConfig = emailDeliveryConfig.get();
+    assert.equal(
+      fallbackConfig?.kind === "direct" ? fallbackConfig.heloDomain : null,
+      "genisisiq.example",
+    );
+  } finally {
+    restoreEnv(previous);
+  }
+});
+
 test("authenticated SMTP takes precedence over complete direct DKIM delivery", () => {
   const previous = {
     SMTP_URL: process.env.SMTP_URL,
@@ -65,6 +111,7 @@ test("authenticated SMTP takes precedence over complete direct DKIM delivery", (
       process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
     ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
       process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
+    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
   };
   try {
     process.env.SMTP_URL = "smtps://mailer.example.invalid:465";
@@ -73,6 +120,7 @@ test("authenticated SMTP takes precedence over complete direct DKIM delivery", (
     process.env.ACCOUNT_MAIL_DKIM_SELECTOR = "readwise-test";
     process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64 =
       Buffer.from(directPrivateKey).toString("base64");
+    process.env.ACCOUNT_MAIL_HELO_DOMAIN = "mail.readwise.example.invalid";
 
     assert.deepEqual(emailDeliveryConfig.get(), {
       kind: "smtp",
@@ -94,6 +142,7 @@ test("invalid direct DKIM configuration degrades while SMTP remains usable", () 
       process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
     ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
       process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
+    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
   };
   try {
     process.env.SMTP_URL = "smtps://mailer.example.invalid:465";
@@ -101,6 +150,7 @@ test("invalid direct DKIM configuration degrades while SMTP remains usable", () 
     process.env.ACCOUNT_MAIL_FROM = "noreply@readwise.example.invalid";
     process.env.ACCOUNT_MAIL_DKIM_SELECTOR = "readwise-test";
     process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64 = "not-a-private-key";
+    process.env.ACCOUNT_MAIL_HELO_DOMAIN = "mail.readwise.example.invalid";
 
     assert.equal(emailDeliveryConfig.get()?.kind, "smtp");
     const report = inspectEmailDeliveryConfig();
@@ -125,6 +175,7 @@ test("malformed SMTP does not satisfy public registration delivery", () => {
       process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
     ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
       process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
+    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
   };
   try {
     process.env.ACCOUNT_ADMISSION_MODE = "public";
@@ -133,6 +184,7 @@ test("malformed SMTP does not satisfy public registration delivery", () => {
     delete process.env.ACCOUNT_MAIL_FROM;
     delete process.env.ACCOUNT_MAIL_DKIM_SELECTOR;
     delete process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64;
+    delete process.env.ACCOUNT_MAIL_HELO_DOMAIN;
 
     assert.equal(emailDeliveryConfig.get(), null);
     assert.equal(inspectEmailDeliveryConfig().status, "degraded");
@@ -152,6 +204,7 @@ test("public Account Admission reports missing email delivery as degraded", () =
       process.env.ACCOUNT_MAIL_DKIM_SELECTOR,
     ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64:
       process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64,
+    ACCOUNT_MAIL_HELO_DOMAIN: process.env.ACCOUNT_MAIL_HELO_DOMAIN,
   };
   try {
     process.env.ACCOUNT_ADMISSION_MODE = "public";
@@ -160,6 +213,7 @@ test("public Account Admission reports missing email delivery as degraded", () =
     delete process.env.ACCOUNT_MAIL_FROM;
     delete process.env.ACCOUNT_MAIL_DKIM_SELECTOR;
     delete process.env.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64;
+    delete process.env.ACCOUNT_MAIL_HELO_DOMAIN;
 
     const report = inspectAccountAdmissionConfig();
     assert.equal(report.status, "degraded");

@@ -240,7 +240,7 @@ that vulnerable compatibility dependency.
 | `ACCOUNT_ADMISSION_MODE` | `invitation-only`; accepts `invitation-only` or `public` | `account-admission.ts` |
 | `ACCOUNT_ADMISSION_RETENTION_DAYS` | `90`; positive integers only | `account-admission.ts` |
 | `SMTP_URL`, `EMAIL_FROM` | Optional authenticated SMTP relay; both required together | `account-admission.ts` |
-| `ACCOUNT_MAIL_FROM`, `ACCOUNT_MAIL_DKIM_SELECTOR`, `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` | Optional direct-to-MX account email; all three required, and the private key must be a base64-encoded 2048-bit-or-stronger RSA PEM key. Complete direct configuration takes precedence over SMTP. | `account-admission.ts` |
+| `ACCOUNT_MAIL_FROM`, `ACCOUNT_MAIL_DKIM_SELECTOR`, `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64`, `ACCOUNT_MAIL_HELO_DOMAIN` | Optional direct-to-MX account email; sender, selector, and a base64-encoded 2048-bit-or-stronger RSA PEM key are required. The optional HELO hostname defaults to the sender domain. Valid SMTP takes precedence over direct delivery. | `account-admission.ts` |
 
 ---
 
@@ -249,7 +249,7 @@ that vulnerable compatibility dependency.
 | Module | Exported as | Env vars owned |
 | --- | --- | --- |
 | `src/lib/runtime-config/ai.ts` | `ai` | `AZURE_OPENAI_*`, `AI_PROVIDER`, `AI_MODERATION_ENABLED`, `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, context/output token budgets, ledger, cost, quota env vars |
-| `src/lib/runtime-config/account-admission.ts` | — | `ACCOUNT_ADMISSION_MODE`, `ACCOUNT_ADMISSION_RETENTION_DAYS`, `SMTP_URL`, `EMAIL_FROM`, `ACCOUNT_MAIL_FROM`, `ACCOUNT_MAIL_DKIM_SELECTOR`, `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` |
+| `src/lib/runtime-config/account-admission.ts` | — | `ACCOUNT_ADMISSION_MODE`, `ACCOUNT_ADMISSION_RETENTION_DAYS`, `SMTP_URL`, `EMAIL_FROM`, `ACCOUNT_MAIL_FROM`, `ACCOUNT_MAIL_HELO_DOMAIN`, `ACCOUNT_MAIL_DKIM_SELECTOR`, `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` |
 | `src/lib/runtime-config/analytics.ts` | `analytics` | `ANALYTICS_ENABLED`, `ANALYTICS_RETENTION_DAYS` |
 | `src/lib/runtime-config/database.ts` | `database` | `DATABASE_URL`, `PRISMA_SCHEMA_PATH`, `DB_QUERY_TIMING_ENABLED`, `DB_SLOW_QUERY_THRESHOLD_MS` |
 | `src/lib/runtime-config/dictionary.ts` | `dictionary` | `DICTIONARY_PROVIDER`, `LOCAL_DICTIONARY_DIR`, `LOCAL_DICTIONARY_LANGUAGE` |

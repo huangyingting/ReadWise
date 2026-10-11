@@ -156,6 +156,7 @@ normalized-email key where an email is available.
 | `SMTP_URL` | Optional authenticated SMTP/SMTPS relay connection URL. Preferred when both providers are complete. |
 | `EMAIL_FROM` | Sender identity paired with `SMTP_URL`. |
 | `ACCOUNT_MAIL_FROM` | Bare sender address for direct-to-MX account email. Its domain must align with SPF and DKIM. |
+| `ACCOUNT_MAIL_HELO_DOMAIN` | Optional SMTP EHLO hostname. Defaults to the sender domain; production should match the sending IP's forward-confirmed PTR hostname. |
 | `ACCOUNT_MAIL_DKIM_SELECTOR` | DNS selector for the direct-delivery DKIM record. |
 | `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` | Base64-encoded PEM RSA private key, at least 2048 bits, paired with the published DKIM record. |
 | `ACCOUNT_ADMISSION_RETENTION_DAYS` | `90`; retention for terminal invitation records. |

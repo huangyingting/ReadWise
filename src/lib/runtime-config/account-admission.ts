@@ -14,6 +14,7 @@ const DIRECT_EMAIL_ENV = [
   "ACCOUNT_MAIL_FROM",
   "ACCOUNT_MAIL_DKIM_SELECTOR",
   "ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64",
+  "ACCOUNT_MAIL_HELO_DOMAIN",
 ] as const;
 const EMAIL_DELIVERY_ENV = [...SMTP_EMAIL_ENV, ...DIRECT_EMAIL_ENV] as const;
 
@@ -26,6 +27,7 @@ export type SmtpEmailDeliveryConfig = {
 export type DirectEmailDeliveryConfig = {
   kind: "direct";
   from: string;
+  heloDomain: string;
   selector: string;
   privateKey: string;
 };
@@ -61,6 +63,16 @@ function validSmtpUrl(value: string): boolean {
   }
 }
 
+function validHostname(value: string): boolean {
+  return (
+    value.length <= 253 &&
+    value.split(".").every(
+      (label) =>
+        /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label),
+    )
+  );
+}
+
 function readSmtpEmailDeliveryConfig(): SmtpEmailDeliveryConfig | null {
   const smtpUrl = envValue(SMTP_EMAIL_ENV[0]);
   const smtpFrom = envValue(SMTP_EMAIL_ENV[1]);
@@ -73,9 +85,16 @@ function readDirectEmailDeliveryConfig(): DirectEmailDeliveryConfig | null {
   const directFrom = envValue(DIRECT_EMAIL_ENV[0]);
   const selector = envValue(DIRECT_EMAIL_ENV[1]);
   const privateKey = readDirectPrivateKey();
+  const senderDomain = directFrom?.split("@")[1]?.toLowerCase();
+  const heloDomain =
+    envValue(DIRECT_EMAIL_ENV[3])?.toLowerCase() ?? senderDomain;
   if (
     directFrom &&
     /^[^@\s]+@[^@\s]+$/.test(directFrom) &&
+    senderDomain &&
+    validHostname(senderDomain) &&
+    heloDomain &&
+    validHostname(heloDomain) &&
     selector &&
     /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(selector) &&
     privateKey
@@ -83,6 +102,7 @@ function readDirectEmailDeliveryConfig(): DirectEmailDeliveryConfig | null {
     return {
       kind: "direct",
       from: directFrom.toLowerCase(),
+      heloDomain,
       selector,
       privateKey,
     };
@@ -113,7 +133,7 @@ export function inspectEmailDeliveryConfig(): ConfigCheckReport {
       issue(
         "warning",
         "invalid_direct_email_config",
-        "Direct account email requires a sender address, DKIM selector, and base64-encoded 2048-bit RSA private key.",
+        "Direct account email requires a sender address, valid optional HELO domain, DKIM selector, and base64-encoded 2048-bit RSA private key.",
         [...DIRECT_EMAIL_ENV],
       ),
     );

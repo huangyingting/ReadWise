@@ -120,7 +120,7 @@ Optional providers are evaluated independently:
 | Push | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Reminder sends become no-ops. |
 | Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Provider is omitted. |
 | Azure AD OAuth | `AZURE_AD_CLIENT_ID`, `AZURE_AD_CLIENT_SECRET`, `AZURE_AD_TENANT_ID` | Provider is omitted. |
-| Email | Either `SMTP_URL` + `EMAIL_FROM`, or `ACCOUNT_MAIL_FROM` + `ACCOUNT_MAIL_DKIM_SELECTOR` + `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` | Invitation delivery and password recovery degrade; public registration cannot be completed without delivery. Partial or malformed direct-DKIM configuration reports degraded and SMTP remains an available fallback. |
+| Email | Either `SMTP_URL` + `EMAIL_FROM`, or `ACCOUNT_MAIL_FROM` + `ACCOUNT_MAIL_DKIM_SELECTOR` + `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64`; `ACCOUNT_MAIL_HELO_DOMAIN` is optional | Invitation delivery and password recovery degrade; public registration cannot be completed without delivery. Partial or malformed direct-DKIM configuration reports degraded. Valid SMTP is preferred when both providers are configured. |
 | Account Admission | `ACCOUNT_ADMISSION_MODE`; email delivery is also checked in public mode | Invalid modes fail closed and block auth readiness; public mode without a complete email provider reports degraded. |
 | Storage | `MEDIA_STORAGE` plus backend-specific values | Local default works without cloud credentials; Azure degrades when credentials are missing. |
 

@@ -50,4 +50,5 @@ jobs:
         ${{ secrets.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64 != '' && format('ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64={0}', secrets.ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64) || '' }}
         ${{ vars.ACCOUNT_MAIL_FROM != '' && format('ACCOUNT_MAIL_FROM={0}', vars.ACCOUNT_MAIL_FROM) || '' }}
         ${{ vars.ACCOUNT_MAIL_DKIM_SELECTOR != '' && format('ACCOUNT_MAIL_DKIM_SELECTOR={0}', vars.ACCOUNT_MAIL_DKIM_SELECTOR) || '' }}
+        ${{ vars.ACCOUNT_MAIL_HELO_DOMAIN != '' && format('ACCOUNT_MAIL_HELO_DOMAIN={0}', vars.ACCOUNT_MAIL_HELO_DOMAIN) || '' }}
         ${{ secrets.RETENTION_WORKER_SECRET != '' && format('RETENTION_WORKER_SECRET={0}', secrets.RETENTION_WORKER_SECRET) || '' }}

@@ -128,23 +128,23 @@ Set repository variables:
 ```text
 VM_APP_NAME=readwise
 VM_DEPLOY_ENABLED=true
-ACCOUNT_MAIL_FROM=noreply@readwise.genisisiq.com
+ACCOUNT_MAIL_FROM=noreply@genisisiq.com
+ACCOUNT_MAIL_HELO_DOMAIN=mail.genisisiq.com
 ACCOUNT_MAIL_DKIM_SELECTOR=<readwise-specific-selector>
-EMAIL_FROM=noreply@readwise.genisisiq.com
 RETENTION_MAINTENANCE_URL=https://readwise.genisisiq.com/api/maintenance/retention
 RETENTION_MAINTENANCE_ENABLED=true
 ```
 
 For authenticated relay delivery, store the complete credential-bearing
 connection URL as the repository secret `SMTP_URL`; for example, an SMTPS URL
-on port 465. Keep the sender identity in the repository variable `EMAIL_FROM`.
-The deployment workflow injects both values without writing them to source or
-workflow output.
+on port 465. Set the sender identity in the repository variable `EMAIL_FROM`
+only when `SMTP_URL` is configured. The deployment workflow injects both values
+without writing them to source or workflow output.
 
 For direct account email, add the base64-encoded PEM private key as the
 `ACCOUNT_MAIL_DKIM_PRIVATE_KEY_BASE64` repository environment secret. The
-caller workflow appends that secret and the two variables to `APPLICATION_ENV`;
-they do not need to be duplicated in `VM_APP_ENV`.
+caller workflow appends that secret and the three direct-delivery variables to
+`APPLICATION_ENV`; they do not need to be duplicated in `VM_APP_ENV`.
 
 Generate a separate retention bearer secret with `openssl rand -base64 48` and
 store the same value as the repository secret `RETENTION_WORKER_SECRET`. The
@@ -153,13 +153,22 @@ deployment workflow injects it into the web container, while
 daily request. `/api/ready` reports this optional worker configuration
 independently.
 
-Publish these DNS records for the `ACCOUNT_MAIL_FROM` domain before enabling
-direct delivery:
+All WebStack applications send from the shared identity
+`noreply@genisisiq.com`. Each application keeps a distinct DKIM selector and
+private key, while the apex SPF policy authorizes the shared WebStack IP,
+Tencent Enterprise Mail, and Brevo:
 
-- `<selector>._domainkey.readwise.genisisiq.com` TXT containing the matching
-  DKIM public key;
-- `readwise.genisisiq.com` TXT with SPF authorizing the WebStack VM public IP;
-- `_dmarc.readwise.genisisiq.com` TXT with the chosen DMARC policy.
+- `mail.genisisiq.com` A → `20.205.158.10`;
+- `genisisiq.com` TXT:
+  `v=spf1 ip4:20.205.158.10 include:spf.mail.qq.com include:spf.brevo.com -all`;
+- `<app-selector>._domainkey.genisisiq.com` TXT containing that application's
+  matching DKIM public key;
+- `brevo1._domainkey.genisisiq.com` and `brevo2._domainkey.genisisiq.com`
+  CNAME records for authenticated Brevo delivery;
+- `_dmarc.genisisiq.com` TXT with the shared DMARC policy.
+
+Keep exactly one apex SPF record. Adding another webapp on the same VM requires
+only a new app-specific DKIM selector; it does not require another SPF entry.
 
 The VM must allow outbound TCP 25, and its public sending IP should have aligned
 reverse DNS and acceptable mail reputation. Direct delivery requires verified
@@ -168,7 +177,7 @@ be met, use an authenticated SMTP relay instead; copying the one-time invitation
 link remains the safe administrator fallback.
 
 The production Azure public IP uses forward-confirmed reverse DNS:
-`20.205.158.10` resolves back to `readwise.genisisiq.com`, whose A record
+`20.205.158.10` resolves back to `mail.genisisiq.com`, whose A record
 resolves to the same IP. Azure requires a public-IP DNS label before accepting
 the custom PTR value:
 
@@ -177,7 +186,7 @@ az network public-ip update \
   --resource-group WebStack \
   --name webstack-ip \
   --dns-name webstack-readwise-mail \
-  --reverse-fqdn readwise.genisisiq.com.
+  --reverse-fqdn mail.genisisiq.com.
 ```
 
 PTR, SPF, DKIM, and DMARC establish sender identity but do not override an IP

@@ -51,6 +51,7 @@ beforeEach(() => {
 const config = {
   kind: "direct" as const,
   from: "noreply@readwise.example.test",
+  heloDomain: "mail.example.test",
   selector: "readwise-test",
   privateKey: "test-private-key",
 };
@@ -70,7 +71,7 @@ test("direct email uses verified STARTTLS, DKIM, and one envelope recipient", as
     port: 25,
     secure: false,
     requireTLS: true,
-    name: "readwise.example.test",
+    name: "mail.example.test",
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
     socketTimeout: 30_000,

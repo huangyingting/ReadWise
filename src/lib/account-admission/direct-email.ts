@@ -76,7 +76,7 @@ export async function sendDirectEmail(
     port: 25,
     secure: false,
     requireTLS: true,
-    name: senderDomain,
+    name: config.heloDomain,
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
     socketTimeout: 30_000,
