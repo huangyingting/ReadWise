@@ -167,6 +167,24 @@ STARTTLS from the recipient's preferred MX server. If these requirements cannot
 be met, use an authenticated SMTP relay instead; copying the one-time invitation
 link remains the safe administrator fallback.
 
+The production Azure public IP uses forward-confirmed reverse DNS:
+`20.205.158.10` resolves back to `readwise.genisisiq.com`, whose A record
+resolves to the same IP. Azure requires a public-IP DNS label before accepting
+the custom PTR value:
+
+```bash
+az network public-ip update \
+  --resource-group WebStack \
+  --name webstack-ip \
+  --dns-name webstack-readwise-mail \
+  --reverse-fqdn readwise.genisisiq.com.
+```
+
+PTR, SPF, DKIM, and DMARC establish sender identity but do not override an IP
+blocklist. Follow the listing-specific process in the Spamhaus IP and Domain
+Reputation Checker or use an authenticated relay with provider-managed sender
+reputation.
+
 Enable `VM_DEPLOY_ENABLED` only after the production environment, Azure OIDC
 identity, DNS, and `VM_APP_ENV` secret are ready.
 
