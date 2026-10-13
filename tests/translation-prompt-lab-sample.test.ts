@@ -73,24 +73,45 @@ test("provider database discovery handles missing directories and unknown filter
   assert.deepEqual(buildLongestCorpus(1, "does-not-exist").articles, []);
 });
 
-// Provider corpora under prisma/provider-dbs are gitignored local artifacts, so
-// the real-corpus checks run only on machines that have scraped one.
-const hasLocalProviderCorpus = providerDbFiles().some((path) =>
-  path.endsWith("workinprogress.db"),
-);
+function writeProviderDb(dir: string, name: string, rows: Array<[string, string, string]>): void {
+  const db = openReadWrite(join(dir, `${name}.db`));
+  db.exec("CREATE TABLE Article (id TEXT, title TEXT, content TEXT, category TEXT)");
+  const insert = db.prepare("INSERT INTO Article (id, title, content, category) VALUES (?, ?, ?, ?)");
+  for (const [id, category, content] of rows) insert.run(id, `Title ${id}`, content, category);
+  db.close();
+}
 
-test("provider database discovery samples real filtered corpora", {
-  skip: hasLocalProviderCorpus ? false : "local workinprogress provider corpus not present",
-}, () => {
-  const corpus = buildCorpus(1, 300, "workinprogress");
+test("provider database discovery samples filtered corpora from a provider directory", () => {
+  const dir = mkdtempSync(join(tmpdir(), "readwise-provider-dbs-"));
+  const prose = (n: number) => `<p>${"A complete source sentence with useful prose. ".repeat(n)}</p>`;
+  writeProviderDb(dir, "workinprogress", [
+    ["short", "science", prose(12)],
+    ["long", "world", prose(40)],
+  ]);
+  writeProviderDb(dir, "other", [["huge", "world", prose(80)]]);
+
+  assert.deepEqual(
+    providerDbFiles(dir).map((path) => path.split("/").pop()),
+    ["other.db", "workinprogress.db"],
+  );
+
+  const corpus = buildCorpus(1, 300, "workinprogress", dir);
   assert.equal(corpus.mode, "per-category");
   assert.equal(corpus.perCategory, 1);
+  assert.ok(corpus.articles.length > 0);
   assert.ok(corpus.articles.every((article) => article.providerDb === "workinprogress"));
 
-  const longest = buildLongestCorpus(1, "workinprogress");
+  const longest = buildLongestCorpus(1, "workinprogress", dir);
   assert.equal(longest.mode, "longest");
   assert.equal(longest.articles.length, 1);
   assert.equal(longest.articles[0]?.providerDb, "workinprogress");
+  assert.equal(longest.articles[0]?.sampleId, "workinprogress:long");
+
+  const acrossDbs = buildLongestCorpus(2, null, dir);
+  assert.deepEqual(
+    acrossDbs.articles.map((article) => article.sampleId),
+    ["other:huge", "workinprogress:long"],
+  );
 });
 
 test("sample summary emits aggregate-only counts for populated and empty corpora", (t) => {

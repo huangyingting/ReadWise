@@ -103,3 +103,17 @@ test("bootstrapAdmin refuses to change access once an Admin exists", async () =>
   assert.equal(createdUser, null);
   assert.equal(updatedUser, null);
 });
+
+test("bootstrapAdmin rejects an invalid email before touching the database", async () => {
+  const { bootstrapAdmin } = await import("@/lib/auth/bootstrap");
+
+  await assert.rejects(
+    bootstrapAdmin({ email: "not an email", password: "correct horse battery staple" }),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      (error as { code: string }).code === "invalid_email",
+  );
+  assert.equal(createdUser, null);
+  assert.equal(upsertedCredential, null);
+});

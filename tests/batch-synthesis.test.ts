@@ -559,8 +559,10 @@ describe("Azure Batch synthesis remote and persistence behavior", () => {
   test("normalizes submission, polling, timeout, and download failures", async (t) => {
     articleRows = [article()];
     let responses: Response[] = [];
+    // Answers polls once the queue is drained; null means any extra request fails.
+    let pollFallback: (() => Response) | null = null;
     t.mock.method(globalThis, "fetch", async () => {
-      const response = responses.shift();
+      const response = responses.shift() ?? pollFallback?.();
       assert.ok(response, "unexpected Azure request");
       return response;
     });
@@ -577,11 +579,15 @@ describe("Azure Batch synthesis remote and persistence behavior", () => {
       /job failed/,
     );
 
-    responses = [jsonResponse({ status: "Accepted" }), jsonResponse({ status: "Running" })];
+    // A job that never leaves Running. The number of polls before the 1 ms
+    // deadline depends on timer scheduling under load, so keep answering.
+    responses = [jsonResponse({ status: "Accepted" })];
+    pollFallback = () => jsonResponse({ status: "Running" });
     await assert.rejects(
       () => runBatchSynthesis(["--all", "--poll-interval-ms", "1", "--timeout-ms", "1"]),
       /Timed out/,
     );
+    pollFallback = null;
 
     responses = [
       jsonResponse({ status: "Accepted" }),

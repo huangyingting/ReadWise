@@ -209,3 +209,39 @@ test("account mail endpoint bounds streamed request bodies without content-lengt
 
   assert.equal(response.status, 413);
 });
+
+test("account mail endpoint rejects oversized, malformed, and unknown requests", async () => {
+  configureWorker();
+  const { POST } = await import("@/app/api/account-mail/tick/route");
+  const rawPost = (body: string, headers: Record<string, string> = {}) =>
+    POST(
+      new Request("http://test/api/account-mail/tick", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${workerSecret}`,
+          "content-type": "application/json",
+          ...headers,
+        },
+        body,
+      }),
+    );
+
+  assert.equal((await rawPost("{}", { "content-length": "5000" })).status, 413);
+  assert.equal((await rawPost("{not json")).status, 400);
+  assert.equal((await rawPost("null")).status, 400);
+  assert.equal((await rawPost(JSON.stringify({ id: "mail-1" }))).status, 400);
+  assert.equal(
+    (await postAccountMail({ secret: workerSecret, body: { operation: "unknown" } })).status,
+    400,
+  );
+  assert.equal(
+    (
+      await postAccountMail({
+        secret: workerSecret,
+        body: { operation: "acknowledge", id: "mail-1", claimToken: "not-hex", status: "sent" },
+      })
+    ).status,
+    400,
+  );
+  assert.equal(acknowledgement, null);
+});

@@ -27,6 +27,8 @@ let updateManyCounts: number[] = [];
 let rowAfterFailedUpdate: unknown = null;
 let updateManyCalls: unknown[] = [];
 let deleteManyCalls: unknown[] = [];
+// When non-empty, findFirst answers from this queue (one entry per call).
+let findFirstQueue: unknown[] = [];
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -35,7 +37,8 @@ before(() => {
         highlight: {
           findMany: async () => stubHighlights,
           upsert: async () => stubCreated,
-          findFirst: async () => stubFindFirst,
+          findFirst: async () =>
+            findFirstQueue.length > 0 ? findFirstQueue.shift() : stubFindFirst,
           updateMany: async (args: unknown) => {
             updateManyCalls.push(args);
             const count = updateManyCounts.shift() ?? 1;
@@ -67,6 +70,7 @@ beforeEach(() => {
   rowAfterFailedUpdate = null;
   updateManyCalls = [];
   deleteManyCalls = [];
+  findFirstQueue = [];
 });
 
 type HighlightRow = {
@@ -492,4 +496,49 @@ test("resolveProgress is re-exported from @/lib/annotations", async () => {
   const { resolveProgress } = await import("@/lib/annotations");
   const r = resolveProgress({ percent: 80, completed: false }, { percent: 40, completed: false });
   assert.equal(r.percent, 80);
+});
+
+test("updateHighlight reports a highlight deleted during the update", async () => {
+  const row = { id: "h-1", note: "base", updatedAt: new Date("2026-01-01T00:00:00Z") };
+  const { updateHighlight } = await import("@/lib/annotations");
+
+  // Deleted between the successful guarded write and the re-read.
+  findFirstQueue = [row, null];
+  updateManyCounts = [1];
+  assert.deepEqual(await updateHighlight("h-1", "u-1", { note: "edit" }), {
+    ok: false,
+    error: "Highlight not found",
+    status: 404,
+  });
+
+  // Deleted after another writer won the guarded write.
+  findFirstQueue = [row, null];
+  updateManyCounts = [0];
+  assert.deepEqual(await updateHighlight("h-1", "u-1", { note: "edit" }), {
+    ok: false,
+    error: "Highlight not found",
+    status: 404,
+  });
+});
+
+test("updateHighlight gives up when the highlight keeps changing underneath it", async () => {
+  const row = { id: "h-1", note: "base", updatedAt: new Date("2026-01-01T00:00:00Z") };
+  findFirstQueue = [row, row, row, row];
+  updateManyCounts = [0, 0, 0];
+
+  const { updateHighlight } = await import("@/lib/annotations");
+  await assert.rejects(
+    updateHighlight("h-1", "u-1", { color: "blue" }),
+    /changed repeatedly/,
+  );
+  assert.equal(updateManyCalls.length, 3);
+});
+
+test("updateHighlightByAnchor reports a missing anchored highlight", async () => {
+  const { updateHighlightByAnchor } = await import("@/lib/annotations");
+  assert.deepEqual(
+    await updateHighlightByAnchor("user-1", "article-1", { startOffset: 0, endOffset: 1 }, { note: "x" }),
+    { ok: false, error: "Highlight not found", status: 404 },
+  );
+  assert.equal(updateManyCalls.length, 0);
 });

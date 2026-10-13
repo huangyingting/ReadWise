@@ -635,6 +635,62 @@ test("offline mutation store dedupes, updates, removes, clears, and degrades gra
   );
 });
 
+test("offline mutation store discards, fences ownership, and fails closed on storage errors", async () => {
+  const {
+    discardQueuedMutation,
+    enqueueMutation,
+    listQueuedMutations,
+    queuedMutationsBelongTo,
+    removeQueuedMutationForGeneration,
+    replaceQueuedMutationPayload,
+    updateQueuedMutationForGeneration,
+  } = await import("@/lib/offline/mutation-store");
+  const owned = (clientMutationId: string, actorId = "user-1") => ({
+    clientMutationId,
+    type: "progress",
+    endpoint: "/api/progress",
+    method: "POST" as const,
+    payload: { percent: 10 },
+    actorId,
+    purgeGeneration: "generation-1",
+  });
+
+  // Nothing queued yet: every row trivially belongs to the current account.
+  assert.equal(await queuedMutationsBelongTo("user-1", "generation-1"), true);
+
+  await enqueueMutation(owned("own-1"));
+  assert.equal(await replaceQueuedMutationPayload("own-1", { percent: 50 }), true);
+  const [replaced] = await listQueuedMutations();
+  assert.deepEqual(replaced?.payload, { percent: 50 });
+  assert.equal(replaced?.queueRevision, 1);
+  assert.equal(await replaceQueuedMutationPayload("missing", { percent: 1 }), false);
+
+  assert.equal(await queuedMutationsBelongTo("user-1", "generation-1"), true);
+  assert.equal(await queuedMutationsBelongTo("user-2", "generation-1"), false);
+  assert.equal(await queuedMutationsBelongTo("user-1", "generation-2"), false);
+
+  assert.equal(await discardQueuedMutation("missing"), false);
+  assert.equal(await discardQueuedMutation("own-1"), true);
+  assert.deepEqual(await listQueuedMutations(), []);
+
+  await enqueueMutation(owned("own-2"));
+  fakeIndexedDb.openThrows = true;
+  assert.equal(await replaceQueuedMutationPayload("own-2", {}), false);
+  assert.equal(await discardQueuedMutation("own-2"), false);
+  assert.equal(await removeQueuedMutationForGeneration("own-2", "generation-1", "user-1"), false);
+  assert.equal(
+    await updateQueuedMutationForGeneration("own-2", "generation-1", "user-1", "x", 0, { status: "failed" }),
+    false,
+  );
+  // Ownership is unknowable when storage fails, so adoption is refused.
+  assert.equal(await queuedMutationsBelongTo("user-1", "generation-1"), false);
+  fakeIndexedDb.openThrows = false;
+
+  defineGlobal("indexedDB", undefined);
+  assert.equal(await discardQueuedMutation("own-2"), false);
+  assert.equal(await queuedMutationsBelongTo("user-1", "generation-1"), true);
+});
+
 test("offline conflict helpers cover empty anchors and one-sided note merges", async () => {
   const { mergeNoteConflict, revalidateAnchor } = await import("@/lib/offline-conflict");
 

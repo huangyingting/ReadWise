@@ -80,3 +80,22 @@ test("Password Credential hashes verify without storing the password", async () 
   assert.equal(await verifyPassword("incorrect password", encoded), false);
   assert.equal(await verifyPassword(password, "malformed"), false);
 });
+
+test("Password Credential verification fails closed on unexpected scrypt parameters", async () => {
+  const password = "correct horse battery staple";
+  const [prefix, , r, p, salt, hash] = (await hashPassword(password)).split("$");
+
+  // Same salt and hash, but a cost parameter this release does not issue.
+  assert.equal(await verifyPassword(password, [prefix, "1024", r, p, salt, hash].join("$")), false);
+  assert.equal(await verifyPassword(password, [prefix, "16384", "16", p, salt, hash].join("$")), false);
+  assert.equal(await verifyPassword(password, "scrypt$16384$8$1$short$hash"), false);
+  assert.equal(await verifyPassword(password, "bcrypt$anything"), false);
+});
+
+test("Password Credential hashing enforces the password policy", async () => {
+  await assert.rejects(
+    hashPassword("short"),
+    (error: unknown) =>
+      error instanceof Error && (error as { code?: string }).code === "invalid_password",
+  );
+});

@@ -2,11 +2,15 @@ process.env.LOG_LEVEL = "error";
 
 import { before, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { Prisma } from "@prisma/client";
 
 let session: Record<string, unknown> | null = null;
 let feedbackExisting: Record<string, unknown> | null = null;
 let markView: Record<string, unknown> | null = null;
 let updates: unknown[] = [];
+// When non-empty, feedback findFirst answers from this queue (one entry per call).
+let feedbackQueue: Array<Record<string, unknown> | null> = [];
+let createError: unknown = null;
 
 before(() => {
   mock.module("@/lib/article-library", {
@@ -29,9 +33,13 @@ before(() => {
           },
         },
         todayComprehensionFeedback: {
-          findFirst: async () => feedbackExisting,
+          findFirst: async () =>
+            feedbackQueue.length > 0 ? feedbackQueue.shift() : feedbackExisting,
           update: async (input: unknown) => updates.push(input),
-          create: async (input: unknown) => updates.push(input),
+          create: async (input: unknown) => {
+            if (createError) throw createError;
+            updates.push(input);
+          },
         },
       },
     },
@@ -64,6 +72,8 @@ beforeEach(() => {
   feedbackExisting = null;
   markView = null;
   updates = [];
+  feedbackQueue = [];
+  createError = null;
 });
 
 test("selectTodayComprehensionQuestion drops non-array option payloads", async () => {
@@ -107,4 +117,49 @@ test("submitTodayComprehension updates existing feedback and returns remediation
   assert.deepEqual(result?.remediation, { show: true, articleHref: "/reader/article-1" });
   assert.equal(updates.length, 1);
   assert.equal((updates[0] as { where: { id: string } }).where.id, "feedback-1");
+});
+
+const SUBMISSION = {
+  userId: "user-1",
+  selfRating: "partial" as const,
+  questionId: "q1",
+  selectedIndex: 1,
+  skillTag: "vocabulary_in_context" as const,
+};
+
+function uniqueConflict(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("duplicate feedback", {
+    code: "P2002",
+    clientVersion: "test",
+  });
+}
+
+test("submitTodayComprehension merges into the row a concurrent submit created first", async () => {
+  const { submitTodayComprehension } = await import("@/lib/engagement/today-session/comprehension");
+  session = { id: "today-1", primaryArticleId: "article-1" };
+  markView = { remediationViewed: false };
+  createError = uniqueConflict();
+  feedbackQueue = [null, { id: "winner", remediationViewed: true }];
+
+  await submitTodayComprehension(SUBMISSION);
+
+  assert.equal(updates.length, 1);
+  const update = updates[0] as { where: { id: string }; data: { remediationViewed: boolean } };
+  assert.equal(update.where.id, "winner");
+  // remediationViewed is sticky: the winner's true survives this submit's false.
+  assert.equal(update.data.remediationViewed, true);
+});
+
+test("submitTodayComprehension rethrows when the conflicting row cannot be found or the error is not a conflict", async () => {
+  const { submitTodayComprehension } = await import("@/lib/engagement/today-session/comprehension");
+  session = { id: "today-1", primaryArticleId: "article-1" };
+
+  createError = uniqueConflict();
+  feedbackQueue = [null, null];
+  await assert.rejects(submitTodayComprehension(SUBMISSION), (error: unknown) => error === createError);
+
+  createError = new Error("database offline");
+  feedbackQueue = [null];
+  await assert.rejects(submitTodayComprehension(SUBMISSION), /database offline/);
+  assert.equal(updates.length, 0);
 });

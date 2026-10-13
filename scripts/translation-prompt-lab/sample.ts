@@ -157,8 +157,13 @@ export function sampleFromDb(pathValue: string, perCategory: number, maxChars: n
   return out;
 }
 
-export function buildCorpus(perCategory: number, maxChars: number, dbFilter: string | null): Corpus {
-  const files = providerDbFiles().filter((f) => !dbFilter || f.includes(dbFilter));
+export function buildCorpus(
+  perCategory: number,
+  maxChars: number,
+  dbFilter: string | null,
+  providerDbDir = PROVIDER_DB_DIR,
+): Corpus {
+  const files = providerDbFiles(providerDbDir).filter((f) => !dbFilter || f.includes(dbFilter));
   const articles: SampledArticle[] = [];
   for (const file of files) {
     articles.push(...sampleFromDb(file, perCategory, maxChars));
@@ -172,8 +177,12 @@ export function buildCorpus(perCategory: number, maxChars: number, dbFilter: str
  * `chunk.ts`) against real long-tail content instead of the ~1-2k char
  * excerpts the per-category sampler produces.
  */
-export function buildLongestCorpus(n: number, dbFilter: string | null): Corpus {
-  const files = providerDbFiles().filter((f) => !dbFilter || f.includes(dbFilter));
+export function buildLongestCorpus(
+  n: number,
+  dbFilter: string | null,
+  providerDbDir = PROVIDER_DB_DIR,
+): Corpus {
+  const files = providerDbFiles(providerDbDir).filter((f) => !dbFilter || f.includes(dbFilter));
   type Candidate = { providerDb: string; row: ArticleRow; htmlLen: number };
   const candidates: Candidate[] = [];
   for (const file of files) {
