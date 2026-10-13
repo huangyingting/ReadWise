@@ -7,15 +7,20 @@
  * Uses the shared Reader floating-surface lifecycle.
  * Focuses its close button on mount; focus return to the prose is handled by
  * WordLookup's openSurface effect.
+ *
+ * Layout: the surface itself is the scroll container (so the shared floating
+ * position hook can preserve its scroll offset); the header and the save
+ * footer are sticky so the word, close, and save stay reachable while long
+ * entries scroll.
  */
 
 import { useRef } from "react";
 import type { RefObject } from "react";
+import { Bookmark, BookmarkCheck, Volume2, X } from "lucide-react";
 import type { DictionaryResult } from "@/lib/lexical/provider";
 import { TIER_LABELS, TIER_VARIANTS } from "@/lib/option-registries";
-import { Badge, Button, IconButton, Inline } from "@/components/ui";
+import { Badge, Button, IconButton, SkeletonText } from "@/components/ui";
 import { ReaderFloatingSurface } from "@/components/reader/ReaderFloatingSurface";
-import { cn } from "@/lib/cn";
 
 const POPOVER_GAP = 12;
 
@@ -44,8 +49,30 @@ function hasDifferentBaseForm(result: DictionaryResult, word: string): boolean {
 }
 
 function getSaveButtonLabel(saveWord: SaveWordState): string {
-  if (saveWord.savePending) return "…";
-  return saveWord.wordSaved ? "✓ Saved" : "Save word";
+  if (saveWord.savePending) return "Saving…";
+  return saveWord.wordSaved ? "Saved to study list" : "Save word";
+}
+
+function DictionaryEntry({ result }: { result: DictionaryResult }) {
+  return (
+    <ol className="word-lookup-meanings">
+      {result.meanings.map((meaning) => (
+        <li key={meaning.partOfSpeech} className="word-lookup-meaning">
+          <span className="word-lookup-pos">{meaning.partOfSpeech}</span>
+          <ol className="word-lookup-defs">
+            {meaning.definitions.map((def, i) => (
+              <li key={i} className="word-lookup-def">
+                <p className="word-lookup-def-text">{def.definition}</p>
+                {def.example ? (
+                  <p className="word-lookup-example">&ldquo;{def.example}&rdquo;</p>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </li>
+      ))}
+    </ol>
+  );
 }
 
 export default function DictionaryPopover({
@@ -61,6 +88,7 @@ export default function DictionaryPopover({
 }: DictionaryPopoverProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  const found = !loading && !dictError && result?.found ? result : null;
   const frequencyTier = result?.frequencyTier ?? null;
   const saveButtonAriaLabel = saveWord.wordSaved
     ? `Remove "${word}" from study list`
@@ -76,102 +104,82 @@ export default function DictionaryPopover({
       initialFocusRef={closeRef}
       className="word-lookup-popover"
       gap={POPOVER_GAP}
+      busy={loading}
     >
-      <div className="word-lookup-header">
-        <Inline gap="2">
-          <strong className="word-lookup-word">{word}</strong>
-          {frequencyTier ? (
-            <Badge
-              variant={TIER_VARIANTS[frequencyTier]}
-              aria-label={`Word frequency: ${TIER_LABELS[frequencyTier]}`}
-            >
-              {TIER_LABELS[frequencyTier]}
-            </Badge>
+      <header className="word-lookup-header">
+        <div className="word-lookup-heading">
+          <div className="word-lookup-title-row">
+            <strong className="word-lookup-word">{word}</strong>
+            {frequencyTier ? (
+              <Badge
+                variant={TIER_VARIANTS[frequencyTier]}
+                aria-label={`Word frequency: ${TIER_LABELS[frequencyTier]}`}
+              >
+                {TIER_LABELS[frequencyTier]}
+              </Badge>
+            ) : null}
+          </div>
+          {found && (found.phonetic || found.audio || hasDifferentBaseForm(found, word)) ? (
+            <div className="word-lookup-pron">
+              {found.phonetic ? (
+                <span className="word-lookup-phonetic">{found.phonetic}</span>
+              ) : null}
+              {found.audio ? (
+                <IconButton
+                  size="sm"
+                  context="reading"
+                  className="word-lookup-audio"
+                  aria-label="Play pronunciation"
+                  onClick={() => onPlay(found.audio as string)}
+                >
+                  <Volume2 size={16} aria-hidden />
+                </IconButton>
+              ) : null}
+              {hasDifferentBaseForm(found, word) ? (
+                <span className="word-lookup-base">
+                  from <em>{found.lookedUp}</em>
+                </span>
+              ) : null}
+            </div>
           ) : null}
-        </Inline>
+        </div>
         <IconButton
           ref={closeRef}
+          context="reading"
           className="word-lookup-close"
           aria-label="Close"
           onClick={onClose}
         >
-          ×
+          <X size={18} aria-hidden />
         </IconButton>
-      </div>
+      </header>
 
       {/* aria-live: announce status + the looked-up definition to screen readers */}
-      <div aria-live="polite" aria-atomic="true">
+      <div className="word-lookup-content" aria-live="polite" aria-atomic="true">
         {loading ? (
-          <p className="muted word-lookup-status" role="status">
-            Looking up &ldquo;{word}&rdquo;&hellip;
-          </p>
+          <div className="word-lookup-loading">
+            <p className="sr-only" role="status">
+              Looking up &ldquo;{word}&rdquo;&hellip;
+            </p>
+            <SkeletonText lines={4} aria-hidden />
+          </div>
         ) : null}
         {dictError ? (
           <p className="word-lookup-error" role="alert">
             {dictError}
           </p>
         ) : null}
-        {!loading && !dictError && result ? (
-          result.found ? (
-            <div className="word-lookup-body">
-              {hasDifferentBaseForm(result, word) ? (
-                <p className="muted word-lookup-base">
-                  base form: <em>{result.lookedUp}</em>
-                </p>
-              ) : null}
-              {result.phonetic || result.audio ? (
-                <p className="word-lookup-pron">
-                  {result.phonetic ? (
-                    <span className="word-lookup-phonetic">{result.phonetic}</span>
-                  ) : null}
-                  {result.audio ? (
-                    <IconButton
-                      size="sm"
-                      className="word-lookup-audio"
-                      aria-label="Play pronunciation"
-                      onClick={() => onPlay(result.audio as string)}
-                    >
-                      🔊
-                    </IconButton>
-                  ) : null}
-                </p>
-              ) : null}
-              <ul className="word-lookup-meanings">
-                {result.meanings.map((meaning) => (
-                  <li key={meaning.partOfSpeech} className="word-lookup-meaning">
-                    <span className="word-lookup-pos">{meaning.partOfSpeech}</span>
-                    <ol className="word-lookup-defs">
-                      {meaning.definitions.map((def, i) => (
-                        <li key={i}>
-                          {def.definition}
-                          {def.example ? (
-                            <span className="word-lookup-example muted">
-                              {" "}
-                              &ldquo;{def.example}&rdquo;
-                            </span>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ol>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="muted word-lookup-status">
-              No definition found for &ldquo;{word}&rdquo;.
-            </p>
-          )
+        {found ? <DictionaryEntry result={found} /> : null}
+        {!loading && !dictError && result && !result.found ? (
+          <p className="word-lookup-status">
+            No definition found for &ldquo;{word}&rdquo;.
+          </p>
         ) : null}
       </div>
 
-      {/* Save word footer */}
-      <div className="word-lookup-footer">
+      <footer className="word-lookup-footer">
         {saveWord.saveError ? (
-          <p
-            className="word-lookup-error"
-            role="alert"
-          >
+          <p className="word-lookup-error" role="alert">
             {saveWord.saveError}
           </p>
         ) : null}
@@ -179,10 +187,14 @@ export default function DictionaryPopover({
           type="button"
           variant={saveWord.wordSaved ? "outline" : "primary"}
           size="sm"
-          className={cn(
-            "word-lookup-save-btn",
-            saveWord.wordSaved && "word-lookup-save-btn--saved",
-          )}
+          className="word-lookup-save-btn"
+          leadingIcon={
+            saveWord.wordSaved ? (
+              <BookmarkCheck size={16} aria-hidden />
+            ) : (
+              <Bookmark size={16} aria-hidden />
+            )
+          }
           onClick={() => void saveWord.handleToggleSave()}
           disabled={saveWord.savePending || loading}
           aria-pressed={saveWord.wordSaved}
@@ -190,7 +202,7 @@ export default function DictionaryPopover({
         >
           {getSaveButtonLabel(saveWord)}
         </Button>
-      </div>
+      </footer>
     </ReaderFloatingSurface>
   );
 }

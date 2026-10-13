@@ -170,6 +170,9 @@ export function useFloatingPosition(
       const nextAnchorRect = anchorRect(anchor);
       if (!nextFloating || !nextAnchorRect) return;
 
+      // Measuring clears the inline size cap, which lets the browser clamp the
+      // surface's own scroll offset; restore it once the cap is re-applied.
+      const { scrollTop, scrollLeft } = nextFloating;
       let sizeLimit: { width?: number; height?: number } | undefined;
       if (constrainSize) {
         nextFloating.style.maxHeight = "";
@@ -219,6 +222,8 @@ export function useFloatingPosition(
       if (constrainSize) {
         nextFloating.style.maxHeight = `${layout.maxHeight}px`;
         nextFloating.style.maxWidth = `${layout.maxWidth}px`;
+        nextFloating.scrollTop = scrollTop;
+        nextFloating.scrollLeft = scrollLeft;
       }
     }
 
@@ -232,6 +237,14 @@ export function useFloatingPosition(
       });
     }
 
+    // The capture-phase scroll listener also hears the surface scrolling its
+    // own content, which moves neither the anchor nor the viewport.
+    function scheduleLayoutForScroll(event: Event) {
+      const target = event.target as Node | null;
+      if (target && floatingRef.current?.contains(target)) return;
+      scheduleLayout();
+    }
+
     const resizeObserver = typeof ResizeObserver === "undefined"
       ? null
       : new ResizeObserver(scheduleLayout);
@@ -242,7 +255,7 @@ export function useFloatingPosition(
     const visualViewport = window.visualViewport;
     window.addEventListener("resize", scheduleLayout);
     window.addEventListener("orientationchange", scheduleLayout);
-    window.addEventListener("scroll", scheduleLayout, true);
+    window.addEventListener("scroll", scheduleLayoutForScroll, true);
     visualViewport?.addEventListener("resize", scheduleLayout);
     visualViewport?.addEventListener("scroll", scheduleLayout);
     applyLayout();
@@ -255,7 +268,7 @@ export function useFloatingPosition(
       resizeObserver?.disconnect();
       window.removeEventListener("resize", scheduleLayout);
       window.removeEventListener("orientationchange", scheduleLayout);
-      window.removeEventListener("scroll", scheduleLayout, true);
+      window.removeEventListener("scroll", scheduleLayoutForScroll, true);
       visualViewport?.removeEventListener("resize", scheduleLayout);
       visualViewport?.removeEventListener("scroll", scheduleLayout);
     };

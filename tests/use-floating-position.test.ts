@@ -276,3 +276,130 @@ test("remeasures a live ref anchor when layout is rescheduled", async (context) 
 
   runCleanups();
 });
+
+/**
+ * A constrained surface whose stylesheet max-height (200px) is larger than the
+ * viewport-constrained inline max-height. Like a browser, laying it out clamps
+ * scrollTop to the scrollable range of its current height.
+ */
+function scrollableSurface() {
+  const CONTENT_HEIGHT = 300;
+  const STYLESHEET_MAX_HEIGHT = 200;
+  const style: Record<string, string> = {};
+  let scrollTop = 0;
+  const height = () => {
+    const inline = Number.parseFloat(style.maxHeight ?? "");
+    const limit = Number.isFinite(inline) ? inline : STYLESHEET_MAX_HEIGHT;
+    return Math.min(limit, CONTENT_HEIGHT);
+  };
+  const clamp = (value: number) => Math.max(0, Math.min(value, CONTENT_HEIGHT - height()));
+  const surface = {
+    dataset: {},
+    style,
+    scrollHeight: CONTENT_HEIGHT,
+    scrollWidth: 120,
+    offsetWidth: 120,
+    contains: (node: unknown) => node === surface || node === inner,
+    get offsetHeight() {
+      scrollTop = clamp(scrollTop);
+      return height();
+    },
+    get scrollTop() {
+      return scrollTop;
+    },
+    set scrollTop(value: number) {
+      scrollTop = clamp(value);
+    },
+  };
+  const inner = { parent: surface };
+  return { surface: surface as unknown as HTMLElement, inner, stylesheetMaxHeight: `${STYLESHEET_MAX_HEIGHT}px` };
+}
+
+test("a constrained surface keeps its scroll position across scroll and resize relayouts", async (context) => {
+  const { surface, inner, stylesheetMaxHeight } = scrollableSurface();
+  const listeners = new Map<string, EventListener>();
+  const windowStub = {
+    innerHeight: 400,
+    innerWidth: 800,
+    visualViewport: null,
+    getComputedStyle: () => ({ maxHeight: stylesheetMaxHeight, maxWidth: "none", getPropertyValue: () => "" }),
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+      listeners.set(type, listener as EventListener);
+    },
+    removeEventListener() {},
+  } as unknown as Window & typeof globalThis;
+  const originalGetComputedStyle = globalThis.getComputedStyle;
+  Object.assign(globalThis, { window: windowStub, getComputedStyle: windowStub.getComputedStyle });
+
+  let resizeCallback: ResizeObserverCallback | null = null;
+  const originalResizeObserver = globalThis.ResizeObserver;
+  Object.assign(globalThis, {
+    ResizeObserver: class {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  });
+  let pendingFrame: FrameRequestCallback | null = null;
+  const animationGlobals = globalThis as unknown as {
+    requestAnimationFrame?: (callback: FrameRequestCallback) => number;
+    cancelAnimationFrame?: (handle: number) => void;
+  };
+  const originalRaf = animationGlobals.requestAnimationFrame;
+  const originalCaf = animationGlobals.cancelAnimationFrame;
+  animationGlobals.requestAnimationFrame = (callback) => {
+    pendingFrame = callback;
+    return 1;
+  };
+  animationGlobals.cancelAnimationFrame = () => {
+    pendingFrame = null;
+  };
+  context.after(() => {
+    Object.assign(globalThis, {
+      getComputedStyle: originalGetComputedStyle,
+      ResizeObserver: originalResizeObserver,
+    });
+    animationGlobals.requestAnimationFrame = originalRaf;
+    animationGlobals.cancelAnimationFrame = originalCaf;
+  });
+
+  const { useFloatingPosition } = await import("@/components/ui/useFloatingPosition");
+  beginRender();
+  // Anchor 250px down a 400px viewport: only 150px fits below the word.
+  useFloatingPosition({ current: surface }, { x: 100, y: 250 }, {
+    placement: "below",
+    gap: 0,
+    viewportPadding: 0,
+    flip: false,
+    constrainSize: true,
+  });
+  assert.equal(surface.style.maxHeight, "150px");
+
+  // The reader scrolls the surface all the way to the bottom.
+  surface.scrollTop = 150;
+  assert.equal(surface.scrollTop, 150);
+
+  // Its own scroll event reaches the capture-phase window listener; it must
+  // not relayout (nothing about the anchor or viewport changed).
+  listeners.get("scroll")?.({ type: "scroll", target: inner } as unknown as Event);
+  assert.equal(pendingFrame, null, "scrolling inside the surface schedules no relayout");
+  assert.equal(surface.scrollTop, 150);
+
+  // A real relayout (content resize) must preserve the position too.
+  assert.ok(resizeCallback);
+  (resizeCallback as ResizeObserverCallback)([], {} as ResizeObserver);
+  const frame = pendingFrame as FrameRequestCallback | null;
+  assert.ok(frame);
+  frame(0);
+  assert.equal(surface.style.maxHeight, "150px");
+  assert.equal(surface.scrollTop, 150, "relayout must not snap the surface back up");
+
+  // Page scrolls still relayout the surface.
+  listeners.get("scroll")?.({ type: "scroll", target: {} } as unknown as Event);
+  assert.ok(pendingFrame, "page scroll still schedules a relayout");
+
+  runCleanups();
+});
