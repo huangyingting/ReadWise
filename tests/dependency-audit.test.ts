@@ -124,7 +124,7 @@ test("dependency audit rejects unpatched or non-dev exception nodes", () => {
 
     const result = evaluateDependencyAudits(braceExpansionReport(), cleanReport(), lockfile);
     assert.equal(result.ok, false);
-    assert.match(result.reason ?? "", /patched dev-only backport/i);
+    assert.match(result.reason ?? "", /exact dev-only package version/i);
   }
 });
 
@@ -188,13 +188,85 @@ test("dependency audit requires a non-empty brace-expansion exception node set",
 
   const missingResult = evaluateDependencyAudits(missing, cleanReport(), patchedLockfile());
   assert.equal(missingResult.ok, false);
-  assert.match(missingResult.reason ?? "", /patched dev-only backport/i);
+  assert.match(missingResult.reason ?? "", /exact dev-only package version/i);
 
   const empty = braceExpansionReport();
   empty.vulnerabilities["brace-expansion"].nodes = [];
   const emptyResult = evaluateDependencyAudits(empty, cleanReport(), patchedLockfile());
   assert.equal(emptyResult.ok, false);
-  assert.match(emptyResult.reason ?? "", /patched dev-only backport/i);
+  assert.match(emptyResult.reason ?? "", /exact dev-only package version/i);
+});
+
+const BRACES_ADVISORY_URL = "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm";
+const BRACES_NODE = "node_modules/braces";
+
+function bracesReport(): AuditReport {
+  return {
+    auditReportVersion: 2,
+    vulnerabilities: {
+      braces: {
+        name: "braces",
+        severity: "high",
+        via: [{ source: 1, name: "braces", url: BRACES_ADVISORY_URL, severity: "high" }],
+        nodes: [BRACES_NODE],
+      },
+      micromatch: {
+        name: "micromatch",
+        severity: "high",
+        via: ["braces"],
+        nodes: ["node_modules/micromatch"],
+      },
+      "eslint-config-next": {
+        name: "eslint-config-next",
+        severity: "high",
+        via: ["micromatch"],
+        nodes: ["node_modules/eslint-config-next"],
+      },
+    },
+    metadata: {
+      vulnerabilities: { info: 0, low: 0, moderate: 0, high: 3, critical: 0, total: 3 },
+    },
+  };
+}
+
+function bracesLockfile(entry: { version?: string; dev?: boolean } = { version: "3.0.3", dev: true }): PackageLock {
+  return { lockfileVersion: 3, packages: { [BRACES_NODE]: entry } };
+}
+
+test("dependency audit accepts the unfixable dev-only braces advisory at the pinned version", () => {
+  assert.deepEqual(evaluateDependencyAudits(bracesReport(), cleanReport(), bracesLockfile()), {
+    ok: true,
+    exceptionApplied: true,
+    highOrCriticalCount: 3,
+  });
+});
+
+test("dependency audit rejects braces outside its exact dev-only version", () => {
+  for (const entry of [{ version: "3.0.2", dev: true }, { version: "3.0.3", dev: false }, { version: "3.0.3" }]) {
+    const result = evaluateDependencyAudits(bracesReport(), cleanReport(), bracesLockfile(entry));
+    assert.equal(result.ok, false);
+    assert.match(result.reason ?? "", /exact dev-only package version/i);
+  }
+
+  const production = evaluateDependencyAudits(bracesReport(), bracesReport(), bracesLockfile());
+  assert.equal(production.ok, false);
+  assert.match(production.reason ?? "", /production dependency graph/i);
+});
+
+test("dependency audit proves every exception when both allowlisted advisories appear", () => {
+  const report = braceExpansionReport();
+  Object.assign(report.vulnerabilities, bracesReport().vulnerabilities);
+  report.metadata!.vulnerabilities!.high = 6;
+  report.metadata!.vulnerabilities!.total = 6;
+  const lockfile = patchedLockfile();
+  Object.assign(lockfile.packages, bracesLockfile().packages);
+
+  assert.equal(evaluateDependencyAudits(report, cleanReport(), lockfile).ok, true);
+
+  lockfile.packages[BRACES_NODE] = { version: "3.0.3", dev: false };
+  const result = evaluateDependencyAudits(report, cleanReport(), lockfile);
+  assert.equal(result.ok, false);
+  assert.match(result.reason ?? "", /exact dev-only package version/i);
 });
 
 test("dependency audit fails closed on report or lockfile schema drift", () => {

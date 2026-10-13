@@ -66,11 +66,22 @@ test("sampleFromDb reads eligible public fixtures and always closes the source",
   assert.ok(sampled.every((article) => article.text.length <= 300));
 });
 
-test("provider database discovery handles missing directories and real filtered corpora", () => {
+test("provider database discovery handles missing directories and unknown filters", () => {
   const missing = join(tmpdir(), `readwise-missing-provider-dbs-${Date.now()}`);
   assert.deepEqual(providerDbFiles(missing), []);
-  assert.ok(providerDbFiles().some((path) => path.endsWith("workinprogress.db")));
+  assert.deepEqual(buildCorpus(1, 100, "does-not-exist").articles, []);
+  assert.deepEqual(buildLongestCorpus(1, "does-not-exist").articles, []);
+});
 
+// Provider corpora under prisma/provider-dbs are gitignored local artifacts, so
+// the real-corpus checks run only on machines that have scraped one.
+const hasLocalProviderCorpus = providerDbFiles().some((path) =>
+  path.endsWith("workinprogress.db"),
+);
+
+test("provider database discovery samples real filtered corpora", {
+  skip: hasLocalProviderCorpus ? false : "local workinprogress provider corpus not present",
+}, () => {
   const corpus = buildCorpus(1, 300, "workinprogress");
   assert.equal(corpus.mode, "per-category");
   assert.equal(corpus.perCategory, 1);
@@ -80,9 +91,6 @@ test("provider database discovery handles missing directories and real filtered 
   assert.equal(longest.mode, "longest");
   assert.equal(longest.articles.length, 1);
   assert.equal(longest.articles[0]?.providerDb, "workinprogress");
-
-  assert.deepEqual(buildCorpus(1, 100, "does-not-exist").articles, []);
-  assert.deepEqual(buildLongestCorpus(1, "does-not-exist").articles, []);
 });
 
 test("sample summary emits aggregate-only counts for populated and empty corpora", (t) => {

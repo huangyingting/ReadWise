@@ -39,20 +39,22 @@ function cleanReport(): AuditReport {
   };
 }
 
-function braceExpansionReport(): AuditReport {
+// Mirrors the exception the real package-lock.json currently needs: main()
+// proves exact version + dev-only scope against the lockfile on disk.
+function bracesReport(): AuditReport {
   return {
     auditReportVersion: 2,
     vulnerabilities: {
-      "brace-expansion": {
-        name: "brace-expansion",
+      braces: {
+        name: "braces",
         severity: "high",
         via: [
           {
-            url: "https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+            url: "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
             severity: "high",
           },
         ],
-        nodes: ["node_modules/eslint/node_modules/brace-expansion"],
+        nodes: ["node_modules/braces"],
       },
     },
     metadata: {
@@ -81,18 +83,18 @@ test("audit CLI accepts clean full and production reports", async (t) => {
 });
 
 test("audit CLI reports the documented dev-only exception", async (t) => {
-  spawnResults = [result(braceExpansionReport()), result(cleanReport())];
+  spawnResults = [result(bracesReport()), result(cleanReport())];
   const logs: string[] = [];
   t.mock.method(console, "log", (message: string) => logs.push(message));
   t.mock.method(console, "error", () => assert.fail("allowlisted audit must not fail"));
   const { main } = await import("../scripts/audit-dependencies");
 
   assert.equal(main(), 0);
-  assert.match(logs.join("\n"), /dev-only backport exception/);
+  assert.match(logs.join("\n"), /dev-only advisory exceptions/);
 });
 
 test("audit CLI rejects a production blocking advisory", async (t) => {
-  spawnResults = [result(braceExpansionReport()), result(braceExpansionReport())];
+  spawnResults = [result(bracesReport()), result(bracesReport())];
   const errors: string[] = [];
   t.mock.method(console, "log", () => assert.fail("blocking audit must not pass"));
   t.mock.method(console, "error", (message: string) => errors.push(message));

@@ -216,6 +216,11 @@ before(() => {
       readingMinutesFor: () => 7,
     },
   });
+  mock.module("@/lib/article-library/policy", {
+    namedExports: {
+      articleAccessContextForUser: async () => ({ userId: "user-1", role: "Admin", orgIds: [] }),
+    },
+  });
   mock.module("@/lib/speech", {
     namedExports: {
       getOrCreateArticleSpeech: async () => speechResult,

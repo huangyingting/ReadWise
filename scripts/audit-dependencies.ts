@@ -43,9 +43,39 @@ export type DependencyAuditResult = {
   reason?: string;
 };
 
-const BRACE_EXPANSION_ADVISORY =
-  "https://github.com/advisories/GHSA-mh99-v99m-4gvg";
-const PATCHED_BRACE_EXPANSION_BACKPORT = "1.1.18";
+/**
+ * Documented, unfixable advisories accepted only on the full (dev) graph. Each
+ * entry pins the advisory identity, the vulnerable package, and the exact
+ * locked version; every reported node must also be dev-only in the lockfile.
+ * Log each entry in docs/platform/supply-chain.md#exception-log.
+ */
+type AdvisoryException = {
+  advisory: string;
+  packageName: string;
+  version: string;
+};
+
+const ADVISORY_EXCEPTIONS: readonly AdvisoryException[] = [
+  {
+    // brace-expansion 1.1.18 carries the CVE-2026-14257 length-bound backport
+    // while npm's advisory range still marks the whole 1.x line.
+    advisory: "https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+    packageName: "brace-expansion",
+    version: "1.1.18",
+  },
+  {
+    // braces has no patched release (latest 3.0.3 is affected). It is reached
+    // only through eslint-config-next -> @next/eslint-plugin-next -> fast-glob
+    // -> micromatch at lint time, on trusted repository glob patterns.
+    advisory: "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+    packageName: "braces",
+    version: "3.0.3",
+  },
+];
+
+const ALLOWLISTED_ADVISORIES = new Set(
+  ADVISORY_EXCEPTIONS.map((exception) => exception.advisory),
+);
 const BLOCKING_SEVERITIES = new Set<AuditSeverity>(["high", "critical"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -127,25 +157,42 @@ function rootAdvisoryUrls(
   return urls.size > 0 ? urls : null;
 }
 
-function hasOnlyAllowlistedRootCause(report: AuditReport): boolean {
+/** Returns the allowlisted root advisories behind every blocking finding, or null. */
+function allowlistedRootCauses(report: AuditReport): Set<string> | null {
+  const causes = new Set<string>();
   for (const [name] of blockingVulnerabilities(report)) {
     const urls = rootAdvisoryUrls(report, name);
-    if (!urls || urls.size !== 1 || !urls.has(BRACE_EXPANSION_ADVISORY)) return false;
+    if (!urls) return null;
+    for (const url of urls) {
+      if (!ALLOWLISTED_ADVISORIES.has(url)) return null;
+      causes.add(url);
+    }
   }
-  return true;
+  return causes;
 }
 
-function hasPatchedDevOnlyBackport(report: AuditReport, lockfile: PackageLock): boolean {
-  const vulnerability = report.vulnerabilities["brace-expansion"];
+function hasExactDevOnlyPackage(
+  report: AuditReport,
+  lockfile: PackageLock,
+  exception: AdvisoryException,
+): boolean {
+  const vulnerability = report.vulnerabilities[exception.packageName];
   if (!vulnerability || vulnerability.nodes.length === 0) return false;
 
   return vulnerability.nodes.every((nodePath) => {
     const lockedPackage = lockfile.packages[nodePath];
-    return (
-      lockedPackage?.version === PATCHED_BRACE_EXPANSION_BACKPORT &&
-      lockedPackage.dev === true
-    );
+    return lockedPackage?.version === exception.version && lockedPackage.dev === true;
   });
+}
+
+function hasProvenExceptions(
+  report: AuditReport,
+  lockfile: PackageLock,
+  causes: Set<string>,
+): boolean {
+  return ADVISORY_EXCEPTIONS.filter((exception) => causes.has(exception.advisory)).every(
+    (exception) => hasExactDevOnlyPackage(report, lockfile, exception),
+  );
 }
 
 export function evaluateDependencyAudits(
@@ -184,7 +231,8 @@ export function evaluateDependencyAudits(
     };
   }
 
-  if (!hasOnlyAllowlistedRootCause(fullReport)) {
+  const causes = allowlistedRootCauses(fullReport);
+  if (!causes || causes.size === 0) {
     return {
       ok: false,
       highOrCriticalCount: fullBlocking.length,
@@ -192,11 +240,11 @@ export function evaluateDependencyAudits(
     };
   }
 
-  if (!hasPatchedDevOnlyBackport(fullReport, lockfile)) {
+  if (!hasProvenExceptions(fullReport, lockfile, causes)) {
     return {
       ok: false,
       highOrCriticalCount: fullBlocking.length,
-      reason: "The advisory exception requires the patched dev-only backport.",
+      reason: "The advisory exception requires its exact dev-only package version.",
     };
   }
 
@@ -235,7 +283,7 @@ export function main(): number {
 
     if (result.exceptionApplied) {
       console.log(
-        `Dependency audit passed with the documented ${BRACE_EXPANSION_ADVISORY} dev-only backport exception.`,
+        "Dependency audit passed with documented dev-only advisory exceptions (see docs/platform/supply-chain.md).",
       );
     } else {
       console.log("Dependency audit passed with no HIGH or CRITICAL advisories.");

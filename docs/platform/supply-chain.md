@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-31"
+last_updated: "2026-10-13"
 description: "Documents dependency hygiene, vulnerability response, CI gates, and package-management boundaries. Captures current dependency review, lockfile expectations, advisory response, and upgrade verification workflow."
 ---
 
@@ -78,13 +78,17 @@ the production and full `npm audit` JSON reports. Production findings always
 fail. Full-graph findings also fail unless every blocking path resolves to an
 exact exception below and the lockfile proves its additional constraints.
 
-The only active exception is for the dev-only `brace-expansion@1.1.18`
-backport. That release contains the upstream CVE-2026-14257 expansion-length
-bound, but npm's advisory range still categorizes the 1.x line as affected. The
-audit wrapper accepts that advisory only when every reported
-`brace-expansion` node is both dev-only and exactly version 1.1.18. It rejects
-any production occurrence, older version, different advisory, broken advisory
-chain, malformed report, or failed audit command.
+Exceptions live in the `ADVISORY_EXCEPTIONS` table in
+`scripts/audit-dependencies.ts`. Each entry pins an advisory URL, the vulnerable
+package, and its exact locked version. The wrapper accepts a full-graph finding
+only when every blocking path traces back to allowlisted advisories and every
+reported node of each cited package is dev-only at exactly the pinned version.
+It rejects any production occurrence, other version, different advisory, broken
+advisory chain, malformed report, or failed audit command.
+
+The active exception is the dev-only `braces@3.0.3` advisory, which has no
+patched release. The `brace-expansion@1.1.18` entry is now inert: the lockfile
+carries 1.1.21, which npm no longer flags.
 
 ### Triaging a new advisory
 
@@ -212,4 +216,5 @@ affected package, the reason for deferral, and a target remediation date.
 
 | Advisory | Package | Severity | Reason for deferral | Target |
 | --- | --- | --- | --- | --- |
-| [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) | `brace-expansion@1.1.18` | High | Dev-only transitive dependency; 1.1.18 contains the CVE-2026-14257 length-bound backport while npm's range still marks all 1.x releases. The CI wrapper proves exact version and dev-only scope. | Remove as soon as npm corrects the advisory range or ESLint's plugins move to a non-affected major; review by 2026-08-14. |
+| [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | `braces@3.0.3` | High | No patched release exists (3.0.3 is latest and affected). Dev-only, reached through `eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob` → `micromatch` at lint time on trusted repository globs; not in the production graph. The CI wrapper proves exact version and dev-only scope. | Remove when `braces` ships a fix or `@next/eslint-plugin-next` drops `fast-glob`; review by 2026-11-13. |
+| [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) | `brace-expansion@1.1.18` | High | Inert since 2026-10-13: the lockfile now carries 1.1.21, which npm no longer flags. Kept pinned to 1.1.18 so it cannot widen. | Delete the table entry and rule at the next audit-script change. |
