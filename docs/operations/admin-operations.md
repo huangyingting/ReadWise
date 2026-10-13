@@ -103,7 +103,10 @@ the per-`dedupeKey` "one active job" invariant. Terminal jobs with the same
 `claimNextJob(workerId, opts)` is atomic:
 
 - PostgreSQL uses `FOR UPDATE SKIP LOCKED` to prevent two workers from claiming
-  the same row.
+  the same row. The pick runs in a `MATERIALIZED` CTE so a single claim locks at
+  most one row; as a joined subquery the planner could re-run it per row and
+  lease extra jobs the worker never runs. Discovery-source leases use the same
+  shape.
 - SQLite/dev/test uses a serialized transaction with a guarded conditional
   update.
 - `PENDING` and `FAILED` jobs are claimable when `runAfter <= now`.

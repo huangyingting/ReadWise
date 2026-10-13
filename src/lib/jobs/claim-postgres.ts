@@ -29,8 +29,8 @@ function recordStaleReclaim(job: Job, row: ClaimedJobRow, now: Date): void {
 
 /**
  * Claims one runnable job on PostgreSQL using `FOR UPDATE SKIP LOCKED`. The
- * atomic UPDATE … FROM … RETURNING pattern ensures two concurrent workers can
- * never claim the same row. Stale locks (CLAIMED/RUNNING with an expired
+ * atomic WITH … MATERIALIZED + UPDATE … RETURNING pattern ensures two concurrent
+ * workers can never claim the same row and one claim leases at most one row. Stale locks (CLAIMED/RUNNING with an expired
  * `lockedAt`) are also reclaimable so a crashed worker never strands a job.
  */
 export async function claimNextJobPostgres(
@@ -43,13 +43,12 @@ export async function claimNextJobPostgres(
   // PostgreSQL resolves them to the native enum type; dynamic values are bound.
   const typeFilter = buildTypeFilter(types);
 
+  // The pick is a MATERIALIZED CTE so the locking scan runs exactly once. As a
+  // FROM-subquery the planner may re-scan it per joined row; each re-scan skips
+  // the row this statement already updated and leases the next one, so a single
+  // claim could lock several jobs while returning only one.
   const rows = await prisma.$queryRaw<ClaimedJobRow[]>(Prisma.sql`
-    UPDATE "Job" AS j SET
-      "status" = 'CLAIMED'::"JobStatus",
-      "lockedBy" = ${workerId},
-      "lockedAt" = ${now},
-      "updatedAt" = ${now}
-    FROM (
+    WITH picked AS MATERIALIZED (
       SELECT "id", "status", "lockedAt"
       FROM "Job"
       WHERE (
@@ -60,7 +59,13 @@ export async function claimNextJobPostgres(
       ORDER BY "priority" DESC, "runAfter" ASC, "createdAt" ASC
       FOR UPDATE SKIP LOCKED
       LIMIT 1
-    ) AS picked
+    )
+    UPDATE "Job" AS j SET
+      "status" = 'CLAIMED'::"JobStatus",
+      "lockedBy" = ${workerId},
+      "lockedAt" = ${now},
+      "updatedAt" = ${now}
+    FROM picked
     WHERE j."id" = picked."id"
     RETURNING j."id" AS "id",
       (picked."status" IN ('CLAIMED'::"JobStatus", 'RUNNING'::"JobStatus")) AS "wasStale",

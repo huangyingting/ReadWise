@@ -3,8 +3,9 @@
  *
  * Uses `FOR UPDATE SKIP LOCKED` for safe concurrent claiming across workers —
  * the same pattern as `src/lib/jobs/claim-postgres.ts`. The atomic
- * `UPDATE … FROM (SELECT … FOR UPDATE SKIP LOCKED) … RETURNING` ensures two
- * concurrent workers can never claim the same source. An expired lease
+ * `WITH picked AS MATERIALIZED (SELECT … FOR UPDATE SKIP LOCKED LIMIT 1)
+ * UPDATE … FROM picked … RETURNING` ensures two concurrent workers can never
+ * claim the same source and one claim leases at most one source. An expired lease
  * (`leaseExpiresAt < now`) is reclaimable so a crashed worker never strands a
  * source.
  */
@@ -53,13 +54,12 @@ export async function claimDueDiscoverySourcePostgres(
   now: Date,
   leaseExpiresAt: Date,
 ): Promise<ClaimedDiscoverySource | null> {
+  // The pick is a MATERIALIZED CTE so the locking scan runs exactly once. As a
+  // FROM-subquery the planner may re-scan it per joined row; each re-scan skips
+  // the row this statement already updated and leases the next one, so a single
+  // claim could lease several sources while returning only one.
   const rows = await prisma.$queryRaw<ClaimedSourceRow[]>(Prisma.sql`
-    UPDATE "DiscoverySource" AS d SET
-      "leaseOwner" = ${workerId},
-      "leaseAcquiredAt" = ${now},
-      "leaseExpiresAt" = ${leaseExpiresAt},
-      "updatedAt" = ${now}
-    FROM (
+    WITH picked AS MATERIALIZED (
       SELECT "id", "leaseOwner", "leaseExpiresAt"
       FROM "DiscoverySource"
       WHERE "nextRunAt" <= ${now}
@@ -70,7 +70,13 @@ export async function claimDueDiscoverySourcePostgres(
       ORDER BY "nextRunAt" ASC, "createdAt" ASC
       FOR UPDATE SKIP LOCKED
       LIMIT 1
-    ) AS picked
+    )
+    UPDATE "DiscoverySource" AS d SET
+      "leaseOwner" = ${workerId},
+      "leaseAcquiredAt" = ${now},
+      "leaseExpiresAt" = ${leaseExpiresAt},
+      "updatedAt" = ${now}
+    FROM picked
     WHERE d."id" = picked."id"
     RETURNING d."id" AS "id",
       (picked."leaseOwner" IS NOT NULL AND picked."leaseExpiresAt" < ${now}) AS "wasStale"
