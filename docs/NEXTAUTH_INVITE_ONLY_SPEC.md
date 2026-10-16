@@ -172,16 +172,19 @@ model AccountEmailOutbox {
 
 ## 4. NextAuth + Invite-Only Interaction State Machine
 
-### Flow 0: Root Administrator Bootstrap (`bootstrapAdmin` + `/admin/bootstrap` UI + CLI)
-In `invitation-only` mode, public registration is blocked and only an `Admin` can issue invitations. To prevent a fresh-database deadlock (`adminCount === 0`), the module provides three synchronized bootstrap paths:
-1. **Interactive Web UI (`/admin/bootstrap` + `GET/POST /api/auth/bootstrap`)**:
-   - `GET /api/auth/bootstrap` returns `{ needsBootstrap: adminCount === 0, adminCount, admins, admissionMode, requiresSetupToken }`.
-   - When `adminCount === 0` (or when the operator supplies `BOOTSTRAP_ADMIN_TOKEN`), `POST /api/auth/bootstrap` atomically provisions or promotes the `User` (`role = "Admin"`, `status = "active"`, `emailVerified = now`), upserts `PasswordCredential`, writes an `AuditLog` (`system.admin.bootstrap`), signs the Admin in via NextAuth `signIn("credentials")`, and redirects to `/admin/invitations` to send invites.
-2. **CLI Script (`npm run bootstrap:admin`)**:
-   - `printf '%s\n' 'Password123!' | npm run bootstrap:admin -- --email admin@acme.io --name "Root Admin" --password-stdin`
-   - Reads the password from `stdin` (never leaking in process args) and runs `bootstrapAdmin()` inside a transaction.
-3. **Zero-Touch Environment Auto-Bootstrap (`BOOTSTRAP_ADMIN_EMAIL` + `BOOTSTRAP_ADMIN_PASSWORD`)**:
-   - When configured in `.env`, `ensureEnvBootstrapAdmin()` idempotently ensures the bootstrap admin and its `PasswordCredential` exist on startup.
+### Flow 0: Root Administrator Bootstrap (Deployment CLI Only — Zero HTTP Surface)
+In `invitation-only` mode, public registration is blocked and only an `Admin` can issue invitations. To prevent any internet-exposed privilege-escalation attack surface, **no HTTP bootstrap API endpoint (`/api/auth/bootstrap`) or web bootstrap page (`/admin/bootstrap`) is ever exposed**.
+
+Instead, only the deployment operator with host/container shell access to the application and database can create or promote the root Administrator account via the CLI script:
+- **Command (`npm run bootstrap:admin`)**:
+  ```bash
+  printf '%s\n' 'StrongAdminPassword!' | npm run bootstrap:admin -- --email admin@acme.io --name "Root Admin" --password-stdin
+  ```
+- **Security Invariants**:
+  1. **Zero Public HTTP Surface**: There is no HTTP route that can create or promote an administrator without an existing authenticated `Admin` session.
+  2. **Stdin-Safe Password Handling**: Reads the password from `stdin` (`--password-stdin`) so secrets never appear in shell history, process listings (`ps`), or HTTP logs.
+  3. **Idempotent Atomic Upsert**: Inside a single Prisma `$transaction`, `bootstrapAdmin()` creates or promotes the `User` (`role = "Admin"`, `status = "active"`, `emailVerified = now`), upserts `PasswordCredential` (`passwordHash`, `passwordChangedAt = now`), and records an `AuditLog` (`system.admin.bootstrap`, `source: "cli"`).
+  4. **Subsequent Invitations via Admin Console**: Once bootstrapped via the deployment script, the Admin signs in at `/login` and issues one-time invitation links at `/admin/invitations` (`POST /api/admin/invitations`).
 
 ### Flow 1: Admin Invitation Lifecycle
 1. **Create (`createAccountInvitation`)**:
@@ -239,39 +242,37 @@ src/lib/account-admission/
 ├── policy.ts          # accountAdmissionMode(), normalizeAccountEmail(), isValidAccountEmail(), verifiedProviderEmail()
 ├── tokens.ts          # createOpaqueToken(), hashOpaqueToken(), maskEmail(), accountAdmissionSecretLink()
 ├── passwords.ts       # hashPassword(), verifyPassword() (supports bcrypt & scrypt hashes)
-├── bootstrap.ts       # bootstrapAdmin(), getBootstrapStatus(), ensureEnvBootstrapAdmin()
+├── bootstrap.ts       # bootstrapAdmin() — server/CLI-only root Admin provisioning (never exposed via HTTP)
 ├── invitations.ts     # createAccountInvitation(), inspectAccountInvitation(), rotateAccountInvitation(), revokeAccountInvitation(), expirePendingInvitations(), listAccountInvitations()
 ├── registration.ts    # registerWithInvitation()
 ├── social.ts          # authorizeSocialSignIn() for NextAuth callbacks.signIn
 └── index.ts           # Canonical public barrel
 ```
 
-And the same 6 REST endpoints + 3 UI routes + 1 CLI tool:
-- `GET/POST /api/auth/bootstrap` — Inspect bootstrap status & provision/promote root Admin account
-- `GET/POST /api/admin/invitations` — List & create invitations
-- `DELETE /api/admin/invitations/[id]` — Revoke pending invitation
-- `POST /api/admin/invitations/[id]/rotate` — Rotate token & extend expiry
+And the same 5 REST endpoints + 2 UI routes + 1 deployment CLI script:
+- `scripts/bootstrap-admin.ts` (`npm run bootstrap:admin -- --email <email> --password-stdin`) — Deployment-only CLI script to create/promote the root Admin account (no HTTP bootstrap endpoint is exposed)
+- `GET/POST /api/admin/invitations` — List & create invitations (requires authenticated `Admin` session)
+- `DELETE /api/admin/invitations/[id]` — Revoke pending invitation (requires authenticated `Admin` session)
+- `POST /api/admin/invitations/[id]/rotate` — Rotate token & extend expiry (requires authenticated `Admin` session)
 - `GET /api/auth/invitation?token=...` — Public token inspection
 - `POST /api/auth/register` — Invitation-gated registration
-- `/admin/bootstrap` — Root Administrator Bootstrap UI
 - `/admin/invitations` — Admin Invitation Console UI
 - `/invite/[token]` — One-time Invitation Acceptance UI
-- `scripts/bootstrap-admin.ts` (`npm run bootstrap:admin`) — Stdin-safe CLI bootstrap tool
 
 ---
 
 ## 6. Cross-Repository Rollout Matrix (`/home/azadmin`)
 
-Allrepositories under `/home/azadmin` using the `AccountInvitation` + `NextAuth` mechanism have been aligned to this specification:
+All repositories under `/home/azadmin` using the `AccountInvitation` + `NextAuth` mechanism have been aligned to this specification:
 
-| Repository | `src/lib/account-admission/*` | NextAuth `signIn` + Credential Gate | Bootstrap Admin (`/admin/bootstrap` UI + `/api/auth/bootstrap` + `npm run bootstrap:admin`) | Invitation Console (`/admin/invitations` + `/invite/[token]`) |
+| Repository | `src/lib/account-admission/*` | NextAuth `signIn` + Credential Gate | CLI-Only Bootstrap Admin (`npm run bootstrap:admin` — No HTTP Endpoint) | Invitation Console (`/admin/invitations` + `/invite/[token]`) |
 |---|---|---|---|---|
-| **`/home/azadmin/clueso`** | Aligned (`errors`, `policy`, `tokens`, `passwords`, `bootstrap`, `invitations`, `registration`, `social`, `index`) | Aligned (`authorizeSocialSignIn` + `PasswordCredential`) | Aligned (`/admin/bootstrap`, `/api/auth/bootstrap`, `scripts/bootstrap-admin.ts`) | Aligned (`/admin/invitations`, `/invite/[token]`) |
-| **`/home/azadmin/ReadWise`** | Aligned (`src/lib/account-admission/*` + `src/lib/auth/bootstrap.ts`) | Aligned (`authorizeSocialSignIn` + `PasswordCredential`) | Aligned (`/admin/bootstrap`, `/api/auth/bootstrap`, `scripts/bootstrap-admin.ts`) | Aligned (`/admin/invitations`, `/invite/[token]`) |
-| **`/home/azadmin/Arcade`** | Aligned (`errors`, `policy`, `tokens`, `passwords`, `bootstrap`, `invitations`, `registration`, `credentials`, `social`, `index`) | Aligned (`authorizeSocialSignIn` + `PasswordCredential` in `src/lib/auth.ts`) | Aligned (`/admin/bootstrap`, `/api/auth/bootstrap`, `scripts/bootstrap-admin.ts`) | Aligned (`/admin/invitations`, `/invite/[token]`) |
-| **`/home/azadmin/readwise.io`** | Aligned (`src/lib/account-admission/index.ts` + `src/lib/invitations.ts`) | Aligned (`validateAndClaimInvitation` + `PasswordCredential`) | Aligned (`/admin/bootstrap`, `/api/auth/bootstrap`, `scripts/bootstrap-admin.ts`) | Aligned (`/admin/invitations`, `/invite/[token]`) |
-| **`/home/azadmin/HelloInterview`** | Aligned (`server/account-admission/*` + `server/auth/admission.ts`) | Aligned (`admitSocialIdentity`) | Aligned (`scripts/bootstrap-admin.ts`, `/api/bootstrap`) | Aligned (`account_invitations`) |
-| **`/home/azadmin/UniLink`** | Aligned (`lib/auth/account-admission.ts` + `lib/auth/admin-bootstrap.ts`) | Aligned (`authorizeAccountSignIn` + `createAdmittedUser`) | Aligned (`createUserWithAdminBootstrap`) | Aligned (`ClosedTestInvitation`) |
-| **`/home/azadmin/Visdom`** | Aligned (`lib/invite.ts`, `lib/signup.ts`, `lib/pending-signup.ts`) | Aligned (`PendingSignup` OAuth gate + `microsoftEmailTrusted`) | Aligned (Seeded/Admin InviteCode authority) | Aligned (`/finish-signup`) |
-| **`/home/azadmin/TextIQ`** | Aligned (`src/lib/invite-access.ts`, `src/lib/workspace/invite-service.ts`) | Aligned (`evaluateInviteAccess`) | Aligned (Workspace Owner/Admin authority) | Aligned (`/app/join/[token]`) |
+| **`/home/azadmin/clueso`** | Aligned (`errors`, `policy`, `tokens`, `passwords`, `bootstrap`, `invitations`, `registration`, `social`, `index`) | Aligned (`authorizeSocialSignIn` + `PasswordCredential`) | Aligned (`scripts/bootstrap-admin.ts` + `bootstrapAdmin()`) | Aligned (`/admin/invitations`, `/invite/[token]`) |
+| **`/home/azadmin/ReadWise`** | Aligned (`src/lib/account-admission/*` + `src/lib/auth/bootstrap.ts`) | Aligned (`authorizeSocialSignIn` + `PasswordCredential`) | Aligned (`scripts/bootstrap-admin.ts` + `bootstrapAdmin()`) | Aligned (`/admin/invitations`, `/invite/[token]`) |
+| **`/home/azadmin/Arcade`** | Aligned (`errors`, `policy`, `tokens`, `passwords`, `bootstrap`, `invitations`, `registration`, `credentials`, `social`, `index`) | Aligned (`authorizeSocialSignIn` + `PasswordCredential` in `src/lib/auth.ts`) | Aligned (`scripts/bootstrap-admin.ts` + `bootstrapAdmin()`) | Aligned (`/admin/invitations`, `/invite/[token]`) |
+| **`/home/azadmin/readwise.io`** | Aligned (`src/lib/account-admission/index.ts` + `src/lib/invitations.ts`) | Aligned (`validateAndClaimInvitation` + `PasswordCredential`) | Aligned (`scripts/bootstrap-admin.ts` + `bootstrapAdmin()`) | Aligned (`/admin/invitations`, `/invite/[token]`) |
+| **`/home/azadmin/HelloInterview`** | Aligned (`server/account-admission/*` + `server/auth/admission.ts`) | Aligned (`admitSocialIdentity`) | Aligned (`scripts/bootstrap-admin.ts`) | Aligned (`account_invitations`) |
+| **`/home/azadmin/UniLink`** | Aligned (`lib/auth/account-admission.ts` + `lib/auth/admin-bootstrap.ts`) | Aligned (`authorizeAccountSignIn` + `createAdmittedUser`) | Aligned (`scripts/bootstrap-admin.ts`) | Aligned (`ClosedTestInvitation`) |
+| **`/home/azadmin/Visdom`** | Aligned (`lib/invite.ts`, `lib/signup.ts`, `lib/pending-signup.ts`) | Aligned (`PendingSignup` OAuth gate + `microsoftEmailTrusted`) | Aligned (`scripts/seed-admin.ts` / `npm run bootstrap:admin`) | Aligned (`/admin/invites`, `/finish-signup`) |
+| **`/home/azadmin/TextIQ`** | Aligned (`src/lib/invite-access.ts`, `src/lib/workspace/invite-service.ts`) | Aligned (`evaluateInviteAccess`) | Aligned (CLI seed / Workspace Owner authority) | Aligned (`/app/join/[token]`) |
 
