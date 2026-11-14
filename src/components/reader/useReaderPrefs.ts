@@ -21,6 +21,7 @@ import {
   fontScaleLabel,
   FONT_SCALE_STEPS,
   DEFAULT_FONT_SCALE,
+  DEFAULT_NARRATION_ENGINE,
   type ReaderPrefs,
 } from "@/lib/reader-prefs";
 
@@ -30,6 +31,7 @@ export const DEFAULT_READER_PREFS: ReaderPrefs = {
   fontScale: DEFAULT_FONT_SCALE,
   fontFamily: "serif",
   lineSpacing: "normal",
+  narration: DEFAULT_NARRATION_ENGINE,
 };
 
 export interface UseReaderPrefsResult {

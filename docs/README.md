@@ -181,6 +181,7 @@ flowchart LR
 | Document | Scope |
 | --- | --- |
 | [`speech/generation.md`](./speech/generation.md) | TTS provider seam, request building, voice and format fallback, word-boundary collection, and `ArticleSpeech` generation semantics. |
+| [`speech/ondevice-narration.md`](./speech/ondevice-narration.md) | Default in-browser Paradee-8M narration: WebGPU/WASM worker synthesis, self-hosted model assets, word alignment, progressive playback, and cloud fallback. |
 | [`speech/pronunciation-practice.md`](./speech/pronunciation-practice.md) | Browser-side Azure Speech pronunciation assessment, short-lived Speech tokens, attempt persistence, history, skill evidence, and privacy boundaries. |
 
 ### UI

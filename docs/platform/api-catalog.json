@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-11T07:22:31.123Z",
-  "routeCount": 152,
-  "methodCount": 186,
+  "generatedAt": "2026-11-14T07:59:15.412Z",
+  "routeCount": 153,
+  "methodCount": 187,
   "routes": [
     {
       "path": "/api/account",
@@ -3725,6 +3725,29 @@
           "notes": [],
           "successStatus": 206,
           "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/speech/text",
+      "file": "src/app/api/reader/[id]/speech/text/route.ts",
+      "runtime": "nodejs",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "plainText"
+          ],
           "queryParamNames": null,
           "bodyFieldNames": null
         }

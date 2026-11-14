@@ -12,8 +12,12 @@
  *    `loadAudio(src, words, voice, cached, plainText)` to seed the provider.
  *  - ReaderMiniPlayer reads `audioRef` to drive transport controls.
  *  - Both components read `activeIndex` for highlight / time display.
+ *  - On-device narration arrives as progressively longer WAV snapshots; each
+ *    snapshot swaps the <audio> source while keeping position, play state,
+ *    and playback rate (`extendAudio`). Superseded blob URLs are revoked.
  *  - Internals are split into focused sub-modules (REF-030):
- *      useNarrationApi   — POST /speech metadata + authenticated audio URL
+ *      useNarrationApi   — on-device synthesis, or POST /speech metadata +
+ *                          authenticated audio URL
  *      useActiveWord     — binary-search active-word index
  *      useLoopSegment    — sentence-loop capture + seek
  */
@@ -21,6 +25,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useRef,
   useState,
   useCallback,
@@ -102,10 +107,19 @@ export type AudioContextValue = {
 const ReaderAudioContext = createContext<AudioContextValue | null>(null);
 const HIDDEN_AUDIO_STYLE = { display: "none" } as const;
 
+/** Playback state carried across an on-device snapshot source swap. */
+type ResumeState = { time: number; play: boolean; rate: number };
+
+function isObjectUrl(src: string | null): src is string {
+  return Boolean(src?.startsWith("blob:"));
+}
+
 export function ReaderAudioProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const resumeRef = useRef<ResumeState | null>(null);
+  const plainTextRef = useRef("");
   const [words, setWords] = useState<SpeechWord[]>([]);
   const [plainTextState, setPlainTextState] = useState("");
   const [segments, setSegments] = useState<DictationSegment[]>([]);
@@ -160,8 +174,10 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
       // Cancel any running rAF loop before swapping the source.
       cancelClock();
       setAudioSrc(src);
+      resumeRef.current = null;
       setWords(ws);
       setPlainTextState(plainText);
+      plainTextRef.current = plainText;
       const segs = segmentDictation(plainText, ws as SpeechWordTiming[]);
       setSegments(segs);
       setIsLoaded(true);
@@ -172,6 +188,39 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     [cancelClock, cancelLoop],
   );
 
+  // Swap in a longer on-device snapshot of the same narration. The source
+  // reload resets the element, so remember where playback was; playback that
+  // had caught up with synthesis (ended) resumes automatically.
+  const extendAudio = useCallback(
+    (src: string, ws: SpeechWord[]) => {
+      const audio = audioRef.current;
+      resumeRef.current = audio
+        ? { time: audio.currentTime, play: !audio.paused || audio.ended, rate: audio.playbackRate }
+        : null;
+      cancelClock();
+      setAudioSrc(src);
+      setWords(ws);
+      setSegments(segmentDictation(plainTextRef.current, ws as SpeechWordTiming[]));
+    },
+    [cancelClock],
+  );
+
+  const handleLoadedMetadata = useCallback(() => {
+    const audio = audioRef.current;
+    const resume = resumeRef.current;
+    resumeRef.current = null;
+    if (!audio || !resume) return;
+    audio.playbackRate = resume.rate;
+    audio.currentTime = Math.min(resume.time, audio.duration || resume.time);
+    if (resume.play) void audio.play();
+  }, []);
+
+  // Revoke a superseded on-device blob URL once the element has switched away.
+  useEffect(() => {
+    if (!isObjectUrl(audioSrc)) return;
+    return () => URL.revokeObjectURL(audioSrc);
+  }, [audioSrc]);
+
   const markFallback = useCallback(() => {
     setIsLoaded(true);
     setIsFallback(true);
@@ -181,6 +230,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
   // ── Narration API adapter ─────────────────────────────────────────────────
   const { isWarming, warmError, warmNarration } = useNarrationApi({
     onLoaded: loadAudio,
+    onExtended: extendAudio,
     onFallback: markFallback,
   });
 
@@ -246,6 +296,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
           preload="metadata"
           className="reader-sr-live"
           style={HIDDEN_AUDIO_STYLE}
+          onLoadedMetadata={handleLoadedMetadata}
           onPlay={startClock}
           onPause={cancelClock}
           onTimeUpdate={(e) => handleTimeUpdate(e.currentTarget.currentTime)}

@@ -8,6 +8,7 @@
  *   2. Reading-mode radiogroup (Light / Sepia / Dark).
  *   3. Font-family radiogroup (Serif / Sans / Dyslexic).
  *   4. Line-spacing radiogroup (Normal / Comfortable / Spacious).
+ *   5. Narration radiogroup (On-device / Cloud).
  *
  * Accessibility preserved from original ReaderControls:
  *   - Stepper uses two real <button>s with aria-label, disabled at limits.
@@ -32,6 +33,7 @@ import {
   type ReadingMode,
   type ReadingFont,
   type ReadingSpacing,
+  type NarrationEngine,
 } from "@/lib/reader-prefs";
 
 // ---------------------------------------------------------------------------
@@ -59,6 +61,15 @@ const SPACING_OPTIONS = [
   { value: "comfortable", label: "Comfortable", tooltip: "Comfortable spacing (WCAG 1.4.12)" },
   { value: "spacious", label: "Spacious", tooltip: "Spacious spacing (WCAG 1.4.12)" },
 ] satisfies ReadonlyArray<SegmentedControlOption<ReadingSpacing>>;
+
+const NARRATION_OPTIONS = [
+  {
+    value: "device",
+    label: "On-device",
+    tooltip: "Generate narration in your browser (WebGPU, or WebAssembly fallback)",
+  },
+  { value: "cloud", label: "Cloud", tooltip: "Play stored cloud narration audio" },
+] satisfies ReadonlyArray<SegmentedControlOption<NarrationEngine>>;
 
 function getFontScaleDisplay(fontScale: ReaderPrefs["fontScale"]): string {
   return fontScale === DEFAULT_FONT_SCALE ? "1×" : fontScaleLabel(fontScale);
@@ -166,6 +177,18 @@ export function ReaderDisplayPanel({
           value={prefs.lineSpacing}
           onChange={(lineSpacing) => onPrefsChange({ lineSpacing })}
           options={SPACING_OPTIONS}
+        />
+      </div>
+
+      {/* Narration engine (applies the next time narration loads) */}
+      <div className="reader-display-row">
+        <span className="reader-display-label">Narration</span>
+        <SegmentedControl
+          label="Narration engine"
+          size="sm"
+          value={prefs.narration}
+          onChange={(narration) => onPrefsChange({ narration })}
+          options={NARRATION_OPTIONS}
         />
       </div>
     </div>

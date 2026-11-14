@@ -23,12 +23,15 @@ import { STORAGE_KEYS } from "./storage-keys";
 export type ReadingMode = "light" | "sepia" | "dark";
 export type ReadingFont = "serif" | "sans" | "dyslexic";
 export type ReadingSpacing = "normal" | "comfortable" | "spacious";
+/** Narration source: on-device Paradee synthesis or stored cloud (Azure) audio. */
+export type NarrationEngine = "device" | "cloud";
 
 export interface ReaderPrefs {
   mode: ReadingMode;
   fontScale: number;
   fontFamily: ReadingFont;
   lineSpacing: ReadingSpacing;
+  narration: NarrationEngine;
 }
 
 /** Ordered font-scale steps (5 steps per Saul's spec). */
@@ -39,6 +42,8 @@ export const READER_PREFS_KEY = STORAGE_KEYS.READER_PREFS;
 const DEFAULT_FONT_SCALE_INDEX = 1;
 const DEFAULT_READING_FONT: ReadingFont = "serif";
 const DEFAULT_READING_SPACING: ReadingSpacing = "normal";
+export const DEFAULT_NARRATION_ENGINE: NarrationEngine = "device";
+const NARRATION_ENGINES: readonly NarrationEngine[] = ["device", "cloud"];
 const READING_MODES: readonly ReadingMode[] = ["light", "sepia", "dark"];
 const READING_FONTS: readonly ReadingFont[] = ["serif", "sans", "dyslexic"];
 const READING_SPACINGS: readonly ReadingSpacing[] = ["normal", "comfortable", "spacious"];
@@ -75,6 +80,13 @@ function isReadingSpacing(value: unknown): value is ReadingSpacing {
   );
 }
 
+function isNarrationEngine(value: unknown): value is NarrationEngine {
+  return (
+    typeof value === "string" &&
+    (NARRATION_ENGINES as readonly string[]).includes(value)
+  );
+}
+
 function isFontScale(value: unknown): value is number {
   return (
     typeof value === "number" &&
@@ -100,6 +112,9 @@ export function getStoredReaderPrefs(): ReaderPrefs | null {
       lineSpacing: isReadingSpacing(parsed.lineSpacing)
         ? parsed.lineSpacing
         : DEFAULT_READING_SPACING,
+      narration: isNarrationEngine(parsed.narration)
+        ? parsed.narration
+        : DEFAULT_NARRATION_ENGINE,
     };
   } catch {
     return null;
@@ -119,6 +134,7 @@ export function getReaderPrefs(): ReaderPrefs {
     fontScale: DEFAULT_FONT_SCALE,
     fontFamily: DEFAULT_READING_FONT,
     lineSpacing: DEFAULT_READING_SPACING,
+    narration: DEFAULT_NARRATION_ENGINE,
   };
 }
 

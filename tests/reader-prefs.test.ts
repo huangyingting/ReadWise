@@ -23,6 +23,7 @@ type ReaderPrefsFixture = {
   fontScale: number;
   fontFamily: "serif" | "sans" | "dyslexic";
   lineSpacing: "normal" | "comfortable" | "spacious";
+  narration: "device" | "cloud";
 };
 
 function readerPrefs(overrides: Partial<ReaderPrefsFixture> = {}): ReaderPrefsFixture {
@@ -31,6 +32,7 @@ function readerPrefs(overrides: Partial<ReaderPrefsFixture> = {}): ReaderPrefsFi
     fontScale: 1.0,
     fontFamily: "serif",
     lineSpacing: "normal",
+    narration: "device",
     ...overrides,
   };
 }
@@ -259,6 +261,16 @@ describe("getStoredReaderPrefs", () => {
     assert.equal(prefs.fontFamily, "dyslexic");
   });
 
+  test("defaults narration to on-device when absent or invalid, and keeps 'cloud'", async () => {
+    const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
+    storeReaderPrefs({ mode: "light", fontScale: 1.0 });
+    assert.equal(getStoredReaderPrefs()?.narration, "device");
+    storeReaderPrefs({ mode: "light", fontScale: 1.0, narration: "satellite" });
+    assert.equal(getStoredReaderPrefs()?.narration, "device");
+    storeReaderPrefs({ mode: "light", fontScale: 1.0, narration: "cloud" });
+    assert.equal(getStoredReaderPrefs()?.narration, "cloud");
+  });
+
   test("accepts 'spacious' as a valid lineSpacing", async () => {
     storeReaderPrefs({ mode: "dark", fontScale: 1.45, lineSpacing: "spacious" });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
@@ -294,6 +306,7 @@ describe("getReaderPrefs", () => {
     assert.equal(prefs.fontScale, 1.0);
     assert.equal(prefs.fontFamily, "serif");
     assert.equal(prefs.lineSpacing, "normal");
+    assert.equal(prefs.narration, "device");
   });
 
   test("returns dark-mode defaults when no stored prefs and app theme is dark", async () => {

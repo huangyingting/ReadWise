@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-14"
 description: "Documents real-time and Batch narration, timing enrichment, voice/format fallback, and ArticleSpeech generation. Captures current Azure Speech synthesis flow, cache/storage behavior, timing migration, readiness, and graceful fallback rules."
 ---
 
@@ -15,7 +15,10 @@ For object-storage and `MediaAsset` lifecycle, see
 [`../media/assets.md`](../media/assets.md) and
 [`../media/storage.md`](../media/storage.md).
 For reader playback UX that consumes the generated audio, see
-[`../reader/playback.md`](../reader/playback.md).
+[`../reader/playback.md`](../reader/playback.md). The Reader's default
+narration is synthesized in the browser instead; see
+[`ondevice-narration.md`](./ondevice-narration.md). Stored narration described
+here serves the "Cloud" reader preference and the on-device fallback.
 For background TTS job scheduling, see
 [`../operations/tts-jobs.md`](../operations/tts-jobs.md).
 
@@ -48,7 +51,8 @@ Operations).
 | ---- | ------- |
 | `src/lib/speech/index.ts` | Narration delivery interface. Exports `isSpeechConfigured`, `getOrCreateArticleSpeech`, `getArticleSpeechAudio`, and the `SpeechResult` type. |
 | `src/lib/speech/provider-azure.ts` | Azure SDK isolation — the only module that imports `microsoft-cognitiveservices-speech-sdk`. |
-| `src/lib/speech/azure-batch-synthesis.ts` | Full Azure Batch workflow behind `runAzureBatchSynthesis`: selection, SSML, job planning, REST calls, result parsing, timing enrichment, and persistence. |
+| `src/lib/speech/azure-batch-synthesis.ts` | Full Azure Batch workflow behind `runAzureBatchSynthesis`: selection, SSML, job planning, concurrent REST jobs, result parsing, timing enrichment, and persistence. |
+| `src/lib/speech/entra-auth.ts` | Entra ID token providers (device code, Azure CLI) for Batch runs against Speech resources with key auth disabled. |
 | `src/lib/speech/repository.ts` | ArticleSpeech DB reads/writes, corrupt-cache recovery, `MediaAsset` upsert, storage interaction. |
 | `src/lib/speech/text-basis.ts` | Canonical Narration text basis preparation and cache-reconstruction policy for real-time and Batch adapters. |
 | `src/lib/speech/timing.ts` | Runtime word-timing types, tokenization, and audio-time utilities. |
@@ -199,6 +203,20 @@ Important operator notes:
 - Configure `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`; set
   `AZURE_SPEECH_ENDPOINT` to the Speech resource endpoint when using REST Batch
   Synthesis.
+- For Speech resources with local (key) auth disabled, authenticate with Entra
+  ID instead of `AZURE_SPEECH_KEY`: `--entra-cli` reuses an
+  `az login --tenant <id>` session (persisted and silently refreshed, so loop
+  restarts need no new sign-in), and `--entra-device` prints a device-code
+  sign-in once at startup. Both take `--tenant <id>` (default
+  `AZURE_TENANT_ID`), require the custom-domain endpoint
+  (`https://<resource>.cognitiveservices.azure.com`), and need a Speech data
+  role such as Cognitive Services Speech User. Tokens are cached in memory
+  until five minutes before expiry and never logged; the signed result-download
+  URL receives no credentials.
+- `--concurrency N` (default 1, max 10) keeps up to N batch jobs submitted,
+  polled, and persisted at once. After a job fails, no new jobs start, and
+  in-flight jobs finish and persist before the pass reports the error, so a
+  loop retry never re-selects articles that are still synthesizing.
 - `--all` selects public library articles (`visibility = PUBLIC`,
   `ownerId = null`) by default. Use explicit article ids, or pass
   `--include-private`, only when intentionally sending user/private article text
@@ -358,6 +376,8 @@ Reader-triggered speech follows the same access policy as AI processing:
   rollback, readiness.
 - [`../reader/playback.md`](../reader/playback.md) — reader playback UX, how
   `ArticleSpeech` is consumed.
+- [`ondevice-narration.md`](./ondevice-narration.md) — default in-browser
+  Paradee-8M narration and its cloud fallback.
 - [`../operations/tts-jobs.md`](../operations/tts-jobs.md) — TTS job scheduling,
   retry, rebuild.
 

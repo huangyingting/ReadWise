@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-21"
+last_updated: "2026-11-14"
 description: "Documents ReaderAudioProvider, mini-player, narration transport, word highlighting, and access-checked playback initiation. Captures current playback controls, speed/loop behavior, audio-range playback, TTS integration, storage fallback, and UI state rules."
 ---
 
@@ -13,7 +13,9 @@ highlighting, speed and sentence-loop controls, and access-checked playback
 initiation.
 
 For speech generation and `ArticleSpeech` semantics, see
-[`../speech/generation.md`](../speech/generation.md). For media asset lifecycle
+[`../speech/generation.md`](../speech/generation.md). For the default
+in-browser engine, see
+[`../speech/ondevice-narration.md`](../speech/ondevice-narration.md). For media asset lifecycle
 and storage, see [`../media/assets.md`](../media/assets.md) and
 [`../media/storage.md`](../media/storage.md). For TTS job scheduling, see
 [`../operations/tts-jobs.md`](../operations/tts-jobs.md).
@@ -49,7 +51,8 @@ audio elements.
 ```
 ReaderAudioProvider
   ├── <audio ref={audioRef} …>   — single audio element for the page
-  ├── useNarrationApi            — POST /speech metadata + audio URL
+  ├── useNarrationApi            — on-device synthesis (default) or
+  │                                POST /speech metadata + audio URL
   ├── useActiveWord              — binary-search active-word index
   └── useLoopSegment             — sentence-loop capture + seek
 ```
@@ -63,14 +66,20 @@ Components consume context via `useReaderAudio()`.
 | `ReaderAudioProvider` | `src/components/ReaderAudioProvider.tsx` | Context + single `<audio>` element. |
 | `ReaderMiniPlayer` | `src/components/ReaderMiniPlayer.tsx` | Docked fixed-bottom transport bar. |
 | `ReaderListenButton` | `src/components/ReaderListenButton.tsx` | Sticky toolbar Listen affordance. |
-| `useNarrationApi` | `src/components/reader/useNarrationApi.ts` | Narration metadata fetch + audio URL handoff. |
+| `useNarrationApi` | `src/components/reader/useNarrationApi.ts` | On-device synthesis or narration metadata fetch, then audio URL handoff. |
 | `useActiveWord` | `src/components/reader/useActiveWord.ts` | Binary-search word-highlight index. |
 | `useLoopSegment` | `src/components/reader/useLoopSegment.ts` | Sentence-loop capture and seek. |
 | `useAudioRangePlayback` | `src/components/reader/useAudioRangePlayback.ts` | Bounded-range playback for dictation/practice. |
 
 ## Playback initiation (access-checked)
 
-Narration is fetched lazily on first Listen-tab activation or Listen-button click:
+Narration is prepared lazily on first Listen-tab activation or Listen-button
+click. By default (`ReaderPrefs.narration === "device"`) it is synthesized in the
+browser: `warmNarration` fetches `GET /api/reader/[id]/speech/text` (readable
+article guard) and plays progressive WAV snapshots as described in
+[`../speech/ondevice-narration.md`](../speech/ondevice-narration.md). The cloud
+path below runs when the preference is `"cloud"`, or when on-device synthesis
+fails before any audio exists:
 
 1. `warmNarration(articleId)` (from `useNarrationApi`) posts to
    `POST /api/reader/[id]/speech`.
@@ -86,6 +95,12 @@ Narration is fetched lazily on first Listen-tab activation or Listen-button clic
 
 `warmNarration` is idempotent: the first successful call caches the result and
 subsequent calls are no-ops. A failed call may be retried.
+
+On-device snapshots after the first arrive through `extendAudio(src, words)`,
+which swaps the `<audio>` source and restores position, play state, and
+playback rate on `loadedmetadata`. If playback had reached the end of the
+shorter snapshot, it resumes. Superseded `blob:` URLs are revoked once the
+element has switched.
 
 ## Mini-player
 
@@ -104,7 +119,8 @@ Controls provided:
 
 The authenticated audio endpoint supports HTTP byte ranges, so skip and scrub
 controls can seek beyond the portion of Narration already buffered by the
-browser.
+browser. On-device narration can seek within the audio synthesized so far; the
+duration grows as longer snapshots arrive.
 | Speed select | Cycles through `[0.5, 0.75, 1, 1.25, 1.5]`; sets `audioRef.current.playbackRate`. |
 | Loop toggle | Activates sentence-loop mode (see below). |
 | Close (×) | Dismisses the player for the current session (per-page state). |
@@ -156,6 +172,8 @@ capped Narration and its word timings share the same Reader text scope.
 
 `useNarrationApi` separates narration provisioning from audio delivery:
 
+- On-device narration uses same-document `blob:` WAV URLs created and revoked
+  by the Reader (CSP `media-src 'self' blob:`).
 - `POST /api/reader/{id}/speech` generates or resolves narration and returns
   timing metadata plus an authenticated `audioUrl`.
 - The shared `<audio>` element uses that same-origin URL directly, so the

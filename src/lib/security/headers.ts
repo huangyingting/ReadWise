@@ -32,7 +32,8 @@ export const CSP_DIRECTIVES: readonly string[] = [
   "img-src 'self' data: blob: https:",
   "font-src 'self'",
   "connect-src 'self' https://*.api.cognitive.microsoft.com https://*.stt.speech.microsoft.com wss://*.stt.speech.microsoft.com https://*.tts.speech.microsoft.com",
-  "media-src 'self'",
+  // blob: plays on-device narration generated in the browser (src/lib/ondevice-tts).
+  "media-src 'self' blob:",
   "worker-src 'self' blob:",
   "object-src 'none'",
   // manifest-src: allows the web app manifest at /manifest.webmanifest
