@@ -99,7 +99,6 @@ async function synthesize(request: Extract<OnDeviceWorkerRequest, { type: "synth
       const alignment = buildChunkAlignment({
         chunkIndex,
         span,
-        samples: generated.samples,
         tokens: generated.tokens,
         durations: generated.durations,
         chunkSamples: generated.samples.length,

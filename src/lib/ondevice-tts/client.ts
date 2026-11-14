@@ -31,12 +31,12 @@ export type OnDeviceNarrationOptions = {
 };
 
 export class OnDeviceNarrationError extends Error {
-  constructor(
-    message: string,
-    readonly phase: "load" | "generate",
-  ) {
+  readonly phase: "load" | "generate";
+
+  constructor(message: string, phase: "load" | "generate") {
     super(message);
     this.name = "OnDeviceNarrationError";
+    this.phase = phase;
   }
 }
 

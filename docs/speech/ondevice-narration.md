@@ -60,8 +60,10 @@ synthesis.
 ## Execution device
 
 The worker requests a WebGPU adapter. With an adapter it creates the ONNX
-Runtime session with `["webgpu", "wasm"]`; if session creation fails, or a
-WebGPU kernel fails at run time, it rebuilds the session on WASM. Without
+Runtime session with `["webgpu"]` alone (in `["webgpu", "wasm"]` ONNX Runtime
+silently drops an unavailable WebGPU backend, which would misreport the
+device); if session creation fails, or a WebGPU kernel fails at run time, it
+rebuilds the session on WASM. Without
 WebGPU it uses WASM directly. WASM runs single-threaded because the site is not
 cross-origin isolated; measured at about 9× realtime on a server CPU.
 
@@ -98,8 +100,9 @@ relies on the existing `'unsafe-eval'` script source.
 | `src/lib/ondevice-tts/client.ts` | Main-thread client: worker lifecycle, snapshot policy, abort. |
 | `src/lib/ondevice-tts/paradee.worker.ts` | Worker: device detection, model load, chunked synthesis. |
 | `src/lib/ondevice-tts/paradee.ts` | ONNX session, graph patch, phoneme runs, WebGPU→WASM fallback. |
-| `src/lib/ondevice-tts/paradee-g2p.ts` | Text normalization, eSpeak-NG + Misaki G2P, ONNX Runtime helpers, cached asset fetch. |
-| `src/lib/ondevice-tts/word-timestamps.ts` | Sentence chunking with offsets and duration-based word alignment (verbatim port). |
+| `src/lib/ondevice-tts/paradee-g2p.ts` | eSpeak-NG + Misaki G2P, ONNX Runtime helpers, cached asset fetch. |
+| `src/lib/ondevice-tts/text-normalize.ts` | Spoken-form normalization (titles, years, times, money, decimals) shared by G2P and alignment. |
+| `src/lib/ondevice-tts/word-timestamps.ts` | Sentence chunking with offsets; word alignment from duration frames with a character-proportional fallback. |
 | `src/lib/ondevice-tts/narration.ts` | Aligned words → `SpeechWord` (punctuation trimmed), PCM and WAV encoding. |
 | `src/lib/ondevice-tts/voices.ts` | English voice ids; `af_heart` is the default. |
 | `src/app/api/reader/[id]/speech/text/route.ts` | Narration text for on-device synthesis. |
@@ -123,7 +126,12 @@ only the error message (`On-device narration failed: …`) before falling back.
 ## Verification
 
 - `tests/ondevice-tts-paradee.test.ts` synthesizes from the committed model on
-  ONNX Runtime WASM in Node and checks audio, durations, and word offsets.
+  ONNX Runtime WASM in Node and checks audio, durations, and word offsets, plus
+  the graph patch on synthetic protobufs.
+- `tests/ondevice-tts-paradee-engine.test.ts` covers loading, WebGPU→WASM
+  fallback, phoneme-run splitting, and voice selection with ONNX Runtime mocked.
+- `tests/ondevice-tts-text.test.ts` and `tests/ondevice-tts-g2p.test.ts` cover
+  normalization, chunking, alignment fallbacks, G2P, and cached asset fetch.
 - `tests/ondevice-tts-narration.test.ts` covers word mapping and WAV encoding.
 - `tests/speech-text-route.test.ts` covers the text route.
 - `e2e/ondevice-narration.spec.ts` clicks Listen in Chromium, then checks the

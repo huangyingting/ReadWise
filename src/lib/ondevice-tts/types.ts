@@ -7,11 +7,6 @@
 
 export type RuntimeDevice = "webgpu" | "wasm";
 
-export interface WordTokenSpan {
-  firstTokenIndex: number;
-  lastTokenIndex: number;
-}
-
 export interface WordTimestamp {
   text: string;
   startMs: number;

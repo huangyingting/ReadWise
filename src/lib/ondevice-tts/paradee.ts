@@ -566,31 +566,23 @@ export class ParadeeTTS {
     device: RuntimeDevice,
   ): Promise<ParadeeTTS> {
     const patchedModelBytes = patchOnnxGraphOutput(rawModelBytes, PARADEE_DURATIONS_TENSOR);
-    const isNode = typeof process !== "undefined" && Boolean(process.versions?.node);
 
-    let session: ort.InferenceSession;
-    let activeDevice: RuntimeDevice = device;
-    if (isNode) {
-      session = await createSerializedOrtSession(patchedModelBytes, {});
-      activeDevice = "wasm";
-    } else if (device === "webgpu") {
+    // Request WebGPU alone: in ["webgpu", "wasm"] ONNX Runtime silently drops
+    // an unavailable WebGPU backend, which would misreport the device.
+    if (device === "webgpu") {
       try {
-        session = await createSerializedOrtSession(patchedModelBytes, {
-          executionProviders: ["webgpu", "wasm"],
+        const session = await createSerializedOrtSession(patchedModelBytes, {
+          executionProviders: ["webgpu"],
         });
+        return new ParadeeTTS(config, session, "webgpu", patchedModelBytes);
       } catch {
-        session = await createSerializedOrtSession(patchedModelBytes, {
-          executionProviders: ["wasm"],
-        });
-        activeDevice = "wasm";
+        // Fall through to WASM.
       }
-    } else {
-      session = await createSerializedOrtSession(patchedModelBytes, {
-        executionProviders: ["wasm"],
-      });
     }
-
-    return new ParadeeTTS(config, session, activeDevice, patchedModelBytes);
+    const session = await createSerializedOrtSession(patchedModelBytes, {
+      executionProviders: ["wasm"],
+    });
+    return new ParadeeTTS(config, session, "wasm", patchedModelBytes);
   }
 
   private filterToVocab(phonemes: string): string {
