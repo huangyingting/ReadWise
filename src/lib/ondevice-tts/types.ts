@@ -50,26 +50,57 @@ export interface ModelLoadProgress {
   total?: number;
 }
 
-export type OnDeviceWorkerRequest =
-  | {
-      type: "synthesize";
-      requestId: number;
-      text: string;
-      voice: string;
-      speed: number;
-    }
-  | { type: "cancel"; requestId: number };
+export interface SynthesizeRequest {
+  type: "synthesize";
+  requestId: number;
+  text: string;
+  voice: string;
+  speed: number;
+}
 
-export type OnDeviceWorkerResponse =
-  | { type: "loading"; requestId: number; progress: number }
-  | { type: "ready"; requestId: number; device: RuntimeDevice }
-  | { type: "chunk_count"; requestId: number; count: number }
-  | {
-      type: "chunk";
-      requestId: number;
-      samples: Float32Array;
-      sampleRate: number;
-      words: WordTimestamp[];
-    }
-  | { type: "complete"; requestId: number }
-  | { type: "error"; requestId: number; phase: "load" | "generate"; error: string };
+export interface CancelRequest {
+  type: "cancel";
+  requestId: number;
+}
+
+export type OnDeviceWorkerRequest = SynthesizeRequest | CancelRequest;
+
+export interface LoadingResponse {
+  type: "loading";
+  requestId: number;
+  progress: number;
+}
+
+export interface ReadyResponse {
+  type: "ready";
+  requestId: number;
+  device: RuntimeDevice;
+}
+
+export interface ChunkCountResponse {
+  type: "chunk_count";
+  requestId: number;
+  count: number;
+}
+
+export interface ChunkResponse {
+  type: "chunk";
+  requestId: number;
+  samples: Float32Array;
+  sampleRate: number;
+  words: WordTimestamp[];
+}
+
+export interface CompleteResponse {
+  type: "complete";
+  requestId: number;
+}
+
+export interface ErrorResponse {
+  type: "error";
+  requestId: number;
+  phase: "load" | "generate";
+  error: string;
+}
+
+export type OnDeviceWorkerResponse = LoadingResponse | ReadyResponse | ChunkCountResponse | ChunkResponse | CompleteResponse | ErrorResponse;

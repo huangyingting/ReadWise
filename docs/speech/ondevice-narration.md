@@ -132,6 +132,9 @@ only the error message (`On-device narration failed: …`) before falling back.
   fallback, phoneme-run splitting, and voice selection with ONNX Runtime mocked.
 - `tests/ondevice-tts-text.test.ts` and `tests/ondevice-tts-g2p.test.ts` cover
   normalization, chunking, alignment fallbacks, G2P, and cached asset fetch.
+- `tests/ondevice-tts-client.test.ts` and `tests/ondevice-tts-worker.test.ts`
+  cover snapshot publishing, abort and cancel, request superseding, device
+  detection, and error reporting with the worker and engine faked.
 - `tests/ondevice-tts-narration.test.ts` covers word mapping and WAV encoding.
 - `tests/speech-text-route.test.ts` covers the text route.
 - `e2e/ondevice-narration.spec.ts` clicks Listen in Chromium, then checks the

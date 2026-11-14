@@ -13,6 +13,7 @@ import type {
   OnDeviceWorkerRequest,
   OnDeviceWorkerResponse,
   RuntimeDevice,
+  SynthesizeRequest,
 } from "./types";
 
 /** Sentence chunk ceiling; keeps each model call well under 510 phonemes. */
@@ -68,7 +69,7 @@ function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
-async function synthesize(request: Extract<OnDeviceWorkerRequest, { type: "synthesize" }>): Promise<void> {
+async function synthesize(request: SynthesizeRequest): Promise<void> {
   const { requestId, text, voice, speed } = request;
   const isCurrent = () => requestId === activeRequestId;
 
@@ -132,7 +133,9 @@ scope.addEventListener("message", (event) => {
   const message = event.data;
   if (!message) return;
   if (message.type === "cancel") {
-    activeRequestId = Math.max(activeRequestId, message.requestId);
+    // Stop the running request; cancels for older, already-superseded
+    // requests change nothing. Request ids start at 1, so 0 means idle.
+    if (message.requestId === activeRequestId) activeRequestId = 0;
     return;
   }
   activeRequestId = message.requestId;
