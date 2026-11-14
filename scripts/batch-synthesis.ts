@@ -1,14 +1,16 @@
 import { ArticleStatus } from "@prisma/client";
 
 import { isTtsFeatureEnabled } from "@/lib/runtime-config/feature-flags";
-import { speechConfig } from "@/lib/runtime-config/speech";
+import { DEFAULT_SPEECH_VOICE, speechConfig } from "@/lib/runtime-config/speech";
 import {
   AZURE_BATCH_HD_VOICES,
   AZURE_BATCH_MAX_INPUTS_PER_JOB,
   AZURE_BATCH_MAX_PAYLOAD_BYTES,
   DEFAULT_AZURE_BATCH_JOB_PREFIX,
   runAzureBatchSynthesis,
+  type AzureBatchSpeechConfig,
 } from "@/lib/speech/azure-batch-synthesis";
+import { createEntraTokenProvider } from "@/lib/speech/entra-auth";
 import { createConsoleLogger } from "@/lib/worker";
 
 import { addUniqueFromCsv, isMain, registerShutdownSignals, runCli, warnUnknown } from "./lib/cli";
@@ -24,6 +26,7 @@ const DEFAULT_WEB_LOW_STORAGE_FORMAT = LOWEST_STORAGE_FORMAT;
 const DEFAULT_LOOP_SLEEP_MS = 60_000;
 const DEFAULT_LOOP_LIMIT = 50;
 const DEFAULT_LOOP_MAX_ERRORS = 5;
+const MAX_CONCURRENCY = 10;
 
 const ARG_VALUE_FLAGS = new Set([
   "--ids",
@@ -31,6 +34,8 @@ const ARG_VALUE_FLAGS = new Set([
   "--source",
   "--limit",
   "--endpoint",
+  "--tenant",
+  "--client-id",
   "--job-prefix",
   "--voice",
   "--voices",
@@ -53,6 +58,7 @@ const ARG_VALUE_FLAGS = new Set([
   "--sleep",
   "--max-passes",
   "--max-errors",
+  "--concurrency",
 ]);
 
 const KNOWN_FLAGS = new Set([
@@ -61,6 +67,8 @@ const KNOWN_FLAGS = new Set([
   "--include-private",
   "--dry-run",
   "--submit-only",
+  "--entra-device",
+  "--entra-cli",
   "--hd",
   "--list-hd-voices",
   "--lowest-storage",
@@ -83,6 +91,9 @@ type Args = {
   dryRun: boolean;
   submitOnly: boolean;
   endpoint: string | null;
+  entraAuth: "device" | "cli" | null;
+  tenantId: string | null;
+  clientId: string | null;
   jobPrefix: string;
   voice: string | null;
   voices: string[];
@@ -109,6 +120,7 @@ type Args = {
   sleepMs: number;
   maxPasses: number | null;
   maxErrors: number;
+  concurrency: number;
 };
 
 type RunOnceResult = {
@@ -161,6 +173,12 @@ Selection:
 Azure:
   --endpoint <url>         Speech endpoint, e.g. https://<resource>.cognitiveservices.azure.com.
                            Defaults to AZURE_SPEECH_ENDPOINT, then https://<region>.api.cognitive.microsoft.com.
+  --entra-device           Sign in with an Entra ID device code instead of AZURE_SPEECH_KEY
+                           (for resources with key auth disabled). Needs the custom-domain endpoint.
+  --entra-cli              Like --entra-device, but reuse an existing \`az login --tenant <id>\`
+                           session, so restarts need no new sign-in.
+  --tenant <id>            Entra tenant for --entra-device/--entra-cli. Defaults to AZURE_TENANT_ID.
+  --client-id <id>         Optional public client app id for --entra-device.
   --job-prefix <name>      Batch synthesis job id prefix.
   --submit-only            Submit jobs but do not wait/download/persist.
   --dry-run                Print counts/options without calling Azure.
@@ -194,6 +212,7 @@ Batch controls:
   --sleep <ms>             Idle wait between loop passes (default ${DEFAULT_LOOP_SLEEP_MS}).
   --max-passes N           Stop after N loop passes. 0 or omitted means unlimited.
   --max-errors N           Abort after N consecutive failed loop passes (default ${DEFAULT_LOOP_MAX_ERRORS}).
+  --concurrency N          Batch jobs in flight at once (default 1, max ${MAX_CONCURRENCY}).
   --max-inputs-per-job N   Default ${DEFAULT_MAX_INPUTS_PER_JOB}.
   --max-payload-bytes N    Default ${DEFAULT_MAX_PAYLOAD_BYTES}.
   --poll-interval-ms N     Default ${DEFAULT_POLL_INTERVAL_MS}.
@@ -293,6 +312,9 @@ function parseArgs(argv: string[]): Args {
     dryRun: argv.includes("--dry-run"),
     submitOnly: argv.includes("--submit-only"),
     endpoint: parseStringArg(argv, "--endpoint"),
+    entraAuth: argv.includes("--entra-cli") ? "cli" : argv.includes("--entra-device") ? "device" : null,
+    tenantId: parseStringArg(argv, "--tenant") ?? (process.env.AZURE_TENANT_ID?.trim() || null),
+    clientId: parseStringArg(argv, "--client-id"),
     jobPrefix: parseStringArg(argv, "--job-prefix") ?? DEFAULT_AZURE_BATCH_JOB_PREFIX,
     voice: parseStringArg(argv, "--voice"),
     voices,
@@ -319,6 +341,7 @@ function parseArgs(argv: string[]): Args {
     sleepMs: parseNonNegativeIntArg(argv, "--sleep", DEFAULT_LOOP_SLEEP_MS),
     maxPasses: maxPasses > 0 ? maxPasses : null,
     maxErrors: parsePositiveIntArg(argv, "--max-errors", DEFAULT_LOOP_MAX_ERRORS),
+    concurrency: parsePositiveIntArg(argv, "--concurrency", 1),
   };
 }
 
@@ -341,6 +364,12 @@ function validateArgs(args: Args, argv = process.argv.slice(2)): string | null {
   }
   if (args.maxInputsPerJob > AZURE_BATCH_MAX_INPUTS_PER_JOB) {
     return "--max-inputs-per-job must be <= 1000. The batch properties API accepts up to 1000 input objects per request body.";
+  }
+  if (args.concurrency > MAX_CONCURRENCY) {
+    return `--concurrency must be <= ${MAX_CONCURRENCY}.`;
+  }
+  if (args.entraAuth && !args.tenantId) {
+    return "--entra-device/--entra-cli requires --tenant <id> or AZURE_TENANT_ID.";
   }
   if (args.status === null && args.statusRaw) {
     return "--status must be one of DRAFT, PUBLISHED, PROCESSING, FAILED, or ARCHIVED.";
@@ -397,6 +426,20 @@ async function runLoop(args: Args, deps: RunLoopDeps): Promise<number> {
   return 0;
 }
 
+async function resolveSpeechConfig(args: Args): Promise<AzureBatchSpeechConfig | null> {
+  if (!args.entraAuth) return speechConfig.get();
+  const { region = "", voice = DEFAULT_SPEECH_VOICE } = speechConfig.get() ?? {};
+  const getAccessToken = await createEntraTokenProvider({
+    mode: args.entraAuth,
+    tenantId: args.tenantId!,
+    ...(args.clientId ? { clientId: args.clientId } : {}),
+  });
+  // Sign in once up front so loop passes reuse the cached token instead of
+  // each failing on an expired device code. Dry runs never prompt.
+  if (!args.dryRun) await getAccessToken();
+  return { region, voice, getAccessToken };
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const args = parseArgs(argv);
@@ -422,7 +465,13 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const config = speechConfig.get();
+  let config: AzureBatchSpeechConfig | null;
+  try {
+    config = await resolveSpeechConfig(args);
+  } catch (error) {
+    console.error(`Entra ID sign-in failed: ${error instanceof Error ? error.message : String(error)}`);
+    return 1;
+  }
   if (!config) {
     console.error("Azure Speech is not configured. Set AZURE_SPEECH_KEY and AZURE_SPEECH_REGION.");
     return 1;

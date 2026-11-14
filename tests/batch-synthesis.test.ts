@@ -369,6 +369,9 @@ describe("batch synthesis CLI parsing", () => {
       /2 MB request limit/,
     );
     assert.match(validate(["--all", "--max-inputs-per-job", "1001"]) ?? "", /<= 1000/);
+    assert.match(validate(["--all", "--concurrency", "11"]) ?? "", /--concurrency must be <= 10/);
+    assert.equal(parseArgs(["--all"]).concurrency, 1);
+    assert.equal(parseArgs(["--all", "--concurrency", "4"]).concurrency, 4);
     assert.match(validate(["--all", "--status", "NOPE"]) ?? "", /--status must be one of/);
     assert.equal(validate(["--all", "--status", "PUBLISHED"]), null);
   });
@@ -598,6 +601,128 @@ describe("Azure Batch synthesis remote and persistence behavior", () => {
       () => runBatchSynthesis(["--all", "--poll-interval-ms", "1"]),
       /result ZIP: HTTP 404/,
     );
+  });
+
+  test("sends Entra bearer tokens to Speech and no credentials to the SAS result URL", async (t) => {
+    const { parseArgs } = await loadBatchSynthesis();
+    const { runAzureBatchSynthesis: runOnce } = await loadAzureBatchSynthesis();
+    captureConsole(t);
+    articleRows = [article()];
+    extractedBatchResults = [{ audio: Buffer.from("audio"), words: [] }];
+    let tokenCalls = 0;
+    const config = {
+      region: "",
+      voice: "en-US-TestNeural",
+      getAccessToken: async () => `token-${++tokenCalls}`,
+    };
+    const fetches: Array<{ url: string; headers: Record<string, string> }> = [];
+    const responses = [
+      jsonResponse({ status: "Accepted" }),
+      jsonResponse({ status: "Succeeded", outputs: { result: "https://result.test/archive?sig=x" } }),
+      new Response("zip-bytes", { status: 200 }),
+    ];
+    t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
+      fetches.push({ url: String(url), headers: { ...(init?.headers as Record<string, string>) } });
+      const response = responses.shift();
+      assert.ok(response, `unexpected fetch ${String(url)}`);
+      return response;
+    });
+
+    await runOnce(
+      parseArgs(["--all", "--endpoint", "https://res.cognitiveservices.azure.com", "--poll-interval-ms", "1"]),
+      config,
+    );
+
+    assert.equal(fetches[0]!.headers.Authorization, "Bearer token-1");
+    assert.equal(fetches[1]!.headers.Authorization, "Bearer token-2");
+    assert.ok(fetches.every(({ headers }) => !("Ocp-Apim-Subscription-Key" in headers)));
+    assert.deepEqual(fetches[2]!.headers, {});
+
+    await assert.rejects(
+      () => runOnce(parseArgs(["--all", "--endpoint", "https://eastus.api.cognitive.microsoft.com"]), config),
+      /custom-domain endpoint/,
+    );
+  });
+
+  test("counts every article persisted by concurrent jobs", async (t) => {
+    captureConsole(t);
+    storageConfigured = true;
+    articleRows = [article({ id: "a" }), article({ id: "b" }), article({ id: "c" })];
+    extractedBatchResults = [{ audio: Buffer.from("audio"), words: [] }];
+    t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
+      const target = String(url);
+      if (init?.method === "PUT") return jsonResponse({ status: "Accepted" });
+      if (target.startsWith("https://result.test/")) return new Response("zip-bytes", { status: 200 });
+      const id = target.match(/batchsyntheses\/([^?]+)/)?.[1] ?? "";
+      return jsonResponse({ status: "Succeeded", outputs: { result: `https://result.test/${id}` } });
+    });
+
+    const result = await runBatchSynthesis([
+      "--all",
+      "--max-inputs-per-job",
+      "1",
+      "--concurrency",
+      "3",
+      "--poll-interval-ms",
+      "1",
+    ]);
+
+    assert.deepEqual(result, { selected: 3, submitted: 3, persisted: 3 });
+  });
+
+  test("keeps up to --concurrency jobs in flight and settles them before failing", async (t) => {
+    captureConsole(t);
+    articleRows = [article({ id: "a" }), article({ id: "b" }), article({ id: "c" })];
+    const calls: string[] = [];
+    t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
+      const id = String(url).match(/batchsyntheses\/([^?]+)/)?.[1] ?? "";
+      const chunk = id.match(/-(\d+)-[^-]+$/)?.[1];
+      calls.push(`${init?.method} ${chunk}`);
+      if (init?.method === "PUT") return jsonResponse({ status: "Accepted" });
+      return jsonResponse({ status: chunk === "1" ? "Failed" : "Running" });
+    });
+
+    await assert.rejects(
+      () =>
+        runBatchSynthesis([
+          "--all",
+          "--max-inputs-per-job",
+          "1",
+          "--concurrency",
+          "2",
+          "--poll-interval-ms",
+          "1",
+          "--timeout-ms",
+          "20",
+        ]),
+      /job failed/,
+    );
+
+    // Both workers submit before polling; job 1 fails, job 2 runs to its own
+    // timeout, and job 3 is never submitted.
+    assert.deepEqual(calls.slice(0, 2), ["PUT 1", "PUT 2"]);
+    assert.ok(!calls.includes("PUT 3"));
+    assert.ok(calls.filter((call) => call === "GET 2").length >= 1);
+  });
+
+  test("validates the Entra device tenant", async () => {
+    const { parseArgs, validateArgs } = await loadBatchSynthesis();
+    const previousTenant = process.env.AZURE_TENANT_ID;
+    delete process.env.AZURE_TENANT_ID;
+    try {
+      const missing = ["--all", "--entra-device"];
+      assert.match(validateArgs(parseArgs(missing), missing) ?? "", /requires --tenant/);
+      const argv = ["--all", "--entra-device", "--tenant", "tenant-1", "--client-id", "client-1"];
+      const args = parseArgs(argv);
+      assert.equal(validateArgs(args, argv), null);
+      assert.equal(args.entraAuth, "device");
+      assert.equal(args.tenantId, "tenant-1");
+      assert.equal(args.clientId, "client-1");
+      assert.equal(parseArgs(["--all", "--entra-cli"]).entraAuth, "cli");
+      assert.equal(parseArgs(["--all"]).entraAuth, null);
+    } finally {
+      if (previousTenant !== undefined) process.env.AZURE_TENANT_ID = previousTenant;
+    }
   });
 
   test("downloads, parses, enriches, persists, and cleans up through one interface", async (t) => {

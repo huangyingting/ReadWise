@@ -105,12 +105,26 @@ export type AzureBatchSynthesisOptions = AzureBatchJobOptions &
     paragraphBreakMs: number;
     sentenceBreakMs: number | null;
     maxChars: number | null;
+    /** Max batch jobs in flight at once (submit, poll, and persist). */
+    concurrency: number;
   };
 
+/**
+ * Speech credentials: a resource key, or an Entra ID access-token provider
+ * for resources with local auth disabled (requires a custom-domain endpoint).
+ */
 export type AzureBatchSpeechConfig = {
-  key: string;
+  key?: string;
+  getAccessToken?: () => Promise<string>;
   region: string;
   voice: string;
+};
+
+type SpeechRequestAuth = {
+  /** Headers for the Speech REST API. */
+  headers: () => Promise<Record<string, string>>;
+  /** Headers for the SAS-signed result download. */
+  resultHeaders: () => Record<string, string>;
 };
 
 export type AzureBatchSynthesisResult = {
@@ -189,6 +203,26 @@ function speechEndpoint(
     ? raw
     : `https://${region}.api.cognitive.microsoft.com`;
   return endpoint.replace(/\/+$/, "");
+}
+
+function speechRequestAuth(config: AzureBatchSpeechConfig): SpeechRequestAuth {
+  const { getAccessToken } = config;
+  if (getAccessToken) {
+    return {
+      headers: async () => ({ Authorization: `Bearer ${await getAccessToken()}` }),
+      resultHeaders: () => ({}),
+    };
+  }
+  const keyHeaders = { "Ocp-Apim-Subscription-Key": config.key ?? "" };
+  return { headers: async () => keyHeaders, resultHeaders: () => keyHeaders };
+}
+
+function assertTokenEndpoint(endpoint: string): void {
+  if (/\.api\.cognitive\.microsoft\.com$/i.test(new URL(endpoint).hostname)) {
+    throw new Error(
+      "Entra ID auth needs the resource's custom-domain endpoint (https://<resource>.cognitiveservices.azure.com); pass --endpoint or set AZURE_SPEECH_ENDPOINT.",
+    );
+  }
 }
 
 function xmlEscape(value: string): string {
@@ -440,7 +474,7 @@ async function requestJson(
 
 async function createBatchJob(
   endpoint: string,
-  key: string,
+  auth: SpeechRequestAuth,
   options: AzureBatchJobOptions,
   job: AzureBatchJob,
 ): Promise<void> {
@@ -448,7 +482,7 @@ async function createBatchJob(
   const response = (await requestJson(url, {
     method: "PUT",
     headers: {
-      "Ocp-Apim-Subscription-Key": key,
+      ...(await auth.headers()),
       "Content-Type": "application/json",
     },
     body: JSON.stringify(batchRequestBody(options, job.inputs)),
@@ -459,25 +493,25 @@ async function createBatchJob(
 
 async function getBatchJob(
   endpoint: string,
-  key: string,
+  auth: SpeechRequestAuth,
   id: string,
 ): Promise<AzureBatchJobStatus> {
   const url = `${endpoint}/texttospeech/batchsyntheses/${encodeURIComponent(id)}?api-version=${AZURE_BATCH_API_VERSION}`;
   return (await requestJson(url, {
     method: "GET",
-    headers: { "Ocp-Apim-Subscription-Key": key },
+    headers: await auth.headers(),
   })) as AzureBatchJobStatus;
 }
 
 async function waitForBatchJob(
   endpoint: string,
-  key: string,
+  auth: SpeechRequestAuth,
   options: AzureBatchPollOptions,
   id: string,
 ): Promise<AzureBatchJobStatus> {
   const started = Date.now();
   while (Date.now() - started < options.timeoutMs) {
-    const job = await getBatchJob(endpoint, key, id);
+    const job = await getBatchJob(endpoint, auth, id);
     const status = typeof job.status === "string" ? job.status : "Unknown";
     console.log(`poll ${id}: ${status}`);
     if (status === "Succeeded") return job;
@@ -489,13 +523,10 @@ async function waitForBatchJob(
 
 async function downloadResultZip(
   url: string,
-  key: string,
+  headers: Record<string, string>,
   targetPath: string,
 ): Promise<void> {
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { "Ocp-Apim-Subscription-Key": key },
-  });
+  const response = await fetch(url, { method: "GET", headers });
   if (!response.ok) {
     throw new Error(`Could not download Azure batch result ZIP: HTTP ${response.status}`);
   }
@@ -602,7 +633,7 @@ async function parseBatchResult(
 async function persistJobResults(
   job: AzureBatchJob,
   resultUrl: string,
-  key: string,
+  resultHeaders: Record<string, string>,
   options: AzureBatchJobOptions,
   deps: PersistJobResultsDeps = {},
 ): Promise<number> {
@@ -619,7 +650,7 @@ async function persistJobResults(
   try {
     const zipPath = path.join(tempDirectory, "results.zip");
     const outputDirectory = path.join(tempDirectory, "out");
-    await download(resultUrl, key, zipPath);
+    await download(resultUrl, resultHeaders, zipPath);
     await unzip("unzip", ["-q", zipPath, "-d", outputDirectory]);
     const files = await readFiles(outputDirectory);
     const mimeType = mimeTypeForFormat(options.format);
@@ -683,6 +714,7 @@ export async function runAzureBatchSynthesis(
     0,
   );
   const endpoint = speechEndpoint(options, config.region);
+  if (config.getAccessToken) assertTokenEndpoint(endpoint);
 
   console.log(
     `Selected ${articles.length} article(s), ${totalChars.toLocaleString()} plain-text chars, ${jobs.length} batch job(s).`,
@@ -702,18 +734,43 @@ export async function runAzureBatchSynthesis(
     );
   }
 
+  const auth = speechRequestAuth(config);
   let persisted = 0;
-  for (const job of jobs) {
-    await createBatchJob(endpoint, config.key, options, job);
-    if (options.submitOnly) continue;
+  const runJob = async (job: AzureBatchJob): Promise<void> => {
+    await createBatchJob(endpoint, auth, options, job);
+    if (options.submitOnly) return;
 
-    const completed = await waitForBatchJob(endpoint, config.key, options, job.id);
+    const completed = await waitForBatchJob(endpoint, auth, options, job.id);
     const resultUrl = completed.outputs?.result;
     if (typeof resultUrl !== "string" || !resultUrl) {
       throw new Error(`Azure batch synthesis job ${job.id} succeeded without outputs.result`);
     }
-    persisted += await persistJobResults(job, resultUrl, config.key, options);
-  }
+    // Await first: `persisted += await …` would read `persisted` before the
+    // await and drop increments from concurrent jobs.
+    const saved = await persistJobResults(job, resultUrl, auth.resultHeaders(), options);
+    persisted += saved;
+  };
+
+  // A failed job stops new submissions, but in-flight jobs still finish and
+  // persist before the error surfaces, so a retry never re-selects articles
+  // that are still being synthesized.
+  let nextJob = 0;
+  let failed = false;
+  const worker = async (): Promise<void> => {
+    while (!failed && nextJob < jobs.length) {
+      const job = jobs[nextJob++]!;
+      try {
+        await runJob(job);
+      } catch (error) {
+        failed = true;
+        throw error;
+      }
+    }
+  };
+  const workerCount = Math.max(1, Math.min(options.concurrency, jobs.length));
+  const outcomes = await Promise.allSettled(Array.from({ length: workerCount }, worker));
+  const rejection = outcomes.find((outcome) => outcome.status === "rejected");
+  if (rejection) throw rejection.reason;
 
   console.log(`Done. submitted=${jobs.length} persisted=${persisted}`);
   return { selected: articles.length, submitted: jobs.length, persisted };
