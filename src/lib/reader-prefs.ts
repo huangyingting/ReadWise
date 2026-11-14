@@ -19,12 +19,20 @@
 
 import { getActiveTheme } from "./theme";
 import { STORAGE_KEYS } from "./storage-keys";
+import {
+  DEFAULT_PARADEE_VOICE,
+  isParadeeEnglishVoice,
+  type ParadeeEnglishVoice,
+} from "./ondevice-tts/voices";
 
 export type ReadingMode = "light" | "sepia" | "dark";
 export type ReadingFont = "serif" | "sans" | "dyslexic";
 export type ReadingSpacing = "normal" | "comfortable" | "spacious";
 /** Narration source: on-device Paradee synthesis or stored cloud (Azure) audio. */
 export type NarrationEngine = "device" | "cloud";
+/** Playback speeds offered by the mini-player and the default-speed setting. */
+export const NARRATION_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5] as const;
+export type NarrationSpeed = (typeof NARRATION_SPEEDS)[number];
 
 export interface ReaderPrefs {
   mode: ReadingMode;
@@ -32,6 +40,10 @@ export interface ReaderPrefs {
   fontFamily: ReadingFont;
   lineSpacing: ReadingSpacing;
   narration: NarrationEngine;
+  /** On-device (Paradee) voice. */
+  narrationVoice: ParadeeEnglishVoice;
+  /** Playback speed applied when narration loads. */
+  narrationSpeed: NarrationSpeed;
 }
 
 /** Ordered font-scale steps (5 steps per Saul's spec). */
@@ -43,6 +55,8 @@ const DEFAULT_FONT_SCALE_INDEX = 1;
 const DEFAULT_READING_FONT: ReadingFont = "serif";
 const DEFAULT_READING_SPACING: ReadingSpacing = "normal";
 export const DEFAULT_NARRATION_ENGINE: NarrationEngine = "device";
+export const DEFAULT_NARRATION_VOICE: ParadeeEnglishVoice = DEFAULT_PARADEE_VOICE;
+export const DEFAULT_NARRATION_SPEED: NarrationSpeed = 1;
 const NARRATION_ENGINES: readonly NarrationEngine[] = ["device", "cloud"];
 const READING_MODES: readonly ReadingMode[] = ["light", "sepia", "dark"];
 const READING_FONTS: readonly ReadingFont[] = ["serif", "sans", "dyslexic"];
@@ -87,6 +101,13 @@ function isNarrationEngine(value: unknown): value is NarrationEngine {
   );
 }
 
+function isNarrationSpeed(value: unknown): value is NarrationSpeed {
+  return (
+    typeof value === "number" &&
+    (NARRATION_SPEEDS as readonly number[]).includes(value)
+  );
+}
+
 function isFontScale(value: unknown): value is number {
   return (
     typeof value === "number" &&
@@ -115,6 +136,13 @@ export function getStoredReaderPrefs(): ReaderPrefs | null {
       narration: isNarrationEngine(parsed.narration)
         ? parsed.narration
         : DEFAULT_NARRATION_ENGINE,
+      narrationVoice:
+        typeof parsed.narrationVoice === "string" && isParadeeEnglishVoice(parsed.narrationVoice)
+          ? parsed.narrationVoice
+          : DEFAULT_NARRATION_VOICE,
+      narrationSpeed: isNarrationSpeed(parsed.narrationSpeed)
+        ? parsed.narrationSpeed
+        : DEFAULT_NARRATION_SPEED,
     };
   } catch {
     return null;
@@ -135,6 +163,8 @@ export function getReaderPrefs(): ReaderPrefs {
     fontFamily: DEFAULT_READING_FONT,
     lineSpacing: DEFAULT_READING_SPACING,
     narration: DEFAULT_NARRATION_ENGINE,
+    narrationVoice: DEFAULT_NARRATION_VOICE,
+    narrationSpeed: DEFAULT_NARRATION_SPEED,
   };
 }
 

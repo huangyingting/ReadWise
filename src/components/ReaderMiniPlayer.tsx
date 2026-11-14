@@ -25,9 +25,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { IconButton, Select, Tooltip } from "@/components/ui";
+import { getReaderPrefs, NARRATION_SPEEDS } from "@/lib/reader-prefs";
 import { useReaderAudio } from "./ReaderAudioProvider";
 
-const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5] as const;
+const SPEEDS = NARRATION_SPEEDS;
 const SKIP_SECONDS = 10;
 const CONTROL_ICON_SIZE = 16;
 
@@ -49,7 +50,8 @@ export default function ReaderMiniPlayer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
+  // Starts at the reader's default speed (Settings → Narration).
+  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(() => getReaderPrefs().narrationSpeed);
   // Percentage for the seek input gradient fill
   const seekPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -70,6 +72,10 @@ export default function ReaderMiniPlayer() {
     const onDurationChange = () => {
       setDuration(audio.duration);
     };
+    // Loading a source resets playbackRate, so re-apply the selected speed.
+    const onLoadedMetadata = () => {
+      audio.playbackRate = speed;
+    };
     const onEnded = () => {
       setIsPlaying(false);
     };
@@ -79,14 +85,17 @@ export default function ReaderMiniPlayer() {
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("durationchange", onDurationChange);
     audio.addEventListener("ended", onEnded);
+    audio.addEventListener("loadedmetadata", onLoadedMetadata);
+    if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) audio.playbackRate = speed;
     return () => {
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("durationchange", onDurationChange);
       audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
     };
-  }, [audioRef, isLoaded]); // re-attach when audio src loads
+  }, [audioRef, isLoaded, speed]); // re-attach when audio src loads
 
   if (!isLoaded || isFallback || dismissed) return null;
 

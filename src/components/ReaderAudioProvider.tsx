@@ -228,7 +228,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ── Narration API adapter ─────────────────────────────────────────────────
-  const { isWarming, warmError, warmNarration } = useNarrationApi({
+  const { isWarming, warmError, warmNarration, recoverWithOnDevice } = useNarrationApi({
     onLoaded: loadAudio,
     onExtended: extendAudio,
     onFallback: markFallback,
@@ -240,10 +240,18 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     cancelLoop();
   }, [cancelClock, cancelLoop, clearActiveWord]);
 
+  // Cloud audio that fails to load (e.g. a missing stored file) switches to
+  // on-device narration; a failing on-device blob means narration is unavailable.
   const handleAudioError = useCallback(() => {
     cancelClock();
-    markFallback();
-  }, [cancelClock, markFallback]);
+    if (isObjectUrl(audioRef.current?.getAttribute("src") ?? null)) {
+      markFallback();
+      return;
+    }
+    void recoverWithOnDevice().then((recovered) => {
+      if (!recovered) markFallback();
+    });
+  }, [cancelClock, markFallback, recoverWithOnDevice]);
 
   const contextValue = useMemo<AudioContextValue>(
     () => ({

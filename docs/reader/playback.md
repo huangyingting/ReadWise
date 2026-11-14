@@ -74,12 +74,13 @@ Components consume context via `useReaderAudio()`.
 ## Playback initiation (access-checked)
 
 Narration is prepared lazily on first Listen-tab activation or Listen-button
-click. By default (`ReaderPrefs.narration === "device"`) it is synthesized in the
-browser: `warmNarration` fetches `GET /api/reader/[id]/speech/text` (readable
-article guard) and plays progressive WAV snapshots as described in
-[`../speech/ondevice-narration.md`](../speech/ondevice-narration.md). The cloud
-path below runs when the preference is `"cloud"`, or when on-device synthesis
-fails before any audio exists:
+click. `warmNarration` tries the reader's preferred engine
+(`ReaderPrefs.narration`, Settings → Narration), then the other one. By default
+narration is synthesized in the browser: `warmNarration` fetches
+`GET /api/reader/[id]/speech/text` (readable article guard) and plays
+progressive WAV snapshots as described in
+[`../speech/ondevice-narration.md`](../speech/ondevice-narration.md), which also
+documents the full fallback order. The cloud path is:
 
 1. `warmNarration(articleId)` (from `useNarrationApi`) posts to
    `POST /api/reader/[id]/speech`.
@@ -87,11 +88,13 @@ fails before any audio exists:
   enforces article-access policy before returning narration metadata.
   Unauthenticated or unauthorized requests receive `null` from the route and
   the Reader shows no audio.
-3. If the API returns `fallback: true` or no `audioUrl`, the Reader marks
+3. If the API returns `fallback: true` or no `audioUrl`, the Reader tries
+  on-device narration; only when neither engine has audio does it mark
   fallback — the mini-player never appears and the Listen button is disabled.
 4. On success, the same-origin `audioUrl` is loaded directly into the shared
   `<audio>` element. The browser then requests the authenticated audio GET
-  route; media-load failures enter the same fallback state.
+  route; a media-load failure switches to on-device narration
+  (`recoverWithOnDevice`) and enters the fallback state only if that fails.
 
 `warmNarration` is idempotent: the first successful call caches the result and
 subsequent calls are no-ops. A failed call may be retried.
@@ -121,7 +124,7 @@ The authenticated audio endpoint supports HTTP byte ranges, so skip and scrub
 controls can seek beyond the portion of Narration already buffered by the
 browser. On-device narration can seek within the audio synthesized so far; the
 duration grows as longer snapshots arrive.
-| Speed select | Cycles through `[0.5, 0.75, 1, 1.25, 1.5]`; sets `audioRef.current.playbackRate`. |
+| Speed select | `[0.5, 0.75, 1, 1.25, 1.5]` (`NARRATION_SPEEDS`); starts at the reader's default speed and sets `audioRef.current.playbackRate`, re-applied whenever the audio source loads. |
 | Loop toggle | Activates sentence-loop mode (see below). |
 | Close (×) | Dismisses the player for the current session (per-page state). |
 

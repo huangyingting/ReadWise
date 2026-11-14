@@ -52,10 +52,24 @@ flowchart TD
    `loadedmetadata`. Playback that caught up with synthesis resumes
    automatically. Superseded `blob:` URLs are revoked.
 
-If on-device synthesis fails before any audio exists (model download, runtime,
-or synthesis error), the Reader falls back to cloud narration. Once audio is
-playing, a later failure keeps the partial narration. Leaving the page aborts
-synthesis.
+## Source order and fallback
+
+`loadNarrationSource` (`src/components/reader/narrationSource.ts`) tries the
+reader's preferred engine, then the other one:
+
+- **On-device preferred:** if synthesis fails before any audio exists (model
+  download, runtime, or synthesis error), the Reader requests cloud narration.
+- **Cloud preferred:** if the speech API has no stored audio (`fallback: true`)
+  or the request fails (network, rate limit), the Reader synthesizes on device.
+  A cloud request error is surfaced as a retryable error only when on-device
+  also produced nothing.
+- **Cloud audio that fails to load** in the `<audio>` element (for example a
+  missing stored file) switches to on-device through `recoverWithOnDevice`,
+  once per article; a failing on-device `blob:` source marks narration
+  unavailable.
+
+Once on-device audio is playing, a later synthesis failure keeps the partial
+narration. Leaving the page aborts synthesis and stops the worker.
 
 ## Execution device
 
@@ -110,12 +124,24 @@ relies on the existing `'unsafe-eval'` script source.
 `client.ts` and `voices.ts` are the only modules the page bundle imports
 (`client.ts` lazily); ONNX Runtime and eSpeak load only inside the worker.
 
-## Reader preference
+## Reader preferences
 
-`ReaderPrefs.narration` (`"device" | "cloud"`, stored in
-`localStorage["readwise:reader-prefs"]`) is set from the Reader display panel
-("Narration: On-device / Cloud"). Missing or invalid values resolve to
-`"device"`. A change applies the next time narration loads for an article.
+Narration preferences are per browser, stored with the reader prefs in
+`localStorage["readwise:reader-prefs"]`:
+
+| Field | Values | Default |
+| ----- | ------ | ------- |
+| `narration` | `"device"`, `"cloud"` | `"device"` |
+| `narrationVoice` | `af_heart`, `am_puck`, `bf_isabella`, `bm_fable` | `af_heart` |
+| `narrationSpeed` | `0.5`, `0.75`, `1`, `1.25`, `1.5` | `1` |
+
+Settings → Narration (`src/components/NarrationSettingsCard.tsx`) edits all
+three and saves immediately; "Preview voice" synthesizes a short sample on
+device with the chosen voice and speed. The Reader display panel keeps a quick
+On-device / Cloud switch. Missing or invalid values resolve to the defaults.
+Engine and voice apply the next time narration loads for an article; the
+mini-player starts at the default speed and re-applies it whenever the audio
+source loads.
 
 ## Privacy
 

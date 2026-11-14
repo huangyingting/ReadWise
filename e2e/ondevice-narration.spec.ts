@@ -31,13 +31,20 @@ test("Listen plays on-device narration with word highlighting", async ({ page, s
     const modelRequest = page.waitForResponse((res) =>
       res.url().endsWith("/models/paradee-8m-v1.3/paradee_int8.onnx"),
     );
-    const textRequest = page.waitForResponse((res) =>
-      res.url().endsWith(`/api/reader/${TEST_ARTICLE_ID}/speech/text`),
-    );
+    let textStatus = 0;
+    page.on("response", (res) => {
+      if (res.url().endsWith(`/api/reader/${TEST_ARTICLE_ID}/speech/text`)) textStatus = res.status();
+    });
 
-    await page.getByRole("button", { name: "Listen to this article" }).first().click();
+    // A cold dev server may still be compiling and hot-reloading the first
+    // page; retry the click until the narration request actually starts.
+    await page.waitForLoadState("networkidle");
+    await expect(async () => {
+      await page.getByRole("button", { name: "Listen to this article" }).first().click({ timeout: 10_000 });
+      await expect.poll(() => textStatus, { timeout: 10_000 }).not.toBe(0);
+    }).toPass({ timeout: 120_000 });
 
-    expect((await textRequest).status()).toBe(200);
+    expect(textStatus).toBe(200);
     expect((await modelRequest).status()).toBe(200);
 
     // A blob: WAV source appears once the first snapshot is synthesized.
@@ -103,4 +110,67 @@ test("Listen plays on-device narration with word highlighting", async ({ page, s
   } finally {
     await testInfo.attach("console", { body: consoleLines.join("\n"), contentType: "text/plain" });
   }
+});
+
+const READER_PREFS_KEY = "readwise:reader-prefs";
+
+test("cloud preference falls back to on-device when no cloud audio exists", async ({ page, signIn }) => {
+  test.setTimeout(240_000);
+  // Cloud is attempted first; with Speech unconfigured it has no audio (or,
+  // on a cold dev server, may time out) and on-device takes over either way.
+  const cloudRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().endsWith(`/api/reader/${TEST_ARTICLE_ID}/speech`)) {
+      cloudRequests.push(request.url());
+    }
+  });
+  await page.addInitScript(
+    ([key, prefs]) => window.localStorage.setItem(key, prefs),
+    [
+      READER_PREFS_KEY,
+      JSON.stringify({ mode: "light", fontScale: 1, narration: "cloud", narrationVoice: "bm_fable", narrationSpeed: 1.25 }),
+    ] as const,
+  );
+  await signIn();
+  await page.goto(`/reader/${TEST_ARTICLE_ID}`);
+  await page.getByRole("button", { name: "Listen to this article" }).first().click();
+
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector("audio")?.getAttribute("src") ?? ""), { timeout: 180_000 })
+    .toMatch(/^blob:/);
+  expect(cloudRequests).toHaveLength(1);
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector("audio")?.playbackRate ?? 0), { timeout: 15_000 })
+    .toBe(1.25);
+  await expect(page.getByRole("combobox", { name: "Playback speed" })).toHaveText(/1\.25/);
+});
+
+test("Settings narration preferences save per browser and preview a voice", async ({ page, signIn }) => {
+  test.setTimeout(240_000);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await signIn();
+  await page.goto("/settings#narration");
+
+  const card = page.locator("#narration");
+  await expect(card.getByRole("heading", { name: "Narration" })).toBeVisible();
+  await card.getByRole("radio", { name: "Cloud" }).click();
+  await card.getByRole("combobox", { name: "Voice" }).click();
+  await page.getByRole("option", { name: /Isabella/ }).click();
+  await card.getByRole("combobox", { name: "Default speed" }).click();
+  await page.getByRole("option", { name: "0.75×" }).click();
+
+  const stored = await page.evaluate((key) => JSON.parse(window.localStorage.getItem(key) ?? "{}"), READER_PREFS_KEY);
+  expect(stored).toMatchObject({ narration: "cloud", narrationVoice: "bf_isabella", narrationSpeed: 0.75 });
+
+  await page.reload();
+  await expect(card.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
+  await expect(card.getByRole("combobox", { name: "Voice" })).toHaveText(/Isabella/);
+
+  const preview = card.getByRole("button", { name: /Preview Isabella/ });
+  await preview.click();
+  await expect(preview).toBeDisabled();
+  await expect(preview).toBeEnabled({ timeout: 180_000 });
+  await expect(card.getByRole("alert")).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
 });

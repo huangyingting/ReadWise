@@ -24,6 +24,8 @@ type ReaderPrefsFixture = {
   fontFamily: "serif" | "sans" | "dyslexic";
   lineSpacing: "normal" | "comfortable" | "spacious";
   narration: "device" | "cloud";
+  narrationVoice: "af_heart" | "am_puck" | "bf_isabella" | "bm_fable";
+  narrationSpeed: 0.5 | 0.75 | 1 | 1.25 | 1.5;
 };
 
 function readerPrefs(overrides: Partial<ReaderPrefsFixture> = {}): ReaderPrefsFixture {
@@ -33,6 +35,8 @@ function readerPrefs(overrides: Partial<ReaderPrefsFixture> = {}): ReaderPrefsFi
     fontFamily: "serif",
     lineSpacing: "normal",
     narration: "device",
+    narrationVoice: "af_heart",
+    narrationSpeed: 1,
     ...overrides,
   };
 }
@@ -271,6 +275,18 @@ describe("getStoredReaderPrefs", () => {
     assert.equal(getStoredReaderPrefs()?.narration, "cloud");
   });
 
+  test("keeps valid narration voice and speed, defaulting invalid values", async () => {
+    const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
+    storeReaderPrefs({ mode: "light", fontScale: 1.0, narrationVoice: "bm_fable", narrationSpeed: 1.25 });
+    assert.equal(getStoredReaderPrefs()?.narrationVoice, "bm_fable");
+    assert.equal(getStoredReaderPrefs()?.narrationSpeed, 1.25);
+    storeReaderPrefs({ mode: "light", fontScale: 1.0, narrationVoice: "en-US-Jenny", narrationSpeed: 3 });
+    assert.equal(getStoredReaderPrefs()?.narrationVoice, "af_heart");
+    assert.equal(getStoredReaderPrefs()?.narrationSpeed, 1);
+    storeReaderPrefs({ mode: "light", fontScale: 1.0, narrationVoice: 7 });
+    assert.equal(getStoredReaderPrefs()?.narrationVoice, "af_heart");
+  });
+
   test("accepts 'spacious' as a valid lineSpacing", async () => {
     storeReaderPrefs({ mode: "dark", fontScale: 1.45, lineSpacing: "spacious" });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
@@ -307,6 +323,8 @@ describe("getReaderPrefs", () => {
     assert.equal(prefs.fontFamily, "serif");
     assert.equal(prefs.lineSpacing, "normal");
     assert.equal(prefs.narration, "device");
+    assert.equal(prefs.narrationVoice, "af_heart");
+    assert.equal(prefs.narrationSpeed, 1);
   });
 
   test("returns dark-mode defaults when no stored prefs and app theme is dark", async () => {

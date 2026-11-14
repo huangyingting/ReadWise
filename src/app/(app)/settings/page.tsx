@@ -23,6 +23,7 @@ import ClearLearningMemory from "@/components/ClearLearningMemory";
 import PushReminderToggle from "@/components/PushReminderToggle";
 import ReminderPreferencesForm from "@/components/ReminderPreferencesForm";
 import SettingsThemeRow from "@/components/SettingsThemeRow";
+import NarrationSettingsCard from "@/components/NarrationSettingsCard";
 import { settings } from "@/lib/copy/pages";
 import { pushConfig } from "@/lib/runtime-config/push";
 import { seedLevelForProfile } from "@/lib/learning/placement";
@@ -137,6 +138,7 @@ const SETTINGS_SECTIONS = {
   profile: { id: "profile", label: "Profile & reading" },
   placement: { id: "placement", label: "Reading placement" },
   appearance: { id: "appearance", label: "Appearance" },
+  narration: { id: "narration", label: "Narration" },
   account: { id: "account", label: "Account" },
   signIn: { id: "sign-in", label: "Sign-in methods" },
   notifications: { id: "notifications", label: "Notifications" },
@@ -222,6 +224,11 @@ export default async function SettingsPage() {
             {/* App theme card — outside the profile form, no submit needed */}
             <SettingsAnchor section={SETTINGS_SECTIONS.appearance}>
               <AppearanceCard />
+            </SettingsAnchor>
+
+            {/* Narration preferences — per browser, saved immediately */}
+            <SettingsAnchor section={SETTINGS_SECTIONS.narration}>
+              <NarrationSettingsCard />
             </SettingsAnchor>
 
             {/* Account card — read-only, outside the form */}
