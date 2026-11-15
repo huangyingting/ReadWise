@@ -229,6 +229,12 @@ jobs:
           test "$(docker image inspect readwise-ci-worker:postgres --format '{{.Config.User}}')" = "nextjs"
           test "$(docker image inspect readwise-ci-ops:postgres --format '{{.Config.User}}')" = "node"
 
+      - name: Verify worker entrypoint starts
+        run: |
+          # Placeholder URL: the entrypoint validates schema pairing; --help never connects.
+          docker run --rm -e DATABASE_URL="postgresql://ci:ci@127.0.0.1:5432/ci?schema=public" \
+            readwise-ci-worker:postgres npm run --silent worker -- --help | grep -q "npm run worker"
+
       - name: Verify lean web runtime
         run: |
           test "$(docker run --rm --entrypoint sh readwise-ci-web:postgres -c 'test ! -e node_modules/prisma/build/index.js && echo lean')" = "lean"

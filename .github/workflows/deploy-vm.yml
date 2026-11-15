@@ -19,7 +19,52 @@ permissions:
   packages: write
 
 jobs:
+  # The VM Compose project runs a `worker` service from `${APP_IMAGE}-worker`,
+  # so the worker image must exist under the web image's tag before WebStack
+  # deploys. Same commit, same tag: deploy and rollback move both together.
+  build-worker:
+    if: >-
+      vars.VM_DEPLOY_ENABLED == 'true'
+      && (
+        github.event_name == 'workflow_dispatch'
+        || (
+          github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.event == 'push'
+          && github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.ref }}
+      - name: Determine worker image tag
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: echo "name=ghcr.io/${REPOSITORY,,}:$(git rev-parse HEAD)-worker" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: worker
+          build-args: PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.image.outputs.name }}
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker
+
   deploy:
+    needs: build-worker
     if: >-
       vars.VM_DEPLOY_ENABLED == 'true'
       && (

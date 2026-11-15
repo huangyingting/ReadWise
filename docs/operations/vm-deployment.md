@@ -1,8 +1,8 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-10-11"
-description: "Deploys ReadWise to the WebStack VM through the pinned reusable GitHub Actions workflow, a minimal Alpine web image, a separate migration image, shared PostgreSQL, authenticated account email, and scheduled retention maintenance."
+last_updated: "2026-11-15"
+description: "Deploys ReadWise to the WebStack VM through the pinned reusable GitHub Actions workflow, a minimal Alpine web image, a Compose worker service from a commit-matched worker image, a separate migration image, shared PostgreSQL, authenticated account email, and scheduled retention maintenance."
 ---
 
 # WebStack VM deployment
@@ -16,6 +16,7 @@ credentials or duplicate VM orchestration.
 
 ```text
 successful ReadWise CI on main
+  -> build ghcr.io/OWNER/readwise:{commit}-worker   (deploy-vm.yml)
   -> WebStack reusable workflow v1.0.0
   -> build ghcr.io/OWNER/readwise:{commit}
   -> build ghcr.io/OWNER/readwise-ops:{commit}
@@ -24,16 +25,19 @@ successful ReadWise CI on main
        -> validate PostgreSQL/schema pairing
        -> deploy prisma/postgresql migrations
   -> webstack-deploy readwise APP_IMAGE
-  -> Docker health check + old-image rollback
+       -> Compose web    = APP_IMAGE
+       -> Compose worker = APP_IMAGE-worker
+  -> Docker health check + old-image rollback (both services)
 
-Internet -> Caddy HTTPS -> 127.0.0.1:10005 -> ReadWise container:3000
-ReadWise -> 172.30.0.1:5432 -> shared native PostgreSQL
+Internet -> Caddy HTTPS -> 127.0.0.1:10005 -> ReadWise web container:3000
+ReadWise web + worker -> 172.30.0.1:5432 -> shared native PostgreSQL
 ```
 
-`Dockerfile` produces the non-root standalone web image and retains the explicit
-`worker` target for background jobs. `Dockerfile.ops` contains only the Prisma
-CLI and PostgreSQL migration history. Keeping migrations outside the web image
-removes the full production dependency tree from the serving container.
+`Dockerfile` produces the non-root standalone web image and the explicit
+`worker` target for background jobs (job queue, incremental discovery, and
+backfill). `Dockerfile.ops` contains only the Prisma CLI and PostgreSQL
+migration history. Keeping migrations and the worker outside the web image
+keeps the full production dependency tree out of the serving container.
 
 ## One-time WebStack authorization
 
@@ -189,6 +193,55 @@ reputation.
 Enable `VM_DEPLOY_ENABLED` only after the production environment, Azure OIDC
 identity, DNS, and `VM_APP_ENV` secret are ready.
 
+## Worker service
+
+The worker runs as a second service in the app's WebStack Compose project and
+uses the web image tag with a `-worker` suffix. `deploy-vm.yml` builds and
+pushes `ghcr.io/OWNER/readwise:{commit}-worker` before WebStack deploys
+`{commit}`, so `docker compose up` starts both from the same commit and an image
+rollback restores both. WebStack itself needs no worker support: the service is
+a one-time addition to `/data/apps/readwise/compose.yml` (WebStack generates
+the file once at app creation and never rewrites it).
+
+```yaml
+  worker:
+    image: ${APP_IMAGE:?Run webstack-deploy with an immutable image tag}-worker
+    restart: unless-stopped
+    init: true
+    env_file:
+      - app.env
+    environment:
+      NODE_OPTIONS: --max-old-space-size=768
+    networks:
+      - apps
+    mem_limit: 1g
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      web:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+Add the service only after a deployment has pushed the matching `-worker` tag
+(otherwise `--wait` fails on a missing image and rolls the web tier back). Back
+up `compose.yml`, add the block above under `services:`, then start it with the
+current image: `cd /data/apps/readwise && sudo APP_IMAGE=$(sed -n 's/^APP_IMAGE=//p' image.env) docker compose up -d --no-build --wait`.
+Check `docker logs readwise-worker-1`.
+
+A fresh worker is idle by design: it registers the checked-in discovery
+canaries as `DISABLED`, drains an empty job queue, and runs backfill only for
+operator-created runs. Network discovery starts only after an operator advances
+a source in `/admin/discovery-sources`. One-off maintenance commands run in the
+same image, e.g. `docker compose run --rm --no-deps worker npm run
+backfill:discovery-baseline -- --dry-run`.
+
 ## Deployment behavior
 
 `.github/workflows/deploy-vm.yml` runs after a successful `CI` push to `main`
@@ -199,6 +252,7 @@ WebStack release `v1.0.0` with:
 - first-run provisioning for `readwise.genisisiq.com:10005`;
 - the exact CI commit as the image tag;
 - `Dockerfile.ops` as the transient migration image;
+- the commit-matched `-worker` image built by the local `build-worker` job;
 - PostgreSQL schema validation and `prisma migrate deploy` before activation;
 - `APP_VERSION` synchronized to the immutable image tag;
 - `schema=public`, required TLS, bounded pool size, and bounded timeouts.
