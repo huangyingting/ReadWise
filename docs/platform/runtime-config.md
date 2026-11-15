@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-10-11"
+last_updated: "2026-11-15"
 description: "Documents server-side runtime-config ownership, the direct process.env allowlist, typed environment helpers, and narrow build/test/maintenance adapters. Captures current env-var ownership, feature switches, optional-provider config, and server-only import boundaries."
 ---
 
@@ -166,6 +166,8 @@ does not import an SMTP client or hold the shared DKIM private key.
 | Env var | Default / behavior | Owner |
 | --- | --- | --- |
 | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION` | Optional provider credentials; absent means AI gracefully falls back. | `ai.ts` |
+| `AZURE_OPENAI_AUTH`, `AZURE_SPEECH_AUTH` | `key` (default) or `entra`; entra replaces the key with the shared `AZURE_AI_*` identity. | `azure-auth.ts` |
+| `AZURE_AI_TENANT_ID`, `AZURE_AI_CLIENT_ID`, `AZURE_AI_CLIENT_CERTIFICATE` / `AZURE_AI_CLIENT_SECRET`, `AZURE_AI_USE_MANAGED_IDENTITY` | Entra identity for AI services (service principal or managed identity). | `azure-auth.ts` |
 | `AI_REQUEST_TIMEOUT_MS` | `30000` | `ai.ts` |
 | `AI_MAX_RETRIES` | `2` | `ai.ts` |
 | `AZURE_OPENAI_MAX_CONTEXT_TOKENS` | `128000` | `ai.ts` |
@@ -182,7 +184,7 @@ does not import an SMTP client or hold the shared DKIM private key.
 
 | Env var | Default / behavior | Owner |
 | --- | --- | --- |
-| `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | Optional Speech credentials; absent disables TTS/pronunciation token features gracefully. | `speech.ts` |
+| `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | Optional Speech credentials; absent disables TTS/pronunciation token features gracefully. Entra mode uses `AZURE_SPEECH_REGION` + `AZURE_SPEECH_ENDPOINT` instead of the key. | `speech.ts` |
 | `AZURE_SPEECH_VOICE` | `en-US-AndrewMultilingualNeural` | `speech.ts` |
 | `AZURE_SPEECH_OUTPUT_FORMAT` | `audio-24khz-96kbitrate-mono-mp3` | `speech.ts` |
 | `SPEECH_TIMEOUT_MS` | `30000` | `speech.ts` |
@@ -260,7 +262,8 @@ does not import an SMTP client or hold the shared DKIM private key.
 | `src/lib/runtime-config/runtime.ts` | — (readiness only) | Composes all sections for `/api/ready`. Validates `DATABASE_URL`, `PRISMA_SCHEMA_PATH`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`. |
 | `src/lib/runtime-config/scraper.ts` | `scraper` | `SCRAPER_MAX_BYTES`, `SCRAPER_TIMEOUT_MS`, `SCRAPER_HTML_NORMALIZE`, `SCRAPER_READABILITY`, fetch fallback toggles, 429 retry knobs, quality classifier |
 | `src/lib/runtime-config/security.ts` | `security` | `TRUSTED_PROXY_*`, `CSRF_*`, `SECURITY_EVENT_*`, `AUDIT_LOG_RETENTION_DAYS` |
-| `src/lib/runtime-config/speech.ts` | `speech` | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_OUTPUT_FORMAT`, `AZURE_SPEECH_VOICE`, `SPEECH_TIMEOUT_MS` |
+| `src/lib/runtime-config/speech.ts` | `speech` | `AZURE_SPEECH_AUTH`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_ENDPOINT`, `AZURE_SPEECH_OUTPUT_FORMAT`, `AZURE_SPEECH_VOICE`, `SPEECH_TIMEOUT_MS` |
+| `src/lib/runtime-config/azure-auth.ts` | (shared) | `AZURE_OPENAI_AUTH`, `AZURE_SPEECH_AUTH`, `AZURE_AI_TENANT_ID`, `AZURE_AI_CLIENT_ID`, `AZURE_AI_CLIENT_CERTIFICATE`, `AZURE_AI_CLIENT_SECRET`, `AZURE_AI_USE_MANAGED_IDENTITY` |
 | `src/lib/runtime-config/storage.ts` | `storage` | `MEDIA_STORAGE`, `MEDIA_STORAGE_DIR`, `AZURE_STORAGE_*` |
 
 All modules are server-only. Never import them from a `"use client"` file or any

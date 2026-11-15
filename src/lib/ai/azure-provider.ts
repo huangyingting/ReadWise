@@ -15,6 +15,7 @@ import {
   aiDefaultMaxOutputTokens,
   aiMaxContextTokens,
 } from "@/lib/runtime-config/ai";
+import { getAiServicesAccessToken } from "@/lib/azure/ai-token";
 import {
   classifyHttpStatus,
   classifyThrownError,
@@ -83,7 +84,7 @@ export class AzureOpenAiProvider implements AiProvider {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "api-key": config.apiKey,
+          ...(await azureAuthHeaders(config)),
         },
         body: JSON.stringify(body),
         signal: request.signal,
@@ -147,6 +148,12 @@ export class AzureOpenAiProvider implements AiProvider {
       return { ok: false, durationMs, error: { kind, retryable, message } };
     }
   }
+}
+
+async function azureAuthHeaders(config: AzureAiConfig): Promise<Record<string, string>> {
+  return config.auth === "entra"
+    ? { Authorization: `Bearer ${await getAiServicesAccessToken()}` }
+    : { "api-key": config.apiKey };
 }
 
 function azureChatCompletionsUrl(config: AzureAiConfig): string {

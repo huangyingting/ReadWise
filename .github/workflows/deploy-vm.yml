@@ -90,6 +90,7 @@ jobs:
     secrets:
       APPLICATION_ENV: |
         ${{ secrets.VM_APP_ENV }}
+        ${{ secrets.VM_AI_AUTH_ENV }}
         ${{ vars.ACCOUNT_MAIL_WORKFLOW_ENABLED != '' && format('ACCOUNT_MAIL_WORKFLOW_ENABLED={0}', vars.ACCOUNT_MAIL_WORKFLOW_ENABLED) || '' }}
         ${{ secrets.ACCOUNT_MAIL_WORKER_SECRET != '' && format('ACCOUNT_MAIL_WORKER_SECRET={0}', secrets.ACCOUNT_MAIL_WORKER_SECRET) || '' }}
         ${{ secrets.RETENTION_WORKER_SECRET != '' && format('RETENTION_WORKER_SECRET={0}', secrets.RETENTION_WORKER_SECRET) || '' }}

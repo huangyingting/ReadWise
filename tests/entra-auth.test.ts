@@ -34,6 +34,21 @@ before(() => {
           super("device", options);
         }
       },
+      ClientCertificateCredential: class extends FakeCredential {
+        constructor(tenantId: string, clientId: string, options: Record<string, unknown>) {
+          super("certificate", { tenantId, clientId, ...options });
+        }
+      },
+      ClientSecretCredential: class extends FakeCredential {
+        constructor(tenantId: string, clientId: string, clientSecret: string) {
+          super("secret", { tenantId, clientId, clientSecret });
+        }
+      },
+      ManagedIdentityCredential: class extends FakeCredential {
+        constructor(options?: Record<string, unknown>) {
+          super("managed-identity", options ?? {});
+        }
+      },
     },
   });
 });
@@ -47,7 +62,7 @@ beforeEach(() => {
 const HOUR = 60 * 60 * 1000;
 
 test("CLI mode reuses the az login session for the tenant and caches tokens", async () => {
-  const { COGNITIVE_SERVICES_SCOPE, createEntraTokenProvider } = await import("@/lib/speech/entra-auth");
+  const { COGNITIVE_SERVICES_SCOPE, createEntraTokenProvider } = await import("@/lib/azure/entra-auth");
   tokens = [{ token: "t1", expiresOnTimestamp: Date.now() + HOUR }];
   const getToken = await createEntraTokenProvider({ mode: "cli", tenantId: "tenant-1" });
 
@@ -58,7 +73,7 @@ test("CLI mode reuses the az login session for the tenant and caches tokens", as
 });
 
 test("refreshes tokens within five minutes of expiry", async () => {
-  const { createEntraTokenProvider } = await import("@/lib/speech/entra-auth");
+  const { createEntraTokenProvider } = await import("@/lib/azure/entra-auth");
   tokens = [
     { token: "expiring", expiresOnTimestamp: Date.now() + 60_000 },
     { token: "fresh", expiresOnTimestamp: Date.now() + HOUR },
@@ -70,7 +85,7 @@ test("refreshes tokens within five minutes of expiry", async () => {
 });
 
 test("device mode passes tenant, optional client id, and prompt callback", async (t) => {
-  const { createEntraTokenProvider } = await import("@/lib/speech/entra-auth");
+  const { createEntraTokenProvider } = await import("@/lib/azure/entra-auth");
   const errors: string[] = [];
   t.mock.method(console, "error", (message: string) => errors.push(message));
 
@@ -87,7 +102,35 @@ test("device mode passes tenant, optional client id, and prompt callback", async
 });
 
 test("rejects when the credential returns no token", async () => {
-  const { createEntraTokenProvider } = await import("@/lib/speech/entra-auth");
+  const { createEntraTokenProvider } = await import("@/lib/azure/entra-auth");
   const getToken = await createEntraTokenProvider({ mode: "cli", tenantId: "t" });
   await assert.rejects(getToken, /did not return an access token/);
+});
+
+test("service principal and managed identity modes build the matching credential", async () => {
+  const { createEntraTokenProvider } = await import("@/lib/azure/entra-auth");
+  tokens = Array.from({ length: 4 }, (_, i) => ({ token: `t${i}`, expiresOnTimestamp: Date.now() + HOUR }));
+
+  const fromCert = await createEntraTokenProvider({
+    mode: "certificate",
+    tenantId: "tenant",
+    clientId: "app",
+    certificatePem: "PEM",
+  });
+  const fromSecret = await createEntraTokenProvider({
+    mode: "secret",
+    tenantId: "tenant",
+    clientId: "app",
+    clientSecret: "s3cret",
+  });
+  const systemAssigned = await createEntraTokenProvider({ mode: "managed-identity" });
+  const userAssigned = await createEntraTokenProvider({ mode: "managed-identity", clientId: "mi" });
+  for (const getToken of [fromCert, fromSecret, systemAssigned, userAssigned]) await getToken();
+
+  assert.deepEqual(created, [
+    { kind: "certificate", options: { tenantId: "tenant", clientId: "app", certificate: "PEM" } },
+    { kind: "secret", options: { tenantId: "tenant", clientId: "app", clientSecret: "s3cret" } },
+    { kind: "managed-identity", options: {} },
+    { kind: "managed-identity", options: { clientId: "mi" } },
+  ]);
 });

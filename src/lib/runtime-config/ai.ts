@@ -9,28 +9,37 @@ import {
   positiveIntEnv,
   type FeatureConfig,
 } from "./env";
+import { aiServicesIdentity, azureAuthMode } from "./azure-auth";
 
 // ---------------------------------------------------------------------------
 // Azure OpenAI (chat completions)
 // ---------------------------------------------------------------------------
 
-export type AiConfig = {
+type AiDeployment = {
   endpoint: string;
-  apiKey: string;
   deployment: string;
   apiVersion: string;
 };
 
+/**
+ * Key auth sends `api-key`; Entra auth (AZURE_OPENAI_AUTH=entra) sends a bearer
+ * token for the shared AZURE_AI_* identity (see `./azure-auth`).
+ */
+export type AiConfig = AiDeployment & ({ auth: "key"; apiKey: string } | { auth: "entra" });
+
 /** Azure OpenAI chat-completions config (endpoint trailing slashes stripped). */
 export const aiConfig: FeatureConfig<AiConfig> = defineFeatureConfig(() => {
   const endpoint = envValue("AZURE_OPENAI_ENDPOINT")?.replace(/\/+$/, "");
-  const apiKey = envValue("AZURE_OPENAI_API_KEY");
   const deployment = envValue("AZURE_OPENAI_DEPLOYMENT");
   const apiVersion = envValue("AZURE_OPENAI_API_VERSION");
-  if (!endpoint || !apiKey || !deployment || !apiVersion) {
+  if (!endpoint || !deployment || !apiVersion) {
     return null;
   }
-  return { endpoint, apiKey, deployment, apiVersion };
+  if (azureAuthMode("AZURE_OPENAI_AUTH") === "entra") {
+    return aiServicesIdentity.isConfigured() ? { endpoint, deployment, apiVersion, auth: "entra" } : null;
+  }
+  const apiKey = envValue("AZURE_OPENAI_API_KEY");
+  return apiKey ? { endpoint, deployment, apiVersion, auth: "key", apiKey } : null;
 });
 
 const DEFAULT_AI_TIMEOUT_MS = 30_000;

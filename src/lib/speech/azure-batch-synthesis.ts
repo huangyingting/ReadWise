@@ -116,6 +116,8 @@ export type AzureBatchSynthesisOptions = AzureBatchJobOptions &
 export type AzureBatchSpeechConfig = {
   key?: string;
   getAccessToken?: () => Promise<string>;
+  /** Resource endpoint from the Speech config; `--endpoint` takes precedence. */
+  endpoint?: string;
   region: string;
   voice: string;
 };
@@ -196,12 +198,12 @@ function articleWhere(
 
 function speechEndpoint(
   options: AzureBatchSynthesisOptions,
-  region: string,
+  config: AzureBatchSpeechConfig,
 ): string {
-  const raw = options.endpoint ?? process.env.AZURE_SPEECH_ENDPOINT?.trim();
+  const raw = options.endpoint ?? config.endpoint ?? process.env.AZURE_SPEECH_ENDPOINT?.trim();
   const endpoint = raw && raw.length > 0
     ? raw
-    : `https://${region}.api.cognitive.microsoft.com`;
+    : `https://${config.region}.api.cognitive.microsoft.com`;
   return endpoint.replace(/\/+$/, "");
 }
 
@@ -713,7 +715,7 @@ export async function runAzureBatchSynthesis(
     (sum, job) => sum + bodySizeBytes(options, job.inputs),
     0,
   );
-  const endpoint = speechEndpoint(options, config.region);
+  const endpoint = speechEndpoint(options, config);
   if (config.getAccessToken) assertTokenEndpoint(endpoint);
 
   console.log(

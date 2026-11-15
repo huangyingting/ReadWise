@@ -12,6 +12,7 @@ import {
   type SpeechConfig as AzureSpeechConfig,
 } from "@/lib/runtime-config/speech";
 import { createLogger } from "@/lib/observability/logger";
+import { issueSpeechAuthorizationToken } from "./authorization-token";
 import type { SpeechWord } from "./timing";
 
 const log = createLogger("speech");
@@ -131,11 +132,36 @@ function wordTimingFromBoundary(text: string, event: AzureWordBoundaryEvent): Sp
  * Whichever branch (success, error, timeout) wins sets `settled = true`,
  * closes the synthesizer exactly once, and cancels any live timer. Late
  * callbacks after settlement perform idempotent cleanup only.
+ *
+ * Entra auth (AZURE_SPEECH_AUTH=entra) first exchanges the app identity for a
+ * Speech authorization token; failing that also resolves null.
  */
-export function synthesize(
+export async function synthesize(
   text: string,
   config: AzureSpeechConfig,
   articleId: string,
+): Promise<SynthesisOutput | null> {
+  let authorizationToken = "";
+  if (config.auth === "entra") {
+    try {
+      authorizationToken = await issueSpeechAuthorizationToken(config);
+    } catch (err) {
+      log.error("speech.synthesis_failure", {
+        articleId,
+        reason: "authorization_token",
+        errorType: err instanceof Error ? err.constructor.name : "unknown",
+      });
+      return null;
+    }
+  }
+  return synthesizeWithSdk(text, config, articleId, authorizationToken);
+}
+
+function synthesizeWithSdk(
+  text: string,
+  config: AzureSpeechConfig,
+  articleId: string,
+  authorizationToken: string,
 ): Promise<SynthesisOutput | null> {
   const start = Date.now();
   const synthesizeTimeoutMs = speechTimeoutMs();
@@ -171,10 +197,10 @@ export function synthesize(
     }
 
     try {
-      const speechConfig = sdk.SpeechConfig.fromSubscription(
-        config.key,
-        config.region,
-      );
+      const speechConfig =
+        config.auth === "entra"
+          ? sdk.SpeechConfig.fromAuthorizationToken(authorizationToken, config.region)
+          : sdk.SpeechConfig.fromSubscription(config.key, config.region);
       speechConfig.speechSynthesisVoiceName = config.voice;
       speechConfig.speechSynthesisOutputFormat = resolveOutputFormat(
         config.format,

@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-15"
 description: "Documents common lifecycle and health model for optional external providers. Captures current provider states, credential rotation, outage response, degradation, drift handling, and operator actions."
 ---
 
@@ -149,8 +149,9 @@ stored in the `ContentSource` table (`healthStatus` column). See
 
 | Env var | Required | Notes |
 | --- | --- | --- |
-| `AZURE_OPENAI_ENDPOINT` | yes | HTTPS URL, trailing slashes stripped |
-| `AZURE_OPENAI_API_KEY` | yes | Never logged or emitted to clients |
+| `AZURE_OPENAI_ENDPOINT` | yes | HTTPS URL, trailing slashes stripped; Entra auth needs the custom-domain `https://<resource>.cognitiveservices.azure.com` |
+| `AZURE_OPENAI_AUTH` | no | `key` (default) or `entra` (bearer token for the shared `AZURE_AI_*` identity; see [Entra identity](#entra-identity-for-ai-services)) |
+| `AZURE_OPENAI_API_KEY` | key auth | Never logged or emitted to clients |
 | `AZURE_OPENAI_DEPLOYMENT` | yes | Model deployment name in your Azure resource |
 | `AZURE_OPENAI_API_VERSION` | yes | `YYYY-MM-DD` or `YYYY-MM-DD-preview` |
 | `AI_PROVIDER` | no | Default `azure`; registry key for the active provider |
@@ -179,7 +180,7 @@ all AI helpers internally. It returns `false` when any required var is absent.
 
 ### Common operational tasks
 
-**Rotate API key**
+**Rotate API key** (key auth)
 
 1. Create the new key in the Azure portal.
 2. Update `AZURE_OPENAI_API_KEY` in your platform secrets.
@@ -211,13 +212,48 @@ curl -s http://localhost:3000/api/admin/ai/usage | jq .summary
 
 | Env var | Required | Notes |
 | --- | --- | --- |
-| `AZURE_SPEECH_KEY` | yes | Never logged or emitted to clients |
+| `AZURE_SPEECH_AUTH` | no | `key` (default) or `entra` |
+| `AZURE_SPEECH_KEY` | key auth | Never logged or emitted to clients |
 | `AZURE_SPEECH_REGION` | yes | Azure region slug, e.g. `eastus` |
+| `AZURE_SPEECH_ENDPOINT` | entra auth | Custom-domain endpoint; its STS `issueToken` accepts bearer tokens |
 | `AZURE_SPEECH_VOICE` | no | Default `en-US-AndrewMultilingualNeural` |
 | `AZURE_SPEECH_OUTPUT_FORMAT` | no | Default `audio-24khz-96kbitrate-mono-mp3`; see `runtime.ts` for supported formats |
 | `SPEECH_TIMEOUT_MS` | no | Per-synthesis timeout in ms (default 30 000) |
 
-Sources: `src/lib/runtime-config/speech.ts`, `src/lib/speech/provider-azure.ts`.
+Sources: `src/lib/runtime-config/speech.ts`, `src/lib/speech/provider-azure.ts`,
+`src/lib/speech/authorization-token.ts`.
+
+In both modes the browser only ever receives a short-lived (~10 min),
+Speech-scoped STS token from `GET /api/speech/token`. In entra mode server-side
+synthesis uses the same STS token (`SpeechConfig.fromAuthorizationToken`).
+
+### Entra identity for AI services
+
+Resources with local auth disabled (`disableLocalAuth=true`) reject keys, so
+`AZURE_OPENAI_AUTH=entra` / `AZURE_SPEECH_AUTH=entra` authenticate with one
+shared runtime identity (`src/lib/runtime-config/azure-auth.ts`,
+`src/lib/azure/ai-token.ts`):
+
+| Env var | Notes |
+| --- | --- |
+| `AZURE_AI_TENANT_ID`, `AZURE_AI_CLIENT_ID` | Service principal (app registration) in the AI resource's tenant |
+| `AZURE_AI_CLIENT_CERTIFICATE` | PEM with private key, base64-encoded (one line) or `\n`-escaped; preferred |
+| `AZURE_AI_CLIENT_SECRET` | Alternative to the certificate |
+| `AZURE_AI_USE_MANAGED_IDENTITY` | `true` to use managed identity instead (optional user-assigned `AZURE_AI_CLIENT_ID`); only where containers may reach IMDS |
+
+Required RBAC on the AI resource: **Cognitive Services OpenAI User**,
+**Cognitive Services Speech User**, and a custom role granting only
+`Microsoft.CognitiveServices/accounts/SpeechServices/issuetoken/action` (STS
+token issuance is not part of Speech User). Managed identity does not work on
+the WebStack VM: app containers are deliberately blocked from IMDS so they
+cannot obtain the VM's backup identity, and the AI resource may live in another
+tenant. `/api/ready` reports the identity variables in place of the keys and
+warns on an undecodable certificate.
+
+**Rotate the certificate**: add a new certificate to the app registration
+(`az ad app credential reset --id <app> --cert @new.pem --append`), update
+`AZURE_AI_CLIENT_CERTIFICATE`, redeploy, confirm `/api/ready`, then remove the old
+certificate credential.
 
 ### Health signals
 

@@ -14,6 +14,7 @@ let lastFindManyArgs: unknown = null;
 let storageConfigured = false;
 let ttsEnabled = true;
 let speechRuntimeConfig: SpeechConfig | null = {
+  auth: "key",
   key: "speech-key",
   region: "eastus",
   voice: "en-US-TestNeural",
@@ -108,6 +109,7 @@ beforeEach(async () => {
   storageConfigured = false;
   ttsEnabled = true;
   speechRuntimeConfig = {
+    auth: "key",
     key: "speech-key",
     region: "eastus",
     voice: "en-US-TestNeural",
@@ -1015,6 +1017,22 @@ describe("batch synthesis main entry orchestration", () => {
     speechRuntimeConfig = null;
     assert.equal(await withArgv(["--all"], () => main()), 1);
     assert.match(errors.join("\n"), /Azure Speech is not configured/);
+  });
+
+  test("uses the app's Entra identity when Speech runs in entra mode", async (t) => {
+    const { main } = await loadBatchSynthesis();
+    const { logs } = captureConsole(t);
+    articleRows = [article()];
+    speechRuntimeConfig = {
+      auth: "entra",
+      endpoint: "https://res.cognitiveservices.azure.com",
+      region: "japaneast",
+      voice: "en-US-TestNeural",
+      format: "audio-16khz-32kbitrate-mono-mp3",
+    };
+
+    assert.equal(await withArgv(["--all", "--dry-run"], () => main()), 0);
+    assert.match(logs.join("\n"), /Selected 1 article/);
   });
 
   test("runs single-pass dry runs and loop mode through main", async (t) => {

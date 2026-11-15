@@ -22,6 +22,7 @@ import {
   inspectEmailDeliveryConfig,
 } from "./account-admission";
 import { inspectRetentionWorkerConfig } from "./maintenance";
+import { aiServicesIdentityEnv, azureAuthMode, decodeCertificatePem } from "./azure-auth";
 
 const SUPPORTED_SPEECH_OUTPUT_FORMATS = new Set([
   "audio-16khz-32kbitrate-mono-mp3",
@@ -203,6 +204,19 @@ function evaluateStorage(): ConfigCheckReport {
   return unknownStorageReport(storageModeRaw);
 }
 
+/** A certificate is set but is not a PEM containing a private key. */
+function aiCertificateIssue(): ConfigIssue | null {
+  const certificate = envValue("AZURE_AI_CLIENT_CERTIFICATE");
+  return certificate && !decodeCertificatePem(certificate)
+    ? issue(
+        "warning",
+        "invalid_ai_client_certificate",
+        "AZURE_AI_CLIENT_CERTIFICATE must be a PEM (or base64-encoded PEM) that includes the private key.",
+        ["AZURE_AI_CLIENT_CERTIFICATE"],
+      )
+    : null;
+}
+
 function validateRuntimeSections() {
   const database = evaluateRequired(["DATABASE_URL"], [
     (values) =>
@@ -229,9 +243,16 @@ function validateRuntimeSections() {
     (values) => httpUrlIssue("NEXTAUTH_URL", values.NEXTAUTH_URL),
   ]);
 
+  const aiEntra = azureAuthMode("AZURE_OPENAI_AUTH") === "entra";
   const ai = evaluateOptional(
-    ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT", "AZURE_OPENAI_API_VERSION"],
     [
+      "AZURE_OPENAI_ENDPOINT",
+      ...(aiEntra ? aiServicesIdentityEnv() : ["AZURE_OPENAI_API_KEY"]),
+      "AZURE_OPENAI_DEPLOYMENT",
+      "AZURE_OPENAI_API_VERSION",
+    ],
+    [
+      () => (aiEntra ? aiCertificateIssue() : null),
       (values) =>
         values.AZURE_OPENAI_ENDPOINT
           ? httpUrlIssue("AZURE_OPENAI_ENDPOINT", values.AZURE_OPENAI_ENDPOINT, "warning")
@@ -247,7 +268,17 @@ function validateRuntimeSections() {
   // AI_PROVIDER and AI_MODERATION_ENABLED are visible tuning knobs for this section.
   ai.env.push("AI_PROVIDER", "AI_MODERATION_ENABLED");
 
-  const speech = evaluateOptional(["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION"], [
+  const speechEntra = azureAuthMode("AZURE_SPEECH_AUTH") === "entra";
+  const speech = evaluateOptional(
+    speechEntra
+      ? ["AZURE_SPEECH_REGION", "AZURE_SPEECH_ENDPOINT", ...aiServicesIdentityEnv()]
+      : ["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION"],
+    [
+    () => (speechEntra ? aiCertificateIssue() : null),
+    (values) =>
+      speechEntra && values.AZURE_SPEECH_ENDPOINT
+        ? httpUrlIssue("AZURE_SPEECH_ENDPOINT", values.AZURE_SPEECH_ENDPOINT, "warning")
+        : null,
     (values) =>
       values.AZURE_SPEECH_REGION && !/^[a-z][a-z0-9-]*$/i.test(values.AZURE_SPEECH_REGION)
         ? issue("warning", "invalid_speech_region", "AZURE_SPEECH_REGION should be an Azure region slug such as eastus.", [

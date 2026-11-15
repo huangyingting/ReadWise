@@ -10,7 +10,8 @@ import {
   runAzureBatchSynthesis,
   type AzureBatchSpeechConfig,
 } from "@/lib/speech/azure-batch-synthesis";
-import { createEntraTokenProvider } from "@/lib/speech/entra-auth";
+import { getAiServicesAccessToken } from "@/lib/azure/ai-token";
+import { createEntraTokenProvider } from "@/lib/azure/entra-auth";
 import { createConsoleLogger } from "@/lib/worker";
 
 import { addUniqueFromCsv, isMain, registerShutdownSignals, runCli, warnUnknown } from "./lib/cli";
@@ -427,13 +428,20 @@ async function runLoop(args: Args, deps: RunLoopDeps): Promise<number> {
 }
 
 async function resolveSpeechConfig(args: Args): Promise<AzureBatchSpeechConfig | null> {
-  if (!args.entraAuth) return speechConfig.get();
+  if (!args.entraAuth) {
+    const cfg = speechConfig.get();
+    if (!cfg) return null;
+    // AZURE_SPEECH_AUTH=entra: the app's own service principal / managed identity.
+    return cfg.auth === "entra"
+      ? { region: cfg.region, voice: cfg.voice, endpoint: cfg.endpoint, getAccessToken: getAiServicesAccessToken }
+      : { region: cfg.region, voice: cfg.voice, key: cfg.key };
+  }
   const { region = "", voice = DEFAULT_SPEECH_VOICE } = speechConfig.get() ?? {};
-  const getAccessToken = await createEntraTokenProvider({
-    mode: args.entraAuth,
-    tenantId: args.tenantId!,
-    ...(args.clientId ? { clientId: args.clientId } : {}),
-  });
+  const getAccessToken = await createEntraTokenProvider(
+    args.entraAuth === "cli"
+      ? { mode: "cli", tenantId: args.tenantId! }
+      : { mode: "device", tenantId: args.tenantId!, ...(args.clientId ? { clientId: args.clientId } : {}) },
+  );
   // Sign in once up front so loop passes reuse the cached token instead of
   // each failing on an expired device code. Dry runs never prompt.
   if (!args.dryRun) await getAccessToken();
@@ -473,7 +481,9 @@ async function main(): Promise<number> {
     return 1;
   }
   if (!config) {
-    console.error("Azure Speech is not configured. Set AZURE_SPEECH_KEY and AZURE_SPEECH_REGION.");
+    console.error(
+      "Azure Speech is not configured. Set AZURE_SPEECH_REGION plus AZURE_SPEECH_KEY, or AZURE_SPEECH_AUTH=entra with AZURE_SPEECH_ENDPOINT and the AZURE_AI_* identity.",
+    );
     return 1;
   }
 

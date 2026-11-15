@@ -97,6 +97,14 @@ Optional AI, Speech, Push, OAuth, tracing, and Azure Storage settings may be
 added to `VM_APP_ENV`. Without Azure Storage configuration, local speech media
 is container-local cache and is not durable across deployments.
 
+The Azure AI Services Entra settings (`AZURE_OPENAI_AUTH=entra`,
+`AZURE_SPEECH_AUTH=entra`, `AZURE_SPEECH_ENDPOINT`, and the `AZURE_AI_*`
+service-principal identity with its base64 certificate) live in the separate
+repository secret `VM_AI_AUTH_ENV`, which `deploy-vm.yml` appends after
+`VM_APP_ENV`, so the certificate can be rotated without rewriting the main
+secret. See
+[`provider-operations.md`](./provider-operations.md#entra-identity-for-ai-services).
+
 Account email is queued transactionally in PostgreSQL and delivered by the
 private `vibewatch/sendmail` GitHub Actions repository. The WebStack VM does not
 open SMTP connections or hold the shared DKIM private key.

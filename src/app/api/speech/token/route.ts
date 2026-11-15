@@ -6,7 +6,7 @@ import {
   enforceRateLimitPolicy,
   sessionUserRateLimitPolicy,
 } from "@/lib/security/rate-limit/index";
-import { providerFetch } from "@/lib/http/provider-client";
+import { issueSpeechAuthorizationToken } from "@/lib/speech/authorization-token";
 
 // Azure Speech SDK has Node-only native bindings.
 export const runtime = "nodejs";
@@ -26,29 +26,18 @@ function speechServiceUnavailableResponse() {
   return NextResponse.json(SPEECH_SERVICE_UNAVAILABLE, { status: 502 });
 }
 
-function speechTokenUrl(region: string): string {
-  return `https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`;
-}
 
-async function issueSpeechToken(key: string, region: string): Promise<Response> {
-  return providerFetch(
-    speechTokenUrl(region),
-    {
-      method: "POST",
-      headers: { "Ocp-Apim-Subscription-Key": key },
-    },
-    { provider: "speech-token" },
-  );
-}
 
 /**
  * GET /api/speech/token
  *
- * Exchanges the server-held AZURE_SPEECH_KEY for a short-lived (~10 min)
- * Azure authorization token and returns it with the region so the browser
- * Speech SDK can call `SpeechConfig.fromAuthorizationToken(token, region)`.
+ * Exchanges the server-held credential (AZURE_SPEECH_KEY, or the Entra
+ * AZURE_AI_* identity in AZURE_SPEECH_AUTH=entra mode) for a short-lived
+ * (~10 min) Speech authorization token and returns it with the region so the
+ * browser Speech SDK can call `SpeechConfig.fromAuthorizationToken(token, region)`.
  *
- * The AZURE_SPEECH_KEY is NEVER sent to the client — only the ephemeral token.
+ * Neither the key nor an Entra access token is ever sent to the client — only
+ * the ephemeral, Speech-scoped token.
  *
  * Degrades gracefully: returns { configured: false } (200) when credentials
  * are absent so the client can hide the pronunciation feature rather than 500.
@@ -63,19 +52,13 @@ export const GET = createHandler({}, async ({ session }) => {
   if (!cfg) {
     return unconfiguredResponse();
   }
-  const { key, region } = cfg;
 
-  let tokenRes: Response;
+  let token: string;
   try {
-    tokenRes = await issueSpeechToken(key, region);
+    token = await issueSpeechAuthorizationToken(cfg);
   } catch {
     return speechServiceUnavailableResponse();
   }
 
-  if (!tokenRes.ok) {
-    return speechServiceUnavailableResponse();
-  }
-
-  const token = await tokenRes.text();
-  return NextResponse.json({ configured: true, token, region });
+  return NextResponse.json({ configured: true, token, region: cfg.region });
 });

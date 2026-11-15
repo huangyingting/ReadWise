@@ -52,7 +52,7 @@ Operations).
 | `src/lib/speech/index.ts` | Narration delivery interface. Exports `isSpeechConfigured`, `getOrCreateArticleSpeech`, `getArticleSpeechAudio`, and the `SpeechResult` type. |
 | `src/lib/speech/provider-azure.ts` | Azure SDK isolation — the only module that imports `microsoft-cognitiveservices-speech-sdk`. |
 | `src/lib/speech/azure-batch-synthesis.ts` | Full Azure Batch workflow behind `runAzureBatchSynthesis`: selection, SSML, job planning, concurrent REST jobs, result parsing, timing enrichment, and persistence. |
-| `src/lib/speech/entra-auth.ts` | Entra ID token providers (device code, Azure CLI) for Batch runs against Speech resources with key auth disabled. |
+| `src/lib/azure/entra-auth.ts` | Entra ID token providers (service principal, managed identity, device code, Azure CLI) shared by runtime AI/Speech auth and Batch runs against resources with key auth disabled. |
 | `src/lib/speech/repository.ts` | ArticleSpeech DB reads/writes, corrupt-cache recovery, `MediaAsset` upsert, storage interaction. |
 | `src/lib/speech/text-basis.ts` | Canonical Narration text basis preparation and cache-reconstruction policy for real-time and Batch adapters. |
 | `src/lib/speech/timing.ts` | Runtime word-timing types, tokenization, and audio-time utilities. |

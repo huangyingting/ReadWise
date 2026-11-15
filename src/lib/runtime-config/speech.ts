@@ -4,13 +4,21 @@
  * IMPORTANT: never import from a Client Component.
  */
 import { defineFeatureConfig, envValue, type FeatureConfig } from "./env";
+import { aiServicesIdentity, azureAuthMode } from "./azure-auth";
 
-export type SpeechConfig = {
-  key: string;
+type SpeechSettings = {
   region: string;
   voice: string;
   format: string;
 };
+
+/**
+ * Key auth uses AZURE_SPEECH_KEY. Entra auth (AZURE_SPEECH_AUTH=entra) uses the
+ * shared AZURE_AI_* identity and the resource's custom-domain
+ * AZURE_SPEECH_ENDPOINT, where the STS endpoint accepts bearer tokens.
+ */
+export type SpeechConfig = SpeechSettings &
+  ({ auth: "key"; key: string } | { auth: "entra"; endpoint: string });
 
 /** Default synthesis voice when AZURE_SPEECH_VOICE is unset. */
 export const DEFAULT_SPEECH_VOICE = "en-US-AndrewMultilingualNeural";
@@ -35,15 +43,21 @@ export function speechTimeoutMs(): number {
 
 /** Azure Speech config; voice/format fall back to project defaults. */
 export const speechConfig: FeatureConfig<SpeechConfig> = defineFeatureConfig(() => {
-  const key = envValue("AZURE_SPEECH_KEY");
   const region = envValue("AZURE_SPEECH_REGION");
-  if (!key || !region) {
+  if (!region) {
     return null;
   }
-  return {
-    key,
+  const settings: SpeechSettings = {
     region,
     voice: speechSetting("AZURE_SPEECH_VOICE", DEFAULT_SPEECH_VOICE),
     format: speechSetting("AZURE_SPEECH_OUTPUT_FORMAT", DEFAULT_SPEECH_OUTPUT_FORMAT),
   };
+  if (azureAuthMode("AZURE_SPEECH_AUTH") === "entra") {
+    const endpoint = envValue("AZURE_SPEECH_ENDPOINT")?.replace(/\/+$/, "");
+    return endpoint && aiServicesIdentity.isConfigured()
+      ? { ...settings, auth: "entra", endpoint }
+      : null;
+  }
+  const key = envValue("AZURE_SPEECH_KEY");
+  return key ? { ...settings, auth: "key", key } : null;
 });

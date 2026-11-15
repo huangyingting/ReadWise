@@ -288,6 +288,7 @@ test("runtime config leaf modules clamp environment values", async () => {
   process.env.AZURE_SPEECH_VOICE = "en-US-TestNeural";
   process.env.AZURE_SPEECH_OUTPUT_FORMAT = "audio-16khz-32kbitrate-mono-mp3";
   assert.deepEqual(speech.speechConfig.get(), {
+    auth: "key",
     key: "test-key",
     region: "eastus",
     voice: "en-US-TestNeural",

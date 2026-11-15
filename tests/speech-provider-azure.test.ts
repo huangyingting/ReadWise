@@ -26,6 +26,7 @@ let mode: SpeechMode;
 let timeoutMs: number;
 let closedCount: number;
 let capturedConfig: Record<string, unknown> | null;
+let stsFails = false;
 
 /** Stored callbacks for deferred mode — allows testing late callback after timeout. */
 let deferredOnSuccess: ((result: { reason: string; audioData?: Uint8Array }) => void) | null;
@@ -33,6 +34,7 @@ let deferredOnError: ((message: string) => void) | null;
 
 const originalSpeechTimeoutMs = process.env.SPEECH_TIMEOUT_MS;
 const AZURE_CONFIG = {
+  auth: "key" as const,
   key: "test-key",
   region: "eastus",
   voice: "en-US-TestNeural",
@@ -56,6 +58,11 @@ before(() => {
 
     static fromSubscription(key: string, region: string) {
       capturedConfig = { key, region };
+      return new SpeechConfig();
+    }
+
+    static fromAuthorizationToken(token: string, region: string) {
+      capturedConfig = { token, region };
       return new SpeechConfig();
     }
   }
@@ -145,9 +152,18 @@ before(() => {
       createLogger: () => logger,
     },
   });
+  mock.module("@/lib/speech/authorization-token", {
+    namedExports: {
+      issueSpeechAuthorizationToken: async () => {
+        if (stsFails) throw new TypeError("sts down");
+        return "sts-token";
+      },
+    },
+  });
 });
 
 beforeEach(() => {
+  stsFails = false;
   mode = "success";
   timeoutMs = 100;
   process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
@@ -397,4 +413,37 @@ test("close() throwing on error callback still settles null", async () => {
     (l) => l.level === "warn" && l.msg === "speech.close_failure",
   );
   assert.ok(closeWarn, "should warn on close failure in error path");
+});
+
+test("entra mode synthesizes with a Speech authorization token", async () => {
+  const { synthesize } = await import("@/lib/speech/provider-azure");
+  const entraConfig = {
+    auth: "entra" as const,
+    endpoint: "https://res.cognitiveservices.azure.com",
+    region: "eastus",
+    voice: "en-US-TestNeural",
+    format: "audio-16khz-32kbitrate-mono-mp3",
+  };
+
+  const result = await synthesize("hello world", entraConfig, "article-entra");
+  assert.ok(result);
+  assert.deepEqual(capturedConfig, {
+    token: "sts-token",
+    region: "eastus",
+    voice: "en-US-TestNeural",
+    format: "16-32",
+  });
+
+  stsFails = true;
+  capturedConfig = null;
+  assert.equal(await synthesize("hello world", entraConfig, "article-entra"), null);
+  assert.equal(capturedConfig, null, "no synthesizer without a token");
+  assert.ok(
+    logCalls.some(
+      (call) =>
+        call.msg === "speech.synthesis_failure" &&
+        call.meta.reason === "authorization_token" &&
+        call.meta.errorType === "TypeError",
+    ),
+  );
 });
