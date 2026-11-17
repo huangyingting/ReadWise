@@ -24,6 +24,7 @@ import PushReminderToggle from "@/components/PushReminderToggle";
 import ReminderPreferencesForm from "@/components/ReminderPreferencesForm";
 import SettingsThemeRow from "@/components/SettingsThemeRow";
 import NarrationSettingsCard from "@/components/NarrationSettingsCard";
+import JoinClassForm from "@/components/JoinClassForm";
 import { settings } from "@/lib/copy/pages";
 import { pushConfig } from "@/lib/runtime-config/push";
 import { seedLevelForProfile } from "@/lib/learning/placement";
@@ -56,6 +57,20 @@ function AppearanceCard() {
       </CardHeader>
       <CardBody>
         <SettingsThemeRow />
+      </CardBody>
+    </Card>
+  );
+}
+
+function ClassesCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle level="h2">Classes</CardTitle>
+        <CardMeta>Join a teacher’s class with the code they shared. Assigned readings appear in Assignments.</CardMeta>
+      </CardHeader>
+      <CardBody>
+        <JoinClassForm label="Join a class" />
       </CardBody>
     </Card>
   );
@@ -139,6 +154,7 @@ const SETTINGS_SECTIONS = {
   placement: { id: "placement", label: "Reading placement" },
   appearance: { id: "appearance", label: "Appearance" },
   narration: { id: "narration", label: "Narration" },
+  classes: { id: "classes", label: "Classes" },
   account: { id: "account", label: "Account" },
   signIn: { id: "sign-in", label: "Sign-in methods" },
   notifications: { id: "notifications", label: "Notifications" },
@@ -229,6 +245,10 @@ export default async function SettingsPage() {
             {/* Narration preferences — per browser, saved immediately */}
             <SettingsAnchor section={SETTINGS_SECTIONS.narration}>
               <NarrationSettingsCard />
+            </SettingsAnchor>
+
+            <SettingsAnchor section={SETTINGS_SECTIONS.classes}>
+              <ClassesCard />
             </SettingsAnchor>
 
             {/* Account card — read-only, outside the form */}

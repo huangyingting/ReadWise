@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-10-11"
+last_updated: "2026-11-17"
 description: "Documents invitation-only and public account admission, password registration and recovery, encrypted GitHub Actions email queueing, explicit social-account linking, admin invitation operations, bootstrap, rate limits, and retention."
 ---
 
@@ -71,6 +71,12 @@ seven-day lifetime. Only one pending invitation may exist for an email.
 - `/admin/invitations` and its APIs require `members.manage`.
 - Audit records contain invitation ids, state, delivery outcome, and expiry only;
   they never contain recipient email or secret links.
+
+Classroom join codes are not account invitations: they enroll an existing
+signed-in user in a classroom and never create a User or bypass the admission
+mode (see [Classroom join codes](multi-tenancy.md#classroom-join-codes-1309)).
+In Invitation-only mode a student without an account still needs an Account
+Invitation first; classroom-scoped invitation onboarding is not implemented.
 
 Email queueing is optional in Invitation-only mode because the admin UI exposes
 the one-time link after create/rotate. Without the workflow, forgotten-password
@@ -157,7 +163,7 @@ normalized-email key where an email is available.
 | `ACCOUNT_MAIL_WORKFLOW_ENABLED` | `false`; must be `true` before account mail is queued. |
 | `ACCOUNT_MAIL_WORKER_SECRET` | Shared bearer credential used only by the private sender workflow and `/api/account-mail/tick`. |
 | `ACCOUNT_ADMISSION_RETENTION_DAYS` | `90`; retention for terminal invitation records. |
-| `RATE_LIMIT_AUTH_REQUESTS` | `10` per shared rate-limit window by default. |
+| `RATE_LIMIT_AUTH_REQUESTS` | `10` per shared rate-limit window by default. Also bounds classroom join-code attempts (per user, and failed attempts per IP). |
 | `APP_URL` | Preferred public origin for generated invitation, verification, and reset links. Falls back to `NEXT_PUBLIC_APP_URL`, `NEXTAUTH_URL`, then `NEXT_PUBLIC_SITE_URL`. |
 
 Leave invitation expiry blank to use the seven-day default. The admin UI exposes

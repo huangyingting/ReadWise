@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-17"
 description: "Documents learner/teacher assignment workflows built on Access-owned organizations, classrooms, memberships, and Assignment models. Teacher UI creates classrooms, manages rosters, assigns accessible articles, and views classroom analytics; student UI tracks assigned reading completion without changing Article Library access rules."
 ---
 
@@ -29,7 +29,8 @@ flowchart TD
 | Teacher landing | `src/app/(app)/teacher/page.tsx` | Teacher classroom overview. |
 | Classroom detail | `src/app/(app)/teacher/classrooms/[id]/page.tsx` | Roster, assignments, analytics, and classroom actions. |
 | Student assignments | `src/app/(app)/assignments/page.tsx` | Authenticated learner view of assigned readings. |
-| Classroom APIs | `/api/classrooms`, `/api/classrooms/[id]/members`, `/api/classrooms/[id]/assignments`, `/api/classrooms/[id]/analytics` | Create/manage classrooms, roster, assignments, analytics. |
+| Join a class | `src/app/(app)/join-class/page.tsx`, Settings → Classes | Learner class-code entry. |
+| Classroom APIs | `/api/classrooms`, `/api/classrooms/[id]/members`, `/api/classrooms/[id]/join-code`, `/api/classrooms/join`, `/api/classrooms/[id]/assignments`, `/api/classrooms/[id]/analytics` | Create/manage classrooms, roster, assignments, analytics. |
 | Assignment API | `/api/assignments/[id]/completion` | Student completion/quiz-score status update. |
 | Access model | `Organization`, `Membership`, `Classroom`, `ClassroomMembership`, `Assignment`, `AssignmentCompletion` | Tenant/classroom data model in Prisma. |
 | RBAC | `src/lib/rbac.ts`, `docs/access/rbac.md` | Tenant/classroom capability resolution. |
@@ -55,6 +56,22 @@ membership/capability. A classroom has:
 
 Roster changes are scoped to the classroom. Adding a student should not grant
 system admin privileges or visibility into unrelated classrooms.
+
+### Join codes
+
+Instead of adding students one by one, a teacher or org admin can issue a join
+code from the classroom page's Join code card: choose an expiry (1, 7, or 30
+days, or none) and an optional seat limit (up to 1000), then share the code or the copyable
+`/join-class?code=…` link. Rotating replaces the code and invalidates the old
+one immediately; Disable stops new joins while existing students stay enrolled.
+Archived classrooms can disable a code but not issue one.
+
+Signed-in learners enter the code at `/join-class` (linked from `/assignments`)
+or Settings → Classes and are enrolled as `Student`. A rejected code shows why
+on the field — not valid, expired, class full, or class no longer active — and
+the teacher's card shows how many have joined. The rules, rate limits, and
+audit/security events are documented in
+[Access: classroom join codes](../access/multi-tenancy.md#classroom-join-codes-1309).
 
 ## Assignment lifecycle
 

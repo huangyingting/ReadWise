@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-10-11"
+last_updated: "2026-11-17"
 description: "Documents data classification, retention, export, cascade, and privacy treatment across Prisma models and client stores. Captures current model-by-model classification, deletion behavior, retention windows, export handling, and follow-up gaps."
 ---
 
@@ -257,6 +257,7 @@ flowchart TD
 | `Membership` (userId, orgId, role) | Access / Tenancy | **personal** | ✅ orgId, role, timestamps | Cascade via `Membership.userId` or `Membership.orgId` | Cascade via `Membership.orgId` | Deleted with user or org | Safe |
 | `Classroom` (orgId, name, teacherId) | Access / Tenancy | **operational** | ⛔ | Teacher link cascades via `Classroom.teacherId`; classroom deleted if teacher deleted | Cascade via `Classroom.orgId` | Deleted with org | Safe |
 | `ClassroomMembership` (classroomId, userId, role) | Access / Tenancy | **personal** | ✅ classroomId, role, createdAt | Cascade via `ClassroomMembership.userId` or classroom | Cascade via classroom → org | Deleted with user or org | Safe |
+| `ClassroomJoinCode` (classroomId, code, createdById, expiresAt, maxUses, useCount, disabledAt) | Access / Tenancy | **operational** (access-control secret) | ⛔ (`User.createdClassroomJoinCodes` is an explicit export exclusion) | `createdById` set null; the code stays with its classroom | Cascade via classroom → org | One row per classroom; replaced on rotate, kept (disabled) on disable, deleted with classroom | **No** — `code` is a live enrollment secret stored normalized so teachers can re-display it; never log or audit it (sensitive key `joincode` is redacted) |
 | `Assignment` (classroomId, articleId, dueDate, instructions) | Access / Tenancy | **operational** | ⛔ | `instructions` may reference a deleted article; article cascade removes assignment | Cascade via classroom → org | Deleted with classroom | `instructions` is teacher-authored text; avoid logging |
 | `AssignmentCompletion` (assignmentId, studentId, status, quizScore, pointsAwarded, completedAt) | Access / Tenancy | **personal** | ✅ assignmentId, status, quizScore, pointsAwarded, completedAt, timestamps | Cascade via `AssignmentCompletion.studentId` | Cascade via assignment → classroom → org | Deleted with user or org | Safe |
 

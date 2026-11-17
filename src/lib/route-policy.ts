@@ -28,6 +28,7 @@ export const PROTECTED_PREFIXES = [
   "/import",
   "/teacher",
   "/assignments",
+  "/join-class",
   "/series",
 ] as const;
 
@@ -83,6 +84,7 @@ export const MIDDLEWARE_MATCHER: readonly string[] = [
   subtreeMatcher("/teacher"),
   "/assignments",
   subtreeMatcher("/assignments"),
+  "/join-class",
   "/series",
   subtreeMatcher("/series"),
 ];

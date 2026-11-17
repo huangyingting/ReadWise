@@ -288,6 +288,7 @@ export const USER_EXPORT_RELATION_EXCLUSIONS = {
   ownedArticles: "Article text is not duplicated into personal-data exports.",
   ownedTags: "Private tag records are not part of the current export contract.",
   taughtClassrooms: "Classrooms are tenant resources rather than user-owned records.",
+  createdClassroomJoinCodes: "Classroom join codes are tenant access-control data, not user-owned records.",
   todaySessions: "Daily workflow anchors are not part of the current export contract.",
   seriesEnrollments: "Reading-series progress is not part of the current export contract.",
 } as const;

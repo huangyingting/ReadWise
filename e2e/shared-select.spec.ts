@@ -53,6 +53,12 @@ test("reader audio controls support seeking on mobile dark mode", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
+    // On-device narration is the per-browser default; this test exercises the
+    // cloud player, so pick it the way Settings → Narration would.
+    window.localStorage.setItem(
+      "readwise:reader-prefs",
+      JSON.stringify({ mode: "dark", fontScale: 1, narration: "cloud" }),
+    );
     HTMLMediaElement.prototype.play = function play() {
       this.dispatchEvent(new Event("play"));
       return Promise.resolve();

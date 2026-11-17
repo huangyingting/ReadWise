@@ -17,6 +17,7 @@ const EXPIRED_COUNTER_SWEEP_PROBABILITY = 0.05;
 type CounterClient = {
   $transaction?: <R>(fn: (tx: CounterClient) => Promise<R>) => Promise<R>;
   rateLimitCounter: {
+    findUnique: (args: unknown) => Promise<{ count: number } | null>;
     upsert: (args: unknown) => Promise<{ count: number }>;
     deleteMany: (args: unknown) => Promise<unknown>;
   };
@@ -195,6 +196,25 @@ async function upsertDatabaseCounter(
   }
 }
 
+async function readDatabaseCounter(
+  key: string,
+  windowMs: number,
+  nowMs: number,
+  client: CounterClient = prisma as unknown as CounterClient,
+): Promise<number> {
+  const windowStart = new Date(epochWindowStart(nowMs, windowMs));
+  try {
+    const row = await client.rateLimitCounter.findUnique({
+      where: { bucketKey_windowStart: { bucketKey: key, windowStart } },
+      select: { count: true },
+    });
+    return row?.count ?? 0;
+  } catch (err) {
+    tripDatabaseCircuit(err);
+    throw err;
+  }
+}
+
 async function consumeDatabaseBatch(
   reservations: ConsumeFixedWindowBatchReservation[],
   windowMs: number,
@@ -264,6 +284,22 @@ function consumeMemoryBatch(
     );
   }
   return { allowed: true, counts };
+}
+
+/**
+ * Reads the current window's count without consuming, from the same store
+ * {@link consumeFixedWindow} would use (shared database, else process memory).
+ */
+export async function peekFixedWindow(input: ConsumeFixedWindowInput): Promise<number> {
+  const nowMs = input.nowMs ?? Date.now();
+  if (databaseEnabled(nowMs)) {
+    try {
+      return await readDatabaseCounter(input.key, input.windowMs, nowMs);
+    } catch {
+      // The database adapter opened the circuit; read the memory fallback.
+    }
+  }
+  return nextMemoryCount(input.key, input.windowMs, nowMs, input.fallbackWindowAnchor) - 1;
 }
 
 /**

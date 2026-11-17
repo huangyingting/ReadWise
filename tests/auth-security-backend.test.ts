@@ -194,6 +194,8 @@ before(() => {
         localCounters.set(input.key, next);
         return next;
       },
+      peekFixedWindow: async (input: { key: string }) =>
+        sharedStoreEnabled && !sharedCounterError ? sharedCounterCount : localCounters.get(input.key) ?? 0,
       observeFixedWindow: (input: { key: string }) => {
         const next = (localCounters.get(input.key) ?? 0) + 1;
         localCounters.set(input.key, next);
@@ -330,7 +332,9 @@ test("auth session deletion is idempotent after account deletion cascades", asyn
 });
 
 test("rate limiter maps scopes, propagates 429s, and falls back to memory on store errors", async () => {
-  const { checkRateLimit, checkRateLimitByKey, clientIpKey } = await import("@/lib/security/rate-limit/index");
+  const { assertRateLimitAvailableByKey, checkRateLimit, checkRateLimitByKey, clientIpKey } = await import(
+    "@/lib/security/rate-limit/index"
+  );
 
   await withPatchedClock(async () => {
     await checkRateLimitByKey("user-1", "public");
@@ -348,6 +352,13 @@ test("rate limiter maps scopes, propagates 429s, and falls back to memory on sto
       name: "ApiError",
       status: 429,
     });
+
+    await assert.rejects(() => assertRateLimitAvailableByKey("user-1", "ai"), {
+      name: "ApiError",
+      status: 429,
+    });
+    sharedCounterCount = 0;
+    await assertRateLimitAvailableByKey("user-1", "ai");
 
     sharedCounterError = new Error("store down");
     await checkRateLimitByKey("fallback", "lookup");

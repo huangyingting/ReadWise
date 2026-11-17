@@ -71,6 +71,7 @@ export const config = {
     "/teacher/:path*",
     "/assignments",
     "/assignments/:path*",
+    "/join-class",
     "/series",
     "/series/:path*",
   ],

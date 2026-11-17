@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BookOpenCheck } from "lucide-react";
 import { requireSession } from "@/lib/session";
 import { listAssignmentsForStudent } from "@/lib/classroom";
-import { EmptyState, PageHeader, PageShell } from "@/components/ui";
+import { EmptyState, PageHeader, PageShell, buttonVariants } from "@/components/ui";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import CompleteAssignmentButton from "@/components/teacher/CompleteAssignmentButton";
@@ -26,13 +26,19 @@ export default async function AssignmentsPage() {
       <PageHeader
         title="Assignments"
         description="Readings your teachers have assigned to you."
+        actions={
+          <Link href="/join-class" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            Join a class
+          </Link>
+        }
       />
 
       {assignments.length === 0 ? (
         <EmptyState
           icon={BookOpenCheck}
           title="No assignments yet"
-          description="When a teacher assigns you a reading, it'll show up here."
+          description="When a teacher assigns you a reading, it'll show up here. Got a class code from your teacher?"
+          action={{ href: "/join-class", label: "Join a class" }}
         />
       ) : (
         <AssignmentList assignments={assignments} />

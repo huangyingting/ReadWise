@@ -4,11 +4,13 @@ import type { AssignmentCompletionSource } from "@prisma/client";
 import { requireSession } from "@/lib/session";
 import {
   getClassroom,
+  getClassroomJoinCodeView,
   listClassroomAssignmentMeta,
   listClassroomMembers,
   searchAssignableArticleOptions,
   searchClassroomStudentCandidates,
 } from "@/lib/classroom";
+import type { JoinCodeView } from "@/lib/classroom/join-code-format";
 import { isAssignmentOverdue } from "@/lib/classroom/overdue";
 import { getMembership, hasOrgCapability, isSystemAdmin } from "@/lib/org";
 import { CAPABILITIES } from "@/lib/rbac";
@@ -35,6 +37,7 @@ import AddStudentForm from "@/components/teacher/AddStudentForm";
 import AssignReadingSheet from "@/components/teacher/AssignReadingSheet";
 import AssignmentFeedbackForm from "@/components/teacher/AssignmentFeedbackForm";
 import ClassroomSettingsCard from "@/components/teacher/ClassroomSettingsCard";
+import ClassroomJoinCodeCard from "@/components/teacher/ClassroomJoinCodeCard";
 import DeleteAssignmentButton from "@/components/teacher/DeleteAssignmentButton";
 import EditAssignmentForm from "@/components/teacher/EditAssignmentForm";
 import ReopenAssignmentButton from "@/components/teacher/ReopenAssignmentButton";
@@ -471,6 +474,7 @@ function TeacherSidebar({
   archivedAt,
   students,
   studentCandidates,
+  joinCode,
 }: {
   classroomId: string;
   canManage: boolean;
@@ -479,6 +483,7 @@ function TeacherSidebar({
   archivedAt: string | null;
   students: ClassroomMember[];
   studentCandidates: StudentCandidate[];
+  joinCode: JoinCodeView | null;
 }) {
   return (
     <aside className="flex flex-col gap-[var(--space-6)]">
@@ -487,6 +492,13 @@ function TeacherSidebar({
           classroomId={classroomId}
           classroomName={classroomName}
           archivedAt={archivedAt}
+        />
+      ) : null}
+      {canManageLifecycle ? (
+        <ClassroomJoinCodeCard
+          classroomId={classroomId}
+          initialJoinCode={joinCode}
+          canIssue={archivedAt === null}
         />
       ) : null}
       {canManage ? (
@@ -581,6 +593,7 @@ export default async function ClassroomDetailPage({
     id: student.userId,
     label: memberLabel(student),
   }));
+  const joinCode = canManage ? await getClassroomJoinCodeView(id) : null;
   const [studentCandidates, articleOptions] = canManageActiveClassroom
     ? await Promise.all([
         searchClassroomStudentCandidates(id, classroom.orgId),
@@ -639,6 +652,7 @@ export default async function ClassroomDetailPage({
           archivedAt={classroom.archivedAt?.toISOString() ?? null}
           students={students}
           studentCandidates={studentCandidates}
+          joinCode={joinCode}
         />
       </div>
     </PageShell>

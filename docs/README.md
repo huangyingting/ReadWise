@@ -1,7 +1,7 @@
 ---
 type: "index"
 status: "current"
-last_updated: "2026-10-10"
+last_updated: "2026-11-17"
 description: "Maps durable subsystem documentation for the current ReadWise codebase. Keeps docs flat by subsystem and links feature docs, ADRs, runbooks, generated catalogs, and governance references."
 ---
 
@@ -36,7 +36,6 @@ flowchart LR
 | [`platform/database.md`](./platform/database.md) | SQLite and PostgreSQL workflows, local parity stack, migration testing, and data migration notes. |
 | [`platform/database-runbooks.md`](./platform/database-runbooks.md) | Backup, restore, rollback, and disaster-recovery runbooks. |
 | [`platform/ci.md`](./platform/ci.md) | CI quality gates, required checks, E2E tiers, and failure diagnosis. |
-| [`platform/git-workflow.md`](./platform/git-workflow.md) | Three-branch model (main/dev/insiders), branch naming, worktree workflow, and promotion pipeline. |
 
 ### Access and tenancy
 
@@ -44,7 +43,7 @@ flowchart LR
 | --- | --- |
 | [`access/account-lifecycle.md`](./access/account-lifecycle.md) | Account export, self-service deletion, admin member deletion/role changes, support actions, cascades, and last-admin guards. |
 | [`access/account-admission.md`](./access/account-admission.md) | Invitation-only/public admission, password registration and recovery, social linking, admin invitations, bootstrap, and retention. |
-| [`access/multi-tenancy.md`](./access/multi-tenancy.md) | Organizations, memberships, classrooms, assignments, tenant-aware cache keys, and tenant analytics privacy. |
+| [`access/multi-tenancy.md`](./access/multi-tenancy.md) | Organizations, memberships, classrooms, classroom join codes, assignments, tenant-aware cache keys, and tenant analytics privacy. |
 | [`access/rbac.md`](./access/rbac.md) | Capability-based authorization for global roles and tenant/classroom memberships. |
 
 ### AI

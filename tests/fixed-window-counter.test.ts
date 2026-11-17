@@ -24,6 +24,14 @@ before(() => {
       countByWindow.set(key, count);
       return { count };
     },
+    findUnique: async (args: {
+      where: { bucketKey_windowStart: { bucketKey: string; windowStart: Date } };
+    }) => {
+      if (databaseThrows) throw new Error("database unavailable");
+      const window = args.where.bucketKey_windowStart;
+      const count = countByWindow.get(`${window.bucketKey}:${window.windowStart.getTime()}`);
+      return count === undefined ? null : { count };
+    },
     deleteMany: async () => {
       if (sweepThrows) throw new Error("sweep unavailable");
       return { count: 0 };
@@ -78,6 +86,37 @@ test("database adapter owns alignment, atomic increments, and expiry", async () 
   assert.equal(upsertCalls, 2);
   assert.equal((lastCreate?.windowStart as Date).getTime(), 1_000);
   assert.equal((lastCreate?.expiresAt as Date).getTime(), 2_000);
+});
+
+test("peek reads the current window without consuming in both adapters", async () => {
+  const { consumeFixedWindow, peekFixedWindow } = await import("@/lib/security/fixed-window-counter");
+  const input = { key: "peek", windowMs: 1_000, nowMs: 1_100, fallbackWindowAnchor: "first-hit" as const };
+
+  assert.equal(await peekFixedWindow(input), 0);
+  await consumeFixedWindow(input);
+  await consumeFixedWindow(input);
+  assert.equal(await peekFixedWindow(input), 2);
+  assert.equal(await peekFixedWindow({ ...input, nowMs: 2_100 }), 0, "an expired memory window reads as empty");
+
+  process.env.RATE_LIMIT_STORE = "database";
+  const dbInput = { ...input, key: "peek:db" };
+  assert.equal(await peekFixedWindow(dbInput), 0);
+  await consumeFixedWindow(dbInput);
+  assert.equal(await peekFixedWindow(dbInput), 1);
+  assert.equal(upsertCalls, 1, "peeking never upserts");
+});
+
+test("peek falls back to memory and opens the circuit when the store fails", async () => {
+  process.env.RATE_LIMIT_STORE = "auto";
+  const { consumeFixedWindow, peekFixedWindow } = await import("@/lib/security/fixed-window-counter");
+  const nowMs = Date.now();
+  const input = { key: "peek:fallback", windowMs: 60_000, nowMs, fallbackWindowAnchor: "first-hit" as const };
+  databaseThrows = true;
+  assert.equal(await peekFixedWindow(input), 0);
+  databaseThrows = false;
+  await consumeFixedWindow(input);
+  assert.equal(upsertCalls, 0, "open circuit keeps consumption in memory");
+  assert.equal(await peekFixedWindow(input), 1);
 });
 
 test("memory adapter preserves first-hit and epoch fallback windows", async () => {

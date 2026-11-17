@@ -7,13 +7,14 @@
  */
 import { expect, test, TEST_ARTICLE_ID } from "./support/fixtures";
 
-test("sign-in explains when no OAuth providers are configured", async ({ page }) => {
+test("sign-in falls back to password sign-in when no OAuth providers are configured", async ({ page }) => {
   await page.goto("/signin");
 
   await expect(page.getByRole("heading", { name: "Sign in to ReadWise" })).toBeVisible();
-  await expect(
-    page.getByText("No authentication providers are configured."),
-  ).toBeVisible();
+  // Password sign-in (account admission) is always available, so a deployment
+  // without OAuth credentials still offers a working sign-in form.
+  await expect(page.getByLabel("Email")).toBeVisible();
+  await expect(page.getByLabel("Password")).toBeVisible();
   await expect(page.getByRole("button", { name: /Continue with/i })).toHaveCount(0);
 });
 

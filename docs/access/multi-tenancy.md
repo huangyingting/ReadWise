@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-17"
 description: "Documents organization, membership, classroom, assignment, tenant-cache, and tenant-reporting boundaries. Captures current tenant roles, classroom ownership, assignment access, cache scoping, analytics privacy, and migration behavior."
 ---
 
@@ -38,6 +38,7 @@ flowchart LR
 | `Membership` | Joins a `User` to an `Organization` with a tenant `role`. `@@unique([userId, orgId])` — a user MAY belong to multiple orgs. Cascades with both. |
 | `Classroom` | Belongs to an org; has one primary `teacherId`. |
 | `ClassroomMembership` | Joins a `User` to a `Classroom` with a `ClassroomRole`. `@@unique([classroomId, userId])`. |
+| `ClassroomJoinCode` | At most one per classroom (`@@unique classroomId`): a unique self-enrollment `code` with optional `expiresAt` / `maxUses`, a `useCount`, and `disabledAt`. Cascades with the classroom; `createdById` is `SetNull` when the issuer is deleted. |
 | `Assignment` | A `Classroom` ↔ `Article` reading assignment with optional `dueDate`/`instructions`. |
 | `AssignmentCompletion` | A student's progress on an assignment (`status`, optional `quizScore`, `completedAt`). `@@unique([assignmentId, studentId])`. |
 
@@ -135,14 +136,15 @@ rules.
 | Route | Audience | What it shows |
 | --- | --- | --- |
 | `/teacher` | Teachers / org admins | Their classrooms + create-classroom (and create-org bootstrap) forms. |
-| `/teacher/classrooms/[id]` | Teacher / org admin / system admin | Class KPIs, assignments, **role-scoped** student progress, assign-article + add-student forms. |
-| `/assignments` | Students | Their assigned readings with their OWN completion status + "mark complete". |
+| `/teacher/classrooms/[id]` | Teacher / org admin / system admin | Class KPIs, assignments, **role-scoped** student progress, assign-article + add-student forms, join-code card. |
+| `/assignments` | Students | Their assigned readings with their OWN completion status + "mark complete", plus a "Join a class" entry point. |
+| `/join-class` | Any signed-in user | Class-code entry form; `?code=` prefills it (the teacher's copyable join link). Also embedded in Settings → Classes. |
 
 The student completion API accepts `{ status?, quizScore? }`; when omitted,
 status defaults to `COMPLETED`. Scores are clamped to 0-100 in the route/schema
 layer.
 
-All three are added to `middleware.ts` (`PROTECTED_PREFIXES` + `config.matcher`)
+All of them are added to `middleware.ts` (`PROTECTED_PREFIXES` + `config.matcher`)
 and gate server-side via `requireSession` plus the membership/role checks above.
 
 ### API routes (all via `createHandler` + `src/lib/tenant-api.ts` guards)
@@ -153,9 +155,83 @@ and gate server-side via `requireSession` plus the membership/role checks above.
 | `POST /api/orgs/[id]/members` | `org.members.manage` | `{ userId, role }` |
 | `POST /api/classrooms` | `classroom.manage` in org | `{ orgId, name }` |
 | `POST /api/classrooms/[id]/members` | manage classroom | `{ userId, role? }` |
+| `GET /api/classrooms/[id]/join-code` | manage classroom | — → `{ joinCode: view \| null }` |
+| `POST /api/classrooms/[id]/join-code` | manage **active** classroom (409 when archived) | `{ expiresInDays: 1–365 \| null, maxUses: 1–1000 \| null }` → generates or rotates |
+| `DELETE /api/classrooms/[id]/join-code` | manage classroom (archived allowed) | — → disables (idempotent); 404 when the classroom has no code |
+| `POST /api/classrooms/join` | any session, rate limited (see join codes) | `{ code }` → `{ ok, alreadyMember, classroom: { id, name } }`; failures 400/404/409/410 |
 | `POST /api/classrooms/[id]/assignments` | manage classroom | `{ articleId, dueDate?, instructions? }` |
 | `GET /api/classrooms/[id]/analytics` | teacher / org admin / system admin | — (role-scoped result) |
 | `POST /api/assignments/[id]/completion` | enrolled student | `{ status?, quizScore? }` (studentId from session, never the body) |
+
+### Classroom join codes (#1309)
+
+`src/lib/classroom/join-codes.ts` lets signed-in learners enroll themselves.
+The client-safe format and view contract (alphabet, length, input bounds,
+`normalizeJoinCode`, `formatJoinCode`, `JoinCodeView`) live in
+`src/lib/classroom/join-code-format.ts`, shared by the server and the UI.
+
+- **Format.** 8 characters from an unambiguous 31-character alphabet (no
+  `0`/`O`/`1`/`I`/`L`), displayed as `ABCD-2345`. Input is normalized
+  (case-insensitive, spaces and hyphens ignored, at most 16 raw characters);
+  ambiguous characters are rejected, not guessed — the form catches malformed
+  input locally before spending a rate-limited request. Codes are stored
+  normalized (not hashed) so teachers can re-display them; guessing is bounded
+  by rate limits, rotation, expiry, `maxUses`, and the ~8.5×10¹¹ code space.
+- **Lifecycle.** Generate/rotate issues a fresh code, resets `useCount`, clears
+  `disabledAt`, and applies the chosen expiry (1–365 days or none) and seat
+  limit (1–1000 or unlimited); the previous code stops working immediately.
+  Disable keeps the row (and usage) but stops redemption; repeating it is a
+  no-op (`already_disabled`) and is not audited again. Archived classrooms
+  cannot issue codes (409) but can still disable one, and refuse redemption.
+- **Redemption.** In one transaction: the code must exist, its classroom must be
+  active, and the code must be active (not disabled, expired, or at `maxUses`).
+  A conditional increment (`useCount < maxUses`, re-checked under the row lock,
+  and scoped to the code value so a concurrent rotation cannot admit the old
+  code) enforces the seat limit exactly under concurrency; a whole class
+  joining an uncapped code at once all succeed. The learner gets a `Student`
+  org `Membership` only when they have none (existing roles are never
+  downgraded) and a `Student` `ClassroomMembership`. Joining a classroom you
+  are already in succeeds without consuming a use, even if the code was since
+  disabled; concurrent duplicate joins resolve to one enrollment. If concurrent
+  claims keep winning for five attempts the result is `contention` (retryable),
+  never a false "full".
+- **Responses.** Unknown and teacher-disabled codes share one message; the other
+  reasons only reach someone already holding a real code, so they are named:
+
+  | Reason | Status | Message |
+  | --- | --- | --- |
+  | `invalid_format` | 400 | "Class codes are 8 letters and numbers, like ABCD-2345." |
+  | `not_found`, `disabled` | 404 | "That class code isn't valid. Check it with your teacher." |
+  | `expired` | 410 | "That class code has expired. Ask your teacher for a new one." |
+  | `exhausted` | 409 | "That class is full. Ask your teacher for a new code." |
+  | `archived` | 409 | "That class is no longer active." |
+  | `contention` | 409 | "Lots of students are joining right now. Try again in a moment." |
+
+  The form shows these on the code field (`aria-invalid`), and other errors
+  (rate limit, network) in a panel. Before hydration it falls back to a plain
+  GET of `/join-class?code=…`, so an early submit keeps the code.
+- **Rate limits** (`auth` scope, `RATE_LIMIT_AUTH_REQUESTS` per
+  `RATE_LIMIT_WINDOW_MS`). Every attempt is charged to
+  `classroom-join:user:<id>`. Per IP only **failed** attempts (any reason but
+  `contention`) are charged to `classroom-join:failed:<ip>`, and an IP over that
+  budget is refused up front via `assertRateLimitAvailableByKey` — so a class
+  behind one school NAT can join at once while guessing from that IP stays
+  bounded. Over-limit requests return 429 and are recorded as
+  `rate_limit.exceeded` security events by the api-handler (no audit row).
+- **Admission.** A join code does not create accounts or bypass
+  [account admission](account-admission.md); the learner must already be signed
+  in. Issuing a code is the classroom manager's opt-in; there is no separate
+  org-level switch, and classroom-scoped invitation onboarding (a code that
+  also admits a new account) is not implemented.
+- **Telemetry.** Audit actions (written in the mutation's transaction, so they
+  commit or roll back with it): `classroom.join_code.rotated` (`orgId`,
+  `replaced`, `expires`, `maxUses`), `classroom.join_code.disabled` (`orgId`),
+  and `classroom.joined_via_code` (`orgId`, `orgMembershipCreated`; new
+  enrollments only). Each rejected redemption also writes
+  `classroom.join_code.failed` (`reason`, `orgId` when the code resolved) and
+  emits a low-severity `classroom.join_code.failed` security event (`reason`),
+  which feeds spike alerting. The code itself is never logged, audited, or
+  exported; `joinCode` metadata keys are redacted as a backstop.
 
 ---
 

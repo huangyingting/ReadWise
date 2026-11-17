@@ -107,6 +107,8 @@ test("isSensitiveMetadataKey: universal secrets/auth keys", () => {
     "accessToken",
     "apiKey",
     "api_key",
+    "joinCode",
+    "classroomJoinCode",
   ]);
 });
 
@@ -126,6 +128,8 @@ test("isSensitiveMetadataKey: safe keys are not redacted", () => {
     "errorKind",
     "errorName",
     "errorType",
+    "code",
+    "reason",
   ]);
 });
 

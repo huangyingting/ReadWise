@@ -57,6 +57,7 @@ export const SECURITY_EVENT_TYPES = {
   importFailed: "import.failed",
   importBlocked: "import.blocked",
   suspiciousLookup: "lookup.suspicious_volume",
+  classroomJoinFailed: "classroom.join_code.failed",
 } as const;
 
 export type SecurityEventType =

@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-14T07:59:15.412Z",
-  "routeCount": 153,
-  "methodCount": 187,
+  "generatedAt": "2026-11-17T03:08:37.522Z",
+  "routeCount": 155,
+  "methodCount": 191,
   "routes": [
     {
       "path": "/api/account",
@@ -2504,6 +2504,66 @@
       ]
     },
     {
+      "path": "/api/classrooms/{id}/join-code",
+      "file": "src/app/api/classrooms/[id]/join-code/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "joinCode"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "joinCode",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "expiresInDays",
+            "maxUses"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "joinCode",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/classrooms/{id}/members",
       "file": "src/app/api/classrooms/[id]/members/route.ts",
       "runtime": "default",
@@ -2575,6 +2635,33 @@
             "q"
           ],
           "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms/join",
+      "file": "src/app/api/classrooms/join/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "alreadyMember",
+            "classroom",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "code"
+          ]
         }
       ]
     },

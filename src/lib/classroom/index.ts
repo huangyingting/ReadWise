@@ -9,6 +9,8 @@
  *   - {@link ./completions}   — assignment completion commands
  *   - {@link ./student-reads} — student-facing assignment reads
  *   - {@link ./progress}      — raw progress matrix for analytics
+ *   - {@link ./join-codes}    — self-service join codes and redemption
+ *     (client-safe format + view contract in `./join-code-format`)
  *
  * Authorization layers on top of `@/lib/org`:
  *   - System admins manage any classroom.
@@ -97,3 +99,11 @@ export {
   type ClassroomProgressData,
   getClassroomProgressData,
 } from "./progress";
+export {
+  type JoinedClassroom,
+  disableClassroomJoinCode,
+  getClassroomJoinCodeView,
+  redeemClassroomJoinCode,
+  rotateClassroomJoinCode,
+  toJoinCodeView,
+} from "./join-codes";

@@ -103,6 +103,7 @@ model User {
   memberships             Membership[]
   taughtClassrooms        Classroom[]                 @relation("TaughtClassrooms")
   classroomMemberships    ClassroomMembership[]
+  createdClassroomJoinCodes ClassroomJoinCode[]       @relation("CreatedClassroomJoinCodes")
   assignmentCompletions   AssignmentCompletion[]
   assignmentTargets       AssignmentTarget[]
   todaySessions           TodaySession[]
@@ -1229,10 +1230,34 @@ model Classroom {
   teacher     User                  @relation("TaughtClassrooms", fields: [teacherId], references: [id], onDelete: Cascade)
   members     ClassroomMembership[]
   assignments Assignment[]
+  joinCode    ClassroomJoinCode?
 
   @@index([orgId])
   @@index([orgId, archivedAt])
   @@index([teacherId])
+}
+
+/// Self-service classroom join code (#1309). One row per classroom: rotating
+/// replaces the code and resets `useCount`; disabling stops redemption. The
+/// code is stored normalized (uppercase, no separators) so teachers can
+/// re-display and project it; brute force is bounded by rate limits, rotation,
+/// expiry, and `maxUses`. Codes never appear in audit or log metadata.
+model ClassroomJoinCode {
+  id          String    @id @default(cuid())
+  classroomId String    @unique
+  code        String    @unique
+  createdById String?
+  expiresAt   DateTime?
+  maxUses     Int?
+  useCount    Int       @default(0)
+  disabledAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("CreatedClassroomJoinCodes", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdById])
 }
 
 model ClassroomMembership {

@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-17"
 description: "Documents security subsystem boundaries for client IP, CSRF, security events, audit logs, redaction, and rate limiting. Captures current trusted-proxy strategies, same-origin enforcement, event monitoring, redaction policy, and audit-log relationship."
 ---
 
@@ -59,6 +59,12 @@ multiple security helpers.
 - `checkRateLimitByKey` / `checkRateLimit` / `checkSameOrigin` (when CSRF
   enforcement is on and the check fails) throw `ApiError` and **block** the
   request.
+- `assertRateLimitAvailableByKey` throws the same `429` when a key has already
+  used its scope limit in the current window, **without consuming**. Pair it
+  with `checkRateLimitByKey` to charge only some outcomes: classroom join codes
+  charge every attempt per user but only *failed* attempts per IP, so a class
+  behind one school NAT can join at once while guessing stays bounded.
+  It reads through `peekFixedWindow` in the fixed-window counter.
 - `recordSecurityEvent`, `recordAuditLog`, `tryRecordAuditLog` are
   **best-effort monitoring side effects** and never throw to the caller.
 
@@ -237,6 +243,7 @@ failure inside monitoring must not break the request path) and, for each event:
 | `import.failed` | scraper / import failure | medium |
 | `import.blocked` | SSRF-blocked import URL | high |
 | `lookup.suspicious_volume` | *reserved* — extensible type, not yet emitted | medium |
+| `classroom.join_code.failed` | rejected classroom join-code redemption (`meta.reason` only; never the code) | low |
 
 Any string is accepted as a `type`, so new emission points can be added without
 touching the monitoring core.
@@ -306,7 +313,11 @@ investigation trail.
 | `createdAt` | Event timestamp. |
 
 Use `recordAuditFromRequest(...)` for request-driven actions so actor, trusted
-client IP, user agent and request id are attached consistently. Use
+client IP, user agent and request id are attached consistently. When the action
+mutates data, pass the transaction client so the audit row commits or rolls
+back with the change (ADR-0003); domain commands such as the classroom
+join-code commands take an `audit` factory and write it inside their
+transaction. Use
 `tryRecordAuditLog(...)` only for best-effort denied-access paths where an audit
 write failure must not change the response.
 
@@ -343,7 +354,7 @@ directly. Deprecated compatibility aliases have been removed.
 
 Any key whose name (case-insensitive substring match) contains one of:
 `authorization`, `body`, `completion`, `content`, `cookie`, `credential`,
-`definition`, `detail`, `email`, `example`, `explanation`, `key`, `pass`,
+`definition`, `detail`, `email`, `example`, `explanation`, `joincode`, `key`, `pass`,
 `phrase`, `prompt`, `pwd`, `response`, `secret`, `select`, `sentence`,
 `session`, `stack`, `text`, `token`, `translation`, `url`, and unstructured
 error fields. Controlled error code/name/kind/type fields remain available.

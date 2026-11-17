@@ -40,6 +40,14 @@ before(() => {
             store.set(key, next);
             return { count: next };
           },
+          findUnique: async (args: {
+            where: { bucketKey_windowStart: { bucketKey: string; windowStart: Date } };
+          }) => {
+            if (storeThrows) throw new Error("simulated store outage");
+            const { bucketKey, windowStart } = args.where.bucketKey_windowStart;
+            const count = store.get(counterKey(bucketKey, windowStart));
+            return count === undefined ? null : { count };
+          },
           deleteMany: async () => ({ count: 0 }),
         },
       },
@@ -228,6 +236,18 @@ test("clientIpRateLimitPolicy supports route-specific onExceeded behavior", asyn
   assert.equal(fallbackResponse?.status, 204);
 });
 
+test("assertRateLimitAvailableByKey refuses an exhausted key without consuming (memory)", async () => {
+  configureLimits({ aiRequests: "2" });
+  const { assertRateLimitAvailableByKey, checkRateLimitByKey } = await loadRateLimit();
+  const key = uniqueKey("peek-memory");
+  await assert.doesNotReject(() => assertRateLimitAvailableByKey(key, "ai"));
+  await assert.doesNotReject(() => assertRateLimitAvailableByKey(key, "ai"));
+  await checkRateLimitByKey(key, "ai");
+  await assert.doesNotReject(() => assertRateLimitAvailableByKey(key, "ai"));
+  await checkRateLimitByKey(key, "ai");
+  await assertRateLimitError(() => assertRateLimitAvailableByKey(key, "ai"), "exhausted key must be refused");
+});
+
 // ---- shared (DB-backed) store path ------------------------------------------
 
 test("shared store increments the counter via prisma and blocks at the limit", async () => {
@@ -249,6 +269,17 @@ test("shared store keeps scopes independent in the DB store", async () => {
   const key = uniqueKey("shared-scope");
   await checkRateLimitByKey(key, "ai"); // fills "ai" (limit 1)
   await assert.doesNotReject(() => checkRateLimitByKey(key, "lookup"));
+});
+
+test("assertRateLimitAvailableByKey reads the shared store without incrementing it", async () => {
+  configureLimits({ store: "database", aiRequests: "1" });
+  const { assertRateLimitAvailableByKey, checkRateLimitByKey } = await loadRateLimit();
+  const key = uniqueKey("peek-shared");
+  await assert.doesNotReject(() => assertRateLimitAvailableByKey(key, "ai"));
+  assert.equal(upsertCalls, 0, "peeking must not consume");
+  await checkRateLimitByKey(key, "ai");
+  await assertRateLimitError(() => assertRateLimitAvailableByKey(key, "ai"), "shared count at limit must be refused");
+  assert.equal(upsertCalls, 1);
 });
 
 // ---- fallback to memory when the shared store is unavailable -----------------

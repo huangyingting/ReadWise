@@ -27,7 +27,7 @@
  */
 import { ApiError } from "@/lib/errors/api-error";
 import { clientIpKey } from "@/lib/security/client-ip";
-import { consumeFixedWindow } from "@/lib/security/fixed-window-counter";
+import { consumeFixedWindow, peekFixedWindow } from "@/lib/security/fixed-window-counter";
 import {
   rateLimitAdminJobRequests,
   rateLimitAiRequests,
@@ -81,6 +81,26 @@ export async function checkRateLimitByKey(
     fallbackWindowAnchor: "first-hit",
   });
   if (count > limit) throw rateLimitError(limit, windowMs);
+}
+
+/**
+ * Throws `ApiError(429)` when `key` has already used the `scope` limit in the
+ * current window, WITHOUT consuming. Pair with {@link checkRateLimitByKey} to
+ * charge only some outcomes (e.g. failed attempts) while still refusing a key
+ * that is over its budget before doing any work.
+ */
+export async function assertRateLimitAvailableByKey(
+  key: string,
+  scope: RateLimitScope,
+): Promise<void> {
+  const windowMs = getWindowMs();
+  const limit = getLimitForScope(scope);
+  const count = await peekFixedWindow({
+    key: `${key}:${scope}`,
+    windowMs,
+    fallbackWindowAnchor: "first-hit",
+  });
+  if (count >= limit) throw rateLimitError(limit, windowMs);
 }
 
 /**

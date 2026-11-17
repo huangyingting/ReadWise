@@ -31,15 +31,16 @@ import { controlledMachineReason } from "@/lib/observability/error-policy";
  *
  * Sensitive-key superset covered:
  *   authorization, body, completion, content, cookie, credential,
- *   definition, detail, email, example, explanation,
- *   key (→ apiKey, secretKey, api_key), pass (→ password, passphrase, passwd),
+ *   definition, detail, email, example, explanation, joincode (→ joinCode,
+ *   classroomJoinCode), key (→ apiKey, secretKey, api_key), pass (→ password,
+ *   passphrase, passwd),
  *   phrase, prompt, pwd, response, secret,
  *   select (→ selection, selected, selectedText), sentence, session, stack,
  *   text, token, translation, url, and unstructured error fields. Controlled
  *   code/name/kind/type fields remain available for content-free diagnostics.
  */
 export const SENSITIVE_KEY_RE =
-  /(authorization|body|completion|content|cookie|credential|definition|detail|email|example|explanation|key|pass|phrase|prompt|pwd|response|secret|select|sentence|session|stack|text|token|translation|url|error$|error(?:message|description|detail|stack))/i;
+  /(authorization|body|completion|content|cookie|credential|definition|detail|email|example|explanation|joincode|key|pass|phrase|prompt|pwd|response|secret|select|sentence|session|stack|text|token|translation|url|error$|error(?:message|description|detail|stack))/i;
 
 const REDACTED = "[redacted]";
 const EMAIL_REDACTED = "[email]";
