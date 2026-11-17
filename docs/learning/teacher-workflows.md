@@ -57,6 +57,15 @@ membership/capability. A classroom has:
 Roster changes are scoped to the classroom. Adding a student should not grant
 system admin privileges or visibility into unrelated classrooms.
 
+### Write prompts
+
+Each assignment can carry its own Write Prompt (in the assignment's Edit
+form); otherwise the article's default applies. Students answer in the
+reader's Write tab, and the classroom page links to **Written responses (n)**
+per assignment, where teachers score a four-part rubric and either grade the
+response or return it for revision. Students' independent writing is never
+shown to teachers. See [write prompts](write-prompts.md).
+
 ### Text sets
 
 Teachers can group readings into **Text Sets** at `/teacher/text-sets` — an

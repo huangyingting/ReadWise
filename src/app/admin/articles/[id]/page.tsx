@@ -30,6 +30,7 @@ import { Metric, MetricStrip } from "@/components/ui";
 import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { formatDateTime } from "@/lib/display-format";
 import { DEFAULT_MATURITY_BAND, isMaturityBand } from "@/lib/article-library/maturity";
+import { getArticleWritePrompt } from "@/lib/classroom/writing";
 
 type BadgeVariant = "success" | "neutral" | "warning" | "danger";
 type AdminArticleDetail = NonNullable<
@@ -209,10 +210,12 @@ function ModerationReviewCard({
   article,
   articleTagNames,
   currentFlags,
+  writePrompt,
 }: {
   article: AdminArticle;
   articleTagNames: string;
   currentFlags: string[];
+  writePrompt: string;
 }) {
   return (
     <Card>
@@ -232,6 +235,7 @@ function ModerationReviewCard({
             category: article.category ?? "",
             difficulty: article.difficulty ?? "",
             maturityBand: isMaturityBand(article.maturityBand) ? article.maturityBand : DEFAULT_MATURITY_BAND,
+            writePrompt,
             status: article.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
             visibility: article.visibility,
             reviewState: article.reviewState ?? "unreviewed",
@@ -447,6 +451,7 @@ export default async function AdminArticleDetailPage({
           article={article}
           articleTagNames={articleTagNames}
           currentFlags={currentFlags}
+          writePrompt={(await getArticleWritePrompt(article.id)) ?? ""}
         />
       )}
 

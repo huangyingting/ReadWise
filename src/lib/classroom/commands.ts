@@ -172,6 +172,8 @@ export type UpdateAssignmentInput = {
   studentIds?: string[];
   publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
   publishAt?: string | null;
+  /** Write Prompt override (#1305); empty clears it back to the article default. */
+  writePrompt?: string | null;
 };
 
 export type UpdateAssignmentResult =
@@ -204,6 +206,7 @@ export async function updateAssignment(
     publishAt?: Date | null;
     wholeClass?: boolean;
     updatedAt?: Date;
+    writePrompt?: string | null;
   } = {};
 
   if (input.dueDate !== undefined) {
@@ -220,6 +223,10 @@ export async function updateAssignment(
 
   if (input.title !== undefined) {
     data.title = trimOrNull(input.title);
+  }
+
+  if (input.writePrompt !== undefined) {
+    data.writePrompt = trimOrNull(input.writePrompt);
   }
 
   if (input.points !== undefined) {

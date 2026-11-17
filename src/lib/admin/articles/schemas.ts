@@ -90,6 +90,8 @@ export const reviewBody = object({
   difficulty: optional(string({ max: 10 })),
   /** Content maturity band (#1302). */
   maturityBand: optional(oneOf(MATURITY_BANDS)),
+  /** Article default Write Prompt (#1305); empty restores the generic prompt. */
+  writePrompt: optional(string({ max: 1000 })),
   status: optional(oneOf(["DRAFT", "PUBLISHED"] as const)),
   /**
    * Operator-settable visibility, restricted to the ownerless public-library

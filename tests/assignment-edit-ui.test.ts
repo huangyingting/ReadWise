@@ -56,6 +56,7 @@ test("EditAssignmentForm omits studentIds until audience is edited", () => {
     buildUpdatePayload({
       dueDate: "2026-08-01",
       instructions: "  Read closely  ",
+      writePrompt: "  What is the author's claim?  ",
       title: "  Chapter 1  ",
       points: "10",
       audienceDirty: false,
@@ -65,6 +66,7 @@ test("EditAssignmentForm omits studentIds until audience is edited", () => {
     {
       dueDate: "2026-08-01",
       instructions: "Read closely",
+      writePrompt: "What is the author's claim?",
       title: "Chapter 1",
       points: 10,
     },
@@ -76,19 +78,21 @@ test("EditAssignmentForm sends studentIds only after audience edits", () => {
     buildUpdatePayload({
       dueDate: "",
       instructions: "",
+      writePrompt: "",
       title: "",
       points: "",
       audienceDirty: true,
       audience: "class",
       targetIds: ["orphaned-student"],
     }),
-    { dueDate: "", instructions: "", title: "", points: null, studentIds: [] },
+    { dueDate: "", instructions: "", writePrompt: "", title: "", points: null, studentIds: [] },
   );
 
   assert.deepEqual(
     buildUpdatePayload({
       dueDate: "",
       instructions: "Note",
+      writePrompt: "",
       title: "Targeted",
       points: "5",
       audienceDirty: true,
@@ -98,6 +102,7 @@ test("EditAssignmentForm sends studentIds only after audience edits", () => {
     {
       dueDate: "",
       instructions: "Note",
+      writePrompt: "",
       title: "Targeted",
       points: 5,
       studentIds: ["s1", "s2"],

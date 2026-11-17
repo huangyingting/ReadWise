@@ -121,6 +121,8 @@ export async function resetE2eDatabase(): Promise<void> {
     prisma.backfillRun.deleteMany(),
     prisma.todayComprehensionFeedback.deleteMany(),
     prisma.todaySession.deleteMany(),
+    prisma.writeSubmission.deleteMany(),
+    prisma.writePrompt.deleteMany(),
     prisma.assignmentCompletion.deleteMany(),
     prisma.assignmentTarget.deleteMany(),
     prisma.assignment.deleteMany(),

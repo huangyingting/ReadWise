@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-17T11:17:28.504Z",
-  "routeCount": 161,
-  "methodCount": 200,
+  "generatedAt": "2026-11-17T12:04:30.108Z",
+  "routeCount": 165,
+  "methodCount": 205,
   "routes": [
     {
       "path": "/api/account",
@@ -1917,7 +1917,8 @@
             "publishAt",
             "publishState",
             "studentIds",
-            "title"
+            "title",
+            "writePrompt"
           ]
         }
       ]
@@ -2015,6 +2016,30 @@
           "successStatus": 200,
           "responseKeys": [
             "result"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/assignments/{id}/submissions",
+      "file": "src/app/api/assignments/[id]/submissions/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "assignment",
+            "submissions"
           ],
           "queryParamNames": null,
           "bodyFieldNames": null
@@ -4008,6 +4033,68 @@
       ]
     },
     {
+      "path": "/api/reader/{id}/write",
+      "file": "src/app/api/reader/[id]/write/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": [
+            "assignmentId"
+          ],
+          "bodyFieldNames": null
+        },
+        {
+          "method": "PUT",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "submission"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/write/submit",
+      "file": "src/app/api/reader/[id]/write/submit/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "submission"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/ready",
       "file": "src/app/api/ready/route.ts",
       "runtime": "nodejs",
@@ -4799,6 +4886,29 @@
           "successStatus": 200,
           "responseKeys": [
             "removed"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/write-submissions/{id}/review",
+      "file": "src/app/api/write-submissions/[id]/review/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "submission"
           ],
           "queryParamNames": null,
           "bodyFieldNames": null

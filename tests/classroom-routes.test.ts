@@ -1597,6 +1597,7 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
         studentIds: ["s1", "s2"],
         publishState: undefined,
         publishAt: undefined,
+        writePrompt: undefined,
       },
     },
   ]);
@@ -1612,6 +1613,7 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
       targets: true,
       publishState: false,
       publishAt: false,
+      writePrompt: false,
     },
     publishState: undefined,
     scheduled: false,
@@ -1641,6 +1643,7 @@ test("PATCH /api/assignments/[id] forwards clearable dueDate, points, and whole-
       studentIds: [],
       publishState: undefined,
       publishAt: undefined,
+      writePrompt: undefined,
     },
   });
   assert.deepEqual(auditCalls.at(-1)?.metadata, {
@@ -1654,6 +1657,7 @@ test("PATCH /api/assignments/[id] forwards clearable dueDate, points, and whole-
       targets: true,
       publishState: false,
       publishAt: false,
+      writePrompt: false,
     },
     publishState: undefined,
     scheduled: false,
@@ -1680,6 +1684,7 @@ test("PATCH /api/assignments/[id] forwards publish lifecycle fields", async () =
       studentIds: undefined,
       publishState: "SCHEDULED",
       publishAt,
+      writePrompt: undefined,
     },
   });
   assert.equal(auditCalls.at(-1)?.metadata?.publishState, "SCHEDULED");

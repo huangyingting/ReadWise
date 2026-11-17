@@ -118,6 +118,25 @@ export const USER_EXPORT_SELECT = {
     },
     orderBy: { completedAt: "asc" },
   },
+  // Constructed responses (#1305): the learner's own writing and its grading.
+  writeSubmissions: {
+    select: {
+      articleId: true,
+      assignmentId: true,
+      status: true,
+      prompt: true,
+      body: true,
+      wordCount: true,
+      rubricScores: true,
+      teacherFeedback: true,
+      revisionCount: true,
+      submittedAt: true,
+      gradedAt: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+    orderBy: { createdAt: "asc" },
+  },
   pronunciationAttempts: {
     select: {
       articleId: true,

@@ -91,6 +91,8 @@ export type ReviewCorrections = {
   difficulty?: string | null;
   /** Content maturity band (#1302), validated by the route schema. */
   maturityBand?: MaturityBand;
+  /** Article default Write Prompt (#1305); empty clears it to the generic prompt. */
+  writePrompt?: string | null;
   status?: "DRAFT" | "PUBLISHED";
   /** Operator-settable visibility, restricted to the public-library subset. */
   visibility?: "PUBLIC" | "UNLISTED";
@@ -296,9 +298,33 @@ export async function reviewArticle(
     }
   }
 
+  // Write Prompt (#1305) lives in its own table; diff it like a field.
+  let nextWritePrompt: string | null | undefined;
+  if (input.writePrompt !== undefined) {
+    const next = normalizeNullableText(input.writePrompt);
+    const current =
+      (await prisma.writePrompt.findUnique({ where: { articleId: input.articleId }, select: { prompt: true } }))
+        ?.prompt ?? null;
+    if (current !== next) {
+      changes.writePrompt = { from: current, to: next };
+      nextWritePrompt = next;
+    }
+  }
+
   const action = reviewAction(input.reviewState);
 
   const committed = await prisma.$transaction(async (tx) => {
+    if (nextWritePrompt !== undefined) {
+      if (nextWritePrompt) {
+        await tx.writePrompt.upsert({
+          where: { articleId: input.articleId },
+          create: { articleId: input.articleId, prompt: nextWritePrompt, updatedById: input.reviewerId ?? null },
+          update: { prompt: nextWritePrompt, updatedById: input.reviewerId ?? null },
+        });
+      } else {
+        await tx.writePrompt.deleteMany({ where: { articleId: input.articleId } });
+      }
+    }
     if (Object.keys(data).length > 0) {
       if (data.status === ArticleStatus.PUBLISHED) {
         const updated = await tx.article.updateMany({

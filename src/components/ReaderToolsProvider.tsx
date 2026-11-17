@@ -31,11 +31,12 @@ import { usePathname } from "next/navigation";
 import type { ReadingBlock } from "@/components/reader/useCurrentReadingBlock";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
-export type ToolTabId = "words" | "quiz" | "dictate" | "speak" | "notes" | "ask";
+export type ToolTabId = "words" | "quiz" | "write" | "dictate" | "speak" | "notes" | "ask";
 
 const TOOL_TAB_IDS: readonly ToolTabId[] = [
   "words",
   "quiz",
+  "write",
   "dictate",
   "speak",
   "notes",

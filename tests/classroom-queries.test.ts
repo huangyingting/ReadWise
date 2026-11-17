@@ -177,6 +177,8 @@ test("listClassroomAssignmentMeta maps editable assignment metadata", async () =
       publishAt: new Date("2026-08-01T10:00:00.000Z"),
       wholeClass: false,
       targetStudentIds: ["s1"],
+      writePrompt: null,
+      responseCount: 0,
     },
   ]);
 });

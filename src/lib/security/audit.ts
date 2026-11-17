@@ -46,6 +46,8 @@ export const AUDIT_ACTIONS = {
   textSetDeleted: "text_set.delete",
   textSetDuplicated: "text_set.duplicate",
   textSetAssigned: "text_set.assign",
+  writeSubmissionGraded: "write_submission.grade",
+  writeSubmissionReturned: "write_submission.return",
   assignmentUpdate: "assignment.update",
   assignmentDelete: "assignment.delete",
   assignmentReview: "assignment.review",

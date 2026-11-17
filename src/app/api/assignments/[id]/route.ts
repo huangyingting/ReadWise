@@ -22,6 +22,7 @@ import { viewerRoleForClassroom } from "@/lib/analytics/tenant";
 import { hasOrgCapability } from "@/lib/org/guards";
 import { CAPABILITIES } from "@/lib/rbac";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
+import { WRITE_PROMPT_MAX_LENGTH } from "@/lib/classroom/writing-rubric";
 
 const updateBody = object({
   dueDate: optional(string({ max: 40 })),
@@ -31,6 +32,7 @@ const updateBody = object({
   studentIds: optional(array(nonEmptyString(200), { max: 200 })),
   publishState: optional(oneOf(["DRAFT", "SCHEDULED", "PUBLISHED"] as const)),
   publishAt: optional(string({ max: 40 })),
+  writePrompt: optional(string({ max: WRITE_PROMPT_MAX_LENGTH })),
 });
 
 export const GET = createHandler(
@@ -102,6 +104,7 @@ export const PATCH = createHandler(
       studentIds: body.studentIds,
       publishState: body.publishState,
       publishAt: body.publishAt,
+      writePrompt: body.writePrompt,
     });
     if (!result.ok) {
       let message = "Invalid due date";
@@ -132,6 +135,7 @@ export const PATCH = createHandler(
           targets: body.studentIds !== undefined,
           publishState: body.publishState !== undefined,
           publishAt: body.publishAt !== undefined,
+          writePrompt: body.writePrompt !== undefined,
         },
         publishState: body.publishState,
         scheduled: body.publishState === "SCHEDULED",

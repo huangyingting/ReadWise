@@ -105,6 +105,7 @@ model User {
   classroomMemberships    ClassroomMembership[]
   createdClassroomJoinCodes ClassroomJoinCode[]       @relation("CreatedClassroomJoinCodes")
   ownedTextSets             TextSet[]                 @relation("OwnedTextSets")
+  writeSubmissions          WriteSubmission[]
   assignmentCompletions   AssignmentCompletion[]
   assignmentTargets       AssignmentTarget[]
   todaySessions           TodaySession[]
@@ -186,6 +187,8 @@ model Article {
   vocabulary           VocabularyItem[]
   quizQuestions        QuizQuestion[]
   textSetItems         TextSetItem[]
+  writePrompt          WritePrompt?
+  writeSubmissions     WriteSubmission[]
   quizAttempts         QuizAttempt[]
   speech               ArticleSpeech?
   tags                 ArticleTag[]
@@ -1188,6 +1191,13 @@ enum AssignmentStatus {
   COMPLETED   @map("completed")
 }
 
+enum WriteSubmissionStatus {
+  DRAFT          @map("draft")
+  SUBMITTED      @map("submitted")
+  NEEDS_REVISION @map("needs_revision")
+  GRADED         @map("graded")
+}
+
 enum AssignmentCompletionSource {
   SELF    @map("self")
   READING @map("reading")
@@ -1347,6 +1357,53 @@ model TextSetItem {
   @@index([articleId])
 }
 
+/// Article-level default Write Prompt (#1305), set by content staff. A generic
+/// prompt applies when an article has none; assignments may override it.
+model WritePrompt {
+  id          String   @id @default(cuid())
+  articleId   String   @unique
+  prompt      String
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+/// A learner's constructed response to an article's Write Prompt (#1305).
+/// One row per learner, article, and scope: `scopeKey` is the assignment id
+/// for classroom work or "independent" for personal writing. Independent
+/// writing is private to the learner; assignment work is visible to that
+/// classroom's managers. `prompt` snapshots the prompt answered.
+model WriteSubmission {
+  id              String                @id @default(cuid())
+  userId          String
+  articleId       String
+  assignmentId    String?
+  scopeKey        String
+  status          WriteSubmissionStatus @default(DRAFT)
+  body            String                @default("")
+  wordCount       Int                   @default(0)
+  prompt          String
+  /// Rubric dimension → score (1–4), set when a teacher grades or returns work.
+  rubricScores    Json                  @default("{}")
+  teacherFeedback String?
+  revisionCount   Int                   @default(0)
+  submittedAt     DateTime?
+  gradedAt        DateTime?
+  gradedById      String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article    Article     @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  assignment Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, articleId, scopeKey])
+  @@index([assignmentId, status])
+  @@index([userId, updatedAt])
+}
+
 model ClassroomMembership {
   id          String        @id @default(cuid())
   classroomId String
@@ -1383,7 +1440,10 @@ model Assignment {
   targets     AssignmentTarget[]
   /// Text Set unit this assignment belongs to (#1308); cleared if the set is deleted.
   textSetId   String?
+  /// Teacher's Write Prompt for this assignment (#1305); the article default applies when null.
+  writePrompt String?
   textSet     TextSet?               @relation(fields: [textSetId], references: [id], onDelete: SetNull)
+  writeSubmissions WriteSubmission[]
 
   @@index([classroomId])
   @@index([articleId])

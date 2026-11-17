@@ -34,6 +34,7 @@ flowchart LR
 | Tool shell | `src/components/ReaderTools.tsx`, `ReaderToolsProvider.tsx`, `ReaderToolsSurface.tsx` | Floating panel, tab state, stay-mounted behavior, keyboard/focus surface. |
 | Vocabulary tab | `src/components/ArticleVocabulary.tsx`, `src/components/reader/study/useArticleVocabularyPanel.ts` | Lazy article vocabulary generation/read, save/unsave integration. |
 | Quiz tab | `src/components/ArticleQuiz.tsx`, `src/components/reader/study/useArticleQuizPanel.ts` | Lazy quiz fetch, answer state, history, attempt recording, offline queue fallback. |
+| Write tab | `src/components/ArticleWrite.tsx` (see [write prompts](../learning/write-prompts.md)) | Constructed response to the article's Write Prompt: assignment or private scope, draft autosave, submit/resubmit, teacher rubric feedback. |
 | Tutor tab | `src/components/ArticleTutor.tsx`, `src/components/ReaderTutorProvider.tsx`, `src/components/tutor/*` | Grounded article chat, persisted successful turns, fallback/transient rows. |
 | Dictation tab | `src/components/ArticleDictation.tsx`, `src/components/reader/study/useDictationPanel.ts`, `src/lib/dictation.ts` | Audio-range sentence playback plus local typed-word grading. |
 | Pronunciation tab | `src/components/ArticlePronunciation.tsx`, `src/components/pronunciation/*`, `src/components/reader/usePronunciationAssessment.ts` | Browser-side Azure Speech pronunciation assessment and feedback. |

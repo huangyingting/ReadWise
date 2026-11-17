@@ -161,11 +161,13 @@ function assignmentSynthesizedStatus(
 }
 
 function AssignmentsCard({
+  classroomId,
   analytics,
   assignmentMeta,
   canManage,
   assignmentTargetStudents,
 }: {
+  classroomId: string;
   analytics: ClassroomAnalytics | null;
   assignmentMeta: AssignmentMetaMap;
   canManage: boolean;
@@ -227,6 +229,14 @@ function AssignmentsCard({
                     ) : (
                       <Badge variant="neutral">Whole class</Badge>
                     )}
+                    {meta.responseCount > 0 ? (
+                      <Link
+                        href={`/teacher/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(meta.assignmentId)}/responses`}
+                        className="text-[length:var(--type-ui)] font-medium text-primary-text underline-offset-2 hover:underline"
+                      >
+                        Written responses ({meta.responseCount})
+                      </Link>
+                    ) : null}
                     {canManage ? (
                       <div className="flex items-center gap-[var(--space-2)]">
                         <EditAssignmentForm
@@ -234,6 +244,7 @@ function AssignmentsCard({
                           assignmentTitle={displayTitle}
                           initialDueDate={meta.dueDate?.toISOString() ?? null}
                           initialInstructions={meta.instructions}
+                          initialWritePrompt={meta.writePrompt}
                           initialTitle={meta.title}
                           initialPoints={meta.points}
                           initialWholeClass={meta.wholeClass}
@@ -643,6 +654,7 @@ export default async function ClassroomDetailPage({
         {/* min-w-0 lets wide tables scroll inside the column instead of widening the page. */}
         <div className="flex min-w-0 flex-col gap-[var(--space-6)]">
           <AssignmentsCard
+            classroomId={id}
             analytics={analytics}
             assignmentMeta={assignmentMeta}
             canManage={canManageActiveClassroom}

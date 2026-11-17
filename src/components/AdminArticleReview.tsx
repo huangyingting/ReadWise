@@ -41,6 +41,8 @@ export type AdminArticleReviewProps = {
     category: string;
     difficulty: string;
     maturityBand: MaturityBand;
+    /** Article default Write Prompt; empty uses the generic prompt. */
+    writePrompt: string;
     status: "DRAFT" | "PUBLISHED";
     visibility: string;
     reviewState: string;
@@ -94,6 +96,7 @@ export default function AdminArticleReview({
   const [category, setCategory] = useState(initial.category);
   const [difficulty, setDifficulty] = useState(initial.difficulty);
   const [maturityBand, setMaturityBand] = useState<MaturityBand>(initial.maturityBand);
+  const [writePrompt, setWritePrompt] = useState(initial.writePrompt);
   const [status, setStatus] = useState<PublicationStatus>(initial.status);
   // Visibility is only operator-editable for the ownerless public-library states
   // (PUBLIC/UNLISTED). PRIVATE/ORG are owner/organization-scoped and shown
@@ -140,6 +143,7 @@ export default function AdminArticleReview({
         category,
         difficulty,
         maturityBand,
+        writePrompt,
         status,
         ...(visibilityEditable ? { visibility } : {}),
         reviewState,
@@ -265,6 +269,18 @@ export default function AdminArticleReview({
           </Select>
         </Field>
       </div>
+
+      <Field
+        label="Default write prompt"
+        hint="Shown in the reader's Write tab unless an assignment sets its own. Leave blank for the generic prompt."
+      >
+        <Textarea
+          value={writePrompt}
+          onChange={(e) => setWritePrompt(e.target.value)}
+          rows={3}
+          maxLength={1000}
+        />
+      </Field>
 
       <Field
         label="Tags"

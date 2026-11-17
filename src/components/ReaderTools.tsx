@@ -3,7 +3,7 @@
 /**
  * ReaderTools (#153)
  *
- * The six practice tools (Words · Quiz · Dictate · Speak · Notes · Ask) rendered
+ * The seven practice tools (Words · Quiz · Write · Dictate · Speak · Notes · Ask) rendered
  * as a tab system. Extracted from the former ArticleStudySection so the SAME
  * single mounted instance can appear as a right rail (xl) or a bottom sheet
  * (<xl) via ReaderToolsSurface — there is exactly one of these on the page.
@@ -22,6 +22,7 @@ import {
   Mic,
   Highlighter,
   Sparkles,
+  PenLine,
 } from "lucide-react";
 import { Button, Tooltip } from "@/components/ui";
 import { useReaderTools, type ToolTabId } from "./ReaderToolsProvider";
@@ -29,6 +30,7 @@ import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import ArticleVocabulary from "./ArticleVocabulary";
 import ArticleQuiz from "./ArticleQuiz";
 import ArticleDictation from "./ArticleDictation";
+import ArticleWrite from "./ArticleWrite";
 import ArticlePronunciation from "./ArticlePronunciation";
 import ReaderNotesPanel from "./reader/ReaderNotesPanel";
 import { ReaderTutorProvider } from "./ReaderTutorProvider";
@@ -43,6 +45,7 @@ export const TOOL_TABS: {
 }[] = [
   { id: "words", label: "Words", icon: <BookOpen size={16} />, hint: "Study AI-extracted vocabulary and save words" },
   { id: "quiz", label: "Quiz", icon: <CircleCheck size={16} />, hint: "Test your comprehension" },
+  { id: "write", label: "Write", icon: <PenLine size={16} />, hint: "Write a response to the article" },
   { id: "dictate", label: "Dictate", icon: <Keyboard size={16} />, hint: "Type what you hear" },
   { id: "speak", label: "Speak", icon: <Mic size={16} />, hint: "Get pronunciation feedback" },
   { id: "notes", label: "Notes", icon: <Highlighter size={16} />, hint: "Review your highlights and notes" },
@@ -113,6 +116,14 @@ export default function ReaderTools({
           {visited.has("quiz") && (
             <ReaderPanelErrorBoundary label="Quiz">
               <ArticleQuiz articleId={articleId} active={isActivePanel("quiz")} />
+            </ReaderPanelErrorBoundary>
+          )}
+        </ToolPanel>
+
+        <ToolPanel id="write" activeTab={activeTab}>
+          {visited.has("write") && (
+            <ReaderPanelErrorBoundary label="Write">
+              <ArticleWrite articleId={articleId} />
             </ReaderPanelErrorBoundary>
           )}
         </ToolPanel>

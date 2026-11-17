@@ -59,6 +59,10 @@ export type ClassroomAssignmentMetaRow = {
   publishAt: Date | null;
   wholeClass: boolean;
   targetStudentIds: string[];
+  /** Write Prompt override (#1305); null uses the article default. */
+  writePrompt: string | null;
+  /** Submitted written responses (drafts excluded). */
+  responseCount: number;
 };
 
 const NEWEST_FIRST = { createdAt: "desc" } as const;
@@ -110,8 +114,10 @@ export async function listClassroomAssignmentMeta(
       publishState: true,
       publishAt: true,
       wholeClass: true,
+      writePrompt: true,
       article: { select: { title: true } },
       targets: { select: { studentId: true } },
+      _count: { select: { writeSubmissions: { where: { status: { not: "DRAFT" } } } } },
     },
   });
   return rows.map((r) => ({
@@ -125,6 +131,8 @@ export async function listClassroomAssignmentMeta(
     publishAt: r.publishAt,
     wholeClass: r.wholeClass !== false,
     targetStudentIds: r.targets.map((t) => t.studentId),
+    writePrompt: r.writePrompt ?? null,
+    responseCount: r._count?.writeSubmissions ?? 0,
   }));
 }
 

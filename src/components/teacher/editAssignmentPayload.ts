@@ -3,6 +3,8 @@ export type AssignmentAudience = "class" | "students";
 export interface EditAssignmentDraft {
   dueDate: string;
   instructions: string;
+  /** Write Prompt override (#1305); empty restores the article default. */
+  writePrompt: string;
   title: string;
   points: string;
   audienceDirty: boolean;
@@ -13,6 +15,7 @@ export interface EditAssignmentDraft {
 export function buildUpdatePayload({
   dueDate,
   instructions,
+  writePrompt,
   title,
   points,
   audienceDirty,
@@ -22,6 +25,7 @@ export function buildUpdatePayload({
   const payload: {
     dueDate: string;
     instructions: string;
+    writePrompt: string;
     title: string;
     points: number | null;
     studentIds?: string[];
@@ -30,6 +34,7 @@ export function buildUpdatePayload({
     title: title.trim(),
     points: points ? Number(points) : null,
     instructions: instructions.trim(),
+    writePrompt: writePrompt.trim(),
   };
 
   if (audienceDirty) {

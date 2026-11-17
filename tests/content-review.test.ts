@@ -25,6 +25,7 @@ let reviews: Array<Record<string, unknown>>;
 let tagsByArticle: Map<string, { id: string; name: string; slug: string }[]>;
 let setTagsCalls: Array<{ articleId: string; names: string[] }>;
 let beforeArticleUpdateMany: (() => void) | null;
+const writePrompts = new Map<string, string>();
 
 function selectedArticle(
   row: ArticleRow,
@@ -106,12 +107,27 @@ before(() => {
         .map((r, i) => ({ id: `rev-${i}`, createdAt: new Date(), ...r }))
         .reverse(),
   };
+  const writePrompt = {
+    findUnique: async (a: { where: { articleId: string } }) => {
+      const prompt = writePrompts.get(a.where.articleId);
+      return prompt ? { prompt } : null;
+    },
+    upsert: async (a: { where: { articleId: string }; update: { prompt: string } }) => {
+      writePrompts.set(a.where.articleId, a.update.prompt);
+      return { prompt: a.update.prompt };
+    },
+    deleteMany: async (a: { where: { articleId: string } }) => {
+      writePrompts.delete(a.where.articleId);
+      return { count: 1 };
+    },
+  };
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
         article,
         contentReview,
-        $transaction: async (fn: (tx: unknown) => unknown) => fn({ article, contentReview }),
+        writePrompt,
+        $transaction: async (fn: (tx: unknown) => unknown) => fn({ article, contentReview, writePrompt }),
       },
     },
   });
@@ -392,4 +408,19 @@ test("reviewArticle sets the content maturity band and records the change (#1302
 
   const unchanged = await reviewArticle({ articleId: "a1", reviewerId: "admin-1", maturityBand: "middle_school" });
   assert.ok(unchanged.ok && !("maturityBand" in unchanged.changes));
+});
+
+test("reviewArticle sets, keeps, and clears the article default write prompt (#1305)", async () => {
+  writePrompts.clear();
+  const { reviewArticle } = await import("@/lib/article-library/review");
+  const set = await reviewArticle({ articleId: "a1", reviewerId: "admin-1", writePrompt: "  Explain the claim.  " });
+  assert.ok(set.ok && "writePrompt" in set.changes);
+  assert.equal(writePrompts.get("a1"), "Explain the claim.");
+
+  const same = await reviewArticle({ articleId: "a1", reviewerId: "admin-1", writePrompt: "Explain the claim." });
+  assert.ok(same.ok && !("writePrompt" in same.changes));
+
+  const cleared = await reviewArticle({ articleId: "a1", reviewerId: null, writePrompt: "   " });
+  assert.ok(cleared.ok && "writePrompt" in cleared.changes);
+  assert.equal(writePrompts.has("a1"), false);
 });

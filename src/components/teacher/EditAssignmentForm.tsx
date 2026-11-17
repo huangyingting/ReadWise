@@ -10,6 +10,7 @@ import { useMutation } from "@/hooks/useMutation";
 import AssignmentAudienceSelector from "./AssignmentAudienceSelector";
 import { buildUpdatePayload, type AssignmentAudience } from "./editAssignmentPayload";
 import { TeacherFormShell } from "./TeacherFormShell";
+import { WRITE_PROMPT_MAX_LENGTH } from "@/lib/classroom/writing-rubric";
 
 interface EditAssignmentFormProps {
   assignmentId: string;
@@ -17,6 +18,8 @@ interface EditAssignmentFormProps {
   /** ISO date string (or null) for the current due date. */
   initialDueDate: string | null;
   initialInstructions: string | null;
+  /** Write Prompt override (issue 1305). */
+  initialWritePrompt: string | null;
   initialTitle: string | null;
   initialPoints: number | null;
   initialWholeClass: boolean;
@@ -43,6 +46,7 @@ export default function EditAssignmentForm({
   assignmentTitle,
   initialDueDate,
   initialInstructions,
+  initialWritePrompt,
   initialTitle,
   initialPoints,
   initialWholeClass,
@@ -52,6 +56,7 @@ export default function EditAssignmentForm({
   const [open, setOpen] = useState(false);
   const [dueDate, setDueDate] = useState(toDateInputValue(initialDueDate));
   const [instructions, setInstructions] = useState(initialInstructions ?? "");
+  const [writePrompt, setWritePrompt] = useState(initialWritePrompt ?? "");
   const [title, setTitle] = useState(initialTitle ?? "");
   const [points, setPoints] = useState(initialPoints == null ? "" : String(initialPoints));
   const [audience, setAudience] = useState<AssignmentAudience>(
@@ -64,6 +69,7 @@ export default function EditAssignmentForm({
   function resetDraft() {
     setDueDate(toDateInputValue(initialDueDate));
     setInstructions(initialInstructions ?? "");
+    setWritePrompt(initialWritePrompt ?? "");
     setTitle(initialTitle ?? "");
     setPoints(initialPoints == null ? "" : String(initialPoints));
     setAudience(initialWholeClass ? "class" : "students");
@@ -94,6 +100,7 @@ export default function EditAssignmentForm({
         buildUpdatePayload({
           dueDate,
           instructions,
+          writePrompt,
           title,
           points,
           audienceDirty,
@@ -171,6 +178,15 @@ export default function EditAssignmentForm({
           placeholder="What should students focus on?"
           rows={3}
           maxLength={INSTRUCTIONS_MAX_LENGTH}
+        />
+      </Field>
+      <Field label="Write prompt (optional)" hint="Leave blank to use the article's default prompt.">
+        <Textarea
+          value={writePrompt}
+          onChange={(e) => setWritePrompt(e.target.value)}
+          placeholder="What argument does the author make, and how convincing is the evidence?"
+          rows={3}
+          maxLength={WRITE_PROMPT_MAX_LENGTH}
         />
       </Field>
       <div>
