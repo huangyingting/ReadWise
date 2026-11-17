@@ -296,6 +296,7 @@ test("normalizes optional fields and creates the assignment", async () => {
     points: 25,
     publishState: "PUBLISHED",
     publishAt: null,
+    textSetId: null,
   });
 });
 
@@ -311,6 +312,7 @@ test("stores null for absent due date and blank metadata", async () => {
     points: null,
     publishState: "PUBLISHED",
     publishAt: null,
+    textSetId: null,
   });
 });
 

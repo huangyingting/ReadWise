@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GraduationCap, Users, ClipboardList, CalendarClock } from "lucide-react";
+import { GraduationCap, Users, ClipboardList, CalendarClock, Library } from "lucide-react";
 import { requireSession } from "@/lib/session";
 import {
   listOrgMembers,
@@ -20,6 +20,7 @@ import {
   PageHeader,
   PageShell,
   Section,
+  buttonVariants,
 } from "@/components/ui";
 import CreateOrgForm from "@/components/teacher/CreateOrgForm";
 import CreateClassroomForm from "@/components/teacher/CreateClassroomForm";
@@ -247,6 +248,14 @@ export default async function TeacherPage() {
       <PageHeader
         title="Teaching"
         description="Create classrooms, assign readings, and track your students' progress."
+        actions={
+          teachableOrgs.length > 0 ? (
+            <Link href="/teacher/text-sets" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              <Library size={14} aria-hidden />
+              Text sets
+            </Link>
+          ) : undefined
+        }
       />
 
       <div className="grid gap-[var(--space-6)] md:grid-cols-[2fr_1fr]">

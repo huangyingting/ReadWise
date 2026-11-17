@@ -79,6 +79,7 @@ function makeRow(overrides: {
 } = {}): Record<string, unknown> {
   return {
     id: overrides.id ?? "a1",
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
     title: overrides.title ?? null,
     points: overrides.points ?? null,
     dueDate: overrides.dueDate ?? null,
@@ -231,6 +232,8 @@ test("listAssignmentsForStudent maps all output fields from the Prisma row", asy
     status: AssignmentStatus.ASSIGNED,
     quizScore: null,
     completedAt: null,
+    textSet: null,
+    assignedAt: new Date("2026-01-01T00:00:00.000Z"),
   });
 });
 
@@ -322,4 +325,36 @@ test("listStudentAssignmentsForArticle includes article, classroom, and targetin
     { wholeClass: false, targets: { some: { studentId: "s42" } } },
   ]);
   assert.deepEqual(args.where.AND[1].OR[0], { publishState: "PUBLISHED" });
+});
+
+test("groupAssignmentsByTextSet groups units per set and classroom and counts completions (#1308)", async () => {
+  const { groupAssignmentsByTextSet } = await studentReads();
+  const base = {
+    classroomName: "Math",
+    articleTitle: "A",
+    title: null,
+    points: null,
+    pointsAwarded: null,
+    dueDate: null,
+    instructions: null,
+    feedback: null,
+    quizScore: null,
+    completedAt: null,
+  };
+  const unit = { id: "ts1", title: "Wildfire", essentialQuestion: "How do forests recover?" };
+  const grouped = groupAssignmentsByTextSet([
+    // Newest-first input (as listed); the unit is re-ordered by assignment creation.
+    { ...base, assignmentId: "x3", classroomId: "c1", articleId: "a3", status: AssignmentStatus.IN_PROGRESS, textSet: unit, assignedAt: new Date(3) },
+    { ...base, assignmentId: "x2", classroomId: "c1", articleId: "a2", status: AssignmentStatus.ASSIGNED, textSet: null, assignedAt: new Date(2) },
+    { ...base, assignmentId: "x1", classroomId: "c1", articleId: "a1", status: AssignmentStatus.COMPLETED, textSet: unit, assignedAt: new Date(1) },
+    { ...base, assignmentId: "x4", classroomId: "c2", articleId: "a1", status: AssignmentStatus.COMPLETED, textSet: unit, assignedAt: new Date(4) },
+  ]);
+  assert.deepEqual(
+    grouped.units.map((u) => [u.key, u.assignments.map((a) => a.assignmentId), u.completed]),
+    [
+      ["c1:ts1", ["x1", "x3"], 1],
+      ["c2:ts1", ["x4"], 1],
+    ],
+  );
+  assert.deepEqual(grouped.standalone.map((a) => a.assignmentId), ["x2"]);
 });

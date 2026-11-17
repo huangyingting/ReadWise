@@ -41,6 +41,8 @@ import ClassroomSettingsCard from "@/components/teacher/ClassroomSettingsCard";
 import ClassroomJoinCodeCard from "@/components/teacher/ClassroomJoinCodeCard";
 import ReadingSkillsCard from "@/components/teacher/ReadingSkillsCard";
 import { getClassroomSkillMatrix } from "@/lib/classroom/skills";
+import { getClassroomTextSetUnits } from "@/lib/classroom/text-sets";
+import TextSetUnitsCard from "@/components/teacher/TextSetUnitsCard";
 import DeleteAssignmentButton from "@/components/teacher/DeleteAssignmentButton";
 import EditAssignmentForm from "@/components/teacher/EditAssignmentForm";
 import ReopenAssignmentButton from "@/components/teacher/ReopenAssignmentButton";
@@ -575,7 +577,7 @@ export default async function ClassroomDetailPage({
     isOrgAdmin,
   });
 
-  const [members, filterAnalytics, analytics, assignmentMetaRows, skillMatrix] = await Promise.all([
+  const [members, filterAnalytics, analytics, assignmentMetaRows, skillMatrix, textSetUnits] = await Promise.all([
     listClassroomMembers(id),
     getClassroomAnalytics(id, role),
     getClassroomAnalytics(id, role, {
@@ -584,6 +586,7 @@ export default async function ClassroomDetailPage({
     }),
     listClassroomAssignmentMeta(id),
     getClassroomSkillMatrix(id, { individual: analyticsAccessFor(role).individualData }),
+    getClassroomTextSetUnits(id),
   ]);
   const assignmentMeta: AssignmentMetaMap = new Map(
     assignmentMetaRows.map((row) => [row.assignmentId, row]),
@@ -647,6 +650,7 @@ export default async function ClassroomDetailPage({
           />
           <DrilldownCard analytics={analytics} assignmentMeta={assignmentMeta} />
           <StudentProgressCard analytics={analytics} />
+          <TextSetUnitsCard units={textSetUnits} />
           <ReadingSkillsCard classroomId={id} matrix={skillMatrix} />
         </div>
 

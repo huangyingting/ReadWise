@@ -38,6 +38,7 @@ flowchart LR
 | `Membership` | Joins a `User` to an `Organization` with a tenant `role`. `@@unique([userId, orgId])` — a user MAY belong to multiple orgs. Cascades with both. |
 | `Classroom` | Belongs to an org; has one primary `teacherId`. |
 | `ClassroomMembership` | Joins a `User` to a `Classroom` with a `ClassroomRole`. `@@unique([classroomId, userId])`. |
+| `TextSet` / `TextSetItem` | Teacher-curated reading units owned within one organization (`PRIVATE` or `ORG`-shared with its teachers; never visible across organizations). Cascade with the organization; `ownerId` is `SetNull`. Assigned sets link classroom assignments through `Assignment.textSetId`. See [text sets](../learning/text-sets.md). |
 | `ClassroomJoinCode` | At most one per classroom (`@@unique classroomId`): a unique self-enrollment `code` with optional `expiresAt` / `maxUses`, a `useCount`, and `disabledAt`. Cascades with the classroom; `createdById` is `SetNull` when the issuer is deleted. |
 | `Assignment` | A `Classroom` ↔ `Article` reading assignment with optional `dueDate`/`instructions`. |
 | `AssignmentCompletion` | A student's progress on an assignment (`status`, optional `quizScore`, `completedAt`). `@@unique([assignmentId, studentId])`. |

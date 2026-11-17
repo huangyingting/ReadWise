@@ -24,6 +24,10 @@ export type StudentAssignment = {
   status: AssignmentStatus;
   quizScore: number | null;
   completedAt: Date | null;
+  /** Text Set unit this reading belongs to (#1308); null for standalone assignments. */
+  textSet: { id: string; title: string; essentialQuestion: string | null } | null;
+  /** When the assignment was created; a unit's readings are created in set order. */
+  assignedAt: Date;
 };
 
 type AssignmentWithStudentCompletion = Awaited<
@@ -31,6 +35,7 @@ type AssignmentWithStudentCompletion = Awaited<
 >[number] & {
   classroom: { id: string; name: string };
   article: { id: string; title: string };
+  textSet: { id: string; title: string; essentialQuestion: string | null } | null;
   completions: Array<{
     status: AssignmentStatus;
     quizScore: number | null;
@@ -44,6 +49,7 @@ function assignmentIncludeForStudent(studentId: string) {
   return {
     classroom: { select: { id: true, name: true } },
     article: { select: { id: true, title: true } },
+    textSet: { select: { id: true, title: true, essentialQuestion: true } },
     completions: { where: { studentId }, take: 1 },
   };
 }
@@ -65,6 +71,8 @@ function mapStudentAssignment(assignment: AssignmentWithStudentCompletion): Stud
     status: completion?.status ?? AssignmentStatus.ASSIGNED,
     quizScore: completion?.quizScore ?? null,
     completedAt: completion?.completedAt ?? null,
+    textSet: assignment.textSet ?? null,
+    assignedAt: assignment.createdAt,
   };
 }
 
@@ -119,4 +127,46 @@ export async function listStudentAssignmentsForArticle(
   })) as AssignmentWithStudentCompletion[];
 
   return rows.map(mapStudentAssignment).sort(compareByDueDateAsc);
+}
+
+export type StudentTextSetUnit = {
+  key: string;
+  textSet: { id: string; title: string; essentialQuestion: string | null };
+  classroomName: string;
+  assignments: StudentAssignment[];
+  completed: number;
+};
+
+/**
+ * Splits a student's assignments into Text Set units (per set and classroom,
+ * in first-appearance order; readings in set order) and standalone readings
+ * (#1308).
+ */
+export function groupAssignmentsByTextSet(assignments: StudentAssignment[]): {
+  units: StudentTextSetUnit[];
+  standalone: StudentAssignment[];
+} {
+  const units = new Map<string, StudentTextSetUnit>();
+  const standalone: StudentAssignment[] = [];
+  for (const assignment of assignments) {
+    if (!assignment.textSet) {
+      standalone.push(assignment);
+      continue;
+    }
+    const key = `${assignment.classroomId}:${assignment.textSet.id}`;
+    const unit = units.get(key) ?? {
+      key,
+      textSet: assignment.textSet,
+      classroomName: assignment.classroomName,
+      assignments: [],
+      completed: 0,
+    };
+    unit.assignments.push(assignment);
+    if (assignment.status === AssignmentStatus.COMPLETED) unit.completed += 1;
+    units.set(key, unit);
+  }
+  for (const unit of units.values()) {
+    unit.assignments.sort((a, b) => a.assignedAt.getTime() - b.assignedAt.getTime());
+  }
+  return { units: [...units.values()], standalone };
 }

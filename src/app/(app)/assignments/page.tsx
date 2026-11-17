@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BookOpenCheck } from "lucide-react";
 import { requireSession } from "@/lib/session";
-import { listAssignmentsForStudent } from "@/lib/classroom";
+import { groupAssignmentsByTextSet, listAssignmentsForStudent } from "@/lib/classroom";
 import { EmptyState, PageHeader, PageShell, buttonVariants } from "@/components/ui";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -48,12 +48,55 @@ export default async function AssignmentsPage() {
 }
 
 function AssignmentList({ assignments }: { assignments: StudentAssignment[] }) {
+  const { units, standalone } = groupAssignmentsByTextSet(assignments);
   return (
-    <ul className="flex flex-col gap-[var(--space-3)]">
-      {assignments.map((assignment) => (
-        <AssignmentCard key={assignment.assignmentId} assignment={assignment} />
+    <div className="flex flex-col gap-[var(--space-6)]">
+      {units.map((unit) => (
+        <section key={unit.key} aria-labelledby={`unit-${unit.key}`} className="flex flex-col gap-[var(--space-3)]">
+          <div className="flex flex-col gap-[var(--space-1)]">
+            <div className="flex flex-wrap items-center gap-[var(--space-2)]">
+              <h2
+                id={`unit-${unit.key}`}
+                className="m-0 font-[family-name:var(--font-display)] text-[length:var(--type-section-title)] font-semibold text-text"
+              >
+                {unit.textSet.title}
+              </h2>
+              <Badge variant={unit.completed === unit.assignments.length ? "success" : "neutral"}>
+                {unit.completed} of {unit.assignments.length} done
+              </Badge>
+            </div>
+            <p className="m-0 text-[length:var(--type-ui)] text-text-muted">
+              Text set · {unit.classroomName}
+            </p>
+            {unit.textSet.essentialQuestion ? (
+              <p className="m-0 text-[length:var(--type-body)] text-text">
+                <span className="font-semibold">Essential question: </span>
+                {unit.textSet.essentialQuestion}
+              </p>
+            ) : null}
+          </div>
+          <ol className="m-0 flex list-none flex-col gap-[var(--space-3)] p-0">
+            {unit.assignments.map((assignment) => (
+              <AssignmentCard key={assignment.assignmentId} assignment={assignment} />
+            ))}
+          </ol>
+        </section>
       ))}
-    </ul>
+      {standalone.length > 0 ? (
+        <section aria-label={units.length > 0 ? "Other assignments" : "Assignments"} className="flex flex-col gap-[var(--space-3)]">
+          {units.length > 0 ? (
+            <h2 className="m-0 font-[family-name:var(--font-display)] text-[length:var(--type-section-title)] font-semibold text-text">
+              Other assignments
+            </h2>
+          ) : null}
+          <ul className="m-0 flex list-none flex-col gap-[var(--space-3)] p-0">
+            {standalone.map((assignment) => (
+              <AssignmentCard key={assignment.assignmentId} assignment={assignment} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
   );
 }
 
@@ -90,7 +133,7 @@ function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
               {due ? ` · Due ${due}` : ""}
             </p>
             {assignment.instructions ? (
-              <p className="text-[length:var(--text-sm)] text-text">
+              <p className="whitespace-pre-line text-[length:var(--text-sm)] text-text">
                 {assignment.instructions}
               </p>
             ) : null}

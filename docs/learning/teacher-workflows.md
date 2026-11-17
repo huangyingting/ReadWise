@@ -57,6 +57,16 @@ membership/capability. A classroom has:
 Roster changes are scoped to the classroom. Adding a student should not grant
 system admin privileges or visibility into unrelated classrooms.
 
+### Text sets
+
+Teachers can group readings into **Text Sets** at `/teacher/text-sets` — an
+essential question, student instructions, teacher notes, and ordered readings
+with guiding notes — keep them private or share them with their
+organization's teachers, duplicate colleagues' sets, and assign a whole set to
+classrooms as a unit. The classroom page shows unit progress and students see
+the readings grouped under the essential question. See
+[text sets](text-sets.md).
+
 ### Reading skills and answer-key previews
 
 The classroom page's **Reading skills** card shows each student's percent

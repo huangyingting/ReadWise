@@ -92,6 +92,7 @@ flowchart LR
 | [`learning/engagement-analytics.md`](./learning/engagement-analytics.md) | Reading progress, daily activity, streaks, shields, heatmaps, and reading-speed signals. |
 | [`learning/gamification.md`](./learning/gamification.md) | Gamification summary route, streak/shield widgets, daily-goal progress, and due-review counts. |
 | [`learning/difficulty-calibration.md`](./learning/difficulty-calibration.md) | Privacy-safe CEFR/Lexile-like calibration, NC dataset opt-in gate, provider DB drift snapshots, vocabulary penalty audit, and human label workflow. |
+| [`learning/text-sets.md`](./learning/text-sets.md) | Teacher-curated Text Sets: org sharing and isolation, editing/duplication, assigning as linked unit assignments, unit rollups, and the student unit view. |
 | [`learning/reading-skills.md`](./learning/reading-skills.md) | Reading-skill taxonomy on quiz questions, answer rationales, per-question attempt answers, content maturity bands, Browse skill/maturity facets, and the classroom Reading skills matrix. |
 | [`learning/learning-and-mastery.md`](./learning/learning-and-mastery.md) | Word/article/skill mastery, Today comprehension feedback, coach memory, learner analytics, adaptive leveling, streaks, SRS, and study-plan signals. |
 | [`learning/placement.md`](./learning/placement.md) | Reading placement passage flow, deterministic scoring, `PlacementResult` persistence, retake/skip behavior, and privacy rules. |

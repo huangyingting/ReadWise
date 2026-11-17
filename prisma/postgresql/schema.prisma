@@ -104,6 +104,7 @@ model User {
   taughtClassrooms        Classroom[]                 @relation("TaughtClassrooms")
   classroomMemberships    ClassroomMembership[]
   createdClassroomJoinCodes ClassroomJoinCode[]       @relation("CreatedClassroomJoinCodes")
+  ownedTextSets             TextSet[]                 @relation("OwnedTextSets")
   assignmentCompletions   AssignmentCompletion[]
   assignmentTargets       AssignmentTarget[]
   todaySessions           TodaySession[]
@@ -184,6 +185,7 @@ model Article {
   sentenceTranslations SentenceTranslation[]
   vocabulary           VocabularyItem[]
   quizQuestions        QuizQuestion[]
+  textSetItems         TextSetItem[]
   quizAttempts         QuizAttempt[]
   speech               ArticleSpeech?
   tags                 ArticleTag[]
@@ -1233,6 +1235,7 @@ model Organization {
 
   memberships Membership[]
   classrooms  Classroom[]
+  textSets    TextSet[]
 
   @@index([slug])
 }
@@ -1297,6 +1300,53 @@ model ClassroomJoinCode {
   @@index([createdById])
 }
 
+/// Teacher-curated Text Set (#1308): an ordered, framed group of articles for
+/// an instructional unit, owned within one Organization. `visibility` is
+/// "PRIVATE" (owner only) or "ORG" (shared with the org's teachers). The owner
+/// link is cleared if the author's account is removed; org admins manage
+/// orphaned shared sets.
+model TextSet {
+  id                String   @id @default(cuid())
+  organizationId    String
+  ownerId           String?
+  title             String
+  /// Driving question for the unit, shown to students.
+  essentialQuestion String?
+  /// Student-facing framing instructions.
+  description       String?
+  /// Teacher-only notes (never shown to students).
+  educatorNotes     String?
+  visibility        String   @default("PRIVATE")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner        User?         @relation("OwnedTextSets", fields: [ownerId], references: [id], onDelete: SetNull)
+  items        TextSetItem[]
+  assignments  Assignment[]
+
+  @@index([organizationId, visibility])
+  @@index([ownerId])
+}
+
+/// One ordered reading in a Text Set, with an optional guiding note that
+/// becomes the assignment's instructions.
+model TextSetItem {
+  id          String   @id @default(cuid())
+  textSetId   String
+  articleId   String
+  position    Int
+  guidingNote String?
+  createdAt   DateTime @default(now())
+
+  textSet TextSet @relation(fields: [textSetId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([textSetId, articleId])
+  @@index([textSetId, position])
+  @@index([articleId])
+}
+
 model ClassroomMembership {
   id          String        @id @default(cuid())
   classroomId String
@@ -1331,9 +1381,13 @@ model Assignment {
   article     Article                @relation(fields: [articleId], references: [id], onDelete: Cascade)
   completions AssignmentCompletion[]
   targets     AssignmentTarget[]
+  /// Text Set unit this assignment belongs to (#1308); cleared if the set is deleted.
+  textSetId   String?
+  textSet     TextSet?               @relation(fields: [textSetId], references: [id], onDelete: SetNull)
 
   @@index([classroomId])
   @@index([articleId])
+  @@index([classroomId, textSetId])
 }
 
 model AssignmentTarget {

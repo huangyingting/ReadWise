@@ -29,6 +29,8 @@ export type CreateArticleAssignmentInput = {
   studentIds?: string[];
   publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
   publishAt?: string | null;
+  /** Text Set unit the assignment belongs to (#1308). */
+  textSetId?: string | null;
 };
 
 export type CreateArticleAssignmentResult =
@@ -192,6 +194,7 @@ export async function createArticleAssignment(
           points: input.points ?? null,
           publishState: publish.publishState,
           publishAt: publish.publishAt,
+          textSetId: input.textSetId ?? null,
         },
       });
       await tx.assignmentTarget.createMany({
@@ -215,6 +218,7 @@ export async function createArticleAssignment(
       points: input.points ?? null,
       publishState: publish.publishState,
       publishAt: publish.publishAt,
+      textSetId: input.textSetId ?? null,
     },
   });
   return { ok: true, assignment };

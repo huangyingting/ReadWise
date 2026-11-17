@@ -90,6 +90,7 @@ export {
 export {
   type StudentAssignment,
   listAssignmentsForStudent,
+  groupAssignmentsByTextSet,
   listStudentAssignmentsForArticle,
 } from "./student-reads";
 export {
