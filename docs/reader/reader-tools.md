@@ -89,7 +89,11 @@ The Quiz tab calls `POST /api/reader/[id]/quiz` and keeps answer state locally
 until submission. Attempts are sent to `POST /api/reader/[id]/quiz/attempt` with
 a `clientMutationId` and `x-client-mutation-id` header. The server grades
 selected indices authoritatively against cached questions; the client score is
-only UI feedback.
+only UI feedback. Each question carries a reading skill and, when the model
+provided one, an answer rationale; after submission the panel shows a skill
+badge (e.g. "R.2 · Main idea & summary") and the rationale per question, and
+the server stores per-question outcomes with the attempt (see
+[reading skills](../learning/reading-skills.md)).
 
 When the direct attempt write fails, the panel enqueues a `quiz.attempt` offline
 mutation. `QuizAttempt.clientMutationId` makes replay idempotent, so a flaky

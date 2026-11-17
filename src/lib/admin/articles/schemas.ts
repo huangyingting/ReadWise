@@ -19,6 +19,7 @@ import {
 import { ARTICLE_STATUSES } from "@/lib/article-library";
 import { REVIEW_STATES, type ReviewState } from "@/lib/article-library";
 import { TAKEDOWN_STATES, type TakedownState } from "@/lib/article-library";
+import { MATURITY_BANDS } from "@/lib/article-library/maturity";
 
 /** Helper: extract the validated value type from any Schema<T>. */
 type InferSchema<S extends Schema<unknown>> = S extends Schema<infer T> ? T : never;
@@ -87,6 +88,8 @@ export const reviewBody = object({
   excerpt: optional(string({ max: 2000 })),
   category: optional(string({ max: 100 })),
   difficulty: optional(string({ max: 10 })),
+  /** Content maturity band (#1302). */
+  maturityBand: optional(oneOf(MATURITY_BANDS)),
   status: optional(oneOf(["DRAFT", "PUBLISHED"] as const)),
   /**
    * Operator-settable visibility, restricted to the ownerless public-library

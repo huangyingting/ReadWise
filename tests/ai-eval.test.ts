@@ -61,7 +61,7 @@ test("offline evaluation passes every property for all curated datasets", async 
 test("the report records the active prompt version per feature", async () => {
   const datasets = loadEvalDatasets();
   const report = await runEvaluation(datasets, { live: false });
-  assert.equal(report.promptVersions.quiz, "quiz/v1");
+  assert.equal(report.promptVersions.quiz, "quiz/v2");
   assert.equal(report.promptVersions.translation, "translation/v1");
 });
 

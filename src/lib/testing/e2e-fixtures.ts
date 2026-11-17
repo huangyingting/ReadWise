@@ -146,6 +146,7 @@ export async function resetE2eDatabase(): Promise<void> {
     prisma.articleDifficultyFeedback.deleteMany(),
     prisma.grammarExplanation.deleteMany(),
     prisma.pronunciationAttempt.deleteMany(),
+    prisma.quizAttemptAnswer.deleteMany(),
     prisma.quizAttempt.deleteMany(),
     prisma.sentenceTranslation.deleteMany(),
     prisma.highlight.deleteMany(),

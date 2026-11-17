@@ -3,10 +3,11 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { recordQuizAttempt } from "@/lib/learning/quiz-mastery";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
-import { gradeQuizAnswers, QuizGradingError } from "@/lib/quiz-grading";
+import { gradeQuizAnswers, QuizGradingError, type GradedAnswer } from "@/lib/quiz-grading";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { updateArticleMastery } from "@/lib/learning/article-mastery";
 import { recordLearnerEvidence } from "@/lib/learning/learner-evidence";
+import { recordReadingSkillEvidence } from "@/lib/learning/reading-skill-evidence";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { quizAttemptBody, type QuizAttemptBody } from "@/lib/reader/schemas";
@@ -28,12 +29,14 @@ async function updateQuizMasterySignals(
   userId: string,
   articleId: string,
   scorePct: number,
+  answers: GradedAnswer[],
 ): Promise<void> {
   await Promise.all([
     bestEffortMastery("quiz.article_mastery", () =>
       updateArticleMastery(userId, articleId),
     ),
     recordLearnerEvidence(userId, { activity: "quiz-completed", scorePct }),
+    bestEffortMastery("quiz.reading_skills", () => recordReadingSkillEvidence(userId, answers)),
   ]);
 }
 
@@ -65,6 +68,9 @@ async function recordQuizCompletionEvent(
  * inflate mastery/leveling. The persisted attempt uses the server-derived score.
  *
  * Body: { answers: { index: number, selectedIndex: number }[] }
+ * Per-question outcomes (skill, chosen index, correctness) are stored with the
+ * attempt and feed reading-skill evidence (#1302).
+ *
  * Response 200: { attempt: { id, correctCount, totalQuestions, scorePct, completedAt }, best: number }
  * Errors: 400 invalid/mismatched answers | 401 unauthenticated | 404 article not found
  */
@@ -96,7 +102,7 @@ export const POST = createHandler(
         article.id,
         graded.correctCount,
         graded.total,
-        { clientMutationId },
+        { clientMutationId, answers: graded.answers },
       );
     } catch (err) {
       throw badAttemptRequest(err, "Invalid attempt data");
@@ -109,6 +115,7 @@ export const POST = createHandler(
         session.user.id,
         article.id,
         result.attempt.scorePct,
+        graded.answers,
       );
 
       // Product analytics (RW-051): quiz completion is a core engagement

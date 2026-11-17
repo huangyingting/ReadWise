@@ -112,6 +112,21 @@
   color: var(--danger-text);
 }
 
+/* Post-submission skill badge + answer rationale (#1302). */
+.quiz-skill-review {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.quiz-explanation {
+  margin: 0;
+  font-size: var(--type-ui);
+  color: var(--text-muted);
+}
+
 .quiz-submit {
   width: auto;
   margin-top: 1.25rem;

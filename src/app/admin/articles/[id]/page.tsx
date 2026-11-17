@@ -29,6 +29,7 @@ import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/B
 import { Metric, MetricStrip } from "@/components/ui";
 import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { formatDateTime } from "@/lib/display-format";
+import { DEFAULT_MATURITY_BAND, isMaturityBand } from "@/lib/article-library/maturity";
 
 type BadgeVariant = "success" | "neutral" | "warning" | "danger";
 type AdminArticleDetail = NonNullable<
@@ -230,6 +231,7 @@ function ModerationReviewCard({
             excerpt: article.excerpt ?? "",
             category: article.category ?? "",
             difficulty: article.difficulty ?? "",
+            maturityBand: isMaturityBand(article.maturityBand) ? article.maturityBand : DEFAULT_MATURITY_BAND,
             status: article.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
             visibility: article.visibility,
             reviewState: article.reviewState ?? "unreviewed",

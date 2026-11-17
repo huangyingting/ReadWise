@@ -1,7 +1,7 @@
 ---
 type: "testing"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-17"
 description: "Documents offline/live AI evaluation harnesses, datasets, and regression boundaries. Captures current eval dataset structure, runner behavior, deterministic checks, live-provider safeguards, and output expectations."
 ---
 
@@ -103,7 +103,7 @@ serializable and comparable across runs:
 {
   "mode": "offline",
   "generatedAt": "2026-06-23T04:39:02.000Z",
-  "promptVersions": { "quiz": "quiz/v1", "translation": "translation/v1", ... },
+  "promptVersions": { "quiz": "quiz/v2", "translation": "translation/v1", ... },
   "features": [
     {
       "feature": "quiz",

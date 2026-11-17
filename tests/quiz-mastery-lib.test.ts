@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 let articleExists = true;
 
 let createdAttempt: Record<string, unknown> | null = null;
+let lastCreateData: Record<string, unknown> | null = null;
 let existingAttempt: Record<string, unknown> | null = null;
 let aggregateResult: { _count: { id: number }; _avg: { scorePct: number | null } } = {
   _count: { id: 0 },
@@ -43,6 +44,7 @@ before(() => {
             data: Record<string, unknown>;
             select: Record<string, unknown>;
           }) => {
+            lastCreateData = args.data;
             const data = args.data as {
               userId: string;
               articleId: string;
@@ -249,4 +251,24 @@ describe("getQuizMastery", () => {
     assert.equal(mastery.averageScore, null);
     assert.deepEqual(mastery.recentTrend, []);
   });
+});
+
+test("recordQuizAttempt stores per-question answers with the attempt (#1302)", async () => {
+  existingAttempt = null;
+  const { recordQuizAttempt } = await import("@/lib/learning/quiz-mastery");
+  await recordQuizAttempt("u1", "a1", 1, 2, {
+    answers: [
+      { questionIndex: 0, questionId: "q1", skillTag: "main_idea", selectedIndex: 2, correct: false },
+      { questionIndex: 1, questionId: "q2", skillTag: "argument", selectedIndex: 0, correct: true },
+    ],
+  });
+  assert.deepEqual(lastCreateData?.answers, {
+    create: [
+      { questionId: "q1", questionIndex: 0, skillTag: "main_idea", selectedIndex: 2, correct: false },
+      { questionId: "q2", questionIndex: 1, skillTag: "argument", selectedIndex: 0, correct: true },
+    ],
+  });
+
+  await recordQuizAttempt("u1", "a1", 1, 2, { answers: [] });
+  assert.equal("answers" in (lastCreateData ?? {}), false, "no nested create without answers");
 });

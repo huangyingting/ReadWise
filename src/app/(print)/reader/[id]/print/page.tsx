@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/session";
 import { canPrintAnswerKey, loadPrintableArticle } from "@/lib/reader/print";
 import { optionLetter, parsePrintMode, PRINT_MODE_LABELS } from "@/lib/reader/print-modes";
 import type { QuizQuestion } from "@/lib/quiz";
+import { readingSkillLabel } from "@/lib/learning/reading-skills";
 import type { VocabularyEntry } from "@/lib/vocabulary/service";
 import PrintToolbar from "@/components/reader/PrintToolbar";
 import { EmptyState } from "@/components/ui";
@@ -98,7 +99,14 @@ function AnswerKeySection({ quiz }: { quiz: QuizQuestion[] }) {
         <ol className="print-answer-key">
           {quiz.map((question) => (
             <li key={question.question}>
-              {optionLetter(question.correctIndex)}. {question.options[question.correctIndex]}
+              <strong>
+                {optionLetter(question.correctIndex)}. {question.options[question.correctIndex]}
+              </strong>
+              <span className="print-answer-skill">
+                {" "}
+                — {question.standardCode.replace(/^CCRA\./, "")} {readingSkillLabel(question.skillTag)}
+              </span>
+              {question.explanation ? <p className="print-answer-explanation">{question.explanation}</p> : null}
             </li>
           ))}
         </ol>

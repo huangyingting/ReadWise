@@ -5,6 +5,7 @@ import { before, beforeEach, mock, test } from "node:test";
 
 let viewerRole: "teacher" | "orgAdmin" = "orgAdmin";
 let analyticsCalls = 0;
+let skillMatrixCalls: Array<{ classroomId: string; individual: boolean }> = [];
 
 before(() => {
   mock.module("@/lib/classroom/queries", {
@@ -32,9 +33,20 @@ before(() => {
       CAPABILITIES: { orgManage: "org.manage" },
     },
   });
+  mock.module("@/lib/classroom/skills", {
+    namedExports: {
+      getClassroomSkillMatrix: async (classroomId: string, options: { individual: boolean }) => {
+        skillMatrixCalls.push({ classroomId, individual: options.individual });
+        return { students: options.individual ? [] : null };
+      },
+    },
+  });
   mock.module("@/lib/analytics/tenant", {
     namedExports: {
       viewerRoleForClassroom: () => viewerRole,
+      analyticsAccessFor: (role: string) => ({
+        individualData: role === "teacher" || role === "systemAdmin",
+      }),
       getClassroomAnalytics: async () => {
         analyticsCalls += 1;
         return { redacted: viewerRole === "orgAdmin" };
@@ -46,6 +58,7 @@ before(() => {
 beforeEach(() => {
   viewerRole = "orgAdmin";
   analyticsCalls = 0;
+  skillMatrixCalls = [];
 });
 
 test("aggregate-only viewers cannot narrow analytics to one assignment", async () => {
@@ -80,4 +93,26 @@ test("teachers retain assignment-level analytics filtering", async () => {
   });
 
   assert.equal(analyticsCalls, 1);
+});
+
+test("reading-skills matrix follows the analytics visibility rules (#1302)", async () => {
+  const { getScopedClassroomSkills } = await import("@/lib/analytics/classroom-access");
+
+  const aggregate = await getScopedClassroomSkills({
+    classroomId: "class-1",
+    viewer: { id: "org-admin", role: "Reader" },
+  });
+  assert.equal(aggregate.role, "orgAdmin");
+  assert.equal(aggregate.matrix.students, null);
+
+  viewerRole = "teacher";
+  const teacher = await getScopedClassroomSkills({
+    classroomId: "class-1",
+    viewer: { id: "teacher-1", role: "Reader" },
+  });
+  assert.deepEqual(teacher.matrix.students, []);
+  assert.deepEqual(skillMatrixCalls, [
+    { classroomId: "class-1", individual: false },
+    { classroomId: "class-1", individual: true },
+  ]);
 });

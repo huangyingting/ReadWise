@@ -16,6 +16,7 @@ import { getMembership, hasOrgCapability, isSystemAdmin } from "@/lib/org";
 import { CAPABILITIES } from "@/lib/rbac";
 import {
   getClassroomAnalytics,
+  analyticsAccessFor,
   viewerRoleForClassroom,
 } from "@/lib/analytics/tenant";
 import { articleAccessContext } from "@/lib/article-library";
@@ -38,6 +39,8 @@ import AssignReadingSheet from "@/components/teacher/AssignReadingSheet";
 import AssignmentFeedbackForm from "@/components/teacher/AssignmentFeedbackForm";
 import ClassroomSettingsCard from "@/components/teacher/ClassroomSettingsCard";
 import ClassroomJoinCodeCard from "@/components/teacher/ClassroomJoinCodeCard";
+import ReadingSkillsCard from "@/components/teacher/ReadingSkillsCard";
+import { getClassroomSkillMatrix } from "@/lib/classroom/skills";
 import DeleteAssignmentButton from "@/components/teacher/DeleteAssignmentButton";
 import EditAssignmentForm from "@/components/teacher/EditAssignmentForm";
 import ReopenAssignmentButton from "@/components/teacher/ReopenAssignmentButton";
@@ -572,7 +575,7 @@ export default async function ClassroomDetailPage({
     isOrgAdmin,
   });
 
-  const [members, filterAnalytics, analytics, assignmentMetaRows] = await Promise.all([
+  const [members, filterAnalytics, analytics, assignmentMetaRows, skillMatrix] = await Promise.all([
     listClassroomMembers(id),
     getClassroomAnalytics(id, role),
     getClassroomAnalytics(id, role, {
@@ -580,6 +583,7 @@ export default async function ClassroomDetailPage({
       studentId: filters.studentId || undefined,
     }),
     listClassroomAssignmentMeta(id),
+    getClassroomSkillMatrix(id, { individual: analyticsAccessFor(role).individualData }),
   ]);
   const assignmentMeta: AssignmentMetaMap = new Map(
     assignmentMetaRows.map((row) => [row.assignmentId, row]),
@@ -633,7 +637,8 @@ export default async function ClassroomDetailPage({
       />
 
       <div className="grid gap-[var(--space-6)] md:grid-cols-[2fr_1fr]">
-        <div className="flex flex-col gap-[var(--space-6)]">
+        {/* min-w-0 lets wide tables scroll inside the column instead of widening the page. */}
+        <div className="flex min-w-0 flex-col gap-[var(--space-6)]">
           <AssignmentsCard
             analytics={analytics}
             assignmentMeta={assignmentMeta}
@@ -642,6 +647,7 @@ export default async function ClassroomDetailPage({
           />
           <DrilldownCard analytics={analytics} assignmentMeta={assignmentMeta} />
           <StudentProgressCard analytics={analytics} />
+          <ReadingSkillsCard classroomId={id} matrix={skillMatrix} />
         </div>
 
         <TeacherSidebar

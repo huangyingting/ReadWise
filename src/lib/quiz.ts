@@ -7,12 +7,29 @@ import { validateQuiz } from "@/lib/ai/output/validators";
 import type { ArticleAccessContext } from "@/lib/article-library";
 import type { Prisma } from "@prisma/client";
 import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
+import {
+  isReadingSkill,
+  classifyQuestionSkill,
+  standardCodeFor,
+  type ReadingSkill,
+} from "@/lib/learning/reading-skills";
 
 export type QuizQuestion = {
+  /** Stored `QuizQuestion.id` (links per-question attempt answers). */
+  id: string;
   question: string;
   options: string[];
   correctIndex: number;
+  /** Reading skill the question checks (#1302). */
+  skillTag: ReadingSkill;
+  /** Anchor standard for the skill, e.g. "CCRA.R.2". */
+  standardCode: string;
+  /** Answer rationale, shown after submission; null when unavailable. */
+  explanation: string | null;
 };
+
+/** A freshly generated question before it is stored. */
+type GeneratedQuizQuestion = Omit<QuizQuestion, "id" | "standardCode">;
 
 export type ArticleQuizResult = {
   articleId: string;
@@ -24,16 +41,33 @@ export type ArticleQuizResult = {
 type QuizArticle = { title: string; content: string };
 
 type StoredQuizQuestion = {
+  id: string;
   question: string;
   options: Prisma.JsonValue | null | undefined;
   correctIndex: number;
+  skillTag: string;
+  explanation: string | null;
 };
 
+const STORED_QUIZ_QUESTION_SELECT = {
+  id: true,
+  question: true,
+  options: true,
+  correctIndex: true,
+  skillTag: true,
+  explanation: true,
+} as const;
+
 function storedQuizQuestionToResult(row: StoredQuizQuestion): QuizQuestion {
+  const skillTag = isReadingSkill(row.skillTag) ? row.skillTag : classifyQuestionSkill(row.question);
   return {
+    id: row.id,
     question: row.question,
     options: parseStoredOptions(row.options),
     correctIndex: row.correctIndex,
+    skillTag,
+    standardCode: standardCodeFor(skillTag),
+    explanation: row.explanation,
   };
 }
 
@@ -43,7 +77,7 @@ export async function readCachedQuiz(articleId: string): Promise<QuizQuestion[] 
     await prisma.quizQuestion.findMany({
       where: { articleId },
       orderBy: { createdAt: "asc" },
-      select: { question: true, options: true, correctIndex: true },
+      select: STORED_QUIZ_QUESTION_SELECT,
     })
   ).map(storedQuizQuestionToResult);
   return questions.length > 0 ? questions : null;
@@ -54,30 +88,31 @@ function buildQuizMessages(article: QuizArticle) {
   return renderPrompt("quiz", { title: article.title, source });
 }
 
-async function upsertQuizQuestion(articleId: string, question: QuizQuestion) {
+async function upsertQuizQuestion(articleId: string, question: GeneratedQuizQuestion) {
+  const fields = {
+    options: question.options,
+    correctIndex: question.correctIndex,
+    skillTag: question.skillTag,
+    standardCode: standardCodeFor(question.skillTag),
+    explanation: question.explanation,
+  };
   return prisma.quizQuestion.upsert({
     where: {
       articleId_question: { articleId, question: question.question },
     },
-    update: {
-      options: question.options,
-      correctIndex: question.correctIndex,
-    },
-    create: {
-      articleId,
-      question: question.question,
-      options: question.options,
-      correctIndex: question.correctIndex,
-    },
+    update: fields,
+    create: { articleId, question: question.question, ...fields },
+    select: STORED_QUIZ_QUESTION_SELECT,
   });
 }
 
+/** Stores generated questions and returns them as stored rows, in generation order. */
 async function persistQuizQuestions(
   articleId: string,
-  generated: QuizQuestion[],
+  generated: GeneratedQuizQuestion[],
 ): Promise<QuizQuestion[]> {
-  await Promise.all(generated.map((question) => upsertQuizQuestion(articleId, question)));
-  return generated;
+  const rows = await Promise.all(generated.map((question) => upsertQuizQuestion(articleId, question)));
+  return rows.map(storedQuizQuestionToResult);
 }
 
 /**
@@ -92,7 +127,7 @@ export async function getOrCreateArticleQuiz(
 ): Promise<ArticleQuizResult | null> {
   return getOrCreateArticleAi<
     QuizArticle,
-    QuizQuestion[],
+    GeneratedQuizQuestion[],
     QuizQuestion[],
     ArticleQuizResult
   >(

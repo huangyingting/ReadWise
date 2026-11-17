@@ -9,6 +9,7 @@ type ArticleRow = {
   excerpt: string | null;
   category: string | null;
   difficulty: string | null;
+  maturityBand?: string;
   status: string;
   reviewState: string;
   qualityFlags: unknown;
@@ -145,6 +146,7 @@ beforeEach(() => {
         excerpt: null,
         category: null,
         difficulty: null,
+        maturityBand: "general",
         status: "DRAFT",
         reviewState: "unreviewed",
         qualityFlags: "[]",
@@ -378,4 +380,16 @@ test("listContentReviews returns history newest-first", async () => {
   const history = await listContentReviews("a1");
   assert.equal(history.length, 2);
   assert.equal(history[0].action, "review.approved");
+});
+
+test("reviewArticle sets the content maturity band and records the change (#1302)", async () => {
+  const { reviewArticle } = await import("@/lib/article-library/review");
+  const result = await reviewArticle({ articleId: "a1", reviewerId: "admin-1", maturityBand: "middle_school" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(articles.get("a1")?.maturityBand, "middle_school");
+  assert.ok("maturityBand" in result.changes);
+
+  const unchanged = await reviewArticle({ articleId: "a1", reviewerId: "admin-1", maturityBand: "middle_school" });
+  assert.ok(unchanged.ok && !("maturityBand" in unchanged.changes));
 });

@@ -4,7 +4,16 @@ import assert from "node:assert/strict";
 let aiConfigured = false;
 let aiReply: string | null = null;
 const articles = new Map<string, { title: string; content: string }>();
-let quizRows: { question: string; options: string | string[]; correctIndex: number }[] = [];
+type QuizRow = {
+  id?: string;
+  question: string;
+  options: string | string[];
+  correctIndex: number;
+  skillTag?: string;
+  standardCode?: string | null;
+  explanation?: string | null;
+};
+let quizRows: QuizRow[] = [];
 let quizUpserts = 0;
 
 before(() => {
@@ -31,12 +40,11 @@ before(() => {
         },
         quizQuestion: {
           findMany: async () => quizRows,
-          upsert: async (a: {
-            create: { question: string; options: string[]; correctIndex: number };
-          }) => {
+          upsert: async (a: { create: QuizRow }) => {
             quizUpserts++;
-            quizRows.push(a.create);
-            return a.create;
+            const row = { id: `q-${quizUpserts}`, ...a.create };
+            quizRows.push(row);
+            return row;
           },
         },
       },
@@ -131,4 +139,49 @@ test("getOrCreateArticleQuiz generates + caches when AI configured", async () =>
   assert.equal(result?.questions[0].correctIndex, 2);
   assert.deepEqual(quizRows[0].options, ["x", "y", "z"]);
   assert.equal(quizUpserts, 1);
+});
+
+test("validateQuiz keeps the model's skill and explanation, classifying when absent (#1302)", async () => {
+  const { validateQuiz } = await import("@/lib/ai/output/validators");
+  const items = validateQuiz(
+    JSON.stringify([
+      { question: "What is the main idea?", options: ["a", "b"], correctIndex: 0, skill: "R.4", explanation: "  Because.  " },
+      { question: "Why did the dam fail?", options: ["a", "b"], correctIndex: 1 },
+      { question: "Which word means big?", options: ["a", "b"], correctIndex: 1, skillTag: "argument", explanation: "x".repeat(700) },
+    ]),
+  ).items;
+  assert.equal(items[0]?.skillTag, "vocabulary_in_context", "a recognized model skill wins over wording");
+  assert.equal(items[0]?.explanation, "Because.");
+  assert.equal(items[1]?.skillTag, "cause_effect");
+  assert.equal(items[1]?.explanation, null);
+  assert.equal(items[2]?.skillTag, "argument");
+  assert.equal(items[2]?.explanation?.length, 600);
+});
+
+test("cached questions carry id, skill, standard, and explanation; legacy tags are reclassified (#1302)", async () => {
+  quizRows = [
+    { id: "q1", question: "What is the main idea?", options: ["a", "b"], correctIndex: 0, skillTag: "main_idea", explanation: "It sums up." },
+    { id: "q2", question: "Why did it rain?", options: ["a", "b"], correctIndex: 1, skillTag: "legacy", explanation: null },
+  ];
+  const { getOrCreateArticleQuiz } = await import("@/lib/quiz");
+  const result = await getOrCreateArticleQuiz("a1");
+  assert.deepEqual(
+    result?.questions.map((q) => [q.id, q.skillTag, q.standardCode, q.explanation]),
+    [
+      ["q1", "main_idea", "CCRA.R.2", "It sums up."],
+      ["q2", "cause_effect", "CCRA.R.3", null],
+    ],
+  );
+});
+
+test("generated questions are stored with skill, standard, and explanation (#1302)", async () => {
+  aiConfigured = true;
+  aiReply = '[{"question":"What does scarce mean?","options":["rare","many"],"correctIndex":0,"explanation":"Scarce means rare."}]';
+  const { getOrCreateArticleQuiz } = await import("@/lib/quiz");
+  const result = await getOrCreateArticleQuiz("a1");
+  assert.equal(quizRows[0]?.skillTag, "vocabulary_in_context");
+  assert.equal(quizRows[0]?.standardCode, "CCRA.R.4");
+  assert.equal(quizRows[0]?.explanation, "Scarce means rare.");
+  assert.equal(result?.questions[0]?.id, "q-1");
+  assert.equal(result?.questions[0]?.standardCode, "CCRA.R.4");
 });

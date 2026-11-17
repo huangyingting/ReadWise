@@ -150,6 +150,9 @@ model Article {
   difficulty      String?
   difficultyScore Float?
   lexileApprox    Int?
+  /// Content maturity band (#1302): elementary | middle_school | high_school |
+  /// general. Age/topic appropriateness, independent of CEFR difficulty.
+  maturityBand    String            @default("general")
   difficultyVersion String?
   visibility      ArticleVisibility @default(PUBLIC)
   status          ArticleStatus     @default(PUBLISHED)
@@ -210,6 +213,7 @@ model Article {
   @@index([status, createdAt], map: "Article_status_created_idx")
   @@index([visibility, status, ownerId, difficulty, difficultyScore, publishedAt], map: "Article_level_feed_idx")
   @@index([takedownState])
+  @@index([maturityBand])
   @@index([reviewState])
 }
 
@@ -263,13 +267,23 @@ model QuizQuestion {
   question     String
   options      Json
   correctIndex Int
+  /// Reading skill (#1302): one of the controlled keys in
+  /// src/lib/learning/reading-skills.ts. Model-provided or classified
+  /// deterministically from the question wording.
+  skillTag     String   @default("textual_evidence")
+  /// Anchor standard derived from `skillTag`, e.g. "CCRA.R.2".
+  standardCode String?
+  /// Answer rationale shown after submission and on teacher answer keys.
+  explanation  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  article Article             @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  answers QuizAttemptAnswer[]
 
   @@unique([articleId, question])
   @@index([articleId])
+  @@index([skillTag, articleId])
 }
 
 model VocabularyItem {
@@ -589,11 +603,34 @@ model QuizAttempt {
   clientMutationId String? @unique
   completedAt    DateTime @default(now())
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article             @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  answers QuizAttemptAnswer[]
 
   @@index([userId, articleId])
   @@index([userId, completedAt])
+}
+
+/// Per-question outcome of a graded quiz attempt (#1302). Stores only the
+/// controlled skill, the chosen option index, and correctness — never the
+/// question or option text. Cascades with its attempt; the question link is
+/// cleared if the quiz is regenerated.
+model QuizAttemptAnswer {
+  id            String   @id @default(cuid())
+  attemptId     String
+  questionId    String?
+  questionIndex Int
+  skillTag      String
+  selectedIndex Int
+  correct       Boolean
+  createdAt     DateTime @default(now())
+
+  attempt  QuizAttempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question QuizQuestion? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+
+  @@unique([attemptId, questionIndex])
+  @@index([questionId])
+  @@index([skillTag])
 }
 
 // M16 — Pronunciation Practice

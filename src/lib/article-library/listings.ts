@@ -16,6 +16,8 @@ import {
   type DifficultyLevel,
 } from "@/lib/difficulty";
 import { createCachedListing } from "@/lib/cache";
+import { maturityBandsSuitableFor, type MaturityBand } from "@/lib/article-library/maturity";
+import type { ReadingSkill } from "@/lib/learning/reading-skills";
 import { LISTING_KEYS, LISTING_TAGS } from "@/lib/listing-cache";
 import {
   getPublicListableArticleById,
@@ -157,6 +159,28 @@ function normalizeOffset(offset?: number): number {
  * When `maxLevel` is provided, articles are filtered to those at or below that
  * CEFR level and sorted easiest-first (in-memory, like the Picks feed).
  */
+/**
+ * Browse facets (#1302): content maturity ("suitable up to" a band, plus
+ * general-audience content) and reading skill (the article's quiz has at least
+ * one question for that skill).
+ */
+export type ArticleFacets = {
+  maturityBand?: MaturityBand | null;
+  skill?: ReadingSkill | null;
+};
+
+/** Prisma filters for the active facets (empty when none are set). */
+export function articleFacetFilters(facets: ArticleFacets = {}): Prisma.ArticleWhereInput[] {
+  const filters: Prisma.ArticleWhereInput[] = [];
+  if (facets.maturityBand) {
+    filters.push({ maturityBand: { in: maturityBandsSuitableFor(facets.maturityBand) } });
+  }
+  if (facets.skill) {
+    filters.push({ quizQuestions: { some: { skillTag: facets.skill } } });
+  }
+  return filters;
+}
+
 export async function listCategoryPage(
   category: string | null,
   opts: {
@@ -164,22 +188,26 @@ export async function listCategoryPage(
     limit?: number;
     maxLevel?: DifficultyLevel | null;
     query?: string | null;
-  } = {},
+  } & ArticleFacets = {},
 ): Promise<ArticlePage> {
   const limit = opts.limit ?? BROWSE_PAGE_SIZE;
   const offset = normalizeOffset(opts.offset);
   const maxLevel = opts.maxLevel ?? null;
   const query = normalizeBrowseQuery(opts.query);
+  // Primitive facet args keep the cached listing's key stable.
+  const maturityBand = opts.maturityBand ?? null;
+  const skill = opts.skill ?? null;
   if (query) {
-    return listCategorySearchPageImpl(category, maxLevel, query, offset, limit);
+    return listCategorySearchPageImpl(category, maxLevel, query, offset, limit, maturityBand, skill);
   }
-  return cachedListCategoryPage(category, maxLevel, offset, limit);
+  return cachedListCategoryPage(category, maxLevel, offset, limit, maturityBand, skill);
 }
 
 function categorySearchWhere(
   category: string | null,
   maxLevel: DifficultyLevel | null,
   terms: string[],
+  facets: ArticleFacets,
 ): Prisma.ArticleWhereInput {
   const filters: Prisma.ArticleWhereInput[] = [articleTextWhere(terms)];
   if (category) {
@@ -188,6 +216,7 @@ function categorySearchWhere(
   if (maxLevel) {
     filters.push({ difficulty: { in: levelsAtOrBelow(maxLevel) } });
   }
+  filters.push(...articleFacetFilters(facets));
   return publicListableArticleWhere(
     filters.length === 1 ? filters[0] : { AND: filters },
   );
@@ -199,13 +228,15 @@ async function listCategorySearchPageImpl(
   query: string,
   offset: number,
   limit: number,
+  maturityBand: MaturityBand | null,
+  skill: ReadingSkill | null,
 ): Promise<ArticlePage> {
   const terms = buildSearchTerms(query);
   if (terms.length === 0) {
     return { articles: [], hasMore: false };
   }
   const rows = await prisma.article.findMany({
-    where: categorySearchWhere(category, maxLevel, terms),
+    where: categorySearchWhere(category, maxLevel, terms, { maturityBand, skill }),
     orderBy:
       maxLevel != null
         ? [
@@ -225,9 +256,19 @@ async function listCategoryPageImpl(
   maxLevel: DifficultyLevel | null,
   offset: number,
   limit: number,
+  maturityBand: MaturityBand | null = null,
+  skill: ReadingSkill | null = null,
 ): Promise<ArticlePage> {
+  const scopeFilters: Prisma.ArticleWhereInput[] = [
+    ...(category ? [{ category }] : []),
+    ...articleFacetFilters({ maturityBand, skill }),
+  ];
   const baseWhere: Prisma.ArticleWhereInput = publicListableArticleWhere(
-    category ? { category } : undefined,
+    scopeFilters.length === 0
+      ? undefined
+      : scopeFilters.length === 1
+        ? scopeFilters[0]
+        : { AND: scopeFilters },
   );
 
   if (maxLevel != null) {

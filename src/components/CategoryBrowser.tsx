@@ -14,6 +14,8 @@ import ArticleListingGrid from "@/components/ArticleListingGrid";
 import { EmptyState } from "@/components/ui";
 import { useLoadMoreList } from "@/hooks/useLoadMoreList";
 import { normalizeBrowseQuery } from "@/lib/browse-query";
+import { FILTERABLE_MATURITY_BANDS, MATURITY_BAND_LABELS } from "@/lib/article-library/maturity";
+import { READING_SKILLS } from "@/lib/learning/reading-skills";
 
 const PAGE_SIZE = 6;
 
@@ -35,6 +37,18 @@ type CategoryBrowserProps = {
   initialLevel?: string | null;
   /** Active in-context search query from the URL. */
   initialQuery?: string | null;
+  /** Active content maturity band filter from the URL (#1302). */
+  initialMaturity?: string | null;
+  /** Active reading-skill filter from the URL (#1302). */
+  initialSkill?: string | null;
+};
+
+/** URL-reflected filters shared by tab links, filter changes, and paging. */
+type BrowseFilters = {
+  level: string | null;
+  query: string | null;
+  maturity: string | null;
+  skill: string | null;
 };
 
 type FeedResponse = {
@@ -52,54 +66,38 @@ function appendViewParam(params: URLSearchParams, view: BrowseView) {
   }
 }
 
-function appendLevelParam(params: URLSearchParams, level: string | null) {
-  if (level) {
-    params.set("level", level);
-  }
+function appendFilterParams(params: URLSearchParams, filters: BrowseFilters) {
+  if (filters.level) params.set("level", filters.level);
+  const normalized = normalizeBrowseQuery(filters.query);
+  if (normalized) params.set("q", normalized);
+  if (filters.maturity) params.set("maturity", filters.maturity);
+  if (filters.skill) params.set("skill", filters.skill);
 }
 
-function appendSearchParam(params: URLSearchParams, query: string | null) {
-  const normalized = normalizeBrowseQuery(query);
-  if (normalized) {
-    params.set("q", normalized);
-  }
-}
-
-function browseHrefFor(
-  view: BrowseView,
-  level: string | null,
-  query: string | null,
-): string {
+function browseHrefFor(view: BrowseView, filters: BrowseFilters): string {
   const params = new URLSearchParams();
   appendViewParam(params, view);
-  appendLevelParam(params, level);
-  appendSearchParam(params, query);
+  appendFilterParams(params, filters);
   const qs = params.toString();
   return `/browse${qs ? `?${qs}` : ""}`;
 }
 
-function buildTabs(level: string | null, query: string | null): Tab[] {
+function buildTabs(filters: BrowseFilters): Tab[] {
   return [
-    { key: "all", label: "All", href: browseHrefFor("all", level, query) },
+    { key: "all", label: "All", href: browseHrefFor("all", filters) },
     ...CATEGORIES.map((c) => ({
       key: c.slug,
       label: c.label,
-      href: browseHrefFor(c.slug, level, query),
+      href: browseHrefFor(c.slug, filters),
     })),
-    { key: "picks", label: "Picks", href: browseHrefFor("picks", level, query) },
+    { key: "picks", label: "Picks", href: browseHrefFor("picks", filters) },
   ];
 }
 
-function queryFor(
-  view: BrowseView,
-  offset: number,
-  level: string | null,
-  query: string | null,
-): string {
+function queryFor(view: BrowseView, offset: number, filters: BrowseFilters): string {
   const params = new URLSearchParams({ offset: String(offset), limit: String(PAGE_SIZE) });
   appendViewParam(params, view);
-  appendLevelParam(params, level);
-  appendSearchParam(params, query);
+  appendFilterParams(params, filters);
   return params.toString();
 }
 
@@ -122,6 +120,8 @@ export default function CategoryBrowser({
   initialSavedIds,
   initialLevel,
   initialQuery,
+  initialMaturity,
+  initialSkill,
 }: CategoryBrowserProps) {
   const router = useRouter();
   const [savedIds] = useState<Set<string>>(() => new Set(initialSavedIds ?? []));
@@ -130,17 +130,20 @@ export default function CategoryBrowser({
 
   const level = initialLevel ?? null;
   const query = initialQuery ?? null;
-  const tabs = buildTabs(level, query);
+  const maturity = initialMaturity ?? null;
+  const skill = initialSkill ?? null;
+  const filters: BrowseFilters = { level, query, maturity, skill };
+  const tabs = buildTabs(filters);
 
   const fetchPage = useCallback(
     async (nextOffset: number): Promise<FeedResponse> => {
       const res = await fetch(
-        `/api/articles?${queryFor(activeView, nextOffset, level, query)}`,
+        `/api/articles?${queryFor(activeView, nextOffset, { level, query, maturity, skill })}`,
       );
       if (!res.ok) throw new Error("fetch failed");
       return (await res.json()) as FeedResponse;
     },
-    [activeView, level, query],
+    [activeView, level, query, maturity, skill],
   );
 
   const { articles, progress, hasMore, loading, loadError, loadMore } =
@@ -152,26 +155,20 @@ export default function CategoryBrowser({
       fetchPage,
     });
 
-  function handleLevelChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const newLevel = e.target.value || null;
+  function applyFilters(next: Partial<BrowseFilters>) {
     startTransition(() => {
-      router.push(browseHrefFor(activeView, newLevel, query));
+      router.push(browseHrefFor(activeView, { ...filters, ...next }));
     });
   }
 
   function handleSearchSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const nextQuery = normalizeBrowseQuery(searchDraft);
-    startTransition(() => {
-      router.push(browseHrefFor(activeView, level, nextQuery));
-    });
+    applyFilters({ query: normalizeBrowseQuery(searchDraft) });
   }
 
   function handleSearchClear() {
     setSearchDraft("");
-    startTransition(() => {
-      router.push(browseHrefFor(activeView, level, null));
-    });
+    applyFilters({ query: null });
   }
 
   const emptyState =
@@ -180,7 +177,7 @@ export default function CategoryBrowser({
         icon={Search}
         title="No matching articles"
         description={`No articles match “${query}” in this Browse context.`}
-        action={{ label: "Clear search", href: browseHrefFor(activeView, level, null) }}
+        action={{ label: "Clear search", href: browseHrefFor(activeView, { ...filters, query: null }) }}
       />
     ) :
     activeView === "picks" ? (
@@ -282,7 +279,7 @@ export default function CategoryBrowser({
             <Select
               id="browse-level-filter"
               value={level ?? ""}
-              onChange={handleLevelChange}
+              onChange={(e) => applyFilters({ level: e.target.value || null })}
               selectSize="sm"
               aria-label="Filter articles by CEFR level"
             >
@@ -290,6 +287,54 @@ export default function CategoryBrowser({
               {ENGLISH_LEVELS.map((lvl) => (
                 <option key={lvl} value={lvl}>
                   {lvl} and below
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-[var(--space-2)]">
+          <label
+            htmlFor="browse-maturity-filter"
+            className="text-text-muted text-[length:var(--text-sm)] whitespace-nowrap"
+          >
+            Suitable for
+          </label>
+          <div className="w-40">
+            <Select
+              id="browse-maturity-filter"
+              value={maturity ?? ""}
+              onChange={(e) => applyFilters({ maturity: e.target.value || null })}
+              selectSize="sm"
+            >
+              <option value="">All audiences</option>
+              {FILTERABLE_MATURITY_BANDS.map((band) => (
+                <option key={band} value={band}>
+                  {MATURITY_BAND_LABELS[band]}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-[var(--space-2)]">
+          <label
+            htmlFor="browse-skill-filter"
+            className="text-text-muted text-[length:var(--text-sm)] whitespace-nowrap"
+          >
+            Reading skill
+          </label>
+          <div className="w-52">
+            <Select
+              id="browse-skill-filter"
+              value={skill ?? ""}
+              onChange={(e) => applyFilters({ skill: e.target.value || null })}
+              selectSize="sm"
+            >
+              <option value="">All skills</option>
+              {READING_SKILLS.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
                 </option>
               ))}
             </Select>

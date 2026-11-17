@@ -18,7 +18,11 @@ import {
   type ArticleCardSource,
   type ListingArticle,
 } from "@/lib/article-library";
-import { publicListableArticleWhere } from "@/lib/article-library";
+import {
+  articleFacetFilters,
+  publicListableArticleWhere,
+  type ArticleFacets,
+} from "@/lib/article-library";
 import {
   createCachedListing,
   ARTICLES_CACHE_TAG,
@@ -153,6 +157,21 @@ function normalizeOffset(offset?: number): number {
   return Math.max(0, offset ?? 0);
 }
 
+/** Keeps candidates matching the browse facets (#1302); one id query when any is set. */
+async function filterCandidatesByFacets(
+  candidates: PicksCandidateRow[],
+  facets: ArticleFacets,
+): Promise<PicksCandidateRow[]> {
+  const filters = articleFacetFilters(facets);
+  if (filters.length === 0 || candidates.length === 0) return candidates;
+  const matching = await prisma.article.findMany({
+    where: { id: { in: candidates.map((candidate) => candidate.id) }, AND: filters },
+    select: { id: true },
+  });
+  const keep = new Set(matching.map((row) => row.id));
+  return candidates.filter((candidate) => keep.has(candidate.id));
+}
+
 async function withExtraCandidateRows(
   base: PicksCandidateRow[],
   extraCandidateIds?: string[],
@@ -252,7 +271,7 @@ export async function listScoredPicksPage(
     extraCandidateIds?: string[];
     /** Optional in-context Browse query; filters candidates before scoring. */
     query?: string | null;
-  } = {},
+  } & ArticleFacets = {},
 ): Promise<ScoredPicksPage> {
   const limit = opts.limit ?? SCORED_PICKS_PAGE_SIZE;
   const offset = normalizeOffset(opts.offset);
@@ -262,7 +281,10 @@ export async function listScoredPicksPage(
   const base = query
     ? await loadSearchedPicksCandidates(cap, query)
     : await loadPicksCandidates(cap);
-  const candidates = await withExtraCandidateRows(base, opts.extraCandidateIds);
+  const candidates = await filterCandidatesByFacets(
+    await withExtraCandidateRows(base, opts.extraCandidateIds),
+    { maturityBand: opts.maturityBand, skill: opts.skill },
+  );
   const ranked = await scoreAndRankArticles(userId, candidates, new Date(), {
     placementLevel: opts.placementLevel ?? null,
   });

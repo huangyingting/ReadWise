@@ -136,3 +136,8 @@ test("serializes multiple signals for the same skill", async () => {
     2,
   );
 });
+test("quiz vocabulary-in-context results become weighted vocabulary evidence (#1302)", async () => {
+  await record({ activity: "quiz-vocabulary-in-context", correct: 1, total: 4 });
+  await record({ activity: "quiz-vocabulary-in-context", correct: 0, total: 0 });
+  assert.deepEqual(calls, [{ userId: "u1", skill: "vocabulary", outcome: 0.25, weight: 0.5 }]);
+});

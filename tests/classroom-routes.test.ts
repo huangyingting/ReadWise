@@ -458,6 +458,9 @@ before(() => {
   mock.module("@/lib/analytics/tenant", {
     namedExports: {
       viewerRoleForClassroom: () => analyticsViewerRoleStub,
+      analyticsAccessFor: (role: string) => ({
+        individualData: role === "teacher" || role === "systemAdmin",
+      }),
       getClassroomAnalytics: async () => analyticsDataStub,
     },
   });

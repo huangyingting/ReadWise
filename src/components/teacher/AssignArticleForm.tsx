@@ -256,6 +256,24 @@ export default function AssignArticleForm({
       <p className="m-0 text-[length:var(--text-xs)] text-text-muted">
         {selected.length} selected
       </p>
+      {selected.length > 0 ? (
+        <ul aria-label="Answer key previews" className="m-0 flex list-none flex-col gap-[var(--space-1)] p-0">
+          {selected.map((article) => (
+            <li key={article.id} className="text-[length:var(--type-label)]">
+              <a
+                href={`/reader/${encodeURIComponent(article.id)}/print?mode=answer-key`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary-text underline-offset-2 hover:underline"
+                aria-label={`Preview answer key and skills for ${article.title} (opens in a new tab)`}
+              >
+                Preview answer key & skills
+              </a>
+              <span className="text-text-muted"> · {article.title}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div
         role="group"
         aria-label="Article search results"

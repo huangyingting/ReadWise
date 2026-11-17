@@ -16,12 +16,15 @@ import { getBookmarkedArticleIds } from "@/lib/article-library";
 import CategoryBrowser from "@/components/CategoryBrowser";
 import { PageHeader, PageShell } from "@/components/ui";
 import { normalizeBrowseQuery } from "@/lib/browse-query";
+import { parseBrowseFacets, type BrowseFacets } from "@/lib/browse-facets";
 
 type BrowseSearchParams = {
   view?: string;
   category?: string;
   level?: string;
   q?: string;
+  maturity?: string;
+  skill?: string;
 };
 type EnglishLevel = (typeof ENGLISH_LEVELS)[number];
 type BrowseArticlePage = {
@@ -48,12 +51,14 @@ async function loadBrowseArticles({
   isPicks,
   urlLevel,
   query,
+  facets,
   userId,
 }: {
   activeCategory: string | null;
   isPicks: boolean;
   urlLevel: EnglishLevel | null;
   query: string | null;
+  facets: BrowseFacets;
   userId: string;
 }): Promise<BrowseArticlePage> {
   if (isPicks) {
@@ -69,6 +74,7 @@ async function loadBrowseArticles({
       topics,
       query,
       limit: BROWSE_PAGE_SIZE,
+      ...facets,
     });
     return {
       listingArticles: picks.articles,
@@ -80,6 +86,7 @@ async function loadBrowseArticles({
     limit: BROWSE_PAGE_SIZE,
     maxLevel: urlLevel,
     query,
+    ...facets,
   });
   return {
     listingArticles: page.articles.map(toListingArticle),
@@ -105,7 +112,7 @@ export default async function BrowsePage({
   searchParams: Promise<BrowseSearchParams>;
 }) {
   const session = await requireSession("/browse");
-  const { view, category, level: levelParam, q } = await searchParams;
+  const { view, category, level: levelParam, q, maturity, skill } = await searchParams;
 
   const isPicks = view === "picks";
   const activeCategory = getActiveCategory(isPicks, category);
@@ -114,12 +121,14 @@ export default async function BrowsePage({
   // URL-level filter — validated against ENGLISH_LEVELS (same set as CEFR levels)
   const urlLevel = getUrlLevel(levelParam);
   const query = normalizeBrowseQuery(q);
+  const facets = parseBrowseFacets({ maturity, skill });
 
   const { listingArticles, hasMore } = await loadBrowseArticles({
     activeCategory,
     isPicks,
     urlLevel,
     query,
+    facets,
     userId: session.user.id,
   });
 
@@ -143,7 +152,7 @@ export default async function BrowsePage({
       />
 
       <CategoryBrowser
-        key={`${activeView}:${urlLevel ?? ""}:${query ?? ""}`}
+        key={`${activeView}:${urlLevel ?? ""}:${query ?? ""}:${facets.maturityBand ?? ""}:${facets.skill ?? ""}`}
         activeView={activeView}
         initialArticles={listingArticles}
         initialProgress={progress}
@@ -153,6 +162,8 @@ export default async function BrowsePage({
         initialSavedIds={[...bookmarkedIds]}
         initialLevel={urlLevel}
         initialQuery={query}
+        initialMaturity={facets.maturityBand}
+        initialSkill={facets.skill}
       />
     </PageShell>
   );

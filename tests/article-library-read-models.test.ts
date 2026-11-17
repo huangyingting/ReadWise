@@ -47,6 +47,7 @@ function article(id: string, overrides: AnyArgs = {}): Article {
     difficulty: null,
     difficultyScore: null,
     lexileApprox: null,
+    maturityBand: "general",
     difficultyVersion: null,
     readingMinutes: null,
     wordCount: 400,
@@ -445,6 +446,29 @@ test("article listing helpers paginate, rank by level, and list personal imports
   const personal = await listings.listPersonalArticlesPage("user-1", { offset: -1, limit: 99 });
   assert.equal(articleFindManyArgs.at(-1)?.take, 51);
   assert.equal(personal.hasMore, false);
+});
+
+test("browse facets filter listings by maturity band and reading skill (#1302)", async () => {
+  const listings = await import("@/lib/article-library/listings");
+  assert.deepEqual(listings.articleFacetFilters(), []);
+  assert.deepEqual(listings.articleFacetFilters({ maturityBand: "elementary", skill: "argument" }), [
+    { maturityBand: { in: ["elementary", "general"] } },
+    { quizQuestions: { some: { skillTag: "argument" } } },
+  ]);
+
+  await listings.listCategoryPage(null, { maturityBand: "middle_school", limit: 2 });
+  let where = JSON.stringify(articleFindManyArgs.at(-1)?.where);
+  assert.match(where, /"maturityBand":\{"in":\["elementary","middle_school","general"\]\}/);
+
+  await listings.listCategoryPage("science", { skill: "main_idea", maturityBand: "high_school", maxLevel: "B1" });
+  where = JSON.stringify(articleFindManyArgs.at(-1)?.where);
+  assert.match(where, /"quizQuestions":\{"some":\{"skillTag":"main_idea"\}\}/);
+  assert.match(where, /"category":"science"/);
+  assert.match(where, /"difficulty":\{"in":\["A1","A2","B1"\]\}/);
+
+  await listings.listCategoryPage(null, { query: "ocean", skill: "cause_effect" });
+  where = JSON.stringify(articleFindManyArgs.at(-1)?.where);
+  assert.match(where, /"skillTag":"cause_effect"/);
 });
 
 test("collection schemas, read models, membership, and commands enforce ownership", async () => {

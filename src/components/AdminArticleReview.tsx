@@ -8,6 +8,11 @@ import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
 import { Badge } from "@/components/ui/Badge";
+import {
+  MATURITY_BANDS,
+  MATURITY_BAND_LABELS,
+  type MaturityBand,
+} from "@/lib/article-library/maturity";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
@@ -35,6 +40,7 @@ export type AdminArticleReviewProps = {
     excerpt: string;
     category: string;
     difficulty: string;
+    maturityBand: MaturityBand;
     status: "DRAFT" | "PUBLISHED";
     visibility: string;
     reviewState: string;
@@ -87,6 +93,7 @@ export default function AdminArticleReview({
   const [excerpt, setExcerpt] = useState(initial.excerpt);
   const [category, setCategory] = useState(initial.category);
   const [difficulty, setDifficulty] = useState(initial.difficulty);
+  const [maturityBand, setMaturityBand] = useState<MaturityBand>(initial.maturityBand);
   const [status, setStatus] = useState<PublicationStatus>(initial.status);
   // Visibility is only operator-editable for the ownerless public-library states
   // (PUBLIC/UNLISTED). PRIVATE/ORG are owner/organization-scoped and shown
@@ -132,6 +139,7 @@ export default function AdminArticleReview({
         excerpt,
         category,
         difficulty,
+        maturityBand,
         status,
         ...(visibilityEditable ? { visibility } : {}),
         reviewState,
@@ -239,6 +247,19 @@ export default function AdminArticleReview({
             {LEVELS.map((lvl) => (
               <option key={lvl} value={lvl}>
                 {lvl}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Content maturity" hint="Age/topic suitability, separate from reading level.">
+          <Select
+            value={maturityBand}
+            onChange={(e) => setMaturityBand(e.target.value as MaturityBand)}
+            selectSize="sm"
+          >
+            {MATURITY_BANDS.map((band) => (
+              <option key={band} value={band}>
+                {MATURITY_BAND_LABELS[band]}
               </option>
             ))}
           </Select>

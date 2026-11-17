@@ -2,6 +2,8 @@
 
 import { Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { isReadingSkill, readingSkillLabel, shortStandardCode } from "@/lib/learning/reading-skills";
 import AiBadge from "@/components/AiBadge";
 import { formatRelativeTime } from "@/lib/display-format";
 import { t } from "@/lib/i18n";
@@ -170,11 +172,30 @@ function QuizQuestionList({
             })}
           </div>
           {submitted ? (
-            <QuizAnswerFeedback correct={answers[qi] === q.correctIndex} />
+            <>
+              <QuizAnswerFeedback correct={answers[qi] === q.correctIndex} />
+              <QuizSkillReview question={q} />
+            </>
           ) : null}
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Post-submission skill badge and answer rationale (#1302). */
+function QuizSkillReview({ question }: { question: QuizQuestion }) {
+  const skill = isReadingSkill(question.skillTag) ? question.skillTag : null;
+  if (!skill && !question.explanation) return null;
+  return (
+    <div className="quiz-skill-review">
+      {skill ? (
+        <Badge variant="neutral" title={`Reading standard ${question.standardCode ?? ""}`.trim()}>
+          {shortStandardCode(skill)} · {readingSkillLabel(skill)}
+        </Badge>
+      ) : null}
+      {question.explanation ? <p className="quiz-explanation">{question.explanation}</p> : null}
+    </div>
   );
 }
 

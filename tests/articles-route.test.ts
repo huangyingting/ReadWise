@@ -8,11 +8,26 @@ import { type AuthState, fullAuthExports } from "./support/auth-mock";
 let authState: AuthState = "ok";
 let browseCalls: Array<{
   category: string | null;
-  options: { offset: number; limit: number; maxLevel: string | null; query: string | null };
+  options: {
+    offset: number;
+    limit: number;
+    maxLevel: string | null;
+    query: string | null;
+    maturityBand?: string | null;
+    skill?: string | null;
+  };
 }> = [];
 let picksCalls: Array<{
   userId: string;
-  options: { maxLevel: string | null; topics: string[]; query: string | null; offset: number; limit: number };
+  options: {
+    maxLevel: string | null;
+    topics: string[];
+    query: string | null;
+    offset: number;
+    limit: number;
+    maturityBand?: string | null;
+    skill?: string | null;
+  };
 }> = [];
 let buildResponseCalls: Array<{ userId: string; articles: unknown[]; page: { offset: number; hasMore: boolean } }> = [];
 let profile: { englishLevel?: string | null; topics?: string | null } | null = null;
@@ -125,6 +140,8 @@ test("articles route lists browse results with query normalization and clamped l
       limit: 24,
       maxLevel: null,
       query: "climate",
+      maturityBand: null,
+      skill: null,
     },
   });
   assert.equal(picksCalls.length, 0);
@@ -150,9 +167,21 @@ test("articles route uses picks view with profile fallback level and topics", as
       query: "space",
       offset: 2,
       limit: 3,
+      maturityBand: null,
+      skill: null,
     },
   });
   assert.equal(buildResponseCalls[0]?.userId, "user-1");
   assert.equal(buildResponseCalls[0]?.page.offset, 2);
   assert.equal(buildResponseCalls[0]?.page.hasMore, false);
+});
+
+test("articles route passes maturity and reading-skill facets and drops unknown values (#1302)", async () => {
+  await getArticles("http://test/api/articles?maturity=middle_school&skill=main_idea");
+  assert.equal(browseCalls.at(-1)?.options.maturityBand, "middle_school");
+  assert.equal(browseCalls.at(-1)?.options.skill, "main_idea");
+
+  await getArticles("http://test/api/articles?view=picks&maturity=general&skill=gossip");
+  assert.equal(picksCalls.at(-1)?.options.maturityBand, null, "general is implied, not a filter");
+  assert.equal(picksCalls.at(-1)?.options.skill, null);
 });

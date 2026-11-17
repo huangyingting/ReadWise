@@ -294,3 +294,23 @@ test("series extra candidate: an accessible public id is injected and scored", a
     "an accessible public series article is injected as a scored candidate",
   );
 });
+
+test("browse facets: picks keep only candidates suitable for the maturity band (#1302)", async () => {
+  const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
+  articleRows = [
+    { ...publicLibraryArticle("elem"), maturityBand: "elementary" },
+    { ...publicLibraryArticle("gen"), maturityBand: "general" },
+    { ...publicLibraryArticle("high"), maturityBand: "high_school" },
+  ];
+
+  const page = await listScoredPicksPage("user-1", { limit: 10, maturityBand: "elementary" });
+  assert.deepEqual(page.articles.map((article) => article.id).sort(), ["elem", "gen"]);
+
+  // The skill facet is a relation filter; the in-memory where-matcher treats it
+  // as unmatched, which proves the filter is applied rather than ignored.
+  const skillPage = await listScoredPicksPage("user-1", { limit: 10, skill: "main_idea" });
+  assert.deepEqual(skillPage.articles, []);
+
+  const unfiltered = await listScoredPicksPage("user-1", { limit: 10 });
+  assert.equal(unfiltered.articles.length, 3);
+});

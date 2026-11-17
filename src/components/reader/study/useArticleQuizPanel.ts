@@ -16,6 +16,11 @@ export type QuizQuestion = {
   question: string;
   options: string[];
   correctIndex: number;
+  /** Reading skill (#1302); optional so older cached responses still render. */
+  skillTag?: string;
+  standardCode?: string;
+  /** Answer rationale shown after submission. */
+  explanation?: string | null;
 };
 
 export type AttemptItem = {

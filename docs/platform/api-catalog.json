@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-17T03:08:37.522Z",
-  "routeCount": 155,
-  "methodCount": 191,
+  "generatedAt": "2026-11-17T10:36:56.491Z",
+  "routeCount": 156,
+  "methodCount": 192,
   "routes": [
     {
       "path": "/api/account",
@@ -1811,8 +1811,10 @@
             "category",
             "level",
             "limit",
+            "maturity",
             "offset",
             "q",
+            "skill",
             "view"
           ],
           "bodyFieldNames": null
@@ -2609,6 +2611,32 @@
             "ok"
           ],
           "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms/{id}/skills",
+      "file": "src/app/api/classrooms/[id]/skills/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": true,
+          "responseFormat": "mixed",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "matrix",
+            "role"
+          ],
+          "queryParamNames": [
+            "format"
+          ],
           "bodyFieldNames": null
         }
       ]

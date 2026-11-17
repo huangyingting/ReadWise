@@ -17,6 +17,7 @@ import {
   findOrCreateIdempotent,
   type TrendPoint,
 } from "@/lib/learning/practice-attempts";
+import type { GradedAnswer } from "@/lib/quiz-grading";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,6 +69,9 @@ const SCOPED_QUIZ_ATTEMPT_RECORD_SELECT = {
  * writes the row and returns the created attempt together with the user's
  * all-time best scorePct for that article.
  *
+ * Per-question outcomes (`answers`, #1302) are stored with the attempt in the
+ * same write as controlled skill/index/correctness rows — never question text.
+ *
  * Throws a plain `Error` with a human-readable message on invalid input so
  * the route can map it to a 400.
  */
@@ -76,7 +80,7 @@ export async function recordQuizAttempt(
   articleId: string,
   correctCount: number,
   totalQuestions: number,
-  options: { clientMutationId?: string | null } = {},
+  options: { clientMutationId?: string | null; answers?: GradedAnswer[] } = {},
 ): Promise<{ attempt: QuizAttemptRecord; best: number; created: boolean }> {
   validateCountScore(correctCount, totalQuestions);
 
@@ -93,7 +97,27 @@ export async function recordQuizAttempt(
       }),
     create: () =>
       prisma.quizAttempt.create({
-        data: { userId, articleId, correctCount, totalQuestions, scorePct, clientMutationId },
+        data: {
+          userId,
+          articleId,
+          correctCount,
+          totalQuestions,
+          scorePct,
+          clientMutationId,
+          ...(options.answers?.length
+            ? {
+                answers: {
+                  create: options.answers.map((answer) => ({
+                    questionId: answer.questionId,
+                    questionIndex: answer.questionIndex,
+                    skillTag: answer.skillTag,
+                    selectedIndex: answer.selectedIndex,
+                    correct: answer.correct,
+                  })),
+                },
+              }
+            : {}),
+        },
         select: SCOPED_QUIZ_ATTEMPT_RECORD_SELECT,
       }),
     isUniqueConstraintViolation: (err) =>

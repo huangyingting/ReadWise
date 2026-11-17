@@ -134,6 +134,21 @@
   border-bottom: 1px solid var(--border-strong);
 }
 
+.print-answer-key > li {
+  margin-bottom: var(--space-3);
+}
+
+.print-answer-skill {
+  font-family: var(--font-sans);
+  font-size: var(--type-label);
+  color: var(--text-muted);
+}
+
+.print-answer-explanation {
+  margin: var(--space-1) 0 0;
+  font-size: var(--type-ui);
+}
+
 .print-section {
   break-inside: avoid;
 }
@@ -161,6 +176,7 @@
   .print-sheet .print-byline,
   .print-sheet .print-source,
   .print-sheet .print-rights,
+  .print-sheet .print-answer-skill,
   .print-article-body > p::before {
     color: CanvasText;
   }

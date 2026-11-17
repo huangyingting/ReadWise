@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-17"
 description: "Documents prompt registry, prompt-version ownership, and rebuild/backfill implications. Captures current prompt labels, versioned cache behavior, prompt privacy rules, and regeneration workflow."
 ---
 
@@ -94,7 +94,7 @@ label, so cached derived content and existing tests stay valid.
 | --- | --- | --- | --- |
 | `translation` | `translation/v1` | provider default | `src/lib/translation.ts` |
 | `vocabulary` | `vocabulary/v1` | provider default | `src/lib/vocabulary/service.ts` |
-| `quiz` | `quiz/v1` | provider default | `src/lib/quiz.ts` |
+| `quiz` | `quiz/v2` | provider default | `src/lib/quiz.ts` — v2 adds a per-question reading `skill` and an answer `explanation` (#1302); untagged questions are classified deterministically. |
 | `tags` | `tags/v1` | provider default | `src/lib/article-library/collections/index.ts` |
 | `grammar` | `grammar/v1` | 256 | `src/lib/grammar.ts` |
 | `tutor` | `tutor/v1` | 2048 | `src/lib/tutor.ts` |

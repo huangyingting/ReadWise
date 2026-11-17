@@ -15,9 +15,19 @@ export type SubmittedAnswer = {
   selectedIndex: number;
 };
 
+/** Outcome of one graded question, in question order (#1302). */
+export type GradedAnswer = {
+  questionIndex: number;
+  questionId: string | null;
+  skillTag: QuizQuestion["skillTag"];
+  selectedIndex: number;
+  correct: boolean;
+};
+
 type QuizGradeResult = {
   correctCount: number;
   total: number;
+  answers: GradedAnswer[];
 };
 
 /** Controlled client-validation failure raised only by this pure grader. */
@@ -66,15 +76,25 @@ export function gradeQuizAnswers(
   assertAnswerCount(questions, answers);
 
   const seen = new Set<number>();
-  let correctCount = 0;
+  const graded: GradedAnswer[] = [];
   for (const answer of answers) {
     assertKnownQuestionIndex(answer.index, questions.length);
     assertUniqueQuestionIndex(answer.index, seen);
 
-    if (answer.selectedIndex === questions[answer.index].correctIndex) {
-      correctCount += 1;
-    }
+    const question = questions[answer.index];
+    graded.push({
+      questionIndex: answer.index,
+      questionId: question.id,
+      skillTag: question.skillTag,
+      selectedIndex: answer.selectedIndex,
+      correct: answer.selectedIndex === question.correctIndex,
+    });
   }
+  graded.sort((a, b) => a.questionIndex - b.questionIndex);
 
-  return { correctCount, total: questions.length };
+  return {
+    correctCount: graded.filter((answer) => answer.correct).length,
+    total: questions.length,
+    answers: graded,
+  };
 }

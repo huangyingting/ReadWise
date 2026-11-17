@@ -25,7 +25,7 @@ import {
 const EXPECTED_VERSIONS: Record<string, string> = {
   translation: "translation/v1",
   vocabulary: "vocabulary/v1",
-  quiz: "quiz/v1",
+  quiz: "quiz/v2",
   tags: "tags/v1",
   grammar: "grammar/v1",
   tutor: "tutor/v1",

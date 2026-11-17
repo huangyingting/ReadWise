@@ -57,6 +57,15 @@ membership/capability. A classroom has:
 Roster changes are scoped to the classroom. Adding a student should not grant
 system admin privileges or visibility into unrelated classrooms.
 
+### Reading skills and answer-key previews
+
+The classroom page's **Reading skills** card shows each student's percent
+correct per reading skill (latest quiz attempt per assigned article) with a
+class row and CSV export; org admins see the class row only. When assigning,
+each selected article has a "Preview answer key & skills" link to its printable
+answer key, which lists every question's skill alignment and rationale. See
+[reading skills](reading-skills.md).
+
 ### Join codes
 
 Instead of adding students one by one, a teacher or org admin can issue a join

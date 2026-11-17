@@ -11,10 +11,22 @@ import assert from "node:assert/strict";
 import { gradeQuizAnswers, QuizGradingError } from "@/lib/quiz-grading";
 import type { QuizQuestion } from "@/lib/quiz";
 
+function question(id: string, correctIndex: number, skillTag: QuizQuestion["skillTag"]): QuizQuestion {
+  return {
+    id,
+    question: id.toUpperCase(),
+    options: ["a", "b", "c"],
+    correctIndex,
+    skillTag,
+    standardCode: "CCRA.R.1",
+    explanation: null,
+  };
+}
+
 const QUESTIONS: QuizQuestion[] = [
-  { question: "Q1", options: ["a", "b", "c"], correctIndex: 1 },
-  { question: "Q2", options: ["a", "b", "c"], correctIndex: 0 },
-  { question: "Q3", options: ["a", "b", "c"], correctIndex: 2 },
+  question("q1", 1, "main_idea"),
+  question("q2", 0, "vocabulary_in_context"),
+  question("q3", 2, "textual_evidence"),
 ];
 
 type Answer = Parameters<typeof gradeQuizAnswers>[1][number];
@@ -108,4 +120,17 @@ test("throws on an empty quiz", () => {
     (err: unknown) =>
       err instanceof QuizGradingError && /No quiz questions/.test(err.message),
   );
+});
+
+test("per-question outcomes come back in question order with skill and correctness (#1302)", () => {
+  const { answers } = gradeQuizAnswers(QUESTIONS, [
+    { index: 2, selectedIndex: 2 },
+    { index: 0, selectedIndex: 0 },
+    { index: 1, selectedIndex: 0 },
+  ]);
+  assert.deepEqual(answers, [
+    { questionIndex: 0, questionId: "q1", skillTag: "main_idea", selectedIndex: 0, correct: false },
+    { questionIndex: 1, questionId: "q2", skillTag: "vocabulary_in_context", selectedIndex: 0, correct: true },
+    { questionIndex: 2, questionId: "q3", skillTag: "textual_evidence", selectedIndex: 2, correct: true },
+  ]);
 });

@@ -14,6 +14,7 @@ import {
   moderatableArticleWhere,
   type ArticleAccessContext,
 } from "@/lib/article-library/policy";
+import type { MaturityBand } from "./maturity";
 
 // ---------------------------------------------------------------------------
 // Review state
@@ -88,6 +89,8 @@ export type ReviewCorrections = {
   excerpt?: string | null;
   category?: string | null;
   difficulty?: string | null;
+  /** Content maturity band (#1302), validated by the route schema. */
+  maturityBand?: MaturityBand;
   status?: "DRAFT" | "PUBLISHED";
   /** Operator-settable visibility, restricted to the public-library subset. */
   visibility?: "PUBLIC" | "UNLISTED";
@@ -155,6 +158,7 @@ export async function reviewArticle(
       excerpt: true,
       category: true,
       difficulty: true,
+      maturityBand: true,
       status: true,
       visibility: true,
       reviewState: true,
@@ -207,6 +211,10 @@ export async function reviewArticle(
       difficulty = parsed;
     }
     recordChangedField(data, changes, "difficulty", article.difficulty, difficulty);
+  }
+
+  if (input.maturityBand !== undefined) {
+    recordChangedField(data, changes, "maturityBand", article.maturityBand, input.maturityBand);
   }
 
   if (input.reviewState !== undefined) {

@@ -20,6 +20,8 @@
  *   - No prompt/response content is logged here; callers decide what to surface.
  */
 
+import { normalizeReadingSkill, type ReadingSkill } from "@/lib/learning/reading-skills";
+
 /** A validated vocabulary item. `example` may be empty but the others may not. */
 export type ValidatedVocabularyItem = {
   word: string;
@@ -32,7 +34,13 @@ export type ValidatedQuizQuestion = {
   question: string;
   options: string[];
   correctIndex: number;
+  /** Controlled reading skill; classified from the question when absent. */
+  skillTag: ReadingSkill;
+  /** Answer rationale, or null when the model omitted it. */
+  explanation: string | null;
 };
+
+const MAX_QUIZ_EXPLANATION_LENGTH = 600;
 
 /** The result of validating a structured array: kept items + rejected count. */
 export type ValidationReport<T> = {
@@ -234,7 +242,14 @@ export function validateQuiz(raw: string): ValidationReport<ValidatedQuizQuestio
       continue;
     }
     seen.add(key);
-    items.push({ question, options, correctIndex });
+    const explanation = asTrimmedString(row.explanation).slice(0, MAX_QUIZ_EXPLANATION_LENGTH);
+    items.push({
+      question,
+      options,
+      correctIndex,
+      skillTag: normalizeReadingSkill(row.skill ?? row.skillTag, question),
+      explanation: explanation || null,
+    });
   }
   return { items, rejected };
 }

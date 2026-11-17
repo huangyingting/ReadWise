@@ -110,6 +110,11 @@ export const USER_EXPORT_SELECT = {
       totalQuestions: true,
       scorePct: true,
       completedAt: true,
+      // Per-question outcomes (#1302): controlled skill + choice only.
+      answers: {
+        select: { questionIndex: true, skillTag: true, selectedIndex: true, correct: true },
+        orderBy: { questionIndex: "asc" },
+      },
     },
     orderBy: { completedAt: "asc" },
   },

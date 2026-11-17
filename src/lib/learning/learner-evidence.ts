@@ -21,6 +21,8 @@ type ComprehensionSkillTag =
 export type LearnerEvidence =
   | { activity: "reading-progress"; percent: number }
   | { activity: "quiz-completed"; scorePct: number }
+  /** Vocabulary-in-context questions within one graded quiz (#1302). */
+  | { activity: "quiz-vocabulary-in-context"; correct: number; total: number }
   | {
       activity: "pronunciation-attempt";
       pronunciationScore: number;
@@ -75,6 +77,15 @@ function evidenceFor(activity: LearnerEvidence): SkillEvidence[] {
         { label: "quiz.reading_skill", skill: "reading", outcome, weight: 0.5 },
       ];
     }
+    case "quiz-vocabulary-in-context":
+      return activity.total > 0
+        ? [{
+            label: "quiz.vocabulary_in_context_skill",
+            skill: "vocabulary",
+            outcome: activity.correct / activity.total,
+            weight: 0.5,
+          }]
+        : [];
     case "pronunciation-attempt":
       return [
         {

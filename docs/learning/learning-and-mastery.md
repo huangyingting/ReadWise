@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-17"
 description: "Documents durable learning mastery models, learner analytics, adaptive leveling, and their source tables. Captures current formulas, side-effect write behavior, privacy-safe coach memory, SRS integration, and analytics page rules."
 ---
 
@@ -35,6 +35,7 @@ flowchart LR
 | `WordMastery` | Durable familiarity/confidence estimate per user + lemma. | `src/lib/learning/word-mastery.ts` |
 | `ArticleMastery` | Durable comprehension score per user + article. | `src/lib/learning/article-mastery.ts` |
 | `SkillMastery` | Confidence per skill dimension. | `src/lib/learning/skill-mastery.ts` |
+| `QuizAttemptAnswer` | Per-question quiz outcome (reading skill, chosen index, correctness) stored with each attempt; feeds reading-skill evidence and the classroom skills matrix ([reading skills](reading-skills.md)). | `src/lib/learning/quiz-mastery.ts`, `src/lib/learning/reading-skill-evidence.ts` |
 | `TodayComprehensionFeedback` | Controlled Today self-check outcomes: self-rating, optional question id, MCQ correctness, skill tag, remediation flag. | `src/lib/engagement/today-session/comprehension.ts` |
 | `LearnerCoachMemory` | Privacy-safe aggregate weakness memory for Tutor and Study Plan. | `src/lib/learning/coach-memory.ts` |
 | `ReadingSeries` / `SeriesEnrollment` | Ordered article-series metadata and per-user enrollment position; learner `/series` UI, enroll APIs, and Today soft-candidate integration consume it. | `src/lib/engagement/series.ts`, [`reading-series.md`](./reading-series.md) |
