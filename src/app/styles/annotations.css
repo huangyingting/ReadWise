@@ -83,6 +83,41 @@
   }
 }
 
+/* ---- Classroom guided prompts (#1307) ----
+   Teacher prompts are a second, transparent mark layer: a dotted primary
+   underline plus a numbered badge on the first segment that matches the
+   prompt list in the Notes tab. Generated content never enters textContent,
+   so anchor offsets are unaffected. */
+.rw-guide {
+  background-color: transparent;
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--primary);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+.rw-guide[data-guide-number]::before {
+  content: attr(data-guide-number);
+  display: inline-block;
+  min-width: 1.4em;
+  margin-inline-end: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background-color: var(--primary);
+  color: var(--on-primary);
+  font-family: var(--font-sans);
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  vertical-align: 0.15em;
+}
+.rw-guide-flash {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ---- Shared highlight colour swatches ---- */
 .rw-highlight-color-swatch-group {
   display: flex;

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type { AudioContextValue } from "@/components/ReaderAudioProvider";
 import type { Highlight as RwHighlight } from "@/components/ReaderHighlightsProvider";
-import { applyHighlightMarks } from "./highlightMarks";
+import { applyHighlightMarks, type GuideMark } from "./highlightMarks";
 import {
   buildProseWordMap,
   useActiveTtsProseHighlight,
@@ -23,10 +23,13 @@ export function synchronizeReaderTextMap(
   onOrphaned: (id: string) => void,
   words: NarrationWord[],
   plainText: string,
+  guides: GuideMark[] = [],
 ): Array<ProseWord | null> {
-  applyHighlightMarks(container, highlights, onOrphaned);
+  applyHighlightMarks(container, highlights, onOrphaned, guides);
   return buildProseWordMap(container, words, plainText);
 }
+
+const NO_GUIDES: GuideMark[] = [];
 
 /**
  * Owns the Reader prose mutation order: persistent marks are rendered first,
@@ -38,6 +41,7 @@ export function useReaderTextMap(
   readerAudio: AudioContextValue,
   highlights: RwHighlight[],
   onOrphaned: (id: string) => void,
+  guides: GuideMark[] = NO_GUIDES,
 ): void {
   const ttsWordMapRef = useRef<Array<ProseWord | null>>([]);
 
@@ -53,11 +57,13 @@ export function useReaderTextMap(
       onOrphaned,
       readerAudio.words,
       readerAudio.plainText,
+      guides,
     );
   }, [
     proseRef,
     proseRevision,
     highlights,
+    guides,
     onOrphaned,
     readerAudio.words,
     readerAudio.plainText,

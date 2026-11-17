@@ -32,6 +32,7 @@ import {
   type HighlightColor,
 } from "@/components/ReaderHighlightsProvider";
 import { useReaderAudio } from "@/components/ReaderAudioProvider";
+import { useClassAnnotations } from "@/components/reader/ReaderClassAnnotationsProvider";
 import SelectionToolbar from "./SelectionToolbar";
 import HighlightEditPopover from "./HighlightEditPopover";
 import SentenceTranslatePopover from "@/components/SentenceTranslatePopover";
@@ -198,7 +199,8 @@ export default function WordLookup({
 
   // TTS prose highlighting
   const readerAudio = useReaderAudio();
-  useReaderTextMap(proseRef, html, readerAudio, highlights, markOrphaned);
+  const { guideMarks } = useClassAnnotations();
+  useReaderTextMap(proseRef, html, readerAudio, highlights, markOrphaned, guideMarks);
 
   // Highlight toolbar actions (overlap merge logic)
   const { handleHighlight, handleAddNote } = useHighlightActions(

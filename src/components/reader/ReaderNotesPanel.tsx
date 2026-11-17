@@ -14,9 +14,11 @@
  *  - Inline note editing (same control as HighlightEditPopover)
  *  - M8 ConfirmAction delete
  *  - M4 EmptyState when no highlights
+ *  - Classroom prompts, replies, and evidence sharing (#1307) via
+ *    ClassAnnotationsPanel
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, type ReactNode } from "react";
 import { Highlighter, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { IconButton } from "@/components/ui/IconButton";
@@ -31,6 +33,7 @@ import {
   type Highlight,
   HIGHLIGHT_COLORS,
 } from "@/components/ReaderHighlightsProvider";
+import { ClassPromptsSection, HighlightClassAction } from "./ClassAnnotationsPanel";
 
 const NOTE_MAX = 2000;
 const NOTE_NEAR_LIMIT_RATIO = 0.85;
@@ -162,6 +165,8 @@ interface NoteRowProps {
   isOrphaned: boolean;
   onUpdateNote: (note: string | null) => Promise<boolean>;
   onDelete: () => Promise<void>;
+  /** Classroom action for this highlight (#1307). */
+  classAction?: ReactNode;
 }
 
 function NoteRow({
@@ -169,6 +174,7 @@ function NoteRow({
   isOrphaned,
   onUpdateNote,
   onDelete,
+  classAction,
 }: NoteRowProps) {
   const [editingNote, setEditingNote] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -232,6 +238,7 @@ function NoteRow({
             Add a note…
           </Button>
         )}
+        {!editingNote ? classAction : null}
       </div>
 
       {/* Row actions */}
@@ -294,6 +301,7 @@ export default function ReaderNotesPanel() {
   if (highlights.length === 0) {
     return (
       <div className="rw-notes-panel">
+        <ClassPromptsSection />
         <EmptyState
           icon={Highlighter}
           title="No highlights yet"
@@ -306,6 +314,7 @@ export default function ReaderNotesPanel() {
 
   return (
     <div className="rw-notes-panel">
+      <ClassPromptsSection />
       <div className="rw-notes-panel-header">
         <h3 className="rw-notes-panel-title">Highlights &amp; notes</h3>
         <Badge variant="neutral">{highlights.length}</Badge>
@@ -318,6 +327,7 @@ export default function ReaderNotesPanel() {
           isOrphaned={orphanedIds.has(hl.id)}
           onUpdateNote={(note) => updateNote(hl.id, note)}
           onDelete={() => remove(hl.id)}
+          classAction={<HighlightClassAction highlight={hl} />}
         />
       ))}
     </div>

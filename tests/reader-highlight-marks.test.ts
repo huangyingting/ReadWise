@@ -324,6 +324,40 @@ describe("highlight mark helpers", () => {
     assert.equal(highlightMarks(prose).length, 0);
   });
 
+  test("applyHighlightMarks paints guided prompts as a separate numbered layer (#1307)", () => {
+    const prose = installProse("<div id='prose'>Alpha <em>beta gamma</em> delta beta</div>");
+    const guide = {
+      id: "g1",
+      quote: "beta gamma delta",
+      startOffset: 0,
+      endOffset: 16,
+      prefix: "Alpha ",
+      suffix: " beta",
+      number: 2,
+      prompt: "Why does this matter?",
+    };
+
+    applyHighlightMarks(
+      prose,
+      [highlight({ id: "hl", quote: "gamma", startOffset: 11, endOffset: 16 })],
+      () => assert.fail("highlight should resolve"),
+      [guide, { ...guide, id: "lost", quote: "absent" }],
+    );
+
+    const guides = Array.from(prose.querySelectorAll<HTMLElement>("mark.rw-guide"));
+    assert.ok(guides.length >= 2, "spans text nodes");
+    assert.ok(guides.every((mark) => mark.dataset.guideId === "g1"), "unanchored guides are skipped");
+    assert.equal(guides[0]?.dataset.guideNumber, "2");
+    assert.equal(guides[0]?.getAttribute("aria-description"), "Teacher prompt 2: Why does this matter?");
+    assert.equal(guides.slice(1).some((mark) => mark.hasAttribute("data-guide-number")), false);
+    assert.equal(highlightMarks(prose).length, 1, "personal highlights are kept");
+    assert.equal(prose.textContent, "Alpha beta gamma delta beta");
+
+    applyHighlightMarks(prose, [], () => assert.fail("no orphan checks"));
+    assert.equal(prose.querySelectorAll("mark").length, 0, "both layers unwrap");
+    assert.equal(prose.textContent, "Alpha beta gamma delta beta");
+  });
+
   test("overlapsAny excludes optimistic highlights and honors half-open ranges", () => {
     const matches = overlapsAny(10, 20, [
       highlight({ id: "left", startOffset: 0, endOffset: 10 }),

@@ -13,12 +13,18 @@ type AnchorResult = {
   suffix: string;
 };
 
-type ResolvedHighlight = { hl: RwHighlight; start: number; end: number };
-type HighlightSegment = {
+/** Anything anchored with the shared quote/offset/prefix/suffix selector. */
+type AnchoredRange = Pick<RwHighlight, "id" | "quote" | "startOffset" | "endOffset" | "prefix" | "suffix">;
+
+/** A teacher's guided prompt (#1307), painted as `mark.rw-guide`. */
+export type GuideMark = AnchoredRange & { number: number; prompt: string };
+
+type ResolvedHighlight<T extends AnchoredRange = RwHighlight> = { hl: T; start: number; end: number };
+type HighlightSegment<T extends AnchoredRange = RwHighlight> = {
   tnIdx: number;
   from: number;
   to: number;
-  hl: RwHighlight;
+  hl: T;
   isFirst: boolean;
 };
 
@@ -100,8 +106,19 @@ function createMarkElement(hl: RwHighlight, isFirstSegment: boolean): HTMLElemen
   return mark;
 }
 
+function createGuideMarkElement(guide: GuideMark, isFirstSegment: boolean): HTMLElement {
+  const mark = document.createElement("mark");
+  mark.className = "rw-guide";
+  mark.dataset.guideId = guide.id;
+  if (isFirstSegment) {
+    mark.dataset.guideNumber = String(guide.number);
+    mark.setAttribute("aria-description", `Teacher prompt ${guide.number}: ${guide.prompt}`);
+  }
+  return mark;
+}
+
 function unwrapExistingMarks(container: HTMLElement): void {
-  for (const mark of Array.from(container.querySelectorAll<HTMLElement>("mark.rw-hl"))) {
+  for (const mark of Array.from(container.querySelectorAll<HTMLElement>("mark.rw-hl, mark.rw-guide"))) {
     for (const child of Array.from(mark.children)) {
       if (
         child.classList.contains("sr-only") &&
@@ -115,11 +132,11 @@ function unwrapExistingMarks(container: HTMLElement): void {
   container.normalize();
 }
 
-function resolveHighlight(
+function resolveHighlight<T extends AnchoredRange>(
   fullText: string,
-  hl: RwHighlight,
+  hl: T,
   onOrphaned: (id: string) => void,
-): ResolvedHighlight | null {
+): ResolvedHighlight<T> | null {
   let start = hl.startOffset;
   let end = hl.endOffset;
   if (fullText.slice(start, end) !== hl.quote) {
@@ -134,22 +151,22 @@ function resolveHighlight(
   return { hl, start, end };
 }
 
-function resolveHighlights(
+function resolveHighlights<T extends AnchoredRange>(
   fullText: string,
-  highlights: RwHighlight[],
+  highlights: T[],
   onOrphaned: (id: string) => void,
-): ResolvedHighlight[] {
+): ResolvedHighlight<T>[] {
   return highlights
     .map((hl) => resolveHighlight(fullText, hl, onOrphaned))
-    .filter((hl): hl is ResolvedHighlight => hl !== null)
+    .filter((hl): hl is ResolvedHighlight<T> => hl !== null)
     .sort((a, b) => a.start - b.start);
 }
 
-function buildHighlightSegments(
+function buildHighlightSegments<T extends AnchoredRange>(
   textNodes: TextNodeEntry[],
-  resolved: ResolvedHighlight[],
-): HighlightSegment[] {
-  const segments: HighlightSegment[] = [];
+  resolved: ResolvedHighlight<T>[],
+): HighlightSegment<T>[] {
+  const segments: HighlightSegment<T>[] = [];
   const seenHlIds = new Set<string>();
 
   for (let ti = 0; ti < textNodes.length; ti++) {
@@ -171,13 +188,17 @@ function buildHighlightSegments(
   return segments.sort((a, b) => b.tnIdx - a.tnIdx || b.from - a.from);
 }
 
-function wrapHighlightSegment(textNodes: TextNodeEntry[], seg: HighlightSegment): void {
+function wrapHighlightSegment<T extends AnchoredRange>(
+  textNodes: TextNodeEntry[],
+  seg: HighlightSegment<T>,
+  createMark: (hl: T, isFirstSegment: boolean) => HTMLElement,
+): void {
   const tn = textNodes[seg.tnIdx].node;
   if (!tn.parentNode) return;
   if (seg.from < 0 || seg.from >= seg.to) return;
   if (seg.from > tn.length) return;
 
-  const mark = createMarkElement(seg.hl, seg.isFirst);
+  const mark = createMark(seg.hl, seg.isFirst);
   const target = tn.splitText(seg.from);
   const clampedLen = Math.min(seg.to - seg.from, target.length);
   if (clampedLen < target.length) target.splitText(clampedLen);
@@ -185,23 +206,40 @@ function wrapHighlightSegment(textNodes: TextNodeEntry[], seg: HighlightSegment)
   mark.appendChild(target);
 }
 
-export function applyHighlightMarks(
+function wrapRanges<T extends AnchoredRange>(
   container: HTMLElement,
-  highlights: RwHighlight[],
+  ranges: T[],
   onOrphaned: (id: string) => void,
+  createMark: (hl: T, isFirstSegment: boolean) => HTMLElement,
 ): void {
-  unwrapExistingMarks(container);
-
-  if (highlights.length === 0) return;
+  if (ranges.length === 0) return;
 
   const fullText = container.textContent ?? "";
-  const resolved = resolveHighlights(fullText, highlights, onOrphaned);
+  const resolved = resolveHighlights(fullText, ranges, onOrphaned);
   if (resolved.length === 0) return;
 
   const textNodes = collectTextNodes(container);
   for (const seg of buildHighlightSegments(textNodes, resolved)) {
-    wrapHighlightSegment(textNodes, seg);
+    wrapHighlightSegment(textNodes, seg, createMark);
   }
+}
+
+const ignoreOrphanedGuide = () => {};
+
+/**
+ * Re-renders persistent marks: personal highlights (`mark.rw-hl`), then
+ * classroom guided prompts (`mark.rw-guide`, #1307) inside them. Marks only
+ * wrap existing text nodes, so text offsets are unchanged.
+ */
+export function applyHighlightMarks(
+  container: HTMLElement,
+  highlights: RwHighlight[],
+  onOrphaned: (id: string) => void,
+  guides: GuideMark[] = [],
+): void {
+  unwrapExistingMarks(container);
+  wrapRanges(container, highlights, onOrphaned, createMarkElement);
+  wrapRanges(container, guides, ignoreOrphanedGuide, createGuideMarkElement);
 }
 
 export function overlapsAny(start: number, end: number, highlights: RwHighlight[]): RwHighlight[] {

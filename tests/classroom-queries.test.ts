@@ -179,6 +179,8 @@ test("listClassroomAssignmentMeta maps editable assignment metadata", async () =
       targetStudentIds: ["s1"],
       writePrompt: null,
       responseCount: 0,
+      annotationCount: 0,
+      annotationResponseCount: 0,
     },
   ]);
 });

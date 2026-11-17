@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-17T12:04:30.108Z",
-  "routeCount": 165,
-  "methodCount": 205,
+  "generatedAt": "2026-11-17T12:56:22.327Z",
+  "routeCount": 170,
+  "methodCount": 212,
   "routes": [
     {
       "path": "/api/account",
@@ -1792,6 +1792,29 @@
       ]
     },
     {
+      "path": "/api/annotation-responses/{id}",
+      "file": "src/app/api/annotation-responses/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/articles",
       "file": "src/app/api/articles/route.ts",
       "runtime": "default",
@@ -1860,6 +1883,45 @@
       ]
     },
     {
+      "path": "/api/assignment-annotations/{id}",
+      "file": "src/app/api/assignment-annotations/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "PATCH",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "guide"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/assignments/{id}",
       "file": "src/app/api/assignments/[id]/route.ts",
       "runtime": "default",
@@ -1920,6 +1982,66 @@
             "title",
             "writePrompt"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/assignments/{id}/annotation-responses",
+      "file": "src/app/api/assignments/[id]/annotation-responses/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "response"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/assignments/{id}/annotations",
+      "file": "src/app/api/assignments/[id]/annotations/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "guide"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -3551,6 +3673,27 @@
           "capability": null,
           "hasBodySchema": false,
           "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/annotations",
+      "file": "src/app/api/reader/[id]/annotations/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
           "notes": [],

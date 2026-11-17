@@ -237,6 +237,14 @@ function AssignmentsCard({
                         Written responses ({meta.responseCount})
                       </Link>
                     ) : null}
+                    {meta.annotationCount + meta.annotationResponseCount > 0 ? (
+                      <Link
+                        href={`/teacher/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(meta.assignmentId)}/annotations`}
+                        className="text-[length:var(--type-ui)] font-medium text-primary-text underline-offset-2 hover:underline"
+                      >
+                        Prompts &amp; evidence ({meta.annotationResponseCount})
+                      </Link>
+                    ) : null}
                     {canManage ? (
                       <div className="flex items-center gap-[var(--space-2)]">
                         <EditAssignmentForm

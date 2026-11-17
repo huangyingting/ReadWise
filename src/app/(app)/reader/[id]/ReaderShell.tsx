@@ -9,6 +9,7 @@
  * Provider order is intentional and must be preserved:
  *   1. ReaderAudioProvider     — shared audio element and narration state
  *   2. ReaderHighlightsProvider — highlight CRUD and optimistic state
+ *      ReaderClassAnnotationsProvider — classroom guided prompts (#1307)
  *   3. ReaderToolsProvider     — tools surface / word-lookup context
  *   4. ReaderLayout            — responsive grid (reading column + tools rail)
  *   5. ReaderMiniPlayer        — fixed bottom audio mini-player (outside layout)
@@ -35,11 +36,13 @@ import ReaderToolsSurface from "@/components/ReaderToolsSurface";
 import { ReaderToolsProvider } from "@/components/ReaderToolsProvider";
 import { ReaderAudioProvider } from "@/components/ReaderAudioProvider";
 import { ReaderHighlightsProvider } from "@/components/ReaderHighlightsProvider";
+import { ReaderClassAnnotationsProvider } from "@/components/reader/ReaderClassAnnotationsProvider";
 import ReaderMiniPlayer from "@/components/ReaderMiniPlayer";
 import ArticleStudySection from "@/components/ArticleStudySection";
 import ArticleDifficultyFeedback from "@/components/ArticleDifficultyFeedback";
 import ReaderReadingBlockTracker from "@/components/reader/ReaderReadingBlockTracker";
 import ReaderTimeTracker from "@/components/reader/ReaderTimeTracker";
+import ClassPromptsNotice from "@/components/reader/ClassPromptsNotice";
 import ArticleHeader from "./ArticleHeader";
 import AssignmentBanner from "./AssignmentBanner";
 import KeepReadingSection from "./KeepReadingSection";
@@ -64,7 +67,9 @@ function ReaderProviders({ articleId, children }: ReaderProvidersProps) {
   return (
     <ReaderAudioProvider>
       <ReaderHighlightsProvider articleId={articleId}>
-        <ReaderToolsProvider>{children}</ReaderToolsProvider>
+        <ReaderClassAnnotationsProvider articleId={articleId}>
+          <ReaderToolsProvider>{children}</ReaderToolsProvider>
+        </ReaderClassAnnotationsProvider>
 
         {/* Fixed bottom audio mini-player (appears after first narration load) */}
         <ReaderMiniPlayer />
@@ -118,6 +123,9 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
 
         {/* Assignment banner — shown only when the student has assignments for this article */}
         <AssignmentBanner assignments={studentAssignments} />
+
+        {/* Classroom guided prompts (#1307) — learners and teaching staff only */}
+        <ClassPromptsNotice />
 
         {/* Hero image — graceful 16:9 frame that collapses on error */}
         <ArticleHero src={article.heroImage} alt={article.title} />

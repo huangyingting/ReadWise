@@ -106,6 +106,8 @@ model User {
   createdClassroomJoinCodes ClassroomJoinCode[]       @relation("CreatedClassroomJoinCodes")
   ownedTextSets             TextSet[]                 @relation("OwnedTextSets")
   writeSubmissions          WriteSubmission[]
+  authoredAssignmentAnnotations AssignmentAnnotation[]  @relation("AuthoredAssignmentAnnotations")
+  assignmentAnnotationResponses AssignmentAnnotationResponse[]
   assignmentCompletions   AssignmentCompletion[]
   assignmentTargets       AssignmentTarget[]
   todaySessions           TodaySession[]
@@ -1444,10 +1446,62 @@ model Assignment {
   writePrompt String?
   textSet     TextSet?               @relation(fields: [textSetId], references: [id], onDelete: SetNull)
   writeSubmissions WriteSubmission[]
+  annotations         AssignmentAnnotation[]
+  annotationResponses AssignmentAnnotationResponse[]
 
   @@index([classroomId])
   @@index([articleId])
   @@index([classroomId, textSetId])
+}
+
+/// Teacher-authored guided margin prompt anchored to a passage of an assigned
+/// article (#1307). Visible to the assignment's students and the classroom's
+/// managers. Anchored with the same quote/offset/prefix/suffix selector as
+/// `Highlight`.
+model AssignmentAnnotation {
+  id           String    @id @default(cuid())
+  assignmentId String
+  authorId     String?
+  quote        String
+  startOffset  Int
+  endOffset    Int
+  prefix       String    @default("")
+  suffix       String    @default("")
+  prompt       String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  assignment Assignment                     @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  author     User?                          @relation("AuthoredAssignmentAnnotations", fields: [authorId], references: [id], onDelete: SetNull)
+  responses  AssignmentAnnotationResponse[]
+
+  @@index([assignmentId, startOffset])
+}
+
+/// A learner's reply to a guided prompt and/or an evidence highlight they
+/// explicitly submitted for an assignment (#1307). Visible only to the learner
+/// and the classroom's managers; personal `Highlight` rows are never shared.
+model AssignmentAnnotationResponse {
+  id           String    @id @default(cuid())
+  assignmentId String
+  annotationId String?
+  userId       String
+  quote        String?
+  startOffset  Int?
+  endOffset    Int?
+  prefix       String    @default("")
+  suffix       String    @default("")
+  body         String    @default("")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  assignment Assignment            @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  annotation AssignmentAnnotation? @relation(fields: [annotationId], references: [id], onDelete: Cascade)
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId, userId])
+  @@index([annotationId])
+  @@index([userId])
 }
 
 model AssignmentTarget {

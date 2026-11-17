@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-17"
 description: "Documents Reader annotation ownership, highlight anchors, notes, APIs, and offline conflict boundaries. Captures current anchor model, note editing, color rules, revalidation, merge behavior, and privacy constraints."
 ---
 
@@ -162,6 +162,9 @@ ranges. Persistent highlights remain semantic, clickable `<mark class="rw-hl">`
 elements for edit/note behavior; after those wrappers mutate text nodes, the
 module rebuilds live Narration ranges against the resulting DOM. Selection
 anchoring remains in `highlightMarks.ts` and uses the same linear Reader text.
+Classroom guided prompts are painted as a second, transparent
+`<mark class="rw-guide">` layer after personal highlights (see
+[classroom annotations](../learning/classroom-annotations.md)).
 
 ## Privacy and export
 
@@ -169,4 +172,8 @@ Highlights and notes are part of user-owned data and are included in
 `exportUserData(...)` (`GET /api/account/export`) with article ids, quote,
 offsets, context, note, color, and timestamps. User deletion cascades highlight
 rows with the user.
+
+Highlights are never visible to teachers. A learner can explicitly share a
+highlight's passage as assignment evidence, which creates a separate
+`AssignmentAnnotationResponse`; the private note is not copied.
 

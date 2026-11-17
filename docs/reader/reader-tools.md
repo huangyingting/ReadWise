@@ -187,6 +187,7 @@ Relevant coverage includes `tests/quiz*.test.ts`, `tests/tutor*.test.ts`,
 
 - [`lexical-dictionary.md`](./lexical-dictionary.md) — dictionary providers and saved words.
 - [`annotations.md`](./annotations.md) — highlights and notes.
+- [`../learning/classroom-annotations.md`](../learning/classroom-annotations.md) — teacher guided prompts and shared evidence in the Notes tab.
 - [`translation.md`](./translation.md) — article and sentence translation.
 - [`playback.md`](./playback.md) — Reader audio context and narration controls.
 - [`../speech/pronunciation-practice.md`](../speech/pronunciation-practice.md) — Azure Speech assessment details.

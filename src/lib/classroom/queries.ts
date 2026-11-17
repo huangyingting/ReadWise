@@ -63,6 +63,9 @@ export type ClassroomAssignmentMetaRow = {
   writePrompt: string | null;
   /** Submitted written responses (drafts excluded). */
   responseCount: number;
+  /** Guided prompts and learner replies/evidence (#1307). */
+  annotationCount: number;
+  annotationResponseCount: number;
 };
 
 const NEWEST_FIRST = { createdAt: "desc" } as const;
@@ -117,7 +120,13 @@ export async function listClassroomAssignmentMeta(
       writePrompt: true,
       article: { select: { title: true } },
       targets: { select: { studentId: true } },
-      _count: { select: { writeSubmissions: { where: { status: { not: "DRAFT" } } } } },
+      _count: {
+        select: {
+          writeSubmissions: { where: { status: { not: "DRAFT" } } },
+          annotations: true,
+          annotationResponses: true,
+        },
+      },
     },
   });
   return rows.map((r) => ({
@@ -133,6 +142,8 @@ export async function listClassroomAssignmentMeta(
     targetStudentIds: r.targets.map((t) => t.studentId),
     writePrompt: r.writePrompt ?? null,
     responseCount: r._count?.writeSubmissions ?? 0,
+    annotationCount: r._count?.annotations ?? 0,
+    annotationResponseCount: r._count?.annotationResponses ?? 0,
   }));
 }
 

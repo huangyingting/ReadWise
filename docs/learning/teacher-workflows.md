@@ -66,6 +66,15 @@ per assignment, where teachers score a four-part rubric and either grade the
 response or return it for revision. Students' independent writing is never
 shown to teachers. See [write prompts](write-prompts.md).
 
+### Guided prompts and evidence
+
+Teachers reading an assigned article can turn one of their highlights into a
+numbered **class prompt** from the reader's Notes tab. Students in the
+assignment see the prompt on its passage, reply, and can share their own
+highlights as evidence; the classroom page links to **Prompts & evidence (n)**
+per assignment. Personal highlights stay private unless a student shares
+them. See [classroom annotations](classroom-annotations.md).
+
 ### Text sets
 
 Teachers can group readings into **Text Sets** at `/teacher/text-sets` — an
