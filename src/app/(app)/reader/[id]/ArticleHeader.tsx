@@ -7,16 +7,23 @@
  * loader so this component is a pure presentational server component.
  */
 import Link from "next/link";
+import { Printer } from "lucide-react";
 import { TagScope } from "@prisma/client";
 import type { Article, ReadingProgress } from "@prisma/client";
 import type { TagView } from "@/lib/article-library";
 import { type CefrLevel, CefrBadge, Badge } from "@/components/ui/Badge";
+import { buttonVariants } from "@/components/ui";
+import CitationButton from "@/components/reader/CitationButton";
+import { articleCitationSource, formatAllCitations } from "@/lib/citations";
 import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
 import OfflineDownloadButton from "@/components/OfflineDownloadButton";
 import SetTodayArticleButton from "@/components/SetTodayArticleButton";
 
 type Props = {
-  article: Pick<Article, "id" | "title" | "author" | "source" | "sourceUrl">;
+  article: Pick<
+    Article,
+    "id" | "title" | "author" | "source" | "sourceUrl" | "canonicalUrl" | "publishedAt"
+  >;
   difficultyLevel: CefrLevel | null;
   isValidCefrLevel: boolean;
   readingMinutes: number | null;
@@ -112,6 +119,16 @@ function ArticleMeta({
 
       {/* #117 offline download button */}
       <OfflineDownloadButton articleId={article.id} />
+
+      {/* #1306 — citations (MLA/APA/Chicago) and printable classroom packets. */}
+      <CitationButton citations={formatAllCitations(articleCitationSource(article))} />
+      <Link
+        href={`/reader/${encodeURIComponent(article.id)}/print`}
+        className={buttonVariants({ variant: "outline", size: "sm" })}
+      >
+        <Printer size={13} aria-hidden />
+        Print
+      </Link>
 
       {/* Today Session v1.1 (#805) — set this readable article as today's primary. */}
       {setTodayEnabled ? (

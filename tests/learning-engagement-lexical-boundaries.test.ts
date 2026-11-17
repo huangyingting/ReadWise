@@ -292,7 +292,7 @@ test("study schemas module exposes only route validation contracts", async () =>
 
 test("vocabulary service/schema modules stay explicit and no bare alias imports remain", async () => {
   const service = await import("@/lib/vocabulary/service");
-  assert.deepEqual(Object.keys(service).sort(), ["getOrCreateArticleVocabulary"]);
+  assert.deepEqual(Object.keys(service).sort(), ["getOrCreateArticleVocabulary", "readCachedVocabulary"]);
 
   const schemas = await import("@/lib/vocabulary/schemas");
   assert.deepEqual(Object.keys(schemas).sort(), [

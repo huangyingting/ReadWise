@@ -37,7 +37,8 @@ function storedQuizQuestionToResult(row: StoredQuizQuestion): QuizQuestion {
   };
 }
 
-async function readCachedQuiz(articleId: string): Promise<QuizQuestion[] | null> {
+/** Stored quiz questions for an article (no AI call), or null when none exist yet. */
+export async function readCachedQuiz(articleId: string): Promise<QuizQuestion[] | null> {
   const questions = (
     await prisma.quizQuestion.findMany({
       where: { articleId },

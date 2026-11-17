@@ -1,0 +1,177 @@
+/* Printable classroom packets (#1306): `/reader/[id]/print`.
+ *
+ * On screen the sheet previews the page; in print, app chrome is gone (the
+ * route has no app shell and the toolbar is `print:hidden`), the page is
+ * forced to the light scheme via the `Canvas`/`CanvasText` system colours so a
+ * dark-theme user still gets black-on-white paper, and sections avoid
+ * splitting across pages. Article prose keeps the reading-font tokens. */
+
+.print-sheet {
+  max-width: var(--container-reading);
+  margin: 0 auto;
+  padding: var(--space-8) var(--page-gutter);
+  font-family: var(--font-reading);
+  color: var(--text);
+}
+
+.print-sheet h1 {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--type-page-title);
+  line-height: var(--leading-snug);
+}
+
+.print-sheet h2 {
+  margin: var(--space-8) 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--type-section-title);
+}
+
+.print-byline,
+.print-source,
+.print-rights {
+  margin: 0;
+  font-size: var(--type-ui);
+  color: var(--text-muted);
+}
+
+.print-source {
+  margin-top: var(--space-6);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+/* Student header block: Name / Date / Class write-in lines. */
+.print-student-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+  font-family: var(--font-sans);
+  font-size: var(--type-ui);
+}
+
+.print-student-header span {
+  display: block;
+  padding-top: var(--space-6);
+  border-bottom: 1px solid var(--text);
+}
+
+/* Numbered paragraphs for textual-evidence questions. */
+.print-article-body {
+  counter-reset: print-paragraph;
+  padding-left: var(--space-8);
+}
+
+.print-article-body > p {
+  position: relative;
+  counter-increment: print-paragraph;
+}
+
+.print-article-body > p::before {
+  content: counter(print-paragraph);
+  position: absolute;
+  left: calc(-1 * var(--space-8));
+  width: var(--space-6);
+  text-align: right;
+  font-family: var(--font-sans);
+  font-size: var(--type-label);
+  color: var(--text-muted);
+}
+
+.print-article-body img {
+  max-height: 320px;
+  object-fit: contain;
+}
+
+.print-vocabulary {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.print-vocabulary dt {
+  font-weight: 600;
+}
+
+.print-vocabulary dd {
+  margin: 0 0 var(--space-3);
+}
+
+/* Tailwind's preflight strips list markers; questions and answers are numbered. */
+.print-quiz,
+.print-answer-key {
+  margin: 0;
+  padding-left: var(--space-6);
+  list-style: decimal;
+}
+
+.print-quiz > li {
+  margin-bottom: var(--space-4);
+}
+
+.print-quiz-options {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+}
+
+.print-quiz-options li {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-1) 0;
+}
+
+.print-bubble {
+  flex: none;
+  font-family: var(--font-sans);
+}
+
+.print-lines span {
+  display: block;
+  height: var(--space-8);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.print-section {
+  break-inside: avoid;
+}
+
+.print-break-before {
+  break-before: page;
+}
+
+@media print {
+  @page {
+    margin: 16mm 14mm;
+  }
+
+  .print-page {
+    color-scheme: light;
+    background: Canvas;
+  }
+
+  .print-sheet {
+    max-width: none;
+    padding: 0;
+    color: CanvasText;
+  }
+
+  .print-sheet .print-byline,
+  .print-sheet .print-source,
+  .print-sheet .print-rights,
+  .print-article-body > p::before {
+    color: CanvasText;
+  }
+
+  .print-article-body a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .print-quiz > li,
+  .print-vocabulary div {
+    break-inside: avoid;
+  }
+}

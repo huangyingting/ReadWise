@@ -160,6 +160,7 @@ flowchart LR
 | [`reader/imports.md`](./reader/imports.md) | URL/text personal imports, SSRF and sanitization controls, de-duplication, daily quota, audit, and analytics metadata. |
 | [`reader/lexical-dictionary.md`](./reader/lexical-dictionary.md) | Dictionary lookup provider seam, word normalization, saved-word persistence, mastery exposure, and privacy rules. |
 | [`reader/offline-sync.md`](./reader/offline-sync.md) | Offline mutation queue, conflict resolution, cache versioning, background-sync resilience, and push reminders. |
+| [`reader/citations-and-print.md`](./reader/citations-and-print.md) | MLA 9 / APA 7 / Chicago citations, printable classroom packets (article, worksheet, teacher answer key), answer-key authorization, and rights handling. |
 | [`reader/annotations.md`](./reader/annotations.md) | Highlights, notes, anchor revalidation, offline note merge, and reader annotation APIs. |
 | [`reader/reader-tools.md`](./reader/reader-tools.md) | Reader learning tools: vocabulary, quiz, tutor, dictation, pronunciation, grammar, selection tools, fallbacks, offline behavior, and privacy boundaries. |
 | [`reader/recommendations.md`](./reader/recommendations.md) | Scored Picks candidate boundary, per-user context, scoring weights, diversity pass, explanations, and privacy. |

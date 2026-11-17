@@ -34,7 +34,8 @@ function parseVocabularyJson(raw: string): VocabularyEntry[] {
   return validateVocabulary(raw).items;
 }
 
-async function readCachedVocabulary(articleId: string): Promise<VocabularyEntry[] | null> {
+/** Stored vocabulary for an article (no AI call), or null when none exists yet. */
+export async function readCachedVocabulary(articleId: string): Promise<VocabularyEntry[] | null> {
   const entries: VocabularyEntry[] = (
     await prisma.vocabularyItem.findMany({
       where: { articleId },

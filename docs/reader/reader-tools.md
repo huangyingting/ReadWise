@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-17"
 description: "Documents the ReaderTools surface and its Reader, AI, Speech, Learning, Offline, and Analytics subsystem boundaries. Covers vocabulary, quiz, tutor, dictation, pronunciation, grammar, and selection tools as mounted reader panels and Reader floating surfaces with graceful fallbacks."
 ---
 
@@ -40,6 +40,7 @@ flowchart LR
 | Selection tools | `src/components/reader/ReaderFloatingSurface.tsx`, `src/components/reader/wordLookup/*`, `src/components/GrammarPopover.tsx`, `src/components/SentenceTranslatePopover.tsx` | Shared Reader surface semantics, dictionary, save word, highlights/notes, sentence translation, grammar explanation. |
 | APIs | `/api/reader/[id]/vocabulary`, `/quiz`, `/quiz/attempt`, `/quiz/history`, `/tutor`, `/grammar`, `/translate-sentence`, `/dictionary`, `/pronunciation/*`, `/speech/token` | Authenticated, access-checked routes backing the UI. |
 | Offline | `src/lib/offline/sync-runtime.ts`, `src/lib/offline/registry.ts` | Quiz-attempt replay, progress/highlight/save-word queues, conflict handling. |
+| Print packets | `src/lib/reader/print.ts` (see [citations and print](citations-and-print.md)) | Prints the stored quiz and vocabulary on worksheets without calling AI; answer key for teachers only. |
 | Learning signals | `src/lib/learning/*`, `src/lib/pronunciation.ts`, `src/lib/quiz-grading.ts` | Mastery, SRS, skill evidence, pronunciation history, quiz attempts. |
 
 ## Boundary rules
