@@ -85,6 +85,7 @@ import {
 } from "./canonical-conflict-migrate";
 import { resolveConflictParticipants } from "./canonical-conflict-query";
 import { foldLoserInTx } from "./final-identity-commit";
+import { isUniqueConflictOn } from "@/lib/database/unique-constraint";
 
 /** Bounded retries for convergence-after-conflict on the canonical unique slot. */
 const MAX_CONVERGENCE_RETRIES = 5;
@@ -154,12 +155,7 @@ class ConflictRaceError extends Error {
 
 /** True when a thrown error is a unique conflict on the candidate canonical slot. */
 function isCanonicalUniqueConflict(error: unknown): boolean {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
-    return false;
-  }
-  const target = (error.meta as { target?: unknown } | undefined)?.target;
-  const asText = Array.isArray(target) ? target.join(",") : String(target ?? "");
-  return asText.includes("canonicalKey") || asText.includes("provisionalKey");
+  return isUniqueConflictOn(error, "canonicalKey") || isUniqueConflictOn(error, "provisionalKey");
 }
 
 type ResolveParams = {
