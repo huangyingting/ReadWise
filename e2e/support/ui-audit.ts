@@ -1059,31 +1059,41 @@ async function assertRouteBehavior(page: Page, profile: RouteProfile): Promise<v
       );
       break;
     case "today-reader-skip": {
-      const delivered = page
-        .waitForResponse(
-          (response) =>
-            response.url().includes("/api/today/skip") && response.status() < 500,
-          { timeout: UI_AUDIT_MUTATION_TIMEOUT_MS },
-        )
-        .then(() => "delivered" as const);
-      const queued = expect(
-        page.getByText("Your skip is saved and will sync automatically.", {
-          exact: true,
-        }),
-      )
-        .toBeVisible({ timeout: UI_AUDIT_MUTATION_TIMEOUT_MS })
-        .then(() => "queued" as const);
-
-      await page.getByRole("button", { name: "Skip today" }).click();
-      const outcome = await Promise.race([delivered, queued]);
+      // The button can be clicked before hydration attaches its handler, so
+      // retry the click until the skip is delivered or queued.
+      const skipButton = page.getByRole("button", { name: "Skip today", exact: true });
+      const queuedNotice = page.getByText("Your skip is saved and will sync automatically.", {
+        exact: true,
+      });
+      let outcome: "delivered" | "queued" | null = null;
+      await expect(async () => {
+        const delivered = page
+          .waitForResponse(
+            (response) => response.url().includes("/api/today/skip") && response.status() < 500,
+            { timeout: 10_000 },
+          )
+          .then(() => "delivered" as const, () => null);
+        const queued = queuedNotice
+          .waitFor({ state: "visible", timeout: 10_000 })
+          .then(() => "queued" as const, () => null);
+        await skipButton.click();
+        outcome = await new Promise<"delivered" | "queued" | null>((resolve) => {
+          let pending = 2;
+          for (const signal of [delivered, queued]) {
+            void signal.then((value) => {
+              if (value) resolve(value);
+              else if (--pending === 0) resolve(null);
+            });
+          }
+        });
+        expect(outcome).not.toBeNull();
+      }).toPass({ timeout: UI_AUDIT_MUTATION_TIMEOUT_MS });
       if (outcome === "delivered") {
         await expect(page.getByText("Skipped today", { exact: true }).first()).toBeVisible({
           timeout: UI_AUDIT_MUTATION_TIMEOUT_MS,
         });
       } else {
-        await expect(
-          page.getByRole("button", { name: "Skip today", exact: true }),
-        ).toBeEnabled();
+        await expect(skipButton).toBeEnabled();
       }
       break;
     }
@@ -1111,12 +1121,16 @@ async function assertRouteBehavior(page: Page, profile: RouteProfile): Promise<v
     case "tags-reader-tech-detail":
       await expect(page.getByRole("link", { name: /E2E Critical Reading/i }).first()).toBeVisible();
       break;
-    case "import-reader":
-      await page.getByPlaceholder("https://example.com/article").fill("https://example.com/audit");
-      await expect(page.getByPlaceholder("https://example.com/article")).toHaveValue(
-        "https://example.com/audit",
-      );
+    case "import-reader": {
+      // Hydration can reset a value typed into the controlled input, so
+      // refill until it sticks.
+      const urlInput = page.getByPlaceholder("https://example.com/article");
+      await expect(async () => {
+        await urlInput.fill("https://example.com/audit");
+        await expect(urlInput).toHaveValue("https://example.com/audit", { timeout: 2_000 });
+      }).toPass({ timeout: UI_AUDIT_MUTATION_TIMEOUT_MS });
       break;
+    }
     case "settings-reader":
       await expect(page.getByText("Choose your preferred app theme.").first()).toBeVisible();
       break;
