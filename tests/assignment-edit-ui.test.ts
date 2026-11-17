@@ -88,6 +88,37 @@ test("EditAssignmentForm sends studentIds only after audience edits", () => {
     { dueDate: "", instructions: "", writePrompt: "", title: "", points: null, studentIds: [] },
   );
 
+  // Reading level lock (#1303): "" clears to student choice; omitted when the
+  // article has a single level.
+  assert.deepEqual(
+    buildUpdatePayload({
+      dueDate: "",
+      instructions: "",
+      writePrompt: "",
+      title: "",
+      points: "",
+      audienceDirty: false,
+      audience: "class",
+      targetIds: [],
+      lockedLevelKey: "B1",
+    }).lockedLevelKey,
+    "B1",
+  );
+  assert.equal(
+    buildUpdatePayload({
+      dueDate: "",
+      instructions: "",
+      writePrompt: "",
+      title: "",
+      points: "",
+      audienceDirty: false,
+      audience: "class",
+      targetIds: [],
+      lockedLevelKey: "",
+    }).lockedLevelKey,
+    null,
+  );
+
   assert.deepEqual(
     buildUpdatePayload({
       dueDate: "",

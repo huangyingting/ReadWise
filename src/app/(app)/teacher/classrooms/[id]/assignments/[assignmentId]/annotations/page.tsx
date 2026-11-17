@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isArticleLevelKey, readingLevelLabel } from "@/lib/article-levels/levels";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireSession } from "@/lib/session";
@@ -32,6 +33,7 @@ function ResponseList({ rows, label }: { rows: ReviewResponseRow[]; label: strin
           <span className="flex flex-wrap items-center gap-[var(--space-2)] text-[length:var(--type-ui)]">
             <span className="font-semibold text-text">{studentLabel(row)}</span>
             {row.quote ? <Badge variant="primary">Evidence</Badge> : null}
+            {isArticleLevelKey(row.levelKey) ? <Badge variant="neutral">{readingLevelLabel(row.levelKey)}</Badge> : null}
             <span className="text-text-muted">{formatMediumDate(row.createdAt)}</span>
           </span>
           {row.quote ? (
@@ -95,7 +97,12 @@ export default async function AssignmentAnnotationsPage({
           {guides.map((guide, index) => (
             <Card key={guide.id}>
               <CardHeader>
-                <CardTitle>Prompt {index + 1}</CardTitle>
+                <div className="flex flex-wrap items-center gap-[var(--space-2)]">
+                  <CardTitle>Prompt {index + 1}</CardTitle>
+                  {isArticleLevelKey(guide.levelKey) ? (
+                    <Badge variant="neutral">{readingLevelLabel(guide.levelKey)} level</Badge>
+                  ) : null}
+                </div>
                 <CardMeta>
                   {guide.responses.length === 1 ? "1 reply" : `${guide.responses.length} replies`}
                 </CardMeta>

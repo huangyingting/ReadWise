@@ -16,6 +16,7 @@
  * causal queue dependency on the create. Edits therefore survive ambiguous
  * create responses, and deletes cannot run unless the create is accepted.
  */
+import { ORIGINAL_LEVEL } from "@/lib/article-levels/levels";
 import { prisma } from "@/lib/prisma";
 import { mergeNoteConflict } from "@/lib/offline-conflict";
 import { validateAnchor, HIGHLIGHT_COLORS } from "./anchor";
@@ -35,12 +36,22 @@ type HighlightUpdateResult =
 type HighlightAnchorIdentity = {
   startOffset: number;
   endOffset: number;
+  /** Reading level whose text the offsets index (#1303); defaults to "original". */
+  levelKey?: string;
 };
 type AnchoredHighlightUpdateInput = UpdateHighlightInput & {
   /** Note value the pending create was based on, used for conflict merging. */
   baseNote?: string | null;
 };
 const UPDATE_RETRY_LIMIT = 3;
+
+function anchorWhere(anchor: HighlightAnchorIdentity) {
+  return {
+    startOffset: anchor.startOffset,
+    endOffset: anchor.endOffset,
+    levelKey: anchor.levelKey ?? ORIGINAL_LEVEL,
+  };
+}
 
 function isHighlightColor(color: string): boolean {
   return (HIGHLIGHT_COLORS as readonly string[]).includes(color);
@@ -81,11 +92,13 @@ export async function createHighlight(
     return { ok: false, error: validation.error, status: 400 };
   }
 
+  const levelKey = input.levelKey ?? ORIGINAL_LEVEL;
   const highlight = await prisma.highlight.upsert({
     where: {
-      userId_articleId_startOffset_endOffset: {
+      userId_articleId_levelKey_startOffset_endOffset: {
         userId,
         articleId,
+        levelKey,
         startOffset: input.startOffset,
         endOffset: input.endOffset,
       },
@@ -93,6 +106,7 @@ export async function createHighlight(
     create: {
       userId,
       articleId,
+      levelKey,
       quote: input.quote.trim(),
       startOffset: input.startOffset,
       endOffset: input.endOffset,
@@ -198,7 +212,7 @@ export async function updateHighlightByAnchor(
   input: AnchoredHighlightUpdateInput,
 ): Promise<HighlightUpdateResult> {
   const existing = await prisma.highlight.findFirst({
-    where: { userId, articleId, ...anchor },
+    where: { userId, articleId, ...anchorWhere(anchor) },
     select: { id: true, note: true, updatedAt: true },
   });
   if (!existing) {
@@ -249,7 +263,7 @@ export async function deleteHighlightByAnchor(
   anchor: HighlightAnchorIdentity,
 ): Promise<{ ok: true }> {
   await prisma.highlight.deleteMany({
-    where: { userId, articleId, ...anchor },
+    where: { userId, articleId, ...anchorWhere(anchor) },
   });
   return { ok: true };
 }

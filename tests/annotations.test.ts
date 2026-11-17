@@ -82,6 +82,7 @@ type HighlightRow = {
   suffix: string;
   note: string | null;
   color: string | null;
+  levelKey: string;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -96,6 +97,7 @@ function highlightRow(overrides: Partial<HighlightRow> = {}): HighlightRow {
     suffix: "",
     note: null,
     color: null,
+    levelKey: "original",
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -461,6 +463,7 @@ test("deleteHighlightByAnchor is idempotent and user scoped", async () => {
         articleId: "article-1",
         startOffset: 10,
         endOffset: 20,
+        levelKey: "original",
       },
     },
   ]);

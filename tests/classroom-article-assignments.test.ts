@@ -297,6 +297,7 @@ test("normalizes optional fields and creates the assignment", async () => {
     publishState: "PUBLISHED",
     publishAt: null,
     textSetId: null,
+    lockedLevelKey: null,
   });
 });
 
@@ -313,6 +314,7 @@ test("stores null for absent due date and blank metadata", async () => {
     publishState: "PUBLISHED",
     publishAt: null,
     textSetId: null,
+    lockedLevelKey: null,
   });
 });
 

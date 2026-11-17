@@ -1,5 +1,6 @@
 "use client";
 
+import { ORIGINAL_LEVEL, levelQuery, type ReadingLevelKey } from "@/lib/article-levels/levels";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   captureOfflineMutationGeneration,
@@ -120,7 +121,10 @@ function buildSubmittedAnswers(
  */
 export function useArticleQuizPanel(
   articleId: string,
+  levelKey: ReadingLevelKey = ORIGINAL_LEVEL,
 ): UseArticleQuizPanelResult {
+  // Level-scoped quiz (#1303): adapted levels have their own questions.
+  const levelSuffix = levelQuery(levelKey);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +167,7 @@ export function useArticleQuizPanel(
     setLoading(true);
     setError(null);
     try {
-      const data = await postJson<QuizResponse>(`/api/reader/${articleId}/quiz`, {});
+      const data = await postJson<QuizResponse>(`/api/reader/${articleId}/quiz${levelSuffix}`, {});
       setQuestions(data.questions);
       setFallback(data.fallback);
       setLoaded(true);
@@ -205,7 +209,7 @@ export function useArticleQuizPanel(
 
     const generation = captureOfflineMutationGeneration();
     const clientMutationId = newClientMutationId();
-    const endpoint = `/api/reader/${articleId}/quiz/attempt`;
+    const endpoint = `/api/reader/${articleId}/quiz/attempt${levelSuffix}`;
     const payload = {
       answers: buildSubmittedAnswers(questions, answers),
       clientMutationId,

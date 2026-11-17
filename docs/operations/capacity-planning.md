@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-17"
 description: "Documents subsystem capacity assumptions, limits, observable signals, and scaling levers. Captures current throughput constraints, provider bottlenecks, cache/queue/storage limits, Redis adoption gate, and follow-up gaps."
 ---
 
@@ -147,6 +147,7 @@ SKIP LOCKED` (PostgreSQL) or a serialized transaction (SQLite).
 | `AI_REBUILD` | 4 | 5 s | 10 min |
 | `TTS_GENERATE` | 3 | 5 s | 10 min |
 | `PUSH_REMINDER` | 3 | 1 s | 60 s |
+| `LEVEL_ADAPT` | 3 | 5 s | 10 m |
 
 Source: `src/lib/jobs/retry-policy.ts`.
 

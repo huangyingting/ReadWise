@@ -77,7 +77,14 @@ function DisplayPanelSurface({
   );
 }
 
-export default function ReaderControls({ articleId }: { articleId: string }) {
+export default function ReaderControls({
+  articleId,
+  narrationAvailable = true,
+}: {
+  articleId: string;
+  /** False on adapted reading levels (#1303): narration audio reads the original text. */
+  narrationAvailable?: boolean;
+}) {
   const { open: toolsOpen, toggle: toggleTools } = useReaderTools();
   const { prefs, announcement, updatePrefs, handleScaleDown, handleScaleUp, atMin, atMax } =
     useReaderPrefs();
@@ -119,9 +126,12 @@ export default function ReaderControls({ articleId }: { articleId: string }) {
 
       <div className="reader-controls-actions">
         {/* Listen — ambient narration control (plays via the bottom mini-player) */}
-        <ReaderListenButton articleId={articleId} />
-
-        <div className="reader-controls-divider" aria-hidden="true" />
+        {narrationAvailable ? (
+          <>
+            <ReaderListenButton articleId={articleId} />
+            <div className="reader-controls-divider" aria-hidden="true" />
+          </>
+        ) : null}
 
         {/* Aa — opens the Display panel (Popover on desktop, Sheet on mobile) */}
         <div className="reader-display-anchor">

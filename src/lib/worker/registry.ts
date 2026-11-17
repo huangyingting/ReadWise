@@ -13,6 +13,7 @@ import {
   type IngestScheduleConfig,
 } from "@/lib/scraper/incremental/ingest-outcome";
 import type { WorkerLogger, JobHandler } from "./types";
+import { isArticleLevelKey } from "@/lib/article-levels/levels";
 type ArticleJobPayload = {
   articleId?: string;
   tts?: boolean;
@@ -135,6 +136,47 @@ export function makePushReminderHandler(
       skipped: result.skipped,
       suppressed: result.suppressed,
       reason: result.reason ?? null,
+    });
+  };
+}
+
+type LevelAdaptFn = typeof import("@/lib/article-levels/authoring").adaptArticleLevel;
+
+/**
+ * Builds the LEVEL_ADAPT handler (#1303): generates one adapted reading level.
+ * An unconfigured AI provider or an existing level completes as "skipped"
+ * (staff add the level manually); a provider/validation failure is retried.
+ * Logs ids and outcomes only — never article text.
+ */
+export function makeLevelAdaptHandler(adapt?: LevelAdaptFn): JobHandler {
+  return async (job: Job, ctx: { logger: WorkerLogger }) => {
+    const payload = isPayloadRecord(job.payload) ? job.payload : {};
+    const articleId = typeof payload.articleId === "string" ? payload.articleId : null;
+    const levelKey = typeof payload.levelKey === "string" ? payload.levelKey : null;
+    if (!articleId || !isArticleLevelKey(levelKey)) {
+      throw new JobError("job payload missing articleId or a valid levelKey", {
+        kind: "validation",
+        reason: "invalid_level_job",
+      });
+    }
+    // Loaded lazily so the worker registry doesn't pull in the AI stack.
+    const run = adapt ?? (await import("@/lib/article-levels/authoring")).adaptArticleLevel;
+    const outcome = await run(articleId, levelKey, {
+      actorId: typeof payload.actorId === "string" ? payload.actorId : null,
+      replace: payload.replace === true,
+    });
+    if (outcome.status === "failed") {
+      throw new JobError("level adaptation failed", {
+        kind: outcome.reason === "article_not_found" ? "missing" : "provider",
+        reason: outcome.reason,
+      });
+    }
+    ctx.logger.info("level adapt job processed", {
+      jobId: job.id,
+      articleId,
+      levelKey,
+      status: outcome.status,
+      reason: outcome.status === "skipped" ? outcome.reason : null,
     });
   };
 }
@@ -357,6 +399,7 @@ export function makeCandidateIngestHandler(
  *   The legacy url/articleId ArticleIngest payload delegates to the processor.
  * - ARTICLE_PROCESS, AI_REBUILD, TTS_GENERATE all delegate to the article
  *   processing adapter.
+ * - LEVEL_ADAPT generates one adapted reading level (#1303).
  * - PUSH_REMINDER dispatches a single-user reminder through the same push
  *   scheduler/delivery helpers as scripts/push-reminders.ts.
  */
@@ -378,5 +421,6 @@ export function createDefaultRegistry(
     [JobType.AI_REBUILD]: articleHandler,
     [JobType.TTS_GENERATE]: articleHandler,
     [JobType.PUSH_REMINDER]: pushReminderHandler,
+    [JobType.LEVEL_ADAPT]: makeLevelAdaptHandler(),
   });
 }

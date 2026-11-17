@@ -323,6 +323,20 @@ export function enqueueTtsGenerate(
   );
 }
 
+/** Generates one adapted reading level for an article (#1303). Deduped per article + level. */
+export function enqueueLevelAdapt(
+  articleId: string,
+  levelKey: string,
+  opts: EnqueueOptions & { actorId?: string | null; replace?: boolean } = {},
+): Promise<Job> {
+  const { actorId, replace, ...enqueueOpts } = opts;
+  return enqueueJob(
+    JobType.LEVEL_ADAPT,
+    { articleId, levelKey, actorId: actorId ?? null, replace: replace === true },
+    { dedupeKey: `level-adapt:${articleId}:${levelKey}`, ...enqueueOpts },
+  );
+}
+
 export function enqueuePushReminder(
   payload: PushReminderPayload,
   opts: EnqueueOptions = {},

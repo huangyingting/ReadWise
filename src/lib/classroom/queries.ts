@@ -4,6 +4,8 @@
  * All functions here are read-only. Mutation commands live in
  * {@link ./commands}.
  */
+import { levelKeysForArticles } from "@/lib/article-levels/variants";
+import type { ReadingLevelKey } from "@/lib/article-levels/levels";
 import type {
   AssignmentCompletionSource,
   AssignmentPublishState,
@@ -66,6 +68,10 @@ export type ClassroomAssignmentMetaRow = {
   /** Guided prompts and learner replies/evidence (#1307). */
   annotationCount: number;
   annotationResponseCount: number;
+  /** Reading level lock (#1303); null lets learners choose. */
+  lockedLevelKey: string | null;
+  /** Levels the article can be read at; empty for single-level articles. */
+  levelOptions: ReadingLevelKey[];
 };
 
 const NEWEST_FIRST = { createdAt: "desc" } as const;
@@ -118,6 +124,8 @@ export async function listClassroomAssignmentMeta(
       publishAt: true,
       wholeClass: true,
       writePrompt: true,
+      lockedLevelKey: true,
+      articleId: true,
       article: { select: { title: true } },
       targets: { select: { studentId: true } },
       _count: {
@@ -129,6 +137,7 @@ export async function listClassroomAssignmentMeta(
       },
     },
   });
+  const levels = await levelKeysForArticles([...new Set(rows.map((r) => r.articleId))]);
   return rows.map((r) => ({
     assignmentId: r.id,
     articleTitle: r.article.title,
@@ -144,6 +153,8 @@ export async function listClassroomAssignmentMeta(
     responseCount: r._count?.writeSubmissions ?? 0,
     annotationCount: r._count?.annotations ?? 0,
     annotationResponseCount: r._count?.annotationResponses ?? 0,
+    lockedLevelKey: r.lockedLevelKey ?? null,
+    levelOptions: levels.get(r.articleId) ?? [],
   }));
 }
 

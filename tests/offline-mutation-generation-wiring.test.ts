@@ -19,7 +19,7 @@ test("direct network producers preserve their pre-request purge generation for f
 
   assert.match(
     highlights,
-    /const generation = captureOfflineMutationGeneration\(\);[\s\S]*fetch\(readerHighlightsEndpoint\(articleId\)[\s\S]*queueCreate\(\)/,
+    /const generation = captureOfflineMutationGeneration\(\);[\s\S]*fetch\(readerHighlightsEndpoint\(articleId, levelKey\)[\s\S]*queueCreate\(\)/,
   );
   assert.match(
     highlights,

@@ -89,6 +89,7 @@ export const USER_EXPORT_SELECT = {
       suffix: true,
       note: true,
       color: true,
+      levelKey: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -109,6 +110,7 @@ export const USER_EXPORT_SELECT = {
       correctCount: true,
       totalQuestions: true,
       scorePct: true,
+      levelKey: true,
       completedAt: true,
       // Per-question outcomes (#1302): controlled skill + choice only.
       answers: {
@@ -144,6 +146,7 @@ export const USER_EXPORT_SELECT = {
       annotationId: true,
       quote: true,
       body: true,
+      levelKey: true,
       createdAt: true,
       updatedAt: true,
     },

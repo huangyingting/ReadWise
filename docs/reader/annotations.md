@@ -37,8 +37,13 @@ user and article.
 Unique key:
 
 ```text
-(userId, articleId, startOffset, endOffset)
+(userId, articleId, levelKey, startOffset, endOffset)
 ```
+
+`levelKey` is the reading level whose text the offsets index ("original" for
+the canonical text; see [reading levels](./reading-levels.md)). Reader
+highlight APIs take `?level=`; rescrapes only re-anchor original-level
+highlights.
 
 This makes duplicate creates idempotent for the same selection.
 

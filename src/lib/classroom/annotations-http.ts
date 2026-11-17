@@ -1,7 +1,8 @@
 /**
  * Request schemas and error mapping for the classroom annotations API (#1307).
  */
-import { nonEmptyString, nullable, number, object, optional, string } from "@/lib/validation";
+import { nonEmptyString, nullable, number, object, oneOf, optional, string } from "@/lib/validation";
+import { ARTICLE_LEVEL_KEYS, ORIGINAL_LEVEL } from "@/lib/article-levels/levels";
 import { ApiError } from "@/lib/errors/api-error";
 import {
   ANNOTATION_PROMPT_MAX_LENGTH,
@@ -19,6 +20,8 @@ const anchorFields = {
   endOffset: number({ int: true, min: 1, max: MAX_ANCHOR_OFFSET }),
   prefix: optional(string({ max: MAX_ANCHOR_CONTEXT_CHARS, trim: false })),
   suffix: optional(string({ max: MAX_ANCHOR_CONTEXT_CHARS, trim: false })),
+  /** Reading level whose text the offsets index (#1303). */
+  levelKey: optional(oneOf([ORIGINAL_LEVEL, ...ARTICLE_LEVEL_KEYS] as const)),
 };
 
 export const createGuideBody = object({

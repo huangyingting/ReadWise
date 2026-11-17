@@ -1,5 +1,6 @@
 "use client";
 
+import { useReaderLevel } from "@/components/reader/ReaderLevelContext";
 import { Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -32,7 +33,8 @@ export default function ArticleQuiz({
   articleId: string;
   active: boolean;
 }) {
-  const panel = useArticleQuizPanel(articleId);
+  const level = useReaderLevel();
+  const panel = useArticleQuizPanel(articleId, level);
 
   return (
     <div className="quiz-panel">

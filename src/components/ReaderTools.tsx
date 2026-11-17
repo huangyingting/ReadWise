@@ -14,6 +14,9 @@
  * progress survive tab switches AND toggling the surface open/closed.
  */
 
+import { useReaderLevel } from "@/components/reader/ReaderLevelContext";
+import { ORIGINAL_LEVEL } from "@/lib/article-levels/levels";
+import { EmptyState } from "@/components/ui";
 import { useRef, type ReactNode } from "react";
 import {
   BookOpen,
@@ -63,6 +66,8 @@ export default function ReaderTools({
   const currentBlockText = currentBlock?.text;
   const tabListRef = useRef<HTMLDivElement | null>(null);
   const isActivePanel = (id: ToolTabId) => open && activeTab === id;
+  // Adapted reading levels (#1303) have no narration audio for dictation.
+  const onOriginalLevel = useReaderLevel() === ORIGINAL_LEVEL;
 
   const { handleKeyDown } = useRovingTabindex(tabListRef, {
     selector: "[role='tab']",
@@ -129,7 +134,14 @@ export default function ReaderTools({
         </ToolPanel>
 
         <ToolPanel id="dictate" activeTab={activeTab}>
-          {visited.has("dictate") && (
+          {visited.has("dictate") && !onOriginalLevel ? (
+            <EmptyState
+              title="Dictation uses the original text"
+              description="Narration audio reads the original article. Switch the reading level to Original to practice dictation."
+              className="border-0 bg-transparent py-[var(--space-7)]"
+            />
+          ) : null}
+          {visited.has("dictate") && onOriginalLevel && (
             <ReaderPanelErrorBoundary label="Dictate">
               <ArticleDictation
                 articleId={articleId}

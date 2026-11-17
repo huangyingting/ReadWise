@@ -31,6 +31,7 @@
  *   prompts/grammar.ts            — grammar feature template
  *   prompts/tutor.ts              — tutor feature template
  *   prompts/sentence-translation.ts — sentence-translation feature template
+ *   prompts/level-adapt.ts        — reading-level adaptation template (#1303)
  *   prompts/registry.ts           — assembles templates and exposes public API
  *   prompts/index.ts              — this file; re-exports the full public surface
  */
@@ -49,6 +50,7 @@ export type {
   GrammarPromptVars,
   TutorPromptVars,
   SentenceTranslationPromptVars,
+  LevelAdaptPromptVars,
   PromptVarsMap,
   PromptFeature,
 } from "./types";

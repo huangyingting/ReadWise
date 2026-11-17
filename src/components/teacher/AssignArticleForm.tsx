@@ -8,6 +8,8 @@ import { useMutation } from "@/hooks/useMutation";
 import { useFilteredFetch } from "@/hooks/useFilteredFetch";
 import AssignmentAudienceSelector from "./AssignmentAudienceSelector";
 import { TeacherFormShell } from "./TeacherFormShell";
+import ReadingLevelLockField, { STUDENT_CHOICE } from "./ReadingLevelLockField";
+import type { ReadingLevelKey } from "@/lib/article-levels/levels";
 
 type ArticleOption = {
   id: string;
@@ -73,6 +75,7 @@ function buildAssignmentPayload(
   publishState: PublishState,
   publishAt: string,
   studentIds?: string[],
+  lockedLevelKey?: string,
 ) {
   return {
     articleId,
@@ -85,6 +88,7 @@ function buildAssignmentPayload(
       ? new Date(publishAt).toISOString()
       : undefined,
     studentIds,
+    lockedLevelKey: lockedLevelKey || undefined,
   };
 }
 
@@ -103,6 +107,10 @@ export default function AssignArticleForm({
   const [targetIds, setTargetIds] = useState<string[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  // Reading level lock (#1303) — offered when exactly one multi-level article is selected.
+  const [levelOptions, setLevelOptions] = useState<ReadingLevelKey[]>([]);
+  const [lockedLevelKey, setLockedLevelKey] = useState(STUDENT_CHOICE);
+  const singleArticleId = selected.length === 1 ? selected[0].id : null;
   const { busy, error, run } = useMutation("Failed to assign article");
   const { run: runArticleSearch } = useFilteredFetch<ArticleOptionsResponse>(0);
   const trimmedQuery = query.trim();
@@ -130,6 +138,19 @@ export default function AssignArticleForm({
       setTargetIds([]);
     }
   }, [selected.length]);
+
+  useEffect(() => {
+    setLockedLevelKey(STUDENT_CHOICE);
+    setLevelOptions([]);
+    if (!singleArticleId) return;
+    const controller = new AbortController();
+    getJson<{ levels: ReadingLevelKey[] }>(`/api/reader/${encodeURIComponent(singleArticleId)}/levels`, {
+      signal: controller.signal,
+    })
+      .then((data) => setLevelOptions(data.levels))
+      .catch(() => setLevelOptions([]));
+    return () => controller.abort();
+  }, [singleArticleId]);
 
   const visibleArticles = useMemo(
     () => articles.filter((article) => articleMatches(article, trimmedQuery)),
@@ -186,6 +207,7 @@ export default function AssignArticleForm({
             publishState,
             form.publishAt,
             studentIds,
+            lockedLevelKey,
           ),
         );
       } else {
@@ -378,6 +400,7 @@ export default function AssignArticleForm({
           onChange={(e) => updateField("points", e.target.value)}
         />
       </Field>
+      <ReadingLevelLockField levelOptions={levelOptions} value={lockedLevelKey} onChange={setLockedLevelKey} />
       <Field label="Instructions (optional)">
         <Textarea
           value={form.instructions}

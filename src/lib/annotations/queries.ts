@@ -5,6 +5,7 @@
  * Article existence / readability checks remain the caller's responsibility
  * (enforced by the reader route-guard before these functions are called).
  */
+import { ORIGINAL_LEVEL } from "@/lib/article-levels/levels";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import type { HighlightRow, HighlightWithArticle } from "./anchor";
@@ -19,6 +20,7 @@ export const highlightSelect = {
   suffix: true,
   note: true,
   color: true,
+  levelKey: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -67,9 +69,10 @@ function trimHighlightRows(rows: HighlightWithArticle[]): HighlightWithArticle[]
 export async function listHighlights(
   userId: string,
   articleId: string,
+  levelKey: string = ORIGINAL_LEVEL,
 ): Promise<HighlightRow[]> {
   return prisma.highlight.findMany({
-    where: { userId, articleId },
+    where: { userId, articleId, levelKey },
     select: highlightSelect,
     orderBy: { startOffset: "asc" },
   });

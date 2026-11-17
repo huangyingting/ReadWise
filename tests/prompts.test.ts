@@ -30,6 +30,7 @@ const EXPECTED_VERSIONS: Record<string, string> = {
   grammar: "grammar/v1",
   tutor: "tutor/v1",
   "sentence-translation": "sentence-translation/v1",
+  "level-adapt": "level-adapt/v1",
 };
 
 test("every feature has a documented active prompt version", () => {

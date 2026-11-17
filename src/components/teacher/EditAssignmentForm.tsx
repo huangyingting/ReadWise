@@ -11,6 +11,8 @@ import AssignmentAudienceSelector from "./AssignmentAudienceSelector";
 import { buildUpdatePayload, type AssignmentAudience } from "./editAssignmentPayload";
 import { TeacherFormShell } from "./TeacherFormShell";
 import { WRITE_PROMPT_MAX_LENGTH } from "@/lib/classroom/writing-rubric";
+import ReadingLevelLockField from "./ReadingLevelLockField";
+import type { ReadingLevelKey } from "@/lib/article-levels/levels";
 
 interface EditAssignmentFormProps {
   assignmentId: string;
@@ -25,6 +27,10 @@ interface EditAssignmentFormProps {
   initialWholeClass: boolean;
   initialTargetIds: string[];
   students: { id: string; label: string }[];
+  /** Reading level lock (issue 1303). */
+  initialLockedLevelKey?: string | null;
+  /** Levels the article can be read at; empty hides the lock field. */
+  levelOptions?: ReadingLevelKey[];
 }
 
 const TITLE_MAX_LENGTH = 200;
@@ -52,6 +58,8 @@ export default function EditAssignmentForm({
   initialWholeClass,
   initialTargetIds,
   students,
+  initialLockedLevelKey = null,
+  levelOptions = [],
 }: EditAssignmentFormProps) {
   const [open, setOpen] = useState(false);
   const [dueDate, setDueDate] = useState(toDateInputValue(initialDueDate));
@@ -64,6 +72,7 @@ export default function EditAssignmentForm({
   );
   const [targetIds, setTargetIds] = useState<string[]>([...initialTargetIds]);
   const [audienceDirty, setAudienceDirty] = useState(false);
+  const [lockedLevelKey, setLockedLevelKey] = useState(initialLockedLevelKey ?? "");
   const { busy, error, run } = useMutation("Failed to update assignment");
 
   function resetDraft() {
@@ -75,6 +84,7 @@ export default function EditAssignmentForm({
     setAudience(initialWholeClass ? "class" : "students");
     setTargetIds([...initialTargetIds]);
     setAudienceDirty(false);
+    setLockedLevelKey(initialLockedLevelKey ?? "");
   }
 
   function changeAudience(nextAudience: AssignmentAudience) {
@@ -106,6 +116,7 @@ export default function EditAssignmentForm({
           audienceDirty,
           audience,
           targetIds,
+          ...(levelOptions.length > 0 ? { lockedLevelKey } : {}),
         }),
       );
       setOpen(false);
@@ -171,6 +182,7 @@ export default function EditAssignmentForm({
           onToggleTarget={toggleTarget}
         />
       </Field>
+      <ReadingLevelLockField levelOptions={levelOptions} value={lockedLevelKey} onChange={setLockedLevelKey} />
       <Field label="Instructions (optional)">
         <Textarea
           value={instructions}

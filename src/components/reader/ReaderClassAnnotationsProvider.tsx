@@ -18,6 +18,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { deleteJson, getJson, patchJson, postJson } from "@/lib/client-fetch";
 import type { GuideMark } from "@/components/reader/wordLookup/highlightMarks";
+import { ORIGINAL_LEVEL, levelQuery, type ReadingLevelKey } from "@/lib/article-levels/levels";
 
 export type ClassAssignment = { assignmentId: string; classroomName: string };
 
@@ -108,10 +109,19 @@ function numberGuides(guides: ContextPayload["guides"]): ClassGuide[] {
     .map((guide, index) => ({ ...guide, number: index + 1 }));
 }
 
-export function ReaderClassAnnotationsProvider({ articleId, children }: { articleId: string; children: ReactNode }) {
+export function ReaderClassAnnotationsProvider({
+  articleId,
+  levelKey = ORIGINAL_LEVEL,
+  children,
+}: {
+  articleId: string;
+  /** Reading level shown in the reader; prompts and evidence are scoped to it (#1303). */
+  levelKey?: ReadingLevelKey;
+  children: ReactNode;
+}) {
   const [data, setData] = useState<ContextPayload>(EMPTY);
   const [loaded, setLoaded] = useState(false);
-  const url = `/api/reader/${encodeURIComponent(articleId)}/annotations`;
+  const url = `/api/reader/${encodeURIComponent(articleId)}/annotations${levelQuery(levelKey)}`;
 
   const reload = useCallback(async () => {
     try {
@@ -129,10 +139,10 @@ export function ReaderClassAnnotationsProvider({ articleId, children }: { articl
 
   const createGuide = useCallback(
     async (assignmentId: string, anchor: ClassAnchor, prompt: string) => {
-      await postJson(`/api/assignments/${encodeURIComponent(assignmentId)}/annotations`, { ...anchor, prompt });
+      await postJson(`/api/assignments/${encodeURIComponent(assignmentId)}/annotations`, { ...anchor, levelKey, prompt });
       await reload();
     },
-    [reload],
+    [reload, levelKey],
   );
   const updateGuide = useCallback(
     async (id: string, prompt: string) => {
@@ -150,10 +160,13 @@ export function ReaderClassAnnotationsProvider({ articleId, children }: { articl
   );
   const submitResponse = useCallback(
     async (assignmentId: string, input: SubmitResponseInput) => {
-      await postJson(`/api/assignments/${encodeURIComponent(assignmentId)}/annotation-responses`, input);
+      await postJson(`/api/assignments/${encodeURIComponent(assignmentId)}/annotation-responses`, {
+        ...input,
+        anchor: input.anchor ? { ...input.anchor, levelKey } : input.anchor,
+      });
       await reload();
     },
-    [reload],
+    [reload, levelKey],
   );
   const deleteResponse = useCallback(
     async (id: string) => {

@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-19"
+last_updated: "2026-11-17"
 description: "Documents Operations-owned admin surfaces, persistent job queue, worker lifecycle, processing state, scripts, and audit-log relationships. Captures current job statuses, retries, locking, backfill/rebuild/repair workflows, dashboards, metrics, source operations, and operator checklists."
 ---
 
@@ -71,7 +71,7 @@ and supports multiple workers safely.
 
 | Field | Meaning |
 | --- | --- |
-| `type` | One of `ARTICLE_INGEST`, `ARTICLE_PROCESS`, `AI_REBUILD`, `TTS_GENERATE`, `PUSH_REMINDER`. |
+| `type` | One of `ARTICLE_INGEST`, `ARTICLE_PROCESS`, `AI_REBUILD`, `TTS_GENERATE`, `PUSH_REMINDER`, `LEVEL_ADAPT`. |
 | `status` | `PENDING`, `CLAIMED`, `RUNNING`, `COMPLETED`, `FAILED`, `DEAD_LETTER`. |
 | `payload` | JSON metadata such as `articleId`, `provider`, `url`, `tts`, `translateLangs`, or `userId`. |
 | `attempts`, `maxAttempts` | Retry accounting. |
@@ -131,6 +131,7 @@ Per-type overrides live in `RETRY_POLICIES` (`src/lib/jobs/retry-policy.ts`):
 | `AI_REBUILD` | 4 | 5s | 10m |
 | `TTS_GENERATE` | 3 | 5s | 10m |
 | `PUSH_REMINDER` | 3 | 1s | 1m |
+| `LEVEL_ADAPT` | 3 | 5s | 10m |
 
 Backoff is exponential with jitter:
 
@@ -200,6 +201,7 @@ point. Internally it is split into four modules:
 2. It creates the default `JobHandlerRegistry`:
    - `ARTICLE_INGEST`, `ARTICLE_PROCESS`, `AI_REBUILD`, `TTS_GENERATE` → all
      use `makeArticleHandler(processArticle)`.
+   - `LEVEL_ADAPT` → writes one adapted reading level with the AI provider (#1303); completes as skipped when AI is unconfigured or the level already exists
    - `PUSH_REMINDER` → single-user reminder dispatch via the push scheduler
      helper; unconfigured deployments complete as graceful no-ops.
 3. Optional `options.handlers` overrides are merged after the defaults.

@@ -7,6 +7,7 @@
  * component remains a pure server-side composition layer.
  *
  * Provider order is intentional and must be preserved:
+ *   0. ReaderLevelProvider     — reading level shown (#1303)
  *   1. ReaderAudioProvider     — shared audio element and narration state
  *   2. ReaderHighlightsProvider — highlight CRUD and optimistic state
  *      ReaderClassAnnotationsProvider — classroom guided prompts (#1307)
@@ -43,6 +44,10 @@ import ArticleDifficultyFeedback from "@/components/ArticleDifficultyFeedback";
 import ReaderReadingBlockTracker from "@/components/reader/ReaderReadingBlockTracker";
 import ReaderTimeTracker from "@/components/reader/ReaderTimeTracker";
 import ClassPromptsNotice from "@/components/reader/ClassPromptsNotice";
+import WordLookup from "@/components/reader/wordLookup/WordLookup";
+import { ReaderLevelProvider } from "@/components/reader/ReaderLevelContext";
+import { ORIGINAL_LEVEL, type ReadingLevelKey } from "@/lib/article-levels/levels";
+import ReaderLevelSwitcher from "./ReaderLevelSwitcher";
 import ArticleHeader from "./ArticleHeader";
 import AssignmentBanner from "./AssignmentBanner";
 import KeepReadingSection from "./KeepReadingSection";
@@ -55,6 +60,7 @@ type Props = {
 
 type ReaderProvidersProps = {
   articleId: string;
+  levelKey: ReadingLevelKey;
   children: ReactNode;
 };
 
@@ -63,18 +69,20 @@ type ReaderArticleColumnProps = {
   setTodayEnabled: boolean;
 };
 
-function ReaderProviders({ articleId, children }: ReaderProvidersProps) {
+function ReaderProviders({ articleId, levelKey, children }: ReaderProvidersProps) {
   return (
-    <ReaderAudioProvider>
-      <ReaderHighlightsProvider articleId={articleId}>
-        <ReaderClassAnnotationsProvider articleId={articleId}>
-          <ReaderToolsProvider>{children}</ReaderToolsProvider>
-        </ReaderClassAnnotationsProvider>
+    <ReaderLevelProvider level={levelKey}>
+      <ReaderAudioProvider>
+        <ReaderHighlightsProvider articleId={articleId} levelKey={levelKey}>
+          <ReaderClassAnnotationsProvider articleId={articleId} levelKey={levelKey}>
+            <ReaderToolsProvider>{children}</ReaderToolsProvider>
+          </ReaderClassAnnotationsProvider>
 
-        {/* Fixed bottom audio mini-player (appears after first narration load) */}
-        <ReaderMiniPlayer />
-      </ReaderHighlightsProvider>
-    </ReaderAudioProvider>
+          {/* Fixed bottom audio mini-player (appears after first narration load) */}
+          <ReaderMiniPlayer />
+        </ReaderHighlightsProvider>
+      </ReaderAudioProvider>
+    </ReaderLevelProvider>
   );
 }
 
@@ -94,7 +102,10 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
     cleanBody,
     hadRelated,
     studentAssignments,
+    level,
+    displayTitle,
   } = data;
+  const isOriginal = level.key === ORIGINAL_LEVEL;
 
   return (
     <div className="reader-column">
@@ -107,7 +118,7 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
       </a>
 
       {/* Slim sticky toolbar: Back · Listen · Aa (display settings) · Tools */}
-      <ReaderControls articleId={article.id} />
+      <ReaderControls articleId={article.id} narrationAvailable={isOriginal} />
 
       <article id="reader-article" tabIndex={-1} aria-labelledby="article-title">
         <ArticleHeader
@@ -119,7 +130,11 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
           isBookmarked={isBookmarked}
           tags={tags}
           setTodayEnabled={setTodayEnabled}
+          displayTitle={displayTitle}
         />
+
+        {/* Reading level pills (#1303) — only for articles with adapted levels */}
+        <ReaderLevelSwitcher articleId={article.id} level={level} />
 
         {/* Assignment banner — shown only when the student has assignments for this article */}
         <AssignmentBanner assignments={studentAssignments} />
@@ -134,11 +149,17 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
         <WordLookupHint />
 
         {/* Prose — bilingual-capable wrapper (falls back to normal WordLookup when disabled) */}
-        <BilingualBody
-          html={cleanBody}
-          articleId={article.id}
-          languages={SUPPORTED_LANGUAGES}
-        />
+        {/* Translations cover the original text only, so adapted levels
+            (#1303) render the prose without the bilingual strip. */}
+        {isOriginal ? (
+          <BilingualBody
+            html={cleanBody}
+            articleId={article.id}
+            languages={SUPPORTED_LANGUAGES}
+          />
+        ) : (
+          <WordLookup html={cleanBody} articleId={article.id} languages={SUPPORTED_LANGUAGES} />
+        )}
       </article>
 
       {/* #376 — Observe the prose to track current reading block.
@@ -175,7 +196,9 @@ export default function ReaderShell({ data, setTodayEnabled = false }: Props) {
   return (
     <div id="reader-root" suppressHydrationWarning>
       {/* Provider tree scoped inside #reader-root — see module docblock. */}
-      <ReaderProviders articleId={article.id}>
+      {/* Keyed by level so level-scoped client state (highlights, prompts,
+          quiz) resets when the reader switches levels (#1303). */}
+      <ReaderProviders key={data.level.key} articleId={article.id} levelKey={data.level.key}>
         <ReaderLayout>
           {/* ---- Reading column ---- */}
           <ReaderArticleColumn data={data} setTodayEnabled={setTodayEnabled} />

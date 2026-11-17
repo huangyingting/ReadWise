@@ -187,6 +187,7 @@ Relevant coverage includes `tests/quiz*.test.ts`, `tests/tutor*.test.ts`,
 
 - [`lexical-dictionary.md`](./lexical-dictionary.md) — dictionary providers and saved words.
 - [`annotations.md`](./annotations.md) — highlights and notes.
+- [`reading-levels.md`](./reading-levels.md) — reading level switcher and level-scoped tools.
 - [`../learning/classroom-annotations.md`](../learning/classroom-annotations.md) — teacher guided prompts and shared evidence in the Notes tab.
 - [`translation.md`](./translation.md) — article and sentence translation.
 - [`playback.md`](./playback.md) — Reader audio context and narration controls.

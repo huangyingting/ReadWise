@@ -1,5 +1,6 @@
 /** Classroom article-assignment invariant over authorized classroom context. */
 
+import { articleHasLevel } from "@/lib/article-levels/variants";
 import {
   ArticleStatus,
   ArticleVisibility,
@@ -31,6 +32,8 @@ export type CreateArticleAssignmentInput = {
   publishAt?: string | null;
   /** Text Set unit the assignment belongs to (#1308). */
   textSetId?: string | null;
+  /** Reading level students must read at (#1303); null/absent lets learners choose. */
+  lockedLevelKey?: string | null;
 };
 
 export type CreateArticleAssignmentResult =
@@ -38,7 +41,7 @@ export type CreateArticleAssignmentResult =
   | {
       ok: false;
       status: 400;
-      reason: "invalid_due_date" | "invalid_target_students" | "invalid_publish_at";
+      reason: "invalid_due_date" | "invalid_target_students" | "invalid_publish_at" | "invalid_level";
     }
   | {
       ok: false;
@@ -159,6 +162,10 @@ export async function createArticleAssignment(
   }
   const publish = parseAssignmentPublish(input);
   if (!publish.ok) return publish;
+  const lockedLevelKey = input.lockedLevelKey ?? null;
+  if (lockedLevelKey && !(await articleHasLevel(input.articleId, lockedLevelKey))) {
+    return { ok: false, status: 400, reason: "invalid_level" };
+  }
 
   const requestedStudentIds = input.studentIds?.length
     ? [...new Set(input.studentIds)]
@@ -195,6 +202,7 @@ export async function createArticleAssignment(
           publishState: publish.publishState,
           publishAt: publish.publishAt,
           textSetId: input.textSetId ?? null,
+          lockedLevelKey,
         },
       });
       await tx.assignmentTarget.createMany({
@@ -219,6 +227,7 @@ export async function createArticleAssignment(
       publishState: publish.publishState,
       publishAt: publish.publishAt,
       textSetId: input.textSetId ?? null,
+      lockedLevelKey,
     },
   });
   return { ok: true, assignment };

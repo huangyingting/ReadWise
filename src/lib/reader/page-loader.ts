@@ -35,6 +35,8 @@ import {
   type StudentAssignment,
   listStudentAssignmentsForArticle,
 } from "@/lib/classroom";
+import { resolveReaderLevel, type ReaderLevelOption } from "@/lib/article-levels/variants";
+import type { ReadingLevelKey } from "@/lib/article-levels/levels";
 
 export type ReaderPageData = {
   article: Article;
@@ -59,6 +61,13 @@ export type ReaderPageData = {
   hadRelated: boolean;
   /** The student's own assignments for this article across their classrooms (empty for non-students). */
   studentAssignments: StudentAssignment[];
+  /**
+   * Reading level shown (#1303). `options` is empty for single-level articles;
+   * `locked` means a teacher's assignment fixes the level.
+   */
+  level: { key: ReadingLevelKey; locked: boolean; options: ReaderLevelOption[] };
+  /** Headline at the shown level (the canonical title for the original). */
+  displayTitle: string;
 };
 
 type DifficultyVote = ReaderPageData["userDifficultyVote"];
@@ -118,6 +127,7 @@ function readerBody(content: string): Pick<ReaderPageData, "cleanBody" | "articl
 export async function loadReaderPageData(
   articleId: string,
   session: Session,
+  requestedLevel?: unknown,
 ): Promise<ReaderPageData | null> {
   const context = await articleAccessContextForUser(session.user);
   const article = await getReadableArticleById(articleId, context);
@@ -134,7 +144,7 @@ export async function loadReaderPageData(
   });
 
   // Parallel fetch: all seven queries depend only on article.id / userId
-  const [progress, difficulty, tagsResult, relatedArticles, membership, existingFeedback, studentAssignments] =
+  const [progress, difficulty, tagsResult, relatedArticles, membership, existingFeedback, studentAssignments, level] =
     await Promise.all([
       getProgress(session.user.id, article.id),
       getOrCreateArticleDifficulty(article.id, context),
@@ -149,6 +159,8 @@ export async function loadReaderPageData(
       }),
       // Student assignment context for the reader banner (empty for non-students)
       listStudentAssignmentsForArticle(session.user.id, article.id),
+      // #1303: the reading level to show (teacher lock → ?level= → original)
+      resolveReaderLevel({ articleId: article.id, userId: session.user.id, requested: requestedLevel }),
     ]);
 
   // If no related articles, fall back to articles from the same category.
@@ -163,11 +175,12 @@ export async function loadReaderPageData(
     keepReadingArticles.map((a) => a.id),
   );
 
-  const difficultyLevel = (difficulty?.level ?? article.difficulty) as CefrLevel | null;
+  const variant = level.variant;
+  const difficultyLevel = (variant?.cefrLevel ?? difficulty?.level ?? article.difficulty) as CefrLevel | null;
   const tags = tagsResult?.tags ?? [];
   const isValidCefrLevel =
     difficultyLevel !== null && (CEFR_LEVELS as readonly string[]).includes(difficultyLevel);
-  const { cleanBody, articlePlainText } = readerBody(article.content);
+  const { cleanBody, articlePlainText } = readerBody(variant?.content ?? article.content);
 
   return {
     article,
@@ -180,11 +193,15 @@ export async function loadReaderPageData(
     isBookmarked: isDefaultListBookmarked(membership),
     isCompleted: progress?.completed ?? false,
     userDifficultyVote: difficultyVoteFromFeedback(existingFeedback),
-    readingMinutes: readingMinutesFor(article),
+    readingMinutes: variant
+      ? readingMinutesFor({ readingMinutes: null, wordCount: variant.wordCount })
+      : readingMinutesFor(article),
     cleanBody,
     articlePlainText,
     hadRelated,
     studentAssignments,
+    level: { key: level.level, locked: level.locked, options: level.options },
+    displayTitle: variant?.title ?? article.title,
   };
 }
 

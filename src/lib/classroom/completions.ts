@@ -6,6 +6,7 @@
  * untrusted body. {@link getStudentAssignmentContext} enforces enrollment before
  * any completion is written.
  */
+import { ORIGINAL_LEVEL } from "@/lib/article-levels/levels";
 import {
   AssignmentCompletionSource,
   AssignmentStatus,
@@ -100,19 +101,28 @@ export async function recordAssignmentCompletion(
  * The same article may be assigned in more than one enrolled classroom, so all
  * matching assignments are upserted to COMPLETED with the (clamped) quiz score.
  * Returns the number of assignments that were marked complete.
+ *
+ * Reading levels (#1303): an assignment locked to a level is only completed by
+ * a quiz taken at that level; the level read is recorded on the completion.
  */
 export async function markAssignmentQuizComplete(input: {
   userId: string;
   articleId: string;
   scorePct: number;
+  levelKey?: string;
 }): Promise<{ completedCount: number }> {
   const { userId, articleId, scorePct } = input;
+  const levelKeyRead = input.levelKey ?? ORIGINAL_LEVEL;
   const now = new Date();
   const assignments = await prisma.assignment.findMany({
     where: {
       articleId,
       classroom: { archivedAt: null, members: { some: { userId } } },
-      AND: [assignmentVisibleToStudentWhere(userId), assignmentLiveWhere(now)],
+      AND: [
+        assignmentVisibleToStudentWhere(userId),
+        assignmentLiveWhere(now),
+        { OR: [{ lockedLevelKey: null }, { lockedLevelKey: levelKeyRead }] },
+      ],
     },
     select: { id: true },
   });
@@ -132,6 +142,7 @@ export async function markAssignmentQuizComplete(input: {
           quizScore,
           completionSource: AssignmentCompletionSource.QUIZ,
           completedAt,
+          levelKeyRead,
         },
         create: {
           assignmentId: assignment.id,
@@ -140,6 +151,7 @@ export async function markAssignmentQuizComplete(input: {
           quizScore,
           completionSource: AssignmentCompletionSource.QUIZ,
           completedAt,
+          levelKeyRead,
         },
       }),
     ),

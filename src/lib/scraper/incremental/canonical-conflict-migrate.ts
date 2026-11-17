@@ -362,8 +362,10 @@ async function migrateHighlights(
   survivorPlainText: string,
 ): Promise<ModelMigrationCounts> {
   const counts = zeroCounts();
+  // Canonical-text highlights only: adapted reading levels (#1303) belong to
+  // their article's own variants.
   const loserRows = await tx.highlight.findMany({
-    where: { articleId: { in: loserArticleIds } },
+    where: { articleId: { in: loserArticleIds }, levelKey: "original" },
     select: {
       id: true,
       userId: true,
@@ -390,7 +392,7 @@ async function migrateHighlights(
   const assessmentById = new Map(assessAnchors(anchors, survivorPlainText).map((a) => [a.id, a]));
 
   const survivorHighlights = await tx.highlight.findMany({
-    where: { articleId: survivingArticleId },
+    where: { articleId: survivingArticleId, levelKey: "original" },
     select: {
       userId: true,
       startOffset: true,

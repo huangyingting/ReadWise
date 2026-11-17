@@ -80,7 +80,7 @@ export async function recordQuizAttempt(
   articleId: string,
   correctCount: number,
   totalQuestions: number,
-  options: { clientMutationId?: string | null; answers?: GradedAnswer[] } = {},
+  options: { clientMutationId?: string | null; answers?: GradedAnswer[]; levelKey?: string } = {},
 ): Promise<{ attempt: QuizAttemptRecord; best: number; created: boolean }> {
   validateCountScore(correctCount, totalQuestions);
 
@@ -104,6 +104,7 @@ export async function recordQuizAttempt(
           totalQuestions,
           scorePct,
           clientMutationId,
+          ...(options.levelKey ? { levelKey: options.levelKey } : {}),
           ...(options.answers?.length
             ? {
                 answers: {

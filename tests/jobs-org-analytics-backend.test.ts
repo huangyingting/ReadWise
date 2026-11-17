@@ -426,6 +426,13 @@ test("enqueue helpers and lifecycle edge branches cover dedupe races and admin a
   await enqueue.enqueuePushReminder({ userId: "user-1" } as never);
   assert.equal(jobCreateArgs.at(-1)?.data.type, JobType.PUSH_REMINDER);
 
+  await enqueue.enqueueLevelAdapt("article-1", "B1", { actorId: "admin-1", replace: true });
+  assert.equal(jobCreateArgs.at(-1)?.data.type, JobType.LEVEL_ADAPT);
+  assert.equal(jobCreateArgs.at(-1)?.data.dedupeKey, "level-adapt:article-1:B1");
+  assert.deepEqual(jobCreateArgs.at(-1)?.data.payload, { articleId: "article-1", levelKey: "B1", actorId: "admin-1", replace: true });
+  await enqueue.enqueueLevelAdapt("article-1", "A2");
+  assert.deepEqual(jobCreateArgs.at(-1)?.data.payload, { articleId: "article-1", levelKey: "A2", actorId: null, replace: false });
+
   const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint", {
     code: "P2002",
     clientVersion: "test",

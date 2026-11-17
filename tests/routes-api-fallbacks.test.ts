@@ -657,12 +657,12 @@ test("reader AI routes return payloads and throw 404 ApiError for null results",
   const tagsRoute = await import("@/app/api/reader/[id]/tags/route");
   const speechRoute = await import("@/app/api/reader/[id]/speech/route");
 
-  assert.equal((await quizRoute.POST({ params: { id: "a1" }, session } as never)).status, 200);
+  assert.equal((await quizRoute.POST({ params: { id: "a1" }, query: { level: "original" }, session } as never)).status, 200);
   assert.equal((await tagsRoute.POST({ params: { id: "a1" }, session } as never)).status, 200);
   assert.equal((await speechRoute.POST({ params: { id: "a1" }, session } as never)).status, 200);
 
   quizResult = null;
-  await assertApiError(() => quizRoute.POST(sessionCtx({ params: { id: "a1" } })), 404);
+  await assertApiError(() => quizRoute.POST(sessionCtx({ params: { id: "a1" }, query: { level: "original" } })), 404);
   tagsResult = null;
   await assertApiError(() => tagsRoute.POST(sessionCtx({ params: { id: "a1" } })), 404);
   speechResult = null;

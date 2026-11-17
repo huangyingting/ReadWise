@@ -38,6 +38,7 @@ export const RETRY_POLICIES: Record<JobType, RetryPolicy> = {
   [JobType.AI_REBUILD]: retryPolicy(4, 5000, TEN_MINUTES_MS),
   [JobType.TTS_GENERATE]: retryPolicy(3, 5000, TEN_MINUTES_MS),
   [JobType.PUSH_REMINDER]: retryPolicy(3, 1000, MINUTE_MS),
+  [JobType.LEVEL_ADAPT]: retryPolicy(3, 5000, TEN_MINUTES_MS),
 };
 
 export function retryPolicyFor(type: JobType): RetryPolicy {

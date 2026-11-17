@@ -10,6 +10,8 @@ export interface EditAssignmentDraft {
   audienceDirty: boolean;
   audience: AssignmentAudience;
   targetIds: string[];
+  /** Reading level lock (#1303): "" = student choice; omitted for single-level articles. */
+  lockedLevelKey?: string;
 }
 
 export function buildUpdatePayload({
@@ -21,6 +23,7 @@ export function buildUpdatePayload({
   audienceDirty,
   audience,
   targetIds,
+  lockedLevelKey,
 }: EditAssignmentDraft) {
   const payload: {
     dueDate: string;
@@ -29,6 +32,7 @@ export function buildUpdatePayload({
     title: string;
     points: number | null;
     studentIds?: string[];
+    lockedLevelKey?: string | null;
   } = {
     dueDate,
     title: title.trim(),
@@ -36,6 +40,10 @@ export function buildUpdatePayload({
     instructions: instructions.trim(),
     writePrompt: writePrompt.trim(),
   };
+
+  if (lockedLevelKey !== undefined) {
+    payload.lockedLevelKey = lockedLevelKey || null;
+  }
 
   if (audienceDirty) {
     payload.studentIds = audience === "students" ? targetIds : [];

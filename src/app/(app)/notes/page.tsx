@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isArticleLevelKey, readerLevelHref, readingLevelLabel } from "@/lib/article-levels/levels";
 import { FileText, StickyNote } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
 import { listAllUserHighlightsPage, HIGHLIGHT_COLORS } from "@/lib/annotations";
@@ -229,6 +230,14 @@ export default async function NotesPage({
                         {/* Meta row */}
                         <p className="mt-[var(--space-2)] text-[length:var(--text-xs)] text-text-subtle">
                           {formatShortDate(h.createdAt)}
+                          {isArticleLevelKey(h.levelKey) ? (
+                            <Link
+                              href={readerLevelHref(articleId, h.levelKey)}
+                              className="ml-[var(--space-2)] text-[var(--primary-text)] hover:underline"
+                            >
+                              {readingLevelLabel(h.levelKey)} level
+                            </Link>
+                          ) : null}
                           {h.color && (
                             <span
                               className="ml-[var(--space-2)] capitalize"

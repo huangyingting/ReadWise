@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { isReadingLevelKey, readingLevelLabel } from "@/lib/article-levels/levels";
 import Link from "next/link";
 import type { AssignmentCompletionSource } from "@prisma/client";
 import { requireSession } from "@/lib/session";
@@ -229,6 +230,9 @@ function AssignmentsCard({
                     ) : (
                       <Badge variant="neutral">Whole class</Badge>
                     )}
+                    {meta.lockedLevelKey && isReadingLevelKey(meta.lockedLevelKey) ? (
+                      <Badge variant="primary">Level {readingLevelLabel(meta.lockedLevelKey)}</Badge>
+                    ) : null}
                     {meta.responseCount > 0 ? (
                       <Link
                         href={`/teacher/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(meta.assignmentId)}/responses`}
@@ -258,6 +262,8 @@ function AssignmentsCard({
                           initialWholeClass={meta.wholeClass}
                           initialTargetIds={meta.targetStudentIds}
                           students={assignmentTargetStudents}
+                          initialLockedLevelKey={meta.lockedLevelKey}
+                          levelOptions={meta.levelOptions}
                         />
                         <DeleteAssignmentButton
                           assignmentId={meta.assignmentId}

@@ -13,6 +13,7 @@
  * `useReducer(highlightsReducer, [])`.
  */
 
+import { ORIGINAL_LEVEL, levelQuery, type ReadingLevelKey } from "@/lib/article-levels/levels";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   captureOfflineMutationGeneration,
@@ -37,8 +38,9 @@ function isOptimisticId(id: string): boolean {
   return id.startsWith("optimistic-");
 }
 
-function readerHighlightsEndpoint(articleId: string): string {
-  return `/api/reader/${articleId}/highlights`;
+/** Level-scoped highlights endpoint (#1303): adapted levels add `?level=`. */
+function readerHighlightsEndpoint(articleId: string, levelKey: ReadingLevelKey): string {
+  return `/api/reader/${articleId}/highlights${levelQuery(levelKey)}`;
 }
 
 function highlightEndpoint(id: string): string {
@@ -94,17 +96,20 @@ function pendingAnchorKey(
 
 function pendingAnchorDeleteEndpoint(
   articleId: string,
+  levelKey: ReadingLevelKey,
   input: CreateHighlightInput,
 ): string {
   const query = new URLSearchParams({
     startOffset: String(input.startOffset),
     endOffset: String(input.endOffset),
   });
-  return `${readerHighlightsEndpoint(articleId)}?${query}`;
+  return `/api/reader/${articleId}/highlights?${query}${levelQuery(levelKey, "&")}`;
 }
 
 export interface UseHighlightsApiOptions {
   articleId: string;
+  /** Reading level whose text the highlights index (#1303). */
+  levelKey?: ReadingLevelKey;
   /** Current highlights — needed for existence checks and conflict detection. */
   highlights: Highlight[];
   dispatch: React.Dispatch<HighlightAction>;
@@ -122,6 +127,7 @@ export interface HighlightsApi {
 
 export function useHighlightsApi({
   articleId,
+  levelKey = ORIGINAL_LEVEL,
   highlights,
   dispatch,
   announce,
@@ -139,7 +145,7 @@ export function useHighlightsApi({
     let cancelled = false;
     const controller = new AbortController();
     setLoading(true);
-    fetch(readerHighlightsEndpoint(articleId), { signal: controller.signal })
+    fetch(readerHighlightsEndpoint(articleId, levelKey), { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data: { highlights: Highlight[] }) => {
         if (!cancelled) {
@@ -156,7 +162,7 @@ export function useHighlightsApi({
       cancelled = true;
       controller.abort();
     };
-  }, [articleId, dispatch]);
+  }, [articleId, levelKey, dispatch]);
 
   // ---- add ----
   const add = useCallback(
@@ -171,7 +177,7 @@ export function useHighlightsApi({
       ): Promise<Highlight | null> => {
         const result = await queueMutation({
           type: "highlight.create",
-          endpoint: readerHighlightsEndpoint(articleId),
+          endpoint: readerHighlightsEndpoint(articleId, levelKey),
           method: "POST",
           body: input,
           clientMutationId,
@@ -192,7 +198,7 @@ export function useHighlightsApi({
         return optimistic;
       };
 
-      const anchorKey = pendingAnchorKey(articleId, input);
+      const anchorKey = pendingAnchorKey(`${articleId}:${levelKey}`, input);
       const pendingDelete = pendingDeletes.current.get(anchorKey);
       if (pendingDelete) {
         const deleteResult = await pendingDelete.completion;
@@ -211,7 +217,7 @@ export function useHighlightsApi({
         return null;
       }
       try {
-        const res = await fetch(readerHighlightsEndpoint(articleId), {
+        const res = await fetch(readerHighlightsEndpoint(articleId, levelKey), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -234,7 +240,7 @@ export function useHighlightsApi({
         return queueCreate();
       }
     },
-    [articleId, dispatch, announce],
+    [articleId, levelKey, dispatch, announce],
   );
 
   // ---- updateColor ----
@@ -252,7 +258,7 @@ export function useHighlightsApi({
         }
         const result = await queueMutation({
           type: "highlight.color",
-          endpoint: readerHighlightsEndpoint(articleId),
+          endpoint: readerHighlightsEndpoint(articleId, levelKey),
           method: "PATCH",
           body: { ...pendingAnchor(pending.input), color },
           dedupeKey: `hl-color:${pending.clientMutationId}`,
@@ -301,7 +307,7 @@ export function useHighlightsApi({
         }
       }
     },
-    [articleId, highlights, dispatch, announce],
+    [articleId, levelKey, highlights, dispatch, announce],
   );
 
   // ---- updateNote ----
@@ -319,7 +325,7 @@ export function useHighlightsApi({
         }
         const result = await queueMutation({
           type: "highlight.note",
-          endpoint: readerHighlightsEndpoint(articleId),
+          endpoint: readerHighlightsEndpoint(articleId, levelKey),
           method: "PATCH",
           body: {
             ...pendingAnchor(pending.input),
@@ -391,7 +397,7 @@ export function useHighlightsApi({
         }
       }
     },
-    [articleId, highlights, dispatch, announce],
+    [articleId, levelKey, highlights, dispatch, announce],
   );
 
   // ---- remove ----
@@ -407,10 +413,10 @@ export function useHighlightsApi({
         const pending = pendingCreates.current.get(id);
         if (pending) {
           const deleteMutationId = newClientMutationId();
-          const anchorKey = pendingAnchorKey(articleId, pending.input);
+          const anchorKey = pendingAnchorKey(`${articleId}:${levelKey}`, pending.input);
           const completion = queueMutation({
             type: "highlight.delete",
-            endpoint: pendingAnchorDeleteEndpoint(articleId, pending.input),
+            endpoint: pendingAnchorDeleteEndpoint(articleId, levelKey, pending.input),
             method: "DELETE",
             clientMutationId: deleteMutationId,
             dedupeKey: `hl-delete:${pending.clientMutationId}`,
@@ -444,7 +450,7 @@ export function useHighlightsApi({
 
       if (replacementDependency) {
         const deleteMutationId = newClientMutationId();
-        const anchorKey = pendingAnchorKey(articleId, existing);
+        const anchorKey = pendingAnchorKey(`${articleId}:${levelKey}`, existing);
         const completion = queueMutation({
           type: "highlight.delete",
           endpoint: highlightEndpoint(id),
@@ -472,7 +478,7 @@ export function useHighlightsApi({
         return;
       }
       const deleteMutationId = newClientMutationId();
-      const anchorKey = pendingAnchorKey(articleId, existing);
+      const anchorKey = pendingAnchorKey(`${articleId}:${levelKey}`, existing);
       const completion = submitMutation({
         type: "highlight.delete",
         endpoint: highlightEndpoint(id),
@@ -503,7 +509,7 @@ export function useHighlightsApi({
       dispatch({ type: "ADD_OPTIMISTIC", optimistic: existing });
       announce("Failed to delete highlight offline");
     },
-    [articleId, highlights, dispatch, announce],
+    [articleId, levelKey, highlights, dispatch, announce],
   );
 
   return { loading, add, updateColor, updateNote, remove };

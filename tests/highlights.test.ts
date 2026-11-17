@@ -385,6 +385,7 @@ test("DELETE pending highlight by anchor is idempotent", async () => {
       articleId: "art-1",
       startOffset: validAnchor.startOffset,
       endOffset: validAnchor.endOffset,
+      levelKey: "original",
     },
   });
 });

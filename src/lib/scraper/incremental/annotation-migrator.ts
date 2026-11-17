@@ -66,8 +66,10 @@ export function createAnnotationMigrator(deps: {
 }): AnnotationMigrator {
   return {
     async assess({ articleId, proposedContent }) {
+      // Only canonical-text highlights move with a rescrape; adapted reading
+      // levels (#1303) keep their own text.
       const rows = await prisma.highlight.findMany({
-        where: { articleId },
+        where: { articleId, levelKey: "original" },
         select: ANCHOR_SELECT,
       });
       const plainText = deps.deriveReaderText(proposedContent);

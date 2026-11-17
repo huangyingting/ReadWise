@@ -96,6 +96,16 @@ export type SentenceTranslationPromptVars = {
   text: string;
 };
 
+export type LevelAdaptPromptVars = {
+  title: string;
+  /** Canonical article plain text (bounded for token safety). */
+  source: string;
+  /** Target CEFR level, e.g. "B1". */
+  level: string;
+  /** Nominal Lexile-style target for the level. */
+  targetLexile: number;
+};
+
 /**
  * Maps each feature to the render variables its active template expects. Used to
  * keep {@link renderPrompt} type-safe across features.
@@ -108,6 +118,7 @@ export type PromptVarsMap = {
   grammar: GrammarPromptVars;
   tutor: TutorPromptVars;
   "sentence-translation": SentenceTranslationPromptVars;
+  "level-adapt": LevelAdaptPromptVars;
 };
 
 /** A feature key with a registered active prompt template. */

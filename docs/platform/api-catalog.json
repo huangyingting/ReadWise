@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-17T12:56:22.327Z",
-  "routeCount": 170,
-  "methodCount": 212,
+  "generatedAt": "2026-11-17T14:12:46.677Z",
+  "routeCount": 173,
+  "methodCount": 216,
   "routes": [
     {
       "path": "/api/account",
@@ -289,6 +289,80 @@
           "bodyFieldNames": [
             "dryRun",
             "reason"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/articles/{id}/levels/{level}",
+      "file": "src/app/api/admin/articles/[id]/levels/[level]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "PUT",
+          "authMode": "capability",
+          "capability": "contentModerate",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.contentModerate"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "level"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "text",
+            "title"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "authMode": "capability",
+          "capability": "contentModerate",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.contentModerate"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/articles/{id}/levels/{level}/generate",
+      "file": "src/app/api/admin/articles/[id]/levels/[level]/generate/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "contentModerate",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.contentModerate"
+          ],
+          "successStatus": 202,
+          "responseKeys": [
+            "jobId",
+            "queued"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "replace"
           ]
         }
       ]
@@ -1975,6 +2049,7 @@
           "bodyFieldNames": [
             "dueDate",
             "instructions",
+            "lockedLevelKey",
             "points",
             "publishAt",
             "publishState",
@@ -2611,6 +2686,7 @@
             "articleId",
             "dueDate",
             "instructions",
+            "lockedLevelKey",
             "points",
             "publishAt",
             "publishState",
@@ -3694,7 +3770,7 @@
           "capability": null,
           "hasBodySchema": false,
           "hasParamsSchema": true,
-          "hasQuerySchema": false,
+          "hasQuerySchema": true,
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
@@ -3757,7 +3833,7 @@
           "capability": null,
           "hasBodySchema": false,
           "hasParamsSchema": true,
-          "hasQuerySchema": false,
+          "hasQuerySchema": true,
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
@@ -3773,7 +3849,7 @@
           "capability": null,
           "hasBodySchema": true,
           "hasParamsSchema": true,
-          "hasQuerySchema": false,
+          "hasQuerySchema": true,
           "responseFormat": "json",
           "notes": [],
           "successStatus": 201,
@@ -3805,7 +3881,7 @@
           "capability": null,
           "hasBodySchema": true,
           "hasParamsSchema": true,
-          "hasQuerySchema": false,
+          "hasQuerySchema": true,
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
@@ -3819,6 +3895,29 @@
             "color",
             "note"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/levels",
+      "file": "src/app/api/reader/[id]/levels/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "levels"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -3891,7 +3990,7 @@
           "capability": null,
           "hasBodySchema": false,
           "hasParamsSchema": true,
-          "hasQuerySchema": false,
+          "hasQuerySchema": true,
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
@@ -3912,7 +4011,7 @@
           "capability": null,
           "hasBodySchema": true,
           "hasParamsSchema": true,
-          "hasQuerySchema": false,
+          "hasQuerySchema": true,
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,

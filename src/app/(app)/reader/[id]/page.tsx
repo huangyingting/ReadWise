@@ -65,12 +65,15 @@ export async function generateMetadata({
 
 export default async function ReaderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const { level } = await searchParams;
   const session = await requireSession(`/reader/${id}`);
-  const data = await loadReaderPageData(id, session);
+  const data = await loadReaderPageData(id, session, typeof level === "string" ? level : undefined);
   if (!data) {
     notFound();
   }

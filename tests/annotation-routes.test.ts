@@ -31,10 +31,16 @@ before(() => {
       },
     },
   });
+  mock.module("@/lib/article-levels/variants", {
+    namedExports: {
+      getArticleLevelVariant: async (_articleId: string, level: string) =>
+        level === "B1" ? { levelKey: "B1", title: "T", content: "<p>x</p>", wordCount: 1, lexileApprox: 800, cefrLevel: "B1" } : null,
+    },
+  });
   mock.module("@/lib/classroom/annotations", {
     namedExports: {
-      getReaderAnnotationContext: async (viewer: { id: string }, articleId: string) => {
-        calls.push({ fn: "context", args: [viewer.id, articleId] });
+      getReaderAnnotationContext: async (viewer: { id: string }, articleId: string, level: string) => {
+        calls.push({ fn: "context", args: [viewer.id, articleId, level] });
         return { teaching: [], learning: [], guides: [], responses: [] };
       },
       getAssignmentAnnotationReview: async (assignmentId: string) => {
@@ -92,7 +98,7 @@ const RESPOND = "http://test/api/assignments/as1/annotation-responses";
 const GUIDE = "http://test/api/assignment-annotations/g1";
 const RESPONSE = "http://test/api/annotation-responses/r1";
 const assignment = withParams({ id: "as1" });
-const anchor = { quote: "reefs recover", startOffset: 10, endOffset: 23, prefix: "Some ", suffix: " slowly" };
+const anchor = { quote: "reefs recover", startOffset: 10, endOffset: 23, prefix: "Some ", suffix: " slowly", levelKey: "B1" };
 
 test("annotation routes require a session", async () => {
   authState = "unauth";
@@ -111,7 +117,11 @@ test("the reader context requires a readable article", async () => {
   const r = await routes();
   const res = await r.reader.GET(getReq(READER), withParams({ id: "a1" }));
   assert.deepEqual(await res.json(), { teaching: [], learning: [], guides: [], responses: [] });
-  assert.deepEqual(calls.at(-1), { fn: "context", args: ["user-1", "a1"] });
+  assert.deepEqual(calls.at(-1), { fn: "context", args: ["user-1", "a1", "original"] });
+  await r.reader.GET(getReq(`${READER}?level=B1`), withParams({ id: "a1" }));
+  assert.deepEqual(calls.at(-1)?.args[2], "B1", "level-scoped context (#1303)");
+  assert.equal((await r.reader.GET(getReq(`${READER}?level=C1`), withParams({ id: "a1" }))).status, 404, "missing level");
+  assert.equal((await r.reader.GET(getReq(`${READER}?level=Z9`), withParams({ id: "a1" }))).status, 400, "unknown level");
 
   articleReadable = false;
   calls = [];
@@ -153,6 +163,7 @@ test("prompt and response bodies are validated", async () => {
     { ...anchor, quote: "", prompt: "Why?" },
     { ...anchor, startOffset: -1, prompt: "Why?" },
     { ...anchor, prefix: "p".repeat(257), prompt: "Why?" },
+    { ...anchor, levelKey: "Z9", prompt: "Why?" },
   ]) {
     assert.equal((await r.guides.POST(jsonPost(GUIDES, body), assignment)).status, 400, JSON.stringify(body).slice(0, 60));
   }

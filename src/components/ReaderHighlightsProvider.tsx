@@ -30,6 +30,7 @@ import {
 } from "react";
 import { highlightsReducer } from "@/components/reader/highlightsReducer";
 import { useHighlightsApi } from "@/components/reader/useHighlightsApi";
+import { ORIGINAL_LEVEL, type ReadingLevelKey } from "@/lib/article-levels/levels";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -123,10 +124,12 @@ export function useHighlights(): HighlightsContextValue {
 
 interface Props {
   articleId: string;
+  /** Reading level whose text the highlights index (#1303). */
+  levelKey?: ReadingLevelKey;
   children: ReactNode;
 }
 
-export function ReaderHighlightsProvider({ articleId, children }: Props) {
+export function ReaderHighlightsProvider({ articleId, levelKey = ORIGINAL_LEVEL, children }: Props) {
   const [highlights, dispatch] = useReducer(highlightsReducer, []);
   const [orphanedIds, setOrphanedIds] = useState<Set<string>>(new Set());
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
@@ -143,7 +146,7 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
     updateColor,
     updateNote,
     remove: apiRemove,
-  } = useHighlightsApi({ articleId, highlights, dispatch, announce });
+  } = useHighlightsApi({ articleId, levelKey, highlights, dispatch, announce });
 
   const markOrphaned = useCallback((id: string) => {
     setOrphanedIds((prev) => withSetEntry(prev, id));

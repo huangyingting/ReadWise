@@ -345,9 +345,10 @@ test("Highlight re-anchors reliably onto the survivor's current content", { skip
 
   const moved = await prisma.highlight.findUnique({
     where: {
-      userId_articleId_startOffset_endOffset: {
+      userId_articleId_levelKey_startOffset_endOffset: {
         userId: reader,
         articleId: survivorId,
+        levelKey: "original",
         startOffset: FOX_START,
         endOffset: FOX_END,
       },

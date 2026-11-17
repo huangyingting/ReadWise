@@ -41,10 +41,10 @@ test("Reader highlight recreation waits for a queued delete at the same anchor",
   );
   assert.match(
     highlightsApiSource,
-    /const anchorKey = pendingAnchorKey\(articleId, pending\.input\);[\s\S]*const completion = queueMutation\([\s\S]*pendingDeletes\.current\.set\(anchorKey, pendingDelete\);[\s\S]*const result = await completion;/,
+    /const anchorKey = pendingAnchorKey\(`\$\{articleId\}:\$\{levelKey\}`, pending\.input\);[\s\S]*const completion = queueMutation\([\s\S]*pendingDeletes\.current\.set\(anchorKey, pendingDelete\);[\s\S]*const result = await completion;/,
   );
   assert.match(
     highlightsApiSource,
-    /const anchorKey = pendingAnchorKey\(articleId, existing\);[\s\S]*const completion = queueMutation\([\s\S]*pendingDeletes\.current\.set\(anchorKey, pendingDelete\);[\s\S]*const result = await completion;/,
+    /const anchorKey = pendingAnchorKey\(`\$\{articleId\}:\$\{levelKey\}`, existing\);[\s\S]*const completion = queueMutation\([\s\S]*pendingDeletes\.current\.set\(anchorKey, pendingDelete\);[\s\S]*const result = await completion;/,
   );
 });

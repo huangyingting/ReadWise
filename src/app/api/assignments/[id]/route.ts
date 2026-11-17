@@ -23,6 +23,7 @@ import { hasOrgCapability } from "@/lib/org/guards";
 import { CAPABILITIES } from "@/lib/rbac";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { WRITE_PROMPT_MAX_LENGTH } from "@/lib/classroom/writing-rubric";
+import { READING_LEVEL_KEYS } from "@/lib/article-levels/levels";
 
 const updateBody = object({
   dueDate: optional(string({ max: 40 })),
@@ -33,6 +34,8 @@ const updateBody = object({
   publishState: optional(oneOf(["DRAFT", "SCHEDULED", "PUBLISHED"] as const)),
   publishAt: optional(string({ max: 40 })),
   writePrompt: optional(string({ max: WRITE_PROMPT_MAX_LENGTH })),
+  /** Reading level lock (#1303); null lets learners choose. */
+  lockedLevelKey: nullable(oneOf(READING_LEVEL_KEYS)),
 });
 
 export const GET = createHandler(
@@ -105,6 +108,7 @@ export const PATCH = createHandler(
       publishState: body.publishState,
       publishAt: body.publishAt,
       writePrompt: body.writePrompt,
+      lockedLevelKey: body.lockedLevelKey,
     });
     if (!result.ok) {
       let message = "Invalid due date";
@@ -114,6 +118,8 @@ export const PATCH = createHandler(
         message = "Cannot set points below an already-awarded score";
       } else if (result.reason === "invalid_publish_at") {
         message = "Invalid publish time";
+      } else if (result.reason === "invalid_level") {
+        message = "This article has no such reading level";
       }
       throw new ApiError(result.status, message);
     }
@@ -136,6 +142,7 @@ export const PATCH = createHandler(
           publishState: body.publishState !== undefined,
           publishAt: body.publishAt !== undefined,
           writePrompt: body.writePrompt !== undefined,
+          lockedLevel: body.lockedLevelKey !== undefined,
         },
         publishState: body.publishState,
         scheduled: body.publishState === "SCHEDULED",

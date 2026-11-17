@@ -31,6 +31,9 @@ import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { formatDateTime } from "@/lib/display-format";
 import { DEFAULT_MATURITY_BAND, isMaturityBand } from "@/lib/article-library/maturity";
 import { getArticleWritePrompt } from "@/lib/classroom/writing";
+import { listEditableArticleLevels } from "@/lib/article-levels/variants";
+import { isAiConfigured } from "@/lib/ai";
+import AdminArticleLevels from "@/components/admin/AdminArticleLevels";
 
 type BadgeVariant = "success" | "neutral" | "warning" | "danger";
 type AdminArticleDetail = NonNullable<
@@ -248,6 +251,27 @@ function ModerationReviewCard({
   );
 }
 
+/** Adapted reading levels (#1303): manual editing plus optional AI generation. */
+async function ReadingLevelsCard({ articleId }: { articleId: string }) {
+  const levels = await listEditableArticleLevels(articleId);
+  return (
+    <Card>
+      <div className="stack">
+        <CardTitle level="h3">Reading levels</CardTitle>
+        <p className="muted m-0">
+          Readers can switch between adapted levels and the original text. Each level gets its own
+          quiz; editing a level&apos;s text regenerates its quiz on next use.
+        </p>
+        <AdminArticleLevels
+          articleId={articleId}
+          levels={levels.map(({ updatedAt: _updatedAt, ...level }) => level)}
+          aiConfigured={isAiConfigured()}
+        />
+      </div>
+    </Card>
+  );
+}
+
 function RightsTakedownCard({ article }: { article: AdminArticle }) {
   return (
     <Card>
@@ -454,6 +478,8 @@ export default async function AdminArticleDetailPage({
           writePrompt={(await getArticleWritePrompt(article.id)) ?? ""}
         />
       )}
+
+      {canModerate && <ReadingLevelsCard articleId={article.id} />}
 
       {canModerate && <RightsTakedownCard article={article} />}
 

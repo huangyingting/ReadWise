@@ -99,6 +99,7 @@ label, so cached derived content and existing tests stay valid.
 | `grammar` | `grammar/v1` | 256 | `src/lib/grammar.ts` |
 | `tutor` | `tutor/v1` | 2048 | `src/lib/tutor.ts` |
 | `sentence-translation` | `sentence-translation/v1` | 256 | `src/lib/sentence-translation.ts` |
+| `level-adapt` | `level-adapt/v1` | 2400 | `src/lib/article-levels/variants.ts` — rewrites an article at a CEFR reading level for the `LEVEL_ADAPT` job (#1303). |
 
 Article difficulty (`src/lib/difficulty/index.ts`) is deterministic and is not an AI
 prompt feature.

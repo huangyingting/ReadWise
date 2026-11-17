@@ -66,6 +66,12 @@ per assignment, where teachers score a four-part rubric and either grade the
 response or return it for revision. Students' independent writing is never
 shown to teachers. See [write prompts](write-prompts.md).
 
+### Reading levels
+
+For articles with adapted reading levels, the assign and edit forms offer a
+**Reading level** lock: leave it on "Student choice" or lock a level so every
+student reads and is quizzed at it. See [reading levels](../reader/reading-levels.md).
+
 ### Guided prompts and evidence
 
 Teachers reading an assigned article can turn one of their highlights into a

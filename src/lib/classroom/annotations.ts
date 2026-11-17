@@ -27,6 +27,8 @@ import {
 import { canManageClassroom } from "./guards";
 import { assignmentLiveWhere, assignmentVisibleToStudentWhere } from "./targeting";
 import { ANNOTATION_QUOTE_MAX_LENGTH } from "./annotation-limits";
+import { ORIGINAL_LEVEL, type ReadingLevelKey } from "@/lib/article-levels/levels";
+import { getArticleLevelVariant } from "@/lib/article-levels/variants";
 
 type Viewer = { id: string; role?: string | null };
 
@@ -36,6 +38,8 @@ export type AnnotationAnchor = {
   endOffset: number;
   prefix?: string;
   suffix?: string;
+  /** Reading level whose text the offsets index (#1303); defaults to "original". */
+  levelKey?: ReadingLevelKey;
 };
 
 export type GuidedAnnotationView = {
@@ -48,6 +52,7 @@ export type GuidedAnnotationView = {
   prefix: string;
   suffix: string;
   prompt: string;
+  levelKey: string;
   /** True when the viewer manages the classroom (may edit or delete). */
   canEdit: boolean;
   updatedAt: Date;
@@ -61,6 +66,7 @@ export type AnnotationResponseView = {
   startOffset: number | null;
   endOffset: number | null;
   body: string;
+  levelKey: string;
   createdAt: Date;
 };
 
@@ -97,6 +103,7 @@ const GUIDE_SELECT = {
   prefix: true,
   suffix: true,
   prompt: true,
+  levelKey: true,
   updatedAt: true,
 } as const;
 
@@ -108,6 +115,7 @@ const RESPONSE_SELECT = {
   startOffset: true,
   endOffset: true,
   body: true,
+  levelKey: true,
   createdAt: true,
 } as const;
 
@@ -120,6 +128,11 @@ function normalizeAnchor(anchor: AnnotationAnchor) {
     prefix: anchor.prefix ?? "",
     suffix: anchor.suffix ?? "",
   };
+}
+
+/** True when the article has the reading level (the original always exists). */
+async function levelExists(articleId: string, levelKey: ReadingLevelKey): Promise<boolean> {
+  return levelKey === ORIGINAL_LEVEL || (await getArticleLevelVariant(articleId, levelKey)) !== null;
 }
 
 async function membershipRole(userId: string, orgId: string) {
@@ -182,7 +195,11 @@ async function teachingAssignments(viewer: Viewer, articleId: string) {
  * viewer's teaching and learning assignments, their guided prompts, and the
  * viewer's own responses. Callers must have checked article readability.
  */
-export async function getReaderAnnotationContext(viewer: Viewer, articleId: string): Promise<ReaderAnnotationContext> {
+export async function getReaderAnnotationContext(
+  viewer: Viewer,
+  articleId: string,
+  levelKey: ReadingLevelKey = ORIGINAL_LEVEL,
+): Promise<ReaderAnnotationContext> {
   const [teaching, learningRows] = await Promise.all([
     teachingAssignments(viewer, articleId),
     prisma.assignment.findMany({
@@ -198,14 +215,14 @@ export async function getReaderAnnotationContext(viewer: Viewer, articleId: stri
 
   const [guides, responses] = await Promise.all([
     prisma.assignmentAnnotation.findMany({
-      where: { assignmentId: { in: [...names.keys()] } },
+      where: { assignmentId: { in: [...names.keys()] }, levelKey },
       select: GUIDE_SELECT,
       orderBy: [{ startOffset: "asc" }, { createdAt: "asc" }],
     }),
     learning.length === 0
       ? Promise.resolve([])
       : prisma.assignmentAnnotationResponse.findMany({
-          where: { userId: viewer.id, assignmentId: { in: learning.map((entry) => entry.assignmentId) } },
+          where: { userId: viewer.id, levelKey, assignmentId: { in: learning.map((entry) => entry.assignmentId) } },
           select: RESPONSE_SELECT,
           orderBy: { createdAt: "asc" },
         }),
@@ -251,11 +268,14 @@ export async function createGuidedAnnotation(
   if (!access.manages) return FORBIDDEN;
   if (access.assignment.classroom.archivedAt) return { ok: false, status: 409, reason: "archived" };
   const anchor = normalizeAnchor(input);
-  if (!anchor) return { ok: false, status: 400, reason: "invalid_anchor" };
+  const levelKey = input.levelKey ?? ORIGINAL_LEVEL;
+  if (!anchor || !(await levelExists(access.assignment.articleId, levelKey))) {
+    return { ok: false, status: 400, reason: "invalid_anchor" };
+  }
 
   const guide = await prisma.$transaction(async (tx) => {
     const row = await tx.assignmentAnnotation.create({
-      data: { assignmentId, authorId: viewer.id, ...anchor, prompt: input.prompt },
+      data: { assignmentId, authorId: viewer.id, ...anchor, levelKey, prompt: input.prompt },
       select: GUIDE_SELECT,
     });
     await recordPromptAudit(audit, AUDIT_ACTIONS.assignmentAnnotationCreated, row.id, access.assignment, tx);
@@ -316,6 +336,11 @@ export type ResponseInput = {
   body: string;
 };
 
+/** Replies inherit their prompt's level; evidence uses its anchor's level. */
+function responseLevel(input: ResponseInput, guideLevel: string | null): string {
+  return input.anchor?.levelKey ?? guideLevel ?? ORIGINAL_LEVEL;
+}
+
 /**
  * Submits a reply to a guided prompt and/or an evidence highlight for one of
  * the learner's live assignments. 404 for assignments the learner isn't part
@@ -328,18 +353,21 @@ export async function submitAnnotationResponse(
 ): Promise<{ ok: true; response: AnnotationResponseView } | AnnotationFailure> {
   const assignment = await prisma.assignment.findFirst({
     where: { id: assignmentId, ...learnerAssignmentsWhere(viewer.id) },
-    select: { id: true },
+    select: { id: true, articleId: true },
   });
   if (!assignment) return NOT_FOUND;
+  let guideLevel: string | null = null;
   if (input.annotationId) {
     const guide = await prisma.assignmentAnnotation.findFirst({
       where: { id: input.annotationId, assignmentId },
-      select: { id: true },
+      select: { levelKey: true },
     });
     if (!guide) return NOT_FOUND;
+    guideLevel = guide.levelKey;
   }
   const anchor = input.anchor ? normalizeAnchor(input.anchor) : null;
-  if (input.anchor && !anchor) return { ok: false, status: 400, reason: "invalid_anchor" };
+  const anchorLevelOk = !input.anchor?.levelKey || (await levelExists(assignment.articleId, input.anchor.levelKey));
+  if (input.anchor && (!anchor || !anchorLevelOk)) return { ok: false, status: 400, reason: "invalid_anchor" };
   const body = input.body.trim();
   if (!anchor && !body) return { ok: false, status: 400, reason: "empty_response" };
 
@@ -349,6 +377,7 @@ export async function submitAnnotationResponse(
       annotationId: input.annotationId ?? null,
       userId: viewer.id,
       body,
+      levelKey: responseLevel(input, guideLevel),
       ...(anchor ?? {}),
     },
     select: RESPONSE_SELECT,

@@ -5,6 +5,7 @@
  * assignments live here. Teachers are seated as classroom members inside
  * {@link createClassroom}'s transaction.
  */
+import { articleHasLevel } from "@/lib/article-levels/variants";
 import {
   AssignmentPublishState,
   AssignmentStatus,
@@ -174,6 +175,8 @@ export type UpdateAssignmentInput = {
   publishAt?: string | null;
   /** Write Prompt override (#1305); empty clears it back to the article default. */
   writePrompt?: string | null;
+  /** Reading level lock (#1303); null lets learners choose. */
+  lockedLevelKey?: string | null;
 };
 
 export type UpdateAssignmentResult =
@@ -185,7 +188,8 @@ export type UpdateAssignmentResult =
         | "invalid_due_date"
         | "invalid_target_students"
         | "points_below_awarded"
-        | "invalid_publish_at";
+        | "invalid_publish_at"
+        | "invalid_level";
     };
 
 /**
@@ -207,6 +211,7 @@ export async function updateAssignment(
     wholeClass?: boolean;
     updatedAt?: Date;
     writePrompt?: string | null;
+    lockedLevelKey?: string | null;
   } = {};
 
   if (input.dueDate !== undefined) {
@@ -227,6 +232,16 @@ export async function updateAssignment(
 
   if (input.writePrompt !== undefined) {
     data.writePrompt = trimOrNull(input.writePrompt);
+  }
+
+  if (input.lockedLevelKey !== undefined) {
+    if (input.lockedLevelKey) {
+      const assignment = await prisma.assignment.findUnique({ where: { id: assignmentId }, select: { articleId: true } });
+      if (!assignment || !(await articleHasLevel(assignment.articleId, input.lockedLevelKey))) {
+        return { ok: false, status: 400, reason: "invalid_level" };
+      }
+    }
+    data.lockedLevelKey = input.lockedLevelKey || null;
   }
 
   if (input.points !== undefined) {

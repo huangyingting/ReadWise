@@ -14,6 +14,7 @@ import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { createHighlightBody, type CreateHighlightBody } from "@/lib/reader/schemas";
 import { nullable, number, object, optional, string } from "@/lib/validation";
+import { levelQuery, parseLevelParam, requireArticleLevel } from "@/lib/article-levels/http";
 
 const anchorIdentity = {
   startOffset: number({ int: true, min: 0, max: 10_000_000 }),
@@ -27,13 +28,20 @@ const anchorPatchBody = object({
   baseNote: nullable(string({ max: HIGHLIGHT_NOTE_MAX })),
 });
 
-const anchorDeleteQuery = (params: URLSearchParams) =>
-  object(anchorIdentity)(Object.fromEntries(params));
+const anchorDeleteQuery = (params: URLSearchParams) => {
+  const level = parseLevelParam(params);
+  if (!level.ok) return level;
+  const { level: _level, ...rest } = Object.fromEntries(params);
+  const anchor = object(anchorIdentity)(rest);
+  return anchor.ok ? { ok: true as const, value: { ...anchor.value, level: level.value } } : anchor;
+};
 
 function highlightInputFromBody(
   body: CreateHighlightBody,
+  levelKey: string,
 ): Parameters<typeof createHighlight>[2] {
   return {
+    levelKey,
     quote: body.quote,
     startOffset: body.startOffset,
     endOffset: body.endOffset,
@@ -44,28 +52,34 @@ function highlightInputFromBody(
   };
 }
 
+/**
+ * Highlights are scoped to a reading level (#1303): `?level=` selects the
+ * adapted variant whose text the offsets index (absent = the original text).
+ */
 export const GET = createHandler(
-  { params: idParams },
-  async ({ params, session }) => {
+  { params: idParams, query: levelQuery },
+  async ({ params, query, session }) => {
     const { article } = await requireReadableArticle(params.id, session.user);
-    const highlights = await listHighlights(session.user.id, params.id);
+    const variant = await requireArticleLevel(article.id, query.level);
+    const highlights = await listHighlights(session.user.id, params.id, query.level);
     // RW-043 — flag highlights whose anchor no longer matches the current
     // content as stale (revalidation), without dropping any.
-    const plainText = articleHtmlToReaderText(article.content ?? "");
+    const plainText = articleHtmlToReaderText(variant?.content ?? article.content ?? "");
     const annotated = annotateHighlightAnchors(highlights, plainText);
     return NextResponse.json({ highlights: annotated });
   },
 );
 
 export const POST = createHandler(
-  { params: idParams, body: createHighlightBody },
-  async ({ params, body, session }) => {
+  { params: idParams, body: createHighlightBody, query: levelQuery },
+  async ({ params, body, query, session }) => {
     await requireReadableArticle(params.id, session.user);
+    await requireArticleLevel(params.id, query.level);
 
     const result = await createHighlight(
       session.user.id,
       params.id,
-      highlightInputFromBody(body),
+      highlightInputFromBody(body, query.level),
     );
 
     if (!result.ok) {
@@ -77,8 +91,8 @@ export const POST = createHandler(
 );
 
 export const PATCH = createHandler(
-  { params: idParams, body: anchorPatchBody },
-  async ({ params, body, session }) => {
+  { params: idParams, body: anchorPatchBody, query: levelQuery },
+  async ({ params, body, query, session }) => {
     const input: Parameters<typeof updateHighlightByAnchor>[3] = {};
     if (body.note !== undefined) input.note = body.note;
     if (body.color !== undefined) input.color = body.color;
@@ -86,7 +100,7 @@ export const PATCH = createHandler(
     const result = await updateHighlightByAnchor(
       session.user.id,
       params.id,
-      { startOffset: body.startOffset, endOffset: body.endOffset },
+      { startOffset: body.startOffset, endOffset: body.endOffset, levelKey: query.level },
       input,
     );
     if (!result.ok) throw new ApiError(result.status, result.error);
@@ -103,7 +117,7 @@ export const DELETE = createHandler(
     await deleteHighlightByAnchor(
       session.user.id,
       params.id,
-      { startOffset: query.startOffset, endOffset: query.endOffset },
+      { startOffset: query.startOffset, endOffset: query.endOffset, levelKey: query.level },
     );
     return NextResponse.json({ ok: true });
   },

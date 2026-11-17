@@ -44,6 +44,10 @@ Both tables use the same anchor selector as personal highlights (`quote`,
 | `AssignmentAnnotation` | `assignmentId` (cascade), `authorId` (set null when the author is deleted), anchor, `prompt`. |
 | `AssignmentAnnotationResponse` | `assignmentId` (cascade), optional `annotationId` (cascade — replies go with their prompt), `userId` (cascade), optional anchor (evidence), `body`. Needs a passage or text. |
 
+Prompts and evidence also store the reading level whose text they anchor to
+(`levelKey`); the reader shows only the current level's prompts, and replies
+inherit their prompt's level (see [reading levels](../reader/reading-levels.md)).
+
 Limits: prompts 1,000 characters, replies/explanations 2,000, anchored
 passages 2,000.
 

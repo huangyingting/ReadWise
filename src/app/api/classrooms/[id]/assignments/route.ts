@@ -4,6 +4,7 @@ import {
   array,
   idParams,
   nonEmptyString,
+  nullable,
   number,
   object,
   oneOf,
@@ -11,6 +12,7 @@ import {
   string,
 } from "@/lib/validation";
 import { articleAccessContext } from "@/lib/article-library";
+import { READING_LEVEL_KEYS } from "@/lib/article-levels/levels";
 import { createArticleAssignment } from "@/lib/classroom/article-assignments";
 import { requireActiveClassroomManageApi } from "@/lib/tenant-api";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
@@ -24,6 +26,8 @@ const assignBody = object({
   studentIds: optional(array(nonEmptyString(200), { max: 200 })),
   publishState: optional(oneOf(["DRAFT", "SCHEDULED", "PUBLISHED"] as const)),
   publishAt: optional(string({ max: 40 })),
+  /** Reading level lock (#1303); absent/null lets learners choose. */
+  lockedLevelKey: nullable(oneOf(READING_LEVEL_KEYS)),
 });
 
 /**
@@ -47,6 +51,7 @@ export const POST = createHandler(
       studentIds: body.studentIds,
       publishState: body.publishState,
       publishAt: body.publishAt,
+      lockedLevelKey: body.lockedLevelKey ?? null,
     });
     if (!result.ok) {
       throw new ApiError(
@@ -57,6 +62,8 @@ export const POST = createHandler(
           ? "Invalid publish time"
           : result.reason === "invalid_target_students"
           ? "Select at least one enrolled student to target"
+          : result.reason === "invalid_level"
+          ? "This article has no such reading level"
           : result.reason === "article_not_found" || result.status === 404
           ? "Article not found"
           : "Article organization scope is invalid",

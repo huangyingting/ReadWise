@@ -7,6 +7,8 @@ import { validateQuiz } from "@/lib/ai/output/validators";
 import type { ArticleAccessContext } from "@/lib/article-library";
 import type { Prisma } from "@prisma/client";
 import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
+import { ORIGINAL_LEVEL, type ReadingLevelKey } from "@/lib/article-levels/levels";
+import { loadArticleTextAtLevel } from "@/lib/article-levels/ai-text";
 import {
   isReadingSkill,
   classifyQuestionSkill,
@@ -33,6 +35,8 @@ type GeneratedQuizQuestion = Omit<QuizQuestion, "id" | "standardCode">;
 
 export type ArticleQuizResult = {
   articleId: string;
+  /** Reading level the questions were written for (#1303). */
+  levelKey: ReadingLevelKey;
   questions: QuizQuestion[];
   fallback: boolean;
   fallbackReason?: AiFallbackReason;
@@ -71,11 +75,17 @@ function storedQuizQuestionToResult(row: StoredQuizQuestion): QuizQuestion {
   };
 }
 
-/** Stored quiz questions for an article (no AI call), or null when none exist yet. */
-export async function readCachedQuiz(articleId: string): Promise<QuizQuestion[] | null> {
+/**
+ * Stored quiz questions for an article at a reading level (no AI call), or
+ * null when none exist yet.
+ */
+export async function readCachedQuiz(
+  articleId: string,
+  levelKey: ReadingLevelKey = ORIGINAL_LEVEL,
+): Promise<QuizQuestion[] | null> {
   const questions = (
     await prisma.quizQuestion.findMany({
-      where: { articleId },
+      where: { articleId, levelKey },
       orderBy: { createdAt: "asc" },
       select: STORED_QUIZ_QUESTION_SELECT,
     })
@@ -88,7 +98,7 @@ function buildQuizMessages(article: QuizArticle) {
   return renderPrompt("quiz", { title: article.title, source });
 }
 
-async function upsertQuizQuestion(articleId: string, question: GeneratedQuizQuestion) {
+async function upsertQuizQuestion(articleId: string, levelKey: ReadingLevelKey, question: GeneratedQuizQuestion) {
   const fields = {
     options: question.options,
     correctIndex: question.correctIndex,
@@ -98,10 +108,10 @@ async function upsertQuizQuestion(articleId: string, question: GeneratedQuizQues
   };
   return prisma.quizQuestion.upsert({
     where: {
-      articleId_question: { articleId, question: question.question },
+      articleId_levelKey_question: { articleId, levelKey, question: question.question },
     },
     update: fields,
-    create: { articleId, question: question.question, ...fields },
+    create: { articleId, levelKey, question: question.question, ...fields },
     select: STORED_QUIZ_QUESTION_SELECT,
   });
 }
@@ -109,9 +119,10 @@ async function upsertQuizQuestion(articleId: string, question: GeneratedQuizQues
 /** Stores generated questions and returns them as stored rows, in generation order. */
 async function persistQuizQuestions(
   articleId: string,
+  levelKey: ReadingLevelKey,
   generated: GeneratedQuizQuestion[],
 ): Promise<QuizQuestion[]> {
-  const rows = await Promise.all(generated.map((question) => upsertQuizQuestion(articleId, question)));
+  const rows = await Promise.all(generated.map((question) => upsertQuizQuestion(articleId, levelKey, question)));
   return rows.map(storedQuizQuestionToResult);
 }
 
@@ -120,11 +131,16 @@ async function persistQuizQuestions(
  * it via the AI provider on a cache miss. When AI is unconfigured or the request
  * yields nothing, returns an empty list flagged as a fallback and caches nothing
  * (so a real quiz can replace the placeholder on a later request).
+ *
+ * Adapted reading levels (#1303) get their own question set written from the
+ * level's text; a level that doesn't exist resolves to null (not found).
  */
 export async function getOrCreateArticleQuiz(
   articleId: string,
   context?: ArticleAccessContext | null,
+  levelKey: ReadingLevelKey = ORIGINAL_LEVEL,
 ): Promise<ArticleQuizResult | null> {
+  const atLevel = levelKey !== ORIGINAL_LEVEL;
   return getOrCreateArticleAi<
     QuizArticle,
     GeneratedQuizQuestion[],
@@ -135,14 +151,18 @@ export async function getOrCreateArticleQuiz(
     {
       feature: "quiz",
       maxOutputTokens: promptModelParams("quiz").maxOutputTokens,
-      readCache: () => readCachedQuiz(articleId),
+      ...(atLevel
+        ? { loadArticle: (id: string, ctx: ArticleAccessContext | null) => loadArticleTextAtLevel(id, levelKey, ctx) }
+        : {}),
+      readCache: () => readCachedQuiz(articleId, levelKey),
       buildMessages: buildQuizMessages,
       parse: (completion) => validateQuiz(completion).items,
       isEmpty: (questions) => questions.length === 0,
-      persist: persistQuizQuestions,
-      toResult: (questions) => ({ articleId, questions, fallback: false }),
+      persist: (id, generated) => persistQuizQuestions(id, levelKey, generated),
+      toResult: (questions) => ({ articleId, levelKey, questions, fallback: false }),
       fallback: (_article, ctx) => ({
         articleId,
+        levelKey,
         questions: [],
         fallback: true,
         ...(ctx?.reason ? { fallbackReason: ctx.reason } : {}),

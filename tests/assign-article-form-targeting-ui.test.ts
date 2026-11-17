@@ -69,7 +69,7 @@ test("AssignArticleForm sends studentIds for single and bulk specific-students s
     "single assignment computes studentIds from the specific-students audience",
   );
   assert.ok(
-    normalized.includes("buildAssignmentPayload( selected[0].id, form.dueDate, form.instructions, form.title, form.points, publishState, form.publishAt, studentIds, )"),
+    normalized.includes("buildAssignmentPayload( selected[0].id, form.dueDate, form.instructions, form.title, form.points, publishState, form.publishAt, studentIds, lockedLevelKey, )"),
     "single assignment passes studentIds into the payload builder",
   );
   assert.ok(

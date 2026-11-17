@@ -13,6 +13,7 @@ import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { quizAttemptBody, type QuizAttemptBody } from "@/lib/reader/schemas";
 import { markTodayComprehensionComplete } from "@/lib/engagement/today-session/integrations";
 import { markAssignmentQuizComplete } from "@/lib/classroom";
+import { levelQuery } from "@/lib/article-levels/http";
 
 type QuizAttemptResult = Awaited<ReturnType<typeof recordQuizAttempt>>;
 type QuizAttemptRecord = QuizAttemptResult["attempt"];
@@ -68,6 +69,7 @@ async function recordQuizCompletionEvent(
  * inflate mastery/leveling. The persisted attempt uses the server-derived score.
  *
  * Body: { answers: { index: number, selectedIndex: number }[] }
+ * Query: `?level=` grades against that reading level's questions (#1303).
  * Per-question outcomes (skill, chosen index, correctness) are stored with the
  * attempt and feed reading-skill evidence (#1302).
  *
@@ -75,12 +77,12 @@ async function recordQuizCompletionEvent(
  * Errors: 400 invalid/mismatched answers | 401 unauthenticated | 404 article not found
  */
 export const POST = createHandler(
-  { params: idParams, body: quizAttemptBody },
-  async ({ req, params, body, session }) => {
+  { params: idParams, body: quizAttemptBody, query: levelQuery },
+  async ({ req, params, body, query, session }) => {
     const { article, context } = await requireReadableArticle(params.id, session.user);
 
-    // Load the canonical cached quiz (already gated by article access above).
-    const quiz = await getOrCreateArticleQuiz(article.id, context);
+    // Load the cached quiz for the level (already gated by article access above).
+    const quiz = await getOrCreateArticleQuiz(article.id, context, query.level);
     if (!quiz || quiz.fallback || quiz.questions.length === 0) {
       throw new ApiError(400, "Quiz is not available for this article");
     }
@@ -102,7 +104,7 @@ export const POST = createHandler(
         article.id,
         graded.correctCount,
         graded.total,
-        { clientMutationId, answers: graded.answers },
+        { clientMutationId, answers: graded.answers, levelKey: query.level },
       );
     } catch (err) {
       throw badAttemptRequest(err, "Invalid attempt data");
@@ -140,6 +142,7 @@ export const POST = createHandler(
           userId: session.user.id,
           articleId: article.id,
           scorePct: result.attempt.scorePct,
+          levelKey: query.level,
         }),
       );
     }

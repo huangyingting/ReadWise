@@ -63,6 +63,12 @@ before(() => {
         classroomMembership: {
           findMany: async () => membershipListStub,
         },
+        articleLevel: {
+          findMany: async () => [
+            { articleId: "art-1", levelKey: "B1" },
+            { articleId: "art-1", levelKey: "A2" },
+          ],
+        },
         assignment: {
           findUnique: async (args?: { select?: Record<string, unknown> }) => {
             if (!assignmentStub) return null;
@@ -159,6 +165,8 @@ test("listClassroomAssignmentMeta maps editable assignment metadata", async () =
       publishState: "DRAFT",
       publishAt: new Date("2026-08-01T10:00:00.000Z"),
       wholeClass: false,
+      articleId: "art-1",
+      lockedLevelKey: "B1",
       article: { title: "Article One" },
       targets: [{ studentId: "s1" }],
     },
@@ -181,6 +189,8 @@ test("listClassroomAssignmentMeta maps editable assignment metadata", async () =
       responseCount: 0,
       annotationCount: 0,
       annotationResponseCount: 0,
+      lockedLevelKey: "B1",
+      levelOptions: ["A2", "B1", "original"],
     },
   ]);
 });

@@ -58,6 +58,15 @@ let mockDifficultyVote: { vote: string } | null = null;
 let mockListMembership: { isDefault: boolean; hasArticle: boolean }[] = [];
 let recordEventCalled = false;
 
+type LevelState = {
+  level: string;
+  locked: boolean;
+  options: Array<{ levelKey: string; label: string; recommended: boolean }>;
+  variant: { levelKey: string; title: string; content: string; wordCount: number; lexileApprox: number | null; cefrLevel: string | null } | null;
+};
+let mockLevelState: LevelState = { level: "original", locked: false, options: [], variant: null };
+let requestedLevel: unknown;
+
 before(() => {
   mock.module("@/lib/article-library/policy", {
     namedExports: {
@@ -138,9 +147,20 @@ before(() => {
       listStudentAssignmentsForArticle: async (_userId: unknown, _articleId: unknown) => [],
     },
   });
+
+  mock.module("@/lib/article-levels/variants", {
+    namedExports: {
+      resolveReaderLevel: async (input: { requested: unknown }) => {
+        requestedLevel = input.requested;
+        return mockLevelState;
+      },
+    },
+  });
 });
 
 beforeEach(() => {
+  mockLevelState = { level: "original", locked: false, options: [], variant: null };
+  requestedLevel = undefined;
   mockFoundArticle = makeArticle();
   mockRelatedArticles = [];
   mockFallbackArticles = [];
@@ -332,4 +352,26 @@ test("buildArticleJsonLd normalizes whitespace in description", async () => {
   };
   const result = buildArticleJsonLd(article, "  multiple   spaces\n\nnewlines  ");
   assert.equal(result.description, "multiple spaces newlines");
+});
+
+test("loadReaderPageData renders an adapted reading level (#1303)", async () => {
+  mockLevelState = {
+    level: "B1",
+    locked: true,
+    options: [
+      { levelKey: "B1", label: "B1 · ~850L", recommended: true },
+      { levelKey: "original", label: "Original", recommended: false },
+    ],
+    variant: { levelKey: "B1", title: "Easier headline", content: "<p>Short simple text.</p>", wordCount: 600, lexileApprox: 820, cefrLevel: "A2" },
+  };
+  const { loadReaderPageData } = await import("@/lib/reader/page-loader");
+  const result = await loadReaderPageData("article-test", mockSession as any, "B1");
+  assert.ok(result !== null);
+  assert.equal(requestedLevel, "B1");
+  assert.deepEqual(result.level, { key: "B1", locked: true, options: mockLevelState.options });
+  assert.equal(result.displayTitle, "Easier headline");
+  assert.equal(result.difficultyLevel, "A2", "the level's measured CEFR is shown");
+  assert.equal(result.readingMinutes, 3);
+  assert.match(result.cleanBody, /Short simple text/);
+  assert.equal(result.article.title, makeArticle().title, "canonical identity is unchanged");
 });

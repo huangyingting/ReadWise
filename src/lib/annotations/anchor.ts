@@ -30,6 +30,8 @@ export interface CreateHighlightInput {
   quote: string;
   startOffset: number;
   endOffset: number;
+  /** Reading level whose text the offsets index (#1303); defaults to "original". */
+  levelKey?: string;
   prefix?: string;
   suffix?: string;
   note?: string;
@@ -56,6 +58,8 @@ export interface HighlightRow {
   suffix: string;
   note: string | null;
   color: string | null;
+  /** Reading level whose text the offsets index (#1303). */
+  levelKey: string;
   createdAt: Date;
   updatedAt: Date;
 }

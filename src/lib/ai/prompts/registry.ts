@@ -17,6 +17,7 @@ import tagsTemplate from "./tags";
 import grammarTemplate from "./grammar";
 import tutorTemplate from "./tutor";
 import sentenceTranslationTemplate from "./sentence-translation";
+import levelAdaptTemplate from "./level-adapt";
 
 export type { PromptTemplate, PromptMessage };
 
@@ -36,6 +37,7 @@ export const PROMPT_TEMPLATES: {
   grammar: grammarTemplate,
   tutor: tutorTemplate,
   "sentence-translation": sentenceTranslationTemplate,
+  "level-adapt": levelAdaptTemplate,
 };
 
 /** The list of features with a registered prompt template. */

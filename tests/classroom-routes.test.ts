@@ -94,6 +94,7 @@ let articleAssignmentFailure: {
     | "invalid_due_date"
     | "invalid_target_students"
     | "invalid_publish_at"
+    | "invalid_level"
     | "article_not_found"
     | "org_reference_orphaned";
 } | null = null;
@@ -152,6 +153,7 @@ const createArticleAssignmentCalls: Array<{
   studentIds?: string[];
   publishState?: "DRAFT" | "SCHEDULED" | "PUBLISHED";
   publishAt?: string | null;
+  lockedLevelKey?: string | null;
 }> = [];
 const reopenAssignmentCalls: string[] = [];
 const articleAssignmentFailuresById = new Map<string, {
@@ -160,6 +162,7 @@ const articleAssignmentFailuresById = new Map<string, {
     | "invalid_due_date"
     | "invalid_target_students"
     | "invalid_publish_at"
+    | "invalid_level"
     | "article_not_found"
     | "org_reference_orphaned";
 }>();
@@ -182,7 +185,8 @@ let updateAssignmentResult:
         | "invalid_due_date"
         | "invalid_target_students"
         | "points_below_awarded"
-        | "invalid_publish_at";
+        | "invalid_publish_at"
+        | "invalid_level";
     } = {
   ok: true,
   assignment: { id: "asgn1", classroomId: "c1", dueDate: null, instructions: null },
@@ -1598,6 +1602,7 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
         publishState: undefined,
         publishAt: undefined,
         writePrompt: undefined,
+        lockedLevelKey: undefined,
       },
     },
   ]);
@@ -1614,6 +1619,7 @@ test("PATCH /api/assignments/[id] updates dueDate + instructions for the classro
       publishState: false,
       publishAt: false,
       writePrompt: false,
+      lockedLevel: false,
     },
     publishState: undefined,
     scheduled: false,
@@ -1644,6 +1650,7 @@ test("PATCH /api/assignments/[id] forwards clearable dueDate, points, and whole-
       publishState: undefined,
       publishAt: undefined,
       writePrompt: undefined,
+      lockedLevelKey: undefined,
     },
   });
   assert.deepEqual(auditCalls.at(-1)?.metadata, {
@@ -1658,6 +1665,7 @@ test("PATCH /api/assignments/[id] forwards clearable dueDate, points, and whole-
       publishState: false,
       publishAt: false,
       writePrompt: false,
+      lockedLevel: false,
     },
     publishState: undefined,
     scheduled: false,
@@ -1685,6 +1693,7 @@ test("PATCH /api/assignments/[id] forwards publish lifecycle fields", async () =
       publishState: "SCHEDULED",
       publishAt,
       writePrompt: undefined,
+      lockedLevelKey: undefined,
     },
   });
   assert.equal(auditCalls.at(-1)?.metadata?.publishState, "SCHEDULED");
@@ -1732,6 +1741,25 @@ test("PATCH /api/assignments/[id] maps invalid publishAt to 400", async () => {
   assert.equal(res.status, 400);
   const body = (await res.json()) as { error: string };
   assert.match(body.error, /publish/i);
+});
+
+test("assignment routes forward reading level locks and map missing levels to 400 (#1303)", async () => {
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
+  let res = await postClassroomAssignment("c1", { articleId: "a1", lockedLevelKey: "B1" });
+  assert.equal(res.status, 201);
+  assert.equal(createArticleAssignmentCalls.at(-1)?.lockedLevelKey, "B1");
+  articleAssignmentFailure = { status: 400, reason: "invalid_level" };
+  res = await postClassroomAssignment("c1", { articleId: "a1", lockedLevelKey: "C1" });
+  assert.equal(res.status, 400);
+  assert.match(((await res.json()) as { error: string }).error, /reading level/);
+  articleAssignmentFailure = null;
+  assert.equal((await postClassroomAssignment("c1", { articleId: "a1", lockedLevelKey: "Z9" })).status, 400);
+
+  assignmentClassroomResult = { id: "asgn1", classroomId: "c1", points: 20 };
+  updateAssignmentResult = { ok: false, status: 400, reason: "invalid_level" };
+  res = await patchAssignmentRoute("asgn1", { lockedLevelKey: "C1" });
+  assert.equal(res.status, 400);
+  assert.match(((await res.json()) as { error: string }).error, /reading level/);
 });
 
 test("PATCH /api/assignments/[id] maps invalid target students to 400", async () => {

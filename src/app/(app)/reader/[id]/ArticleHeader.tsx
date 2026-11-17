@@ -32,6 +32,8 @@ type Props = {
   tags: TagView[];
   /** Today Session v1.1 (#805): render the "Set as today's article" affordance. */
   setTodayEnabled?: boolean;
+  /** Headline at the shown reading level (#1303); defaults to the article title. */
+  displayTitle?: string;
 };
 
 function ArticleByline({
@@ -170,11 +172,12 @@ export default function ArticleHeader({
   isBookmarked,
   tags,
   setTodayEnabled = false,
+  displayTitle,
 }: Props) {
   return (
     <header className="reader-article-header">
       <h1 id="article-title" className="reader-article-title">
-        {article.title}
+        {displayTitle ?? article.title}
       </h1>
 
       {/* Byline / source */}
