@@ -78,6 +78,7 @@ The popover copies `text/html` (italics) plus `text/plain` through
 | `article` | Title, byline, numbered paragraphs, MLA source line, rights note. | Any reader of the article |
 | `worksheet` | Name/Date/Class header + article + vocabulary box + quiz bubble sheet + lined "Write about it" response. | Any reader of the article |
 | `answer-key` | Worksheet + an answer key on a new page. | Teachers, content staff, super-users |
+| `fluency` | Oral fluency passage (`&words=` 100, 150, or 200) with cumulative word counts and a WCPM/accuracy/prosody scoring rubric ([educator tools](../learning/educator-tools.md)). | Teachers, content staff, super-users |
 
 - **Answer-key authorization** — `canPrintAnswerKey` allows a global role with
   `articles.manage` (Admin, Moderator, ContentEditor) or `platform.superuser`,

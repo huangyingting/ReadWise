@@ -66,6 +66,13 @@ per assignment, where teachers score a four-part rubric and either grade the
 response or return it for revision. Students' independent writing is never
 shown to teachers. See [write prompts](write-prompts.md).
 
+### Educator tools in the reader
+
+Opening an article as a teacher shows **Educator tools**: "Apply to your
+lesson" (lesson ideas, a printable oral fluency passage, and the assignment's
+pre-reading poll and Checks for Understanding), "View as student", and
+"Assign to a class". See [educator tools](educator-tools.md).
+
 ### Reading levels
 
 For articles with adapted reading levels, the assign and edit forms offer a

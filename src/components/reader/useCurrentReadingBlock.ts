@@ -106,7 +106,8 @@ function getBlockText(element: Element): string {
   return (element.textContent ?? "").trim();
 }
 
-function getObservedBlocks(container: HTMLElement): Element[] {
+/** Reading blocks (paragraphs, headings, list items, quotes) in document order. */
+export function getObservedBlocks(container: HTMLElement): Element[] {
   return Array.from(container.querySelectorAll<Element>(BLOCK_SELECTOR)).filter(
     isObservedBlockElement,
   );

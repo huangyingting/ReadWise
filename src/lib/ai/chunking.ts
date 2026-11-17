@@ -70,6 +70,7 @@ export const FEATURE_CONTEXT: Record<string, FeatureContext> = {
   tutor: { maxInputTokens: 1750, strategy: "sample", chunkOverlapTokens: 0 },
   // ~10000 chars: reading-level adaptation rewrites the article lead.
   "level-adapt": { maxInputTokens: 2500, strategy: "sample", chunkOverlapTokens: 0 },
+  "lesson-scaffold": { maxInputTokens: 2000, strategy: "sample", chunkOverlapTokens: 0 },
 };
 
 const DEFAULT_FEATURE_CONTEXT: FeatureContext = {

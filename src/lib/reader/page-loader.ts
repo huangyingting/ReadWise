@@ -37,6 +37,7 @@ import {
 } from "@/lib/classroom";
 import { resolveReaderLevel, type ReaderLevelOption } from "@/lib/article-levels/variants";
 import type { ReadingLevelKey } from "@/lib/article-levels/levels";
+import { loadEducatorReaderContext, type EducatorReaderContext } from "@/lib/lesson/reader-context";
 
 export type ReaderPageData = {
   article: Article;
@@ -68,6 +69,8 @@ export type ReaderPageData = {
   level: { key: ReadingLevelKey; locked: boolean; options: ReaderLevelOption[] };
   /** Headline at the shown level (the canonical title for the original). */
   displayTitle: string;
+  /** Educator tools and "View as student" preview state (#1304). */
+  educator: Omit<EducatorReaderContext, "previewLock">;
 };
 
 type DifficultyVote = ReaderPageData["userDifficultyVote"];
@@ -128,6 +131,7 @@ export async function loadReaderPageData(
   articleId: string,
   session: Session,
   requestedLevel?: unknown,
+  view?: unknown,
 ): Promise<ReaderPageData | null> {
   const context = await articleAccessContextForUser(session.user);
   const article = await getReadableArticleById(articleId, context);
@@ -142,6 +146,9 @@ export async function loadReaderPageData(
     articleId: article.id,
     properties: { category: article.category, difficulty: article.difficulty },
   });
+
+  // Educator tools / "View as student" (#1304) — the preview may lock a level.
+  const educator = await loadEducatorReaderContext(session.user, article.id, view);
 
   // Parallel fetch: all seven queries depend only on article.id / userId
   const [progress, difficulty, tagsResult, relatedArticles, membership, existingFeedback, studentAssignments, level] =
@@ -160,7 +167,12 @@ export async function loadReaderPageData(
       // Student assignment context for the reader banner (empty for non-students)
       listStudentAssignmentsForArticle(session.user.id, article.id),
       // #1303: the reading level to show (teacher lock → ?level= → original)
-      resolveReaderLevel({ articleId: article.id, userId: session.user.id, requested: requestedLevel }),
+      resolveReaderLevel({
+        articleId: article.id,
+        userId: session.user.id,
+        requested: requestedLevel,
+        previewLock: educator.previewLock,
+      }),
     ]);
 
   // If no related articles, fall back to articles from the same category.
@@ -202,6 +214,7 @@ export async function loadReaderPageData(
     studentAssignments,
     level: { key: level.level, locked: level.locked, options: level.options },
     displayTitle: variant?.title ?? article.title,
+    educator: { isEducator: educator.isEducator, previewing: educator.previewing, classrooms: educator.classrooms },
   };
 }
 

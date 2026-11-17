@@ -9,7 +9,7 @@ import Link from "next/link";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import { PRINT_MODE_LABELS, type PrintMode } from "@/lib/reader/print-modes";
+import { EDUCATOR_PRINT_MODES, PRINT_MODE_LABELS, type PrintMode } from "@/lib/reader/print-modes";
 
 interface PrintToolbarProps {
   articleId: string;
@@ -22,7 +22,7 @@ interface PrintToolbarProps {
 
 export default function PrintToolbar({ articleId, mode, canAnswerKey, printable }: PrintToolbarProps) {
   const modes = (Object.keys(PRINT_MODE_LABELS) as PrintMode[]).filter(
-    (option) => option !== "answer-key" || canAnswerKey,
+    (option) => !EDUCATOR_PRINT_MODES.includes(option) || canAnswerKey,
   );
 
   return (

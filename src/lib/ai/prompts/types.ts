@@ -119,6 +119,7 @@ export type PromptVarsMap = {
   tutor: TutorPromptVars;
   "sentence-translation": SentenceTranslationPromptVars;
   "level-adapt": LevelAdaptPromptVars;
+  "lesson-scaffold": ArticleSourcePromptVars;
 };
 
 /** A feature key with a registered active prompt template. */

@@ -167,13 +167,16 @@ export async function resolveReaderLevel(input: {
   articleId: string;
   userId: string;
   requested: unknown;
+  /** Educator "View as student" preview (#1304): apply this assignment lock instead. */
+  previewLock?: string | null;
 }): Promise<ReaderLevelState> {
   const levels = await listArticleLevels(input.articleId);
   if (levels.length === 0) return { level: ORIGINAL_LEVEL, locked: false, options: [], variant: null };
   const profile = await prisma.profile.findUnique({ where: { userId: input.userId }, select: { englishLevel: true } });
 
   const available = new Set<ReadingLevelKey>([...levels.map((level) => level.levelKey), ORIGINAL_LEVEL]);
-  const locked = await lockedLevelFor(input.userId, input.articleId, available);
+  const preview = isReadingLevelKey(input.previewLock) && available.has(input.previewLock) ? input.previewLock : null;
+  const locked = preview ?? (await lockedLevelFor(input.userId, input.articleId, available));
   const requested = isReadingLevelKey(input.requested) && available.has(input.requested) ? input.requested : ORIGINAL_LEVEL;
   const level = locked ?? requested;
   const options: ReaderLevelOption[] = [

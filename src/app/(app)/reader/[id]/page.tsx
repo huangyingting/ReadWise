@@ -71,9 +71,14 @@ export default async function ReaderPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const { level } = await searchParams;
+  const { level, view } = await searchParams;
   const session = await requireSession(`/reader/${id}`);
-  const data = await loadReaderPageData(id, session, typeof level === "string" ? level : undefined);
+  const data = await loadReaderPageData(
+    id,
+    session,
+    typeof level === "string" ? level : undefined,
+    typeof view === "string" ? view : undefined,
+  );
   if (!data) {
     notFound();
   }

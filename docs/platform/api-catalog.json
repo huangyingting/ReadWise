@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-17T14:12:46.677Z",
-  "routeCount": 173,
-  "methodCount": 216,
+  "generatedAt": "2026-11-17T15:43:19.487Z",
+  "routeCount": 181,
+  "methodCount": 225,
   "routes": [
     {
       "path": "/api/account",
@@ -1996,6 +1996,76 @@
       ]
     },
     {
+      "path": "/api/assignment-checks/{id}",
+      "file": "src/app/api/assignment-checks/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/assignment-checks/{id}/answer",
+      "file": "src/app/api/assignment-checks/[id]/answer/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "result"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/assignment-polls/{id}/vote",
+      "file": "src/app/api/assignment-polls/[id]/vote/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "distribution",
+            "myVote"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/assignments/{id}",
       "file": "src/app/api/assignments/[id]/route.ts",
       "runtime": "default",
@@ -2061,6 +2131,27 @@
       ]
     },
     {
+      "path": "/api/assignments/{id}/activities",
+      "file": "src/app/api/assignments/[id]/activities/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/assignments/{id}/annotation-responses",
       "file": "src/app/api/assignments/[id]/annotation-responses/route.ts",
       "runtime": "default",
@@ -2121,6 +2212,29 @@
       ]
     },
     {
+      "path": "/api/assignments/{id}/checks",
+      "file": "src/app/api/assignments/[id]/checks/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "checkId"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/assignments/{id}/completion",
       "file": "src/app/api/assignments/[id]/completion/route.ts",
       "runtime": "default",
@@ -2170,6 +2284,45 @@
             "feedback",
             "pointsAwarded"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/assignments/{id}/poll",
+      "file": "src/app/api/assignments/[id]/poll/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "PUT",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "pollId"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -3760,6 +3913,29 @@
       ]
     },
     {
+      "path": "/api/reader/{id}/activities",
+      "file": "src/app/api/reader/[id]/activities/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": [
+            "preview"
+          ],
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/reader/{id}/annotations",
       "file": "src/app/api/reader/[id]/annotations/route.ts",
       "runtime": "default",
@@ -3895,6 +4071,27 @@
             "color",
             "note"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/lesson",
+      "file": "src/app/api/reader/[id]/lesson/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },

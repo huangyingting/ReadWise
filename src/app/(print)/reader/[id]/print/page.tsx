@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/lib/session";
 import { canPrintAnswerKey, loadPrintableArticle } from "@/lib/reader/print";
-import { optionLetter, parsePrintMode, PRINT_MODE_LABELS } from "@/lib/reader/print-modes";
+import { EDUCATOR_PRINT_MODES, optionLetter, parsePrintMode, PRINT_MODE_LABELS } from "@/lib/reader/print-modes";
+import { articleHtmlToReaderTextFromSanitized } from "@/lib/content-pipeline";
+import { FLUENCY_RUBRIC, extractFluencyPassage, parseFluencyLength } from "@/lib/lesson/fluency";
 import type { QuizQuestion } from "@/lib/quiz";
 import { readingSkillLabel } from "@/lib/learning/reading-skills";
 import type { VocabularyEntry } from "@/lib/vocabulary/service";
@@ -15,7 +17,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-type SearchParams = { mode?: string | string[] };
+type SearchParams = { mode?: string | string[]; words?: string | string[] };
 
 const RESPONSE_LINES = 8;
 
@@ -117,6 +119,38 @@ function AnswerKeySection({ quiz }: { quiz: QuizQuestion[] }) {
   );
 }
 
+/** Oral fluency scoring sheet (#1304): passage with cumulative counts + rubric. */
+function FluencySheet({ bodyHtml, words }: { bodyHtml: string; words: unknown }) {
+  const passage = extractFluencyPassage(articleHtmlToReaderTextFromSanitized(bodyHtml), parseFluencyLength(words));
+  return (
+    <>
+      <section className="print-section" aria-labelledby="print-fluency">
+        <h2 id="print-fluency">Oral fluency passage ({passage.wordCount} words)</h2>
+        <table className="print-fluency">
+          <tbody>
+            {passage.lines.map((line) => (
+              <tr key={line.cumulative}>
+                <td>{line.text}</td>
+                <td className="print-fluency-count">{line.cumulative}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+      <section className="print-section" aria-labelledby="print-fluency-rubric">
+        <h2 id="print-fluency-rubric">Scoring</h2>
+        <p>Words read in 1 minute: ______ Errors: ______ WCPM (words read − errors): ______ Accuracy: ______%</p>
+        <p>{FLUENCY_RUBRIC.accuracy.map((band) => `${band.label}: ${band.range}`).join(" · ")}</p>
+        <ol className="print-quiz" reversed>
+          {FLUENCY_RUBRIC.prosody.map((level) => (
+            <li key={level.score}>{level.label}</li>
+          ))}
+        </ol>
+      </section>
+    </>
+  );
+}
+
 /**
  * Printable classroom packet (#1306): `?mode=article|worksheet|answer-key`.
  * The answer key is refused (403 page) for anyone who isn't a teacher,
@@ -131,10 +165,11 @@ export default async function PrintArticlePage({
   searchParams: Promise<SearchParams>;
 }) {
   const { id } = await params;
-  const mode = parsePrintMode((await searchParams).mode);
+  const query = await searchParams;
+  const mode = parsePrintMode(query.mode);
   const session = await requireSession(`/reader/${encodeURIComponent(id)}/print?mode=${mode}`);
   const canAnswerKey = await canPrintAnswerKey(session.user);
-  if (mode === "answer-key" && !canAnswerKey) redirect("/forbidden");
+  if (EDUCATOR_PRINT_MODES.includes(mode) && !canAnswerKey) redirect("/forbidden");
 
   const printable = await loadPrintableArticle(id, session.user, mode);
   if (!printable) notFound();
@@ -154,20 +189,25 @@ export default async function PrintArticlePage({
   }
 
   const { article, bodyHtml, citation, rightsNote, quiz, vocabulary } = printable;
-  const withStudyMaterials = mode !== "article";
+  const withStudyMaterials = mode === "worksheet" || mode === "answer-key";
+  const fluency = mode === "fluency";
 
   return (
     <>
       <PrintToolbar articleId={id} mode={mode} canAnswerKey={canAnswerKey} printable />
       <main className="print-sheet" aria-label={`${PRINT_MODE_LABELS[mode]}: ${article.title}`}>
-        {withStudyMaterials ? <StudentHeader /> : null}
+        {withStudyMaterials || fluency ? <StudentHeader /> : null}
         <header>
           <h1>{article.title}</h1>
           {article.author || article.source ? (
             <p className="print-byline">{[article.author, article.source].filter(Boolean).join(" · ")}</p>
           ) : null}
         </header>
-        <div className="prose print-article-body" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+        {fluency ? (
+          <FluencySheet bodyHtml={bodyHtml} words={query.words} />
+        ) : (
+          <div className="prose print-article-body" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+        )}
         <p className="print-source">
           Source: <CitationText parts={citation.parts} />
         </p>

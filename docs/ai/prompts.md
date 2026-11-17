@@ -99,6 +99,7 @@ label, so cached derived content and existing tests stay valid.
 | `grammar` | `grammar/v1` | 256 | `src/lib/grammar.ts` |
 | `tutor` | `tutor/v1` | 2048 | `src/lib/tutor.ts` |
 | `sentence-translation` | `sentence-translation/v1` | 256 | `src/lib/sentence-translation.ts` |
+| `lesson-scaffold` | `lesson-scaffold/v1` | 900 | `src/lib/lesson/scaffold.ts` — "Apply to your lesson" hook, discussion questions, and key terms for educators (#1304); deterministic fallback when AI is unavailable. |
 | `level-adapt` | `level-adapt/v1` | 2400 | `src/lib/article-levels/variants.ts` — rewrites an article at a CEFR reading level for the `LEVEL_ADAPT` job (#1303). |
 
 Article difficulty (`src/lib/difficulty/index.ts`) is deterministic and is not an AI

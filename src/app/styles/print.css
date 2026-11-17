@@ -111,6 +111,26 @@
   margin-bottom: var(--space-4);
 }
 
+/* Oral fluency sheet (#1304): passage lines with cumulative word counts. */
+.print-fluency {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-reading, var(--font-sans));
+  line-height: 2;
+}
+
+.print-fluency td {
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--space-2) 0 0;
+}
+
+.print-fluency-count {
+  width: 4ch;
+  text-align: right;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
 .print-quiz-options {
   list-style: none;
   margin: var(--space-2) 0 0;

@@ -3,14 +3,18 @@
  * toolbar, and the server loader in `./print`.
  */
 
-export const PRINT_MODES = ["article", "worksheet", "answer-key"] as const;
+export const PRINT_MODES = ["article", "worksheet", "answer-key", "fluency"] as const;
 export type PrintMode = (typeof PRINT_MODES)[number];
 
 export const PRINT_MODE_LABELS: Record<PrintMode, string> = {
   article: "Article only",
   worksheet: "Article + vocabulary & quiz",
   "answer-key": "Article + quiz + answer key",
+  fluency: "Oral fluency passage + rubric",
 };
+
+/** Modes only educators may print (answer key; fluency scoring sheet, #1304). */
+export const EDUCATOR_PRINT_MODES: readonly PrintMode[] = ["answer-key", "fluency"];
 
 /** Parses `?mode=`; anything unknown prints the article only. */
 export function parsePrintMode(value: string | string[] | undefined): PrintMode {

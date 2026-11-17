@@ -32,6 +32,7 @@
  *   prompts/tutor.ts              — tutor feature template
  *   prompts/sentence-translation.ts — sentence-translation feature template
  *   prompts/level-adapt.ts        — reading-level adaptation template (#1303)
+ *   prompts/lesson-scaffold.ts    — teacher lesson scaffolds template (#1304)
  *   prompts/registry.ts           — assembles templates and exposes public API
  *   prompts/index.ts              — this file; re-exports the full public surface
  */

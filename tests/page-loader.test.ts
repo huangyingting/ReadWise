@@ -66,6 +66,7 @@ type LevelState = {
 };
 let mockLevelState: LevelState = { level: "original", locked: false, options: [], variant: null };
 let requestedLevel: unknown;
+let previewLock: string | null = null;
 
 before(() => {
   mock.module("@/lib/article-library/policy", {
@@ -148,10 +149,22 @@ before(() => {
     },
   });
 
+  mock.module("@/lib/lesson/reader-context", {
+    namedExports: {
+      loadEducatorReaderContext: async (_viewer: unknown, _articleId: unknown, view: unknown) => ({
+        isEducator: view === "student",
+        previewing: view === "student",
+        previewLock: view === "student" ? "A2" : null,
+        classrooms: [],
+      }),
+    },
+  });
+
   mock.module("@/lib/article-levels/variants", {
     namedExports: {
-      resolveReaderLevel: async (input: { requested: unknown }) => {
+      resolveReaderLevel: async (input: { requested: unknown; previewLock?: string | null }) => {
         requestedLevel = input.requested;
+        previewLock = input.previewLock ?? null;
         return mockLevelState;
       },
     },
@@ -374,4 +387,15 @@ test("loadReaderPageData renders an adapted reading level (#1303)", async () => 
   assert.equal(result.readingMinutes, 3);
   assert.match(result.cleanBody, /Short simple text/);
   assert.equal(result.article.title, makeArticle().title, "canonical identity is unchanged");
+});
+
+test("loadReaderPageData passes the educator preview lock and state (#1304)", async () => {
+  const { loadReaderPageData } = await import("@/lib/reader/page-loader");
+  const result = await loadReaderPageData("article-test", mockSession as any, undefined, "student");
+  assert.ok(result !== null);
+  assert.equal(previewLock, "A2");
+  assert.deepEqual(result.educator, { isEducator: true, previewing: true, classrooms: [] });
+  const regular = await loadReaderPageData("article-test", mockSession as any);
+  assert.equal(previewLock, null);
+  assert.equal(regular?.educator.previewing, false);
 });

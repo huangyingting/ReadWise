@@ -143,7 +143,7 @@ async function membershipRole(userId: string, orgId: string) {
 }
 
 /** Loads an assignment and whether the viewer manages its classroom. */
-async function assignmentAccess(assignmentId: string, viewer: Viewer) {
+export async function assignmentAccess(assignmentId: string, viewer: Viewer) {
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
     select: {
@@ -159,14 +159,14 @@ async function assignmentAccess(assignmentId: string, viewer: Viewer) {
 }
 
 /** Live assignments the learner is enrolled in as a student (targeting applies). */
-function learnerAssignmentsWhere(userId: string) {
+export function learnerAssignmentsWhere(userId: string) {
   return {
     classroom: { archivedAt: null, members: { some: { userId, role: "Student" as const } } },
     AND: [assignmentVisibleToStudentWhere(userId), assignmentLiveWhere(new Date())],
   };
 }
 
-async function teachingAssignments(viewer: Viewer, articleId: string) {
+export async function teachingAssignments(viewer: Viewer, articleId: string) {
   const memberships = await prisma.membership.findMany({
     where: { userId: viewer.id },
     select: { orgId: true, role: true },

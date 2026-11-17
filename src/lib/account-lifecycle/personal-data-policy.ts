@@ -152,6 +152,15 @@ export const USER_EXPORT_SELECT = {
     },
     orderBy: { createdAt: "asc" },
   },
+  // Poll votes and Check for Understanding answers (#1304).
+  assignmentPollVotes: {
+    select: { pollId: true, optionIndex: true, createdAt: true, updatedAt: true },
+    orderBy: { createdAt: "asc" },
+  },
+  assignmentCheckAnswers: {
+    select: { checkId: true, selectedIndex: true, correct: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  },
   pronunciationAttempts: {
     select: {
       articleId: true,

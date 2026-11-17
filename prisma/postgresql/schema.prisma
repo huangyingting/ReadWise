@@ -109,6 +109,8 @@ model User {
   writeSubmissions          WriteSubmission[]
   authoredAssignmentAnnotations AssignmentAnnotation[]  @relation("AuthoredAssignmentAnnotations")
   assignmentAnnotationResponses AssignmentAnnotationResponse[]
+  assignmentPollVotes     AssignmentPollVote[]
+  assignmentCheckAnswers  AssignmentCheckAnswer[]
   assignmentCompletions   AssignmentCompletion[]
   assignmentTargets       AssignmentTarget[]
   todaySessions           TodaySession[]
@@ -190,6 +192,7 @@ model Article {
   vocabulary           VocabularyItem[]
   quizQuestions        QuizQuestion[]
   levels               ArticleLevel[]
+  lessonScaffold       ArticleLessonScaffold?
   textSetItems         TextSetItem[]
   writePrompt          WritePrompt?
   writeSubmissions     WriteSubmission[]
@@ -1405,6 +1408,22 @@ model ArticleLevel {
   @@unique([articleId, levelKey, language])
 }
 
+/// Cached AI "Apply to your lesson" scaffolds for educators (#1304): a
+/// before-reading hook, discussion questions, and key terms. A deterministic
+/// fallback is used (never cached) when AI is unconfigured or fails.
+model ArticleLessonScaffold {
+  id            String   @id @default(cuid())
+  articleId     String   @unique
+  hook          String
+  questions     Json     @default("[]")
+  keyTerms      Json     @default("[]")
+  promptVersion String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
 /// A learner's constructed response to an article's Write Prompt (#1305).
 /// One row per learner, article, and scope: `scopeKey` is the assignment id
 /// for classroom work or "independent" for personal writing. Independent
@@ -1483,6 +1502,8 @@ model Assignment {
   writeSubmissions WriteSubmission[]
   annotations         AssignmentAnnotation[]
   annotationResponses AssignmentAnnotationResponse[]
+  poll                AssignmentPoll?
+  checks              AssignmentCheck[]
 
   @@index([classroomId])
   @@index([articleId])
@@ -1513,6 +1534,73 @@ model AssignmentAnnotation {
   responses  AssignmentAnnotationResponse[]
 
   @@index([assignmentId, startOffset])
+}
+
+/// Optional pre-reading opinion poll on an assignment (#1304): one question,
+/// two to five options, non-graded. Students see the aggregate distribution
+/// after voting.
+model AssignmentPoll {
+  id           String   @id @default(cuid())
+  assignmentId String   @unique
+  question     String
+  options      Json
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignment Assignment           @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  votes      AssignmentPollVote[]
+}
+
+model AssignmentPollVote {
+  id          String   @id @default(cuid())
+  pollId      String
+  userId      String
+  optionIndex Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  poll AssignmentPoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId])
+  @@index([userId])
+}
+
+/// A formative Check for Understanding shown after a section of an assigned
+/// article (#1304). `afterBlock` is the 0-based reading block (paragraph or
+/// heading) it follows.
+model AssignmentCheck {
+  id           String   @id @default(cuid())
+  assignmentId String
+  afterBlock   Int
+  question     String
+  options      Json
+  correctIndex Int
+  explanation  String?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignment Assignment              @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  answers    AssignmentCheckAnswer[]
+
+  @@index([assignmentId, afterBlock])
+}
+
+model AssignmentCheckAnswer {
+  id            String   @id @default(cuid())
+  checkId       String
+  userId        String
+  selectedIndex Int
+  correct       Boolean
+  createdAt     DateTime @default(now())
+
+  check AssignmentCheck @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([checkId, userId])
+  @@index([userId])
 }
 
 /// A learner's reply to a guided prompt and/or an evidence highlight they

@@ -15,12 +15,7 @@
  */
 import type { Article } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import {
-  CAPABILITIES,
-  MEMBERSHIP_ROLES,
-  membershipHasCapability,
-  roleHasCapability,
-} from "@/lib/rbac";
+import { isEducator } from "@/lib/classroom/educator";
 import {
   articleAccessContextForUser,
   getReadableArticleById,
@@ -32,24 +27,9 @@ import { readCachedVocabulary, type VocabularyEntry } from "@/lib/vocabulary/ser
 import { articleCitationSource, formatCitation, type Citation } from "@/lib/citations";
 import type { PrintMode } from "./print-modes";
 
-/** Membership roles that make someone a teacher for answer-key purposes. */
-const TEACHING_MEMBERSHIP_ROLES = MEMBERSHIP_ROLES.filter((role) =>
-  membershipHasCapability(role, CAPABILITIES.classroomManage),
-);
-
 /** True for teachers, content staff, and platform super-users. */
-export async function canPrintAnswerKey(user: { id: string; role?: string | null }): Promise<boolean> {
-  if (
-    roleHasCapability(user.role, CAPABILITIES.articlesManage) ||
-    roleHasCapability(user.role, CAPABILITIES.platformSuperuser)
-  ) {
-    return true;
-  }
-  const membership = await prisma.membership.findFirst({
-    where: { userId: user.id, role: { in: [...TEACHING_MEMBERSHIP_ROLES] } },
-    select: { id: true },
-  });
-  return membership !== null;
+export function canPrintAnswerKey(user: { id: string; role?: string | null }): Promise<boolean> {
+  return isEducator(user);
 }
 
 export type PrintableArticle =
@@ -82,7 +62,7 @@ export async function loadPrintableArticle(
     return { restricted: true, article: { id: article.id, title: article.title } };
   }
 
-  const includeStudyMaterials = mode !== "article";
+  const includeStudyMaterials = mode === "worksheet" || mode === "answer-key";
   const [quiz, vocabulary] = includeStudyMaterials
     ? await Promise.all([readCachedQuiz(article.id), readCachedVocabulary(article.id)])
     : [null, null];

@@ -48,6 +48,9 @@ import WordLookup from "@/components/reader/wordLookup/WordLookup";
 import { ReaderLevelProvider } from "@/components/reader/ReaderLevelContext";
 import { ORIGINAL_LEVEL, type ReadingLevelKey } from "@/lib/article-levels/levels";
 import ReaderLevelSwitcher from "./ReaderLevelSwitcher";
+import { EducatorBar, StudentPreviewBanner } from "@/components/reader/EducatorTools";
+import { ReaderActivitiesProvider, ReaderCheckpoints, ReaderPollCards } from "@/components/reader/ReaderActivities";
+import { readerLevelHref } from "@/lib/article-levels/levels";
 import ArticleHeader from "./ArticleHeader";
 import AssignmentBanner from "./AssignmentBanner";
 import KeepReadingSection from "./KeepReadingSection";
@@ -61,6 +64,8 @@ type Props = {
 type ReaderProvidersProps = {
   articleId: string;
   levelKey: ReadingLevelKey;
+  /** Educator "View as student" preview (#1304). */
+  previewing: boolean;
   children: ReactNode;
 };
 
@@ -69,13 +74,15 @@ type ReaderArticleColumnProps = {
   setTodayEnabled: boolean;
 };
 
-function ReaderProviders({ articleId, levelKey, children }: ReaderProvidersProps) {
+function ReaderProviders({ articleId, levelKey, previewing, children }: ReaderProvidersProps) {
   return (
     <ReaderLevelProvider level={levelKey}>
       <ReaderAudioProvider>
         <ReaderHighlightsProvider articleId={articleId} levelKey={levelKey}>
           <ReaderClassAnnotationsProvider articleId={articleId} levelKey={levelKey}>
-            <ReaderToolsProvider>{children}</ReaderToolsProvider>
+            <ReaderActivitiesProvider articleId={articleId} preview={previewing}>
+              <ReaderToolsProvider>{children}</ReaderToolsProvider>
+            </ReaderActivitiesProvider>
           </ReaderClassAnnotationsProvider>
 
           {/* Fixed bottom audio mini-player (appears after first narration load) */}
@@ -104,8 +111,12 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
     studentAssignments,
     level,
     displayTitle,
+    educator,
+    articlePlainText,
   } = data;
   const isOriginal = level.key === ORIGINAL_LEVEL;
+  const readerHref = readerLevelHref(article.id, level.key);
+  const previewHref = `${readerHref}${readerHref.includes("?") ? "&" : "?"}view=student`;
 
   return (
     <div className="reader-column">
@@ -119,6 +130,18 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
 
       {/* Slim sticky toolbar: Back · Listen · Aa (display settings) · Tools */}
       <ReaderControls articleId={article.id} narrationAvailable={isOriginal} />
+
+      {/* Educator tools / student preview (#1304) */}
+      {educator.previewing ? <StudentPreviewBanner exitHref={readerHref} /> : null}
+      {educator.isEducator && !educator.previewing ? (
+        <EducatorBar
+          articleId={article.id}
+          articleTitle={displayTitle}
+          plainText={articlePlainText}
+          classrooms={educator.classrooms}
+          previewHref={previewHref}
+        />
+      ) : null}
 
       <article id="reader-article" tabIndex={-1} aria-labelledby="article-title">
         <ArticleHeader
@@ -142,6 +165,9 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
         {/* Classroom guided prompts (#1307) — learners and teaching staff only */}
         <ClassPromptsNotice />
 
+        {/* Pre-reading poll from the learner's assignment (#1304) */}
+        <ReaderPollCards />
+
         {/* Hero image — graceful 16:9 frame that collapses on error */}
         <ArticleHero src={article.heroImage} alt={article.title} />
 
@@ -161,6 +187,9 @@ function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps
           <WordLookup html={cleanBody} articleId={article.id} languages={SUPPORTED_LANGUAGES} />
         )}
       </article>
+
+      {/* Checks for Understanding from the learner's assignment (#1304) */}
+      <ReaderCheckpoints />
 
       {/* #376 — Observe the prose to track current reading block.
           #378 — Track active reading time for WPM analytics.
@@ -198,7 +227,12 @@ export default function ReaderShell({ data, setTodayEnabled = false }: Props) {
       {/* Provider tree scoped inside #reader-root — see module docblock. */}
       {/* Keyed by level so level-scoped client state (highlights, prompts,
           quiz) resets when the reader switches levels (#1303). */}
-      <ReaderProviders key={data.level.key} articleId={article.id} levelKey={data.level.key}>
+      <ReaderProviders
+        key={`${data.level.key}:${data.educator.previewing}`}
+        articleId={article.id}
+        levelKey={data.level.key}
+        previewing={data.educator.previewing}
+      >
         <ReaderLayout>
           {/* ---- Reading column ---- */}
           <ReaderArticleColumn data={data} setTodayEnabled={setTodayEnabled} />
