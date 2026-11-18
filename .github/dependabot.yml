@@ -19,6 +19,16 @@ updates:
       minor-updates:
         update-types:
           - "minor"
+    # Major versions blocked by the ecosystem; revisit when the blockers ship.
+    ignore:
+      # better-sqlite3 13 needs a from-source build (no Python in the image) and
+      # @prisma/adapter-better-sqlite3 still pins ^12, so the bump adds nothing.
+      - dependency-name: "better-sqlite3"
+        update-types: ["version-update:semver-major"]
+      # ESLint 10 is unsupported by eslint-plugin-react, eslint-plugin-import,
+      # and eslint-plugin-jsx-a11y (pulled in by eslint-config-next).
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
     # Cap open PRs to avoid queue flooding; security PRs are exempt from this limit.
     open-pull-requests-limit: 10
     labels:

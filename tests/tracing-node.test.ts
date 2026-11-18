@@ -81,7 +81,7 @@ before(() => {
       },
     },
   });
-  mock.module("@opentelemetry/sdk-trace-base", {
+  mock.module("@opentelemetry/sdk-trace", {
     namedExports: {
       ConsoleSpanExporter: class MockConsole {},
     },
