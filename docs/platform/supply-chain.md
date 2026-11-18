@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-10-13"
+last_updated: "2026-11-18"
 description: "Documents dependency hygiene, vulnerability response, CI gates, and package-management boundaries. Captures current dependency review, lockfile expectations, advisory response, and upgrade verification workflow."
 ---
 
@@ -217,4 +217,5 @@ affected package, the reason for deferral, and a target remediation date.
 | Advisory | Package | Severity | Reason for deferral | Target |
 | --- | --- | --- | --- | --- |
 | [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) | `braces@3.0.3` | High | No patched release exists (3.0.3 is latest and affected). Dev-only, reached through `eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob` → `micromatch` at lint time on trusted repository globs; not in the production graph. The CI wrapper proves exact version and dev-only scope. | Remove when `braces` ships a fix or `@next/eslint-plugin-next` drops `fast-glob`; review by 2026-11-13. |
+| [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) | `picomatch@2.3.2`, `picomatch@4.0.4` | High | No patched release exists (the advisory covers every version through the latest 4.0.7). Dev-only: lint tooling reaches it through `eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob` → `micromatch` and `eslint-import-resolver-typescript` → `tinyglobby`, on trusted repository globs; not in the production graph. The CI wrapper proves exact versions and dev-only scope. | Remove when `picomatch` ships a fix; review by 2026-12-18. |
 | [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) | `brace-expansion@1.1.18` | High | Inert since 2026-10-13: the lockfile now carries 1.1.21, which npm no longer flags. Kept pinned to 1.1.18 so it cannot widen. | Delete the table entry and rule at the next audit-script change. |

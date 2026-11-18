@@ -71,6 +71,21 @@ const ADVISORY_EXCEPTIONS: readonly AdvisoryException[] = [
     packageName: "braces",
     version: "3.0.3",
   },
+  {
+    // picomatch has no patched release (advisory range covers <=4.0.7, the
+    // latest). Reached only by lint tooling: eslint-config-next ->
+    // @next/eslint-plugin-next -> fast-glob -> micromatch (2.3.2) and
+    // eslint-import-resolver-typescript -> tinyglobby (4.0.4), on trusted
+    // repository glob patterns.
+    advisory: "https://github.com/advisories/GHSA-fc5q-39xc-vjpf",
+    packageName: "picomatch",
+    version: "2.3.2",
+  },
+  {
+    advisory: "https://github.com/advisories/GHSA-fc5q-39xc-vjpf",
+    packageName: "picomatch",
+    version: "4.0.4",
+  },
 ];
 
 const ALLOWLISTED_ADVISORIES = new Set(
@@ -178,10 +193,16 @@ function hasExactDevOnlyPackage(
 ): boolean {
   const vulnerability = report.vulnerabilities[exception.packageName];
   if (!vulnerability || vulnerability.nodes.length === 0) return false;
+  // A package may be locked at several versions; each needs its own entry.
+  const allowedVersions = new Set(
+    ADVISORY_EXCEPTIONS.filter(
+      (entry) => entry.advisory === exception.advisory && entry.packageName === exception.packageName,
+    ).map((entry) => entry.version),
+  );
 
   return vulnerability.nodes.every((nodePath) => {
     const lockedPackage = lockfile.packages[nodePath];
-    return lockedPackage?.version === exception.version && lockedPackage.dev === true;
+    return lockedPackage !== undefined && allowedVersions.has(lockedPackage.version) && lockedPackage.dev === true;
   });
 }
 

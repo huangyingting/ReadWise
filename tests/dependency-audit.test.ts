@@ -328,3 +328,28 @@ test("package and CI contracts run the fail-closed dependency audit", () => {
   assert.match(workflow, /npm run audit:dependencies/);
   assert.doesNotMatch(workflow, /npm audit --audit-level=high/);
 });
+
+test("an advisory locked at several pinned versions passes only when every version is excepted", () => {
+  const url = "https://github.com/advisories/GHSA-fc5q-39xc-vjpf";
+  const report: AuditReport = {
+    auditReportVersion: 2,
+    vulnerabilities: {
+      picomatch: {
+        name: "picomatch",
+        severity: "high",
+        via: [{ source: 1, name: "picomatch", url, severity: "high" }],
+        nodes: ["node_modules/picomatch", "node_modules/tinyglobby/node_modules/picomatch"],
+      },
+    },
+    metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 1, critical: 0, total: 1 } },
+  };
+  const lockfile = (secondVersion: string): PackageLock => ({
+    lockfileVersion: 3,
+    packages: {
+      "node_modules/picomatch": { version: "2.3.2", dev: true },
+      "node_modules/tinyglobby/node_modules/picomatch": { version: secondVersion, dev: true },
+    },
+  });
+  assert.equal(evaluateDependencyAudits(report, cleanReport(), lockfile("4.0.4")).ok, true);
+  assert.equal(evaluateDependencyAudits(report, cleanReport(), lockfile("4.0.5")).ok, false, "unpinned versions fail");
+});
