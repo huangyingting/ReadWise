@@ -100,6 +100,48 @@ function requestIdFor(req: Request): string {
 }
 
 /**
+ * Largest JSON body any route accepts (2 MiB). The biggest legitimate payload
+ * is a 200k-character pasted-text import; the cap stops anonymous callers from
+ * making the server buffer unbounded bodies (no proxy in front enforces one).
+ */
+export const MAX_JSON_BODY_BYTES = 2 * 1024 * 1024;
+
+type JsonBodyResult = { ok: true; value: unknown } | { ok: false; status: 400 | 413 };
+
+/**
+ * Parse a JSON request body without buffering more than
+ * {@link MAX_JSON_BODY_BYTES}. A declared Content-Length is rejected up front;
+ * the stream is also counted so chunked bodies cannot bypass the cap.
+ */
+async function readJsonBody(req: Request): Promise<JsonBodyResult> {
+  const declared = Number(req.headers.get("content-length"));
+  if (declared > MAX_JSON_BODY_BYTES) return { ok: false, status: 413 };
+  if (!req.body) return { ok: false, status: 400 };
+
+  const reader = req.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_JSON_BODY_BYTES) {
+      await reader.cancel();
+      return { ok: false, status: 413 };
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  text += decoder.decode();
+
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return { ok: false, status: 400 };
+  }
+}
+
+/**
  * Emit a security event for a denied/limited response status (RW-029). Covers
  * the 401/403/429 surfaces produced by the wrapper so repeated auth failures
  * and rate-limit hits are consistently monitored + alertable.
@@ -280,13 +322,13 @@ function build<B, P, Q, S extends Session | null>(
             // 4) Parse + validate JSON body.
             let body = undefined as B;
             if (config.body) {
-              let raw: unknown;
-              try {
-                raw = await req.json();
-              } catch {
-                return complete(jsonError(400, "Invalid JSON body", requestId));
+              const parsed = await readJsonBody(req);
+              if (!parsed.ok) {
+                const message =
+                  parsed.status === 413 ? "Request body too large" : "Invalid JSON body";
+                return complete(jsonError(parsed.status, message, requestId));
               }
-              const res = config.body(raw);
+              const res = config.body(parsed.value);
               if (!res.ok) return complete(jsonError(400, res.error, requestId));
               body = res.value;
             }

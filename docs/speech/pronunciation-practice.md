@@ -112,6 +112,9 @@ the pronunciation attempt still succeeds.
 ## Privacy and safety
 
 - Raw microphone audio is not stored by ReadWise.
+- The `Permissions-Policy` header (`src/lib/security/headers.ts`) grants
+  `microphone=(self)`: only first-party pages can open the microphone; embedded
+  third-party frames cannot.
 - Azure Speech credentials stay server-side; the client receives only a short
   token.
 - Persisted attempts contain user id, optional article id, reference text, four

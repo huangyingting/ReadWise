@@ -182,7 +182,72 @@ test("malformed JSON body returns 400", async () => {
   assert.equal(res.status, 400);
 });
 
-// ---- x-request-id header ------------------------------------------------
+test("missing JSON body returns 400", async () => {
+  const { createPublicHandler } = await loadApiHandler();
+  const handler = createPublicHandler(
+    { body: object({ x: nonEmptyString() }) },
+    async () => NextResponse.json({ ok: true }),
+  ) as RouteHandler;
+  const res = await handler(new Request("http://test/api/test", { method: "POST" }));
+  assert.equal(res.status, 400);
+});
+
+function streamedRequest(chunks: Uint8Array[], headers: Record<string, string> = {}): Request {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(chunk);
+      controller.close();
+    },
+  });
+  return new Request("http://test/api/test", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body,
+    duplex: "half",
+  } as RequestInit);
+}
+
+test("declared Content-Length over the cap returns 413 without reading the body", async () => {
+  const { createPublicHandler, MAX_JSON_BODY_BYTES } = await loadApiHandler();
+  let called = false;
+  const handler = createPublicHandler({ body: object({ x: nonEmptyString() }) }, async () => {
+    called = true;
+    return NextResponse.json({ ok: true });
+  }) as RouteHandler;
+  const res = await handler(
+    streamedRequest([new TextEncoder().encode('{"x":"a"}')], {
+      "content-length": String(MAX_JSON_BODY_BYTES + 1),
+    }),
+  );
+  assert.equal(res.status, 413);
+  assert.equal((await res.json()).error, "Request body too large");
+  assert.equal(called, false);
+});
+
+test("streamed body over the cap returns 413 even without Content-Length", async () => {
+  const { createPublicHandler, MAX_JSON_BODY_BYTES } = await loadApiHandler();
+  const handler = createPublicHandler(
+    { body: object({ x: nonEmptyString() }) },
+    async () => NextResponse.json({ ok: true }),
+  ) as RouteHandler;
+  const chunk = new Uint8Array(64 * 1024).fill(0x20);
+  const chunks = Array.from({ length: MAX_JSON_BODY_BYTES / chunk.byteLength + 1 }, () => chunk);
+  const res = await handler(streamedRequest(chunks));
+  assert.equal(res.status, 413);
+});
+
+test("streamed body decodes multi-byte characters split across chunks", async () => {
+  const { createPublicHandler } = await loadApiHandler();
+  const handler = createPublicHandler(
+    { body: object({ x: nonEmptyString() }) },
+    async ({ body }) => NextResponse.json({ x: body.x }),
+  ) as RouteHandler;
+  const bytes = new TextEncoder().encode('{"x":"café 読む"}');
+  const split = bytes.indexOf(0xc3) + 1; // inside the two-byte "é"
+  const res = await handler(streamedRequest([bytes.slice(0, split), bytes.slice(split)]));
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).x, "café 読む");
+});
 test("successful response carries x-request-id header", async () => {
   const handler = await createOkPublicHandler();
   const res = await handler(new Request("http://test/api/test"));

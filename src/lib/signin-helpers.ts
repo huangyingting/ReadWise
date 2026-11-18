@@ -26,8 +26,20 @@ export function friendlySignInError(code: string | undefined): string | null {
   return SIGNIN_ERROR_MESSAGES[code] ?? GENERIC_SIGNIN_ERROR_MESSAGE;
 }
 
+/**
+ * True only for same-origin absolute paths ("/reader/1"). Protocol-relative
+ * ("//evil.com"), backslash ("/\evil.com" — browsers treat "\" as "/"),
+ * and control-character tricks resolve to another origin and are rejected.
+ */
 function hasRelativePathPrefix(url: string | undefined): url is string {
-  return Boolean(url && url.startsWith("/"));
+  if (!url || !url.startsWith("/")) return false;
+  if (url.startsWith("//") || url.startsWith("/\\")) return false;
+  if (/[\u0000-\u001f\u007f]/.test(url)) return false;
+  try {
+    return new URL(url, "https://readwise.invalid").origin === "https://readwise.invalid";
+  } catch {
+    return false;
+  }
 }
 
 /**

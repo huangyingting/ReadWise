@@ -53,6 +53,11 @@ test("sanitizeCallbackUrl allows relative paths", () => {
 test("sanitizeCallbackUrl falls back to /dashboard for absolute URLs", () => {
   assert.equal(sanitizeCallbackUrl("https://evil.com"), "/dashboard");
   assert.equal(sanitizeCallbackUrl("http://localhost:3000/dashboard"), "/dashboard");
+  // Protocol-relative and backslash forms resolve to another origin.
+  for (const url of ["//evil.com", "//evil.com/dashboard", "/\\evil.com", "/\\/evil.com", "/\tevil.com", "/\n//evil.com"]) {
+    assert.equal(sanitizeCallbackUrl(url), "/dashboard", JSON.stringify(url));
+  }
+  assert.equal(sanitizeCallbackUrl("/notes?q=%2F%2Fevil.com"), "/notes?q=%2F%2Fevil.com", "encoded text in a query stays a path");
 });
 
 test("sanitizeCallbackUrl falls back to /dashboard for empty or missing values", () => {

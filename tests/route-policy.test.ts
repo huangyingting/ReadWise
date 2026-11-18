@@ -151,6 +151,16 @@ test("buildSecurityHeaders includes required baseline headers", () => {
   }
 });
 
+test("Permissions-Policy allows first-party microphone and denies camera and geolocation", () => {
+  const policy = buildSecurityHeaders().find((h) => h.key === "Permissions-Policy");
+  assert.ok(policy, "Permissions-Policy header must be present");
+  const directives = policy.value.split(",").map((d) => d.trim());
+  // Pronunciation practice needs getUserMedia on our own origin only.
+  assert.ok(directives.includes("microphone=(self)"));
+  assert.ok(directives.includes("camera=()"));
+  assert.ok(directives.includes("geolocation=()"));
+});
+
 // ---------------------------------------------------------------------------
 // Image remote patterns and server external packages
 // ---------------------------------------------------------------------------

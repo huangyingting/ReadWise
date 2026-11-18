@@ -52,7 +52,9 @@ const BASE_HEADERS: readonly SecurityHeader[] = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    // microphone=(self): pronunciation practice records via getUserMedia on our
+    // own origin; "()" would deny it everywhere, including first-party pages.
+    value: "camera=(), microphone=(self), geolocation=(), interest-cohort=()",
   },
   {
     key: "Content-Security-Policy",

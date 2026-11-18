@@ -181,6 +181,17 @@ CSRF_ENFORCE=false              # disable (only if a separate CSRF layer fronts 
 # NEXTAUTH_URL / APP_URL / NEXT_PUBLIC_APP_URL origins are always trusted.
 ```
 
+### Request body size cap
+
+The same wrapper parses JSON bodies with a 2 MiB cap (`MAX_JSON_BODY_BYTES`
+in `src/lib/api-handler.ts`). The production Caddy route sets no body limit,
+so without the cap an anonymous caller could make the server buffer any amount
+of data on a public endpoint. An oversized `Content-Length` is rejected before
+the body is read. Bodies without a length, such as chunked uploads, are counted
+while streaming. Either way the response is **413** `Request body too large`.
+The largest legitimate payload is a 200k-character pasted-text import, which
+fits well under the cap.
+
 ### Session cookie settings
 
 `authOptions` (`src/lib/auth/config.ts`) sets the session cookie explicitly so the
