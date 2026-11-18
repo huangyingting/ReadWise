@@ -16,6 +16,8 @@
 import { prisma } from "@/lib/prisma";
 import { recordAuditFromRequest, AUDIT_ACTIONS, type AuditAction, type AuditRequestInput } from "@/lib/security/audit";
 import { assignmentAccess, learnerAssignmentsWhere, teachingAssignments } from "./annotations";
+import { ORIGINAL_LEVEL } from "@/lib/article-levels/levels";
+import { articleHasLevel } from "@/lib/article-levels/variants";
 
 type Viewer = { id: string; role?: string | null };
 
@@ -40,6 +42,8 @@ export type CheckView = {
   id: string;
   assignmentId: string;
   afterBlock: number;
+  /** Reading level whose blocks `afterBlock` counts (#1303). */
+  levelKey: string;
   question: string;
   options: string[];
   /** The viewer's answer with the key, once answered. */
@@ -82,6 +86,7 @@ const CHECK_SELECT = {
   id: true,
   assignmentId: true,
   afterBlock: true,
+  levelKey: true,
   question: true,
   options: true,
   correctIndex: true,
@@ -91,7 +96,8 @@ const CHECK_SELECT = {
 /**
  * Polls and checks for the reader. Students see their live assignments'
  * activities with their own responses; an educator previewing the student view
- * sees the first of their teaching assignments of the article that has any.
+ * sees their first teaching assignment of the article — the same one whose
+ * reading-level lock the preview applies.
  */
 export async function getReaderActivities(
   viewer: Viewer,
@@ -99,42 +105,40 @@ export async function getReaderActivities(
   options: { preview?: boolean } = {},
 ): Promise<ReaderActivities> {
   if (options.preview) {
-    const teaching = await teachingAssignments(viewer, articleId);
-    for (const assignment of teaching) {
-      const [poll, checks] = await Promise.all([
-        prisma.assignmentPoll.findUnique({ where: { assignmentId: assignment.assignmentId }, select: POLL_SELECT }),
-        prisma.assignmentCheck.findMany({
-          where: { assignmentId: assignment.assignmentId },
-          select: CHECK_SELECT,
-          orderBy: [{ afterBlock: "asc" }, { createdAt: "asc" }],
-        }),
-      ]);
-      if (!poll && checks.length === 0) continue;
-      const polls: PollView[] = [];
-      if (poll) {
-        const pollOptions = parseOptions(poll.options);
-        polls.push({
-          ...poll,
-          options: pollOptions,
-          classroomName: assignment.classroomName,
-          myVote: null,
-          distribution: await distributionFor(poll.id, pollOptions.length),
-        });
-      }
-      return {
-        mode: "preview",
-        polls,
-        checks: checks.map((check) => ({
-          id: check.id,
-          assignmentId: check.assignmentId,
-          afterBlock: check.afterBlock,
-          question: check.question,
-          options: parseOptions(check.options),
-          result: null,
-        })),
-      };
+    const [assignment] = await teachingAssignments(viewer, articleId);
+    if (!assignment) return { mode: "preview", polls: [], checks: [] };
+    const [poll, checks] = await Promise.all([
+      prisma.assignmentPoll.findUnique({ where: { assignmentId: assignment.assignmentId }, select: POLL_SELECT }),
+      prisma.assignmentCheck.findMany({
+        where: { assignmentId: assignment.assignmentId },
+        select: CHECK_SELECT,
+        orderBy: [{ afterBlock: "asc" }, { createdAt: "asc" }],
+      }),
+    ]);
+    const polls: PollView[] = [];
+    if (poll) {
+      const pollOptions = parseOptions(poll.options);
+      polls.push({
+        ...poll,
+        options: pollOptions,
+        classroomName: assignment.classroomName,
+        myVote: null,
+        distribution: await distributionFor(poll.id, pollOptions.length),
+      });
     }
-    return { mode: "preview", polls: [], checks: [] };
+    return {
+      mode: "preview",
+      polls,
+      checks: checks.map((check) => ({
+        id: check.id,
+        assignmentId: check.assignmentId,
+        afterBlock: check.afterBlock,
+        levelKey: check.levelKey,
+        question: check.question,
+        options: parseOptions(check.options),
+        result: null,
+      })),
+    };
   }
 
   const learning = await prisma.assignment.findMany({
@@ -178,6 +182,7 @@ export async function getReaderActivities(
       id: check.id,
       assignmentId: check.assignmentId,
       afterBlock: check.afterBlock,
+      levelKey: check.levelKey,
       question: check.question,
       options: parseOptions(check.options),
       result: answers[0] ? { ...answers[0], correctIndex, explanation } : null,
@@ -244,6 +249,7 @@ export type AssignmentActivitiesView = {
   checks: Array<{
     id: string;
     afterBlock: number;
+    levelKey: string;
     question: string;
     options: string[];
     correctIndex: number;
@@ -363,7 +369,15 @@ export async function deleteAssignmentPoll(
 export async function addAssignmentCheck(
   viewer: Viewer,
   assignmentId: string,
-  input: { afterBlock: number; question: string; options: string[]; correctIndex: number; explanation?: string | null },
+  input: {
+    afterBlock: number;
+    question: string;
+    options: string[];
+    correctIndex: number;
+    explanation?: string | null;
+    /** Reading level the teacher placed the check in (#1303); defaults to the original. */
+    levelKey?: string | null;
+  },
   auditFactory: AuditFactory,
 ): Promise<{ ok: true; checkId: string } | ActivityFailure> {
   const access = await managed(viewer, assignmentId, true);
@@ -380,6 +394,10 @@ export async function addAssignmentCheck(
   ) {
     return { ok: false, status: 400, reason: "invalid_activity" };
   }
+  const levelKey = input.levelKey ?? ORIGINAL_LEVEL;
+  if (!(await articleHasLevel(access.assignment.articleId, levelKey))) {
+    return { ok: false, status: 400, reason: "invalid_activity" };
+  }
   const checkId = await prisma.$transaction(async (tx) => {
     const check = await tx.assignmentCheck.create({
       data: {
@@ -389,6 +407,7 @@ export async function addAssignmentCheck(
         options,
         correctIndex: input.correctIndex,
         explanation: input.explanation?.trim() || null,
+        levelKey,
         createdById: viewer.id,
       },
       select: { id: true },

@@ -26,6 +26,8 @@ import { readCachedQuiz, type QuizQuestion } from "@/lib/quiz";
 import { readCachedVocabulary, type VocabularyEntry } from "@/lib/vocabulary/service";
 import { articleCitationSource, formatCitation, type Citation } from "@/lib/citations";
 import type { PrintMode } from "./print-modes";
+import { ORIGINAL_LEVEL, type ReadingLevelKey } from "@/lib/article-levels/levels";
+import { getArticleLevelVariant } from "@/lib/article-levels/variants";
 
 /** True for teachers, content staff, and platform super-users. */
 export function canPrintAnswerKey(user: { id: string; role?: string | null }): Promise<boolean> {
@@ -54,7 +56,7 @@ export async function loadPrintableArticle(
   articleId: string,
   user: ArticleAccessUser & { id: string },
   mode: PrintMode,
-  options: { accessedAt?: Date } = {},
+  options: { accessedAt?: Date; level?: ReadingLevelKey } = {},
 ): Promise<PrintableArticle | null> {
   const article = await getReadableArticleById(articleId, await articleAccessContextForUser(user));
   if (!article) return null;
@@ -62,15 +64,19 @@ export async function loadPrintableArticle(
     return { restricted: true, article: { id: article.id, title: article.title } };
   }
 
+  // An adapted reading level (#1303) prints its own title, text, and quiz;
+  // unknown levels fall back to the original. The citation stays canonical.
+  const variant = options.level ? await getArticleLevelVariant(article.id, options.level) : null;
+  const levelKey = variant?.levelKey ?? ORIGINAL_LEVEL;
   const includeStudyMaterials = mode === "worksheet" || mode === "answer-key";
   const [quiz, vocabulary] = includeStudyMaterials
-    ? await Promise.all([readCachedQuiz(article.id), readCachedVocabulary(article.id)])
+    ? await Promise.all([readCachedQuiz(article.id, levelKey), readCachedVocabulary(article.id)])
     : [null, null];
 
   return {
     restricted: false,
-    article: { id: article.id, title: article.title, author: article.author, source: article.source },
-    bodyHtml: sanitizeArticleHtml(article.content),
+    article: { id: article.id, title: variant?.title ?? article.title, author: article.author, source: article.source },
+    bodyHtml: sanitizeArticleHtml(variant?.content ?? article.content),
     rightsNote: article.rightsNote?.trim() || null,
     citation: formatCitation(articleCitationSource(article), "mla", options),
     quiz: quiz ?? [],

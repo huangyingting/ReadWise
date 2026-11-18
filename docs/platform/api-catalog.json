@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-17T15:43:19.487Z",
+  "generatedAt": "2026-11-17T23:56:00.352Z",
   "routeCount": 181,
   "methodCount": 225,
   "routes": [
@@ -3946,7 +3946,7 @@
           "capability": null,
           "hasBodySchema": false,
           "hasParamsSchema": true,
-          "hasQuerySchema": true,
+          "hasQuerySchema": false,
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,

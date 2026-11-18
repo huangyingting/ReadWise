@@ -119,6 +119,11 @@ test("the classroom skills matrix uses each student's latest attempt", { skip: !
   assert.deepEqual(matrix.classTotals.vocabulary_in_context, { correct: 1, total: 2 });
   const a = matrix.students?.find((student) => student.studentId === studentA);
   assert.deepEqual(a?.cells.vocabulary_in_context, { correct: 1, total: 1 }, "the retake replaces the first attempt");
+  // Attempts from before the article was assigned here don't count.
+  await prisma.quizAttempt.updateMany({ where: { userId: studentB }, data: { completedAt: new Date(Date.now() - 86_400_000) } });
+  const scoped = await getClassroomSkillMatrix(classroomId, { individual: true });
+  assert.equal(scoped.attemptCount, 1, "pre-assignment attempts are excluded");
+  assert.deepEqual(scoped.students?.find((student) => student.studentId === studentB)?.cells, {});
 });
 
 test("browse facets filter on maturity band and quiz skills in PostgreSQL", { skip: !enabled }, async () => {

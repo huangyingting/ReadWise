@@ -1,7 +1,8 @@
 /**
  * Request schemas and error mapping for assignment reading activities (#1304).
  */
-import { array, nullable, number, object, optional, string } from "@/lib/validation";
+import { array, nullable, number, object, oneOf, optional, string } from "@/lib/validation";
+import { READING_LEVEL_KEYS } from "@/lib/article-levels/levels";
 import { ApiError } from "@/lib/errors/api-error";
 import { CHECK_OPTIONS_MAX, POLL_OPTIONS_MAX, type ActivityFailure } from "./activities";
 
@@ -20,6 +21,7 @@ export const checkBody = object({
   options: array(string({ max: OPTION_MAX }), { max: CHECK_OPTIONS_MAX }),
   correctIndex: number({ int: true, min: 0, max: CHECK_OPTIONS_MAX - 1 }),
   explanation: optional(nullable(string({ max: EXPLANATION_MAX }))),
+  levelKey: optional(nullable(oneOf(READING_LEVEL_KEYS))),
 });
 
 export const voteBody = object({ optionIndex: number({ int: true, min: 0, max: 20 }) });

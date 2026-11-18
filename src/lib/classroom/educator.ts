@@ -3,8 +3,10 @@
  * membership granting `classroom.manage` in any organization), content staff
  * (`articles.manage`), and platform super-users.
  */
+import type { MembershipRole, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { CAPABILITIES, MEMBERSHIP_ROLES, membershipHasCapability, roleHasCapability } from "@/lib/rbac";
+import { hasOrgCapability, isSystemAdmin } from "@/lib/org/guards";
 import { canManageClassroom } from "./guards";
 
 const TEACHING_MEMBERSHIP_ROLES = MEMBERSHIP_ROLES.filter((role) =>
@@ -28,14 +30,38 @@ export async function isEducator(user: { id: string; role?: string | null }): Pr
 
 const MAX_MANAGED_CLASSROOMS = 50;
 
-/** Active classrooms the viewer manages (for the reader's quick assign), by name. */
-export async function listManagedClassrooms(viewer: { id: string; role?: string | null }): Promise<Array<{ id: string; name: string }>> {
+type MembershipRow = { orgId: string; role: MembershipRole };
+
+/**
+ * The viewer's memberships plus a classroom filter matching exactly the
+ * classrooms they manage (their own in orgs where they teach, every classroom
+ * in orgs they administer), so limits apply after authorization. Callers
+ * still re-check with `canManageClassroom`.
+ */
+export async function managedClassroomScope(viewer: { id: string; role?: string | null }): Promise<{
+  memberships: MembershipRow[];
+  where: Prisma.ClassroomWhereInput;
+}> {
   const memberships = await prisma.membership.findMany({ where: { userId: viewer.id }, select: { orgId: true, role: true } });
-  const classrooms = await prisma.classroom.findMany({
+  const teachingOrgs = memberships.filter((m) => hasOrgCapability(m, CAPABILITIES.classroomManage)).map((m) => m.orgId);
+  const adminOrgs = memberships.filter((m) => hasOrgCapability(m, CAPABILITIES.orgManage)).map((m) => m.orgId);
+  return {
+    memberships,
     where: {
       archivedAt: null,
-      OR: [{ teacherId: viewer.id }, { orgId: { in: memberships.map((membership) => membership.orgId) } }],
+      OR: [
+        isSystemAdmin(viewer.role) ? { teacherId: viewer.id } : { teacherId: viewer.id, orgId: { in: teachingOrgs } },
+        { orgId: { in: adminOrgs } },
+      ],
     },
+  };
+}
+
+/** Active classrooms the viewer manages (for the reader's quick assign), by name. */
+export async function listManagedClassrooms(viewer: { id: string; role?: string | null }): Promise<Array<{ id: string; name: string }>> {
+  const { memberships, where } = await managedClassroomScope(viewer);
+  const classrooms = await prisma.classroom.findMany({
+    where,
     select: { id: true, name: true, orgId: true, teacherId: true },
     orderBy: { name: "asc" },
     take: MAX_MANAGED_CLASSROOMS,

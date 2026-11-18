@@ -20,6 +20,7 @@ import { CheckCircle2, ListChecks, Vote, X, XCircle } from "lucide-react";
 import { clientErrorMessage, getJson, postJson } from "@/lib/client-fetch";
 import { Badge, Button, Card, CardBody, IconButton, PanelError } from "@/components/ui";
 import { getObservedBlocks } from "./useCurrentReadingBlock";
+import { useReaderLevel } from "./ReaderLevelContext";
 
 type Poll = {
   id: string;
@@ -37,6 +38,7 @@ type Check = {
   id: string;
   assignmentId: string;
   afterBlock: number;
+  levelKey: string;
   question: string;
   options: string[];
   result: CheckResult | null;
@@ -162,12 +164,12 @@ function PollCard({ poll, preview }: { poll: Poll; preview: boolean }) {
       <CardBody className="flex flex-col gap-[var(--space-3)]">
         <div className="flex flex-wrap items-center gap-[var(--space-2)]">
           <Vote size={16} aria-hidden="true" className="text-primary-text" />
-          <span className="text-[length:var(--type-label)] font-semibold uppercase tracking-wide text-text-muted">
+          <span className="text-[length:var(--type-label)] font-semibold uppercase tracking-[var(--tracking-label)] text-text-muted">
             Before you read
           </span>
           <PreviewNote show={preview} />
         </div>
-        <p id={`poll-${poll.id}`} className="m-0 text-[length:var(--text-base)] font-semibold text-text">
+        <p id={`poll-${poll.id}`} className="m-0 text-[length:var(--type-body)] font-semibold text-text">
           {poll.question}
         </p>
         {showResults ? (
@@ -177,7 +179,7 @@ function PollCard({ poll, preview }: { poll: Poll; preview: boolean }) {
               const percent = total === 0 ? 0 : Math.round((count / total) * 100);
               return (
                 <li key={option} className="flex flex-col gap-[var(--space-1)]">
-                  <span className="flex justify-between gap-[var(--space-2)] text-[length:var(--text-sm)] text-text">
+                  <span className="flex justify-between gap-[var(--space-2)] text-[length:var(--type-ui)] text-text">
                     <span>
                       {option}
                       {poll.myVote === index ? <span className="text-text-muted"> (your vote)</span> : null}
@@ -209,7 +211,7 @@ function PollCard({ poll, preview }: { poll: Poll; preview: boolean }) {
           </div>
         )}
         {showResults ? (
-          <p className="m-0 text-[length:var(--text-sm)] text-text-muted">
+          <p className="m-0 text-[length:var(--type-ui)] text-text-muted">
             {total === 1 ? "1 vote" : `${total} votes`} from your class. There are no right answers.
           </p>
         ) : null}
@@ -252,7 +254,7 @@ function CheckBody({ check, preview, headingId }: { check: Check; preview: boole
 
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
-      <p id={headingId} className="m-0 text-[length:var(--text-base)] font-semibold text-text">
+      <p id={headingId} className="m-0 text-[length:var(--type-body)] font-semibold text-text">
         {check.question}
       </p>
       <div role="group" aria-labelledby={headingId} className="flex flex-col gap-[var(--space-2)]">
@@ -278,7 +280,7 @@ function CheckBody({ check, preview, headingId }: { check: Check; preview: boole
         })}
       </div>
       {result && !preview ? (
-        <p role="status" className="m-0 flex items-start gap-[var(--space-2)] text-[length:var(--text-sm)] text-text">
+        <p role="status" className="m-0 flex items-start gap-[var(--space-2)] text-[length:var(--type-ui)] text-text">
           {result.correct ? (
             <CheckCircle2 size={16} aria-hidden="true" className="shrink-0 text-success-text" />
           ) : (
@@ -291,7 +293,7 @@ function CheckBody({ check, preview, headingId }: { check: Check; preview: boole
         </p>
       ) : null}
       {result && preview ? (
-        <p role="status" className="m-0 text-[length:var(--text-sm)] text-text-muted">
+        <p role="status" className="m-0 text-[length:var(--type-ui)] text-text-muted">
           Preview: students see whether they were right and the explanation.
         </p>
       ) : null}
@@ -308,6 +310,10 @@ function CheckBody({ check, preview, headingId }: { check: Check; preview: boole
 export function ReaderCheckpoints() {
   const activities = useActivities();
   const checks = useMemo(() => activities?.checks ?? [], [activities?.checks]);
+  // Only checks placed in the level being read can pop up at their section
+  // (#1303); the rest are listed after the article.
+  const level = useReaderLevel();
+  const placed = useMemo(() => checks.filter((check) => check.levelKey === level), [checks, level]);
   const [reached, setReached] = useState<ReadonlySet<string>>(new Set());
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const [listVisible, setListVisible] = useState(false);
@@ -324,13 +330,13 @@ export function ReaderCheckpoints() {
   }, [checks.length]);
 
   useEffect(() => {
-    if (checks.length === 0 || typeof IntersectionObserver === "undefined") return;
+    if (placed.length === 0 || typeof IntersectionObserver === "undefined") return;
     const prose = document.querySelector<HTMLElement>(".word-lookup-prose");
     if (!prose) return;
     const blocks = getObservedBlocks(prose);
     if (blocks.length === 0) return;
     const byBlock = new Map<Element, string[]>();
-    for (const check of checks) {
+    for (const check of placed) {
       const block = blocks[Math.min(check.afterBlock, blocks.length - 1)];
       byBlock.set(block, [...(byBlock.get(block) ?? []), check.id]);
     }
@@ -347,13 +353,13 @@ export function ReaderCheckpoints() {
     observerRef.current = observer;
     byBlock.forEach((_ids, block) => observer.observe(block));
     return () => observer.disconnect();
-  }, [checks]);
+  }, [placed]);
 
   if (!activities || checks.length === 0) return null;
   const preview = activities.mode === "preview";
   const active = listVisible
     ? undefined
-    : checks.find((check) => reached.has(check.id) && !dismissed.has(check.id) && !check.result);
+    : placed.find((check) => reached.has(check.id) && !dismissed.has(check.id) && !check.result);
 
   return (
     <>
@@ -366,7 +372,7 @@ export function ReaderCheckpoints() {
             <CardBody className="flex flex-col gap-[var(--space-3)]">
               <div className="flex items-center gap-[var(--space-2)]">
                 <ListChecks size={16} aria-hidden="true" className="text-primary-text" />
-                <span className="text-[length:var(--type-label)] font-semibold uppercase tracking-wide text-text-muted">
+                <span className="text-[length:var(--type-label)] font-semibold uppercase tracking-[var(--tracking-label)] text-text-muted">
                   Check for understanding
                 </span>
                 <PreviewNote show={preview} />
@@ -389,7 +395,10 @@ export function ReaderCheckpoints() {
         aria-labelledby="reader-checks-title"
         className="mt-[var(--space-6)] flex flex-col gap-[var(--space-3)]"
       >
-        <h2 id="reader-checks-title" className="m-0 text-[length:var(--text-lg)] font-semibold text-text">
+        <h2
+          id="reader-checks-title"
+          className="m-0 font-[family-name:var(--font-display)] text-[length:var(--type-section-title)] font-semibold text-text"
+        >
           Checks for understanding
         </h2>
         {checks.map((check, index) => (

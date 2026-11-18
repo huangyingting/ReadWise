@@ -21,7 +21,7 @@ export default function ReaderLevelSwitcher({ articleId, level }: Props) {
 
   if (level.locked) {
     return (
-      <p className="reader-level-switcher mt-0 mb-[var(--space-4)] flex flex-wrap items-center gap-[var(--space-2)] text-[length:var(--text-sm)] text-text-muted">
+      <p className="reader-level-switcher mt-0 mb-[var(--space-4)] flex flex-wrap items-center gap-[var(--space-2)] text-[length:var(--type-ui)] text-text-muted">
         <Lock size={14} aria-hidden="true" />
         Reading level <Badge variant="primary">{current?.label ?? readingLevelLabel(level.key)}</Badge> set by your teacher
       </p>
@@ -30,7 +30,7 @@ export default function ReaderLevelSwitcher({ articleId, level }: Props) {
 
   return (
     <nav aria-label="Reading level" className="reader-level-switcher mb-[var(--space-3)] flex flex-wrap items-center gap-[var(--space-2)]">
-      <span className="text-[length:var(--text-sm)] font-medium text-text-muted">Reading level</span>
+      <span className="text-[length:var(--type-ui)] font-medium text-text-muted">Reading level</span>
       {level.options.map((option) => {
         const selected = option.levelKey === level.key;
         return (

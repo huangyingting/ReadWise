@@ -65,7 +65,7 @@ export type WriteFailure =
   | { ok: false; status: 400; reason: "empty_response" }
   | { ok: false; status: 403; reason: "forbidden" }
   | { ok: false; status: 404; reason: "not_found" }
-  | { ok: false; status: 409; reason: "locked" | "not_reviewable" };
+  | { ok: false; status: 409; reason: "locked" | "not_reviewable" | "archived" };
 
 const VIEW_SELECT = {
   id: true,
@@ -221,7 +221,7 @@ async function managedAssignment(assignmentId: string, viewer: Viewer) {
       id: true,
       writePrompt: true,
       article: { select: { id: true, title: true } },
-      classroom: { select: { id: true, name: true, orgId: true, teacherId: true } },
+      classroom: { select: { id: true, name: true, orgId: true, teacherId: true, archivedAt: true } },
     },
   });
   if (!assignment) return null;
@@ -239,7 +239,8 @@ export type AssignmentSubmissionRow = WriteSubmissionView & {
 
 /**
  * Submitted (non-draft) responses for an assignment, for its classroom's
- * managers. 404 when the assignment is missing; 403 for anyone else.
+ * managers. Responses returned for revision are listed without their
+ * in-progress text. 404 when the assignment is missing; 403 for anyone else.
  */
 export async function listAssignmentSubmissions(
   assignmentId: string,
@@ -271,7 +272,13 @@ export async function listAssignmentSubmissions(
       articleTitle: assignment.article.title,
       prompt: assignment.writePrompt?.trim() || (await articleDefaultPrompt(assignment.article)),
     },
-    submissions: rows.map(({ user, ...row }) => ({ ...toView(row), student: user })),
+    // A returned response is being revised: its text is in progress, so it
+    // stays private (like a draft) until the learner resubmits.
+    submissions: rows.map(({ user, ...row }) => ({
+      ...toView(row),
+      ...(row.status === WriteSubmissionStatus.NEEDS_REVISION ? { body: "", wordCount: 0 } : {}),
+      student: user,
+    })),
   };
 }
 
@@ -300,6 +307,8 @@ export async function reviewWriteSubmission(
   const managed = await managedAssignment(submission.assignmentId, viewer);
   if (!managed) return { ok: false, status: 404, reason: "not_found" };
   if (!managed.allowed) return { ok: false, status: 403, reason: "forbidden" };
+  // Archived classrooms are read-only, as for prompts and activities.
+  if (managed.assignment.classroom.archivedAt) return { ok: false, status: 409, reason: "archived" };
   if (submission.status !== WriteSubmissionStatus.SUBMITTED && submission.status !== WriteSubmissionStatus.GRADED) {
     return { ok: false, status: 409, reason: "not_reviewable" };
   }

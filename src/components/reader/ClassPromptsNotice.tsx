@@ -34,7 +34,7 @@ export default function ClassPromptsNotice() {
   return (
     <Card className="mb-[var(--space-4)]" aria-label="Class prompts">
       <CardBody className="flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
-        <p className="m-0 flex items-start gap-[var(--space-2)] text-[length:var(--text-sm)] text-text">
+        <p className="m-0 flex items-start gap-[var(--space-2)] text-[length:var(--type-ui)] text-text">
           <MessageSquareQuote size={16} aria-hidden="true" className="mt-[var(--space-1)] shrink-0 text-primary-text" />
           {message}
         </p>

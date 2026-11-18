@@ -86,7 +86,7 @@ export default async function AssignmentResponsesPage({
                       </Badge>
                     </div>
                     <CardMeta>
-                      {submission.wordCount} words
+                      {submission.status === "NEEDS_REVISION" ? "Revision in progress" : `${submission.wordCount} words`}
                       {submission.submittedAt ? ` · submitted ${formatMediumDate(submission.submittedAt)}` : ""}
                       {submission.revisionCount > 0 ? ` · revision ${submission.revisionCount}` : ""}
                     </CardMeta>
@@ -98,16 +98,20 @@ export default async function AssignmentResponsesPage({
                         {submission.prompt}
                       </p>
                     ) : null}
-                    <p className="m-0 whitespace-pre-line text-[length:var(--type-body)] text-text">{submission.body}</p>
                     {submission.status === "NEEDS_REVISION" ? (
-                      <p className="m-0 text-[length:var(--type-ui)] text-text-muted">Waiting for the student to revise.</p>
+                      <p className="m-0 text-[length:var(--type-ui)] text-text-muted">
+                        Waiting for the student to revise. Their revision stays private until they resubmit.
+                      </p>
                     ) : (
-                      <WriteReviewForm
-                        submissionId={submission.id}
-                        studentLabel={studentLabel}
-                        initialScores={submission.rubricScores}
-                        initialFeedback={submission.teacherFeedback}
-                      />
+                      <>
+                        <p className="m-0 whitespace-pre-line text-[length:var(--type-body)] text-text">{submission.body}</p>
+                        <WriteReviewForm
+                          submissionId={submission.id}
+                          studentLabel={studentLabel}
+                          initialScores={submission.rubricScores}
+                          initialFeedback={submission.teacherFeedback}
+                        />
+                      </>
                     )}
                   </CardBody>
                 </Card>

@@ -2,8 +2,10 @@
  * Classroom reading-skills matrix (#1302).
  *
  * Aggregates graded quiz answers by reading skill for a classroom's enrolled
- * students, scoped to the classroom's assigned articles. Each student's MOST
- * RECENT attempt per article counts, so retakes don't double-weight a skill.
+ * students, scoped to the classroom's assigned articles. Only class work
+ * counts — attempts completed after the article was assigned in this
+ * classroom and after the student joined it — and each student's MOST RECENT
+ * such attempt per article, so retakes don't double-weight a skill.
  * With `individual: false` (org-admin aggregate view) only class totals are
  * returned — no per-student rows.
  */
@@ -48,27 +50,37 @@ export async function getClassroomSkillMatrix(
   const [members, assignments] = await Promise.all([
     prisma.classroomMembership.findMany({
       where: { classroomId, role: "Student" },
-      select: { userId: true, user: { select: { name: true, email: true } } },
+      select: { userId: true, createdAt: true, user: { select: { name: true, email: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.assignment.findMany({
       where: { classroomId },
-      select: { articleId: true },
+      select: { articleId: true, createdAt: true },
     }),
   ]);
   const studentIds = members.map((member) => member.userId);
-  const articleIds = [...new Set(assignments.map((assignment) => assignment.articleId))];
+  const joinedAt = new Map(members.map((member) => [member.userId, member.createdAt.getTime()]));
+  // Only class work counts: attempts after the article was first assigned
+  // here and after the student joined this classroom.
+  const assignedAt = new Map<string, number>();
+  for (const assignment of assignments) {
+    const time = assignment.createdAt.getTime();
+    assignedAt.set(assignment.articleId, Math.min(assignedAt.get(assignment.articleId) ?? time, time));
+  }
+  const articleIds = [...assignedAt.keys()];
 
   const attempts =
     studentIds.length > 0 && articleIds.length > 0
       ? await prisma.quizAttempt.findMany({
           where: { userId: { in: studentIds }, articleId: { in: articleIds } },
-          select: { id: true, userId: true, articleId: true },
+          select: { id: true, userId: true, articleId: true, completedAt: true },
           orderBy: { completedAt: "desc" },
         })
       : [];
   const latest = new Map<string, { id: string; userId: string }>();
   for (const attempt of attempts) {
+    const completed = attempt.completedAt.getTime();
+    if (completed < (assignedAt.get(attempt.articleId) ?? 0) || completed < (joinedAt.get(attempt.userId) ?? 0)) continue;
     const key = `${attempt.userId}:${attempt.articleId}`;
     if (!latest.has(key)) latest.set(key, attempt);
   }

@@ -1569,7 +1569,7 @@ model AssignmentPollVote {
 
 /// A formative Check for Understanding shown after a section of an assigned
 /// article (#1304). `afterBlock` is the 0-based reading block (paragraph or
-/// heading) it follows.
+/// heading) it follows in the `levelKey` text.
 model AssignmentCheck {
   id           String   @id @default(cuid())
   assignmentId String
@@ -1578,6 +1578,8 @@ model AssignmentCheck {
   options      Json
   correctIndex Int
   explanation  String?
+  /// Reading level whose blocks `afterBlock` counts (#1303).
+  levelKey     String   @default("original")
   createdById  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

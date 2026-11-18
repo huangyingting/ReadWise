@@ -89,7 +89,7 @@ function LevelRow({
         {level ? (
           <>
             <Badge variant="success">{level.source === "ai" ? "AI generated" : "Manual"}</Badge>
-            <span className="text-[length:var(--text-sm)] text-text-muted">
+            <span className="text-[length:var(--type-ui)] text-text-muted">
               {level.wordCount} words · measured {level.cefrLevel ?? "—"} / ~{level.lexileApprox ?? "—"}L
             </span>
           </>
@@ -167,7 +167,7 @@ function LevelRow({
         </form>
       ) : null}
       {message ? (
-        <p role="status" className="m-0 text-[length:var(--text-sm)] text-text-muted">
+        <p role="status" className="m-0 text-[length:var(--type-ui)] text-text-muted">
           {message}
         </p>
       ) : null}

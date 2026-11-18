@@ -31,6 +31,7 @@ import { createArticleAssignment } from "@/lib/classroom/article-assignments";
 import { updateAssignment } from "@/lib/classroom/commands";
 import { createGuidedAnnotation, getReaderAnnotationContext, submitAnnotationResponse } from "@/lib/classroom/annotations";
 import { SYSTEM_ARTICLE_CONTEXT } from "@/lib/article-library";
+import { loadPrintableArticle } from "@/lib/reader/print";
 import { enabled, isPostgres } from "./support/db-config";
 import { id, registerIntegrationCleanup } from "./support/db-helpers";
 
@@ -116,6 +117,16 @@ test("levels save with measured metrics, list in order, and delete with their qu
   await saveArticleLevel(s.articleId, "B1", { title: "Reefs Get Better", text: "Changed text." }, { actorId: null, source: "manual" });
   assert.equal(await readCachedQuiz(s.articleId, "B1"), null, "changed text clears the level quiz");
   assert.ok(await readCachedQuiz(s.articleId), "the original quiz is untouched");
+
+  // Printing a level uses its title, text, and quiz; the citation stays canonical.
+  const printed = await loadPrintableArticle(s.articleId, { id: s.teacher.id, role: "Reader" }, "answer-key", { level: "B1" });
+  assert.ok(printed && !printed.restricted);
+  assert.equal(printed.article.title, "Reefs Get Better");
+  assert.match(printed.bodyHtml, /Changed text/);
+  assert.match(printed.citation.text, /Reefs Rebound/);
+  const fallback = await loadPrintableArticle(s.articleId, { id: s.teacher.id, role: "Reader" }, "article", { level: "C1" });
+  assert.ok(fallback && !fallback.restricted);
+  assert.equal(fallback.article.title, "Reefs Rebound", "missing levels print the original");
 
   // AI text resolves per level; unknown levels are null.
   assert.equal((await loadArticleTextAtLevel(s.articleId, "B1", SYSTEM_ARTICLE_CONTEXT))?.title, "Reefs Get Better");
@@ -287,10 +298,12 @@ test("highlights and class annotations are scoped to the level whose text they a
   assert.ok(plain.ok);
   assert.equal(plain.response.levelKey, "original");
 
-  const atB1 = await getReaderAnnotationContext(s.student, s.articleId, "B1");
-  assert.deepEqual(atB1.guides.map((g) => g.id), [guide.guide.id]);
-  assert.equal(atB1.responses.length, 2);
-  const atOriginal = await getReaderAnnotationContext(s.student, s.articleId);
-  assert.deepEqual(atOriginal.guides, [], "B1 prompts don't paint on the original text");
-  assert.deepEqual(atOriginal.responses.map((r) => r.body), ["General note."]);
+  // Every level's prompts and responses are listed with their level, so a
+  // student reading (or locked to) another level still sees the prompt.
+  const context = await getReaderAnnotationContext(s.student, s.articleId);
+  assert.deepEqual(context.guides.map((g) => [g.id, g.levelKey]), [[guide.guide.id, "B1"]]);
+  assert.deepEqual(
+    context.responses.map((r) => [r.body, r.levelKey]).sort(),
+    [["", "B1"], ["Because.", "B1"], ["General note.", "original"]],
+  );
 });

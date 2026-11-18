@@ -57,7 +57,9 @@ function QuickAssignSheet({
   return (
     <Sheet open={open} onClose={onClose} side="right" label="Assign to a class">
       <div className="flex items-center justify-between gap-[var(--space-4)] border-b border-border px-[var(--space-5)] py-[var(--space-4)]">
-        <h2 className="m-0 text-[length:var(--text-lg)] font-semibold text-text">Assign to a class</h2>
+        <h2 className="m-0 font-[family-name:var(--font-display)] text-[length:var(--type-section-title)] font-semibold text-text">
+          Assign to a class
+        </h2>
         <IconButton aria-label="Close assign sheet" onClick={onClose}>
           <X size={18} aria-hidden="true" />
         </IconButton>
@@ -81,7 +83,7 @@ function QuickAssignSheet({
           </Button>
         </div>
         {assignedTo ? (
-          <p role="status" className="m-0 text-[length:var(--text-sm)] text-text">
+          <p role="status" className="m-0 text-[length:var(--type-ui)] text-text">
             Assigned to {assignedTo.name}.{" "}
             <Link href={`/teacher/classrooms/${encodeURIComponent(assignedTo.id)}`} className="text-primary-text underline">
               Open the classroom
@@ -115,7 +117,7 @@ export function EducatorBar({
   return (
     <Card className="mb-[var(--space-4)]" aria-label="Educator tools">
       <CardBody className="flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
-        <span className="flex items-center gap-[var(--space-2)] text-[length:var(--text-sm)] font-semibold text-text">
+        <span className="flex items-center gap-[var(--space-2)] text-[length:var(--type-ui)] font-semibold text-text">
           <GraduationCap size={16} aria-hidden="true" className="text-primary-text" />
           Educator tools
         </span>
@@ -161,7 +163,7 @@ export function StudentPreviewBanner({ exitHref }: { exitHref: string }) {
   return (
     <Card className="mb-[var(--space-4)]" aria-label="Student preview">
       <CardBody className="flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
-        <p className="m-0 flex items-start gap-[var(--space-2)] text-[length:var(--text-sm)] text-text">
+        <p className="m-0 flex items-start gap-[var(--space-2)] text-[length:var(--type-ui)] text-text">
           <Eye size={16} aria-hidden="true" className="mt-[var(--space-1)] shrink-0 text-primary-text" />
           You’re previewing this article as a student, with your assignment’s reading level and activities.
           Responses aren’t saved.

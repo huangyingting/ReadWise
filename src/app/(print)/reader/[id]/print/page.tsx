@@ -5,6 +5,7 @@ import { canPrintAnswerKey, loadPrintableArticle } from "@/lib/reader/print";
 import { EDUCATOR_PRINT_MODES, optionLetter, parsePrintMode, PRINT_MODE_LABELS } from "@/lib/reader/print-modes";
 import { articleHtmlToReaderTextFromSanitized } from "@/lib/content-pipeline";
 import { FLUENCY_RUBRIC, extractFluencyPassage, parseFluencyLength } from "@/lib/lesson/fluency";
+import { parseReadingLevel } from "@/lib/article-levels/levels";
 import type { QuizQuestion } from "@/lib/quiz";
 import { readingSkillLabel } from "@/lib/learning/reading-skills";
 import type { VocabularyEntry } from "@/lib/vocabulary/service";
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-type SearchParams = { mode?: string | string[]; words?: string | string[] };
+type SearchParams = { mode?: string | string[]; words?: string | string[]; level?: string | string[] };
 
 const RESPONSE_LINES = 8;
 
@@ -171,7 +172,8 @@ export default async function PrintArticlePage({
   const canAnswerKey = await canPrintAnswerKey(session.user);
   if (EDUCATOR_PRINT_MODES.includes(mode) && !canAnswerKey) redirect("/forbidden");
 
-  const printable = await loadPrintableArticle(id, session.user, mode);
+  const level = parseReadingLevel(Array.isArray(query.level) ? query.level[0] : query.level);
+  const printable = await loadPrintableArticle(id, session.user, mode, { level });
   if (!printable) notFound();
 
   if (printable.restricted) {
@@ -194,7 +196,7 @@ export default async function PrintArticlePage({
 
   return (
     <>
-      <PrintToolbar articleId={id} mode={mode} canAnswerKey={canAnswerKey} printable />
+      <PrintToolbar articleId={id} mode={mode} canAnswerKey={canAnswerKey} printable level={level} />
       <main className="print-sheet" aria-label={`${PRINT_MODE_LABELS[mode]}: ${article.title}`}>
         {withStudyMaterials || fluency ? <StudentHeader /> : null}
         <header>

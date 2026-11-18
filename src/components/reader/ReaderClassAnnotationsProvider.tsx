@@ -18,7 +18,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { deleteJson, getJson, patchJson, postJson } from "@/lib/client-fetch";
 import type { GuideMark } from "@/components/reader/wordLookup/highlightMarks";
-import { ORIGINAL_LEVEL, levelQuery, type ReadingLevelKey } from "@/lib/article-levels/levels";
+import { ORIGINAL_LEVEL, type ReadingLevelKey } from "@/lib/article-levels/levels";
 
 export type ClassAssignment = { assignmentId: string; classroomName: string };
 
@@ -36,6 +36,8 @@ export type ClassGuide = ClassAnchor & {
   classroomName: string;
   prompt: string;
   canEdit: boolean;
+  /** Reading level whose text the anchor indexes (#1303). */
+  levelKey: string;
   /** 1-based position in document order (shown on the inline mark). */
   number: number;
 };
@@ -46,6 +48,7 @@ export type ClassResponse = {
   annotationId: string | null;
   quote: string | null;
   body: string;
+  levelKey: string;
   createdAt: string;
 };
 
@@ -121,7 +124,7 @@ export function ReaderClassAnnotationsProvider({
 }) {
   const [data, setData] = useState<ContextPayload>(EMPTY);
   const [loaded, setLoaded] = useState(false);
-  const url = `/api/reader/${encodeURIComponent(articleId)}/annotations${levelQuery(levelKey)}`;
+  const url = `/api/reader/${encodeURIComponent(articleId)}/annotations`;
 
   const reload = useCallback(async () => {
     try {
@@ -179,7 +182,8 @@ export function ReaderClassAnnotationsProvider({
   const guides = useMemo(() => numberGuides(data.guides), [data.guides]);
   const guideMarks = useMemo<GuideMark[]>(
     () =>
-      guides.map(({ id, quote, startOffset, endOffset, prefix, suffix, number, prompt }) => ({
+      // Only prompts anchored to the level being read are painted inline (#1303).
+      guides.filter((guide) => guide.levelKey === levelKey).map(({ id, quote, startOffset, endOffset, prefix, suffix, number, prompt }) => ({
         id,
         quote,
         startOffset,
@@ -189,7 +193,7 @@ export function ReaderClassAnnotationsProvider({
         number,
         prompt,
       })),
-    [guides],
+    [guides, levelKey],
   );
 
   const value = useMemo<ClassAnnotationsValue>(

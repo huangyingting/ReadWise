@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-11-17"
+last_updated: "2026-11-18"
 description: "Documents classroom annotations: teacher guided prompts anchored to passages of assigned articles, learner replies and explicitly shared evidence highlights, reader rendering, the teacher review page, privacy of personal highlights, RBAC, APIs, and audit."
 ---
 
@@ -45,8 +45,10 @@ Both tables use the same anchor selector as personal highlights (`quote`,
 | `AssignmentAnnotationResponse` | `assignmentId` (cascade), optional `annotationId` (cascade — replies go with their prompt), `userId` (cascade), optional anchor (evidence), `body`. Needs a passage or text. |
 
 Prompts and evidence also store the reading level whose text they anchor to
-(`levelKey`); the reader shows only the current level's prompts, and replies
-inherit their prompt's level (see [reading levels](../reader/reading-levels.md)).
+(`levelKey`). The reader paints only the current level's prompts inline; the
+Notes tab lists every prompt, labelling ones anchored in another level's text
+so learners locked to a level still see and answer them. Replies inherit their
+prompt's level (see [reading levels](../reader/reading-levels.md)).
 
 Limits: prompts 1,000 characters, replies/explanations 2,000, anchored
 passages 2,000.

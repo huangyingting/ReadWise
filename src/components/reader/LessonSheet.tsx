@@ -36,6 +36,8 @@ import {
 import ConfirmAction from "@/components/ConfirmAction";
 import { useClassAnnotations } from "./ReaderClassAnnotationsProvider";
 import { getObservedBlocks } from "./useCurrentReadingBlock";
+import { useReaderLevel } from "./ReaderLevelContext";
+import { ORIGINAL_LEVEL, isReadingLevelKey, readingLevelLabel } from "@/lib/article-levels/levels";
 
 type Scaffold = {
   hook: string;
@@ -49,6 +51,7 @@ type Activities = {
   checks: Array<{
     id: string;
     afterBlock: number;
+    levelKey: string;
     question: string;
     options: string[];
     correctIndex: number;
@@ -58,8 +61,8 @@ type Activities = {
   }>;
 };
 
-const sectionTitle = "m-0 text-[length:var(--text-base)] font-semibold text-text";
-const muted = "m-0 text-[length:var(--text-sm)] text-text-muted";
+const sectionTitle = "m-0 font-[family-name:var(--font-display)] text-[length:var(--type-section-title-compact)] font-semibold text-text";
+const muted = "m-0 text-[length:var(--type-ui)] text-text-muted";
 
 function lines(text: string): string[] {
   return text
@@ -95,13 +98,13 @@ function ScaffoldSection({ articleId }: { articleId: string }) {
         <h3 id="lesson-hook" className={sectionTitle}>
           Before-reading hook
         </h3>
-        <p className="m-0 text-[length:var(--text-sm)] text-text">{scaffold.hook}</p>
+        <p className="m-0 text-[length:var(--type-ui)] text-text">{scaffold.hook}</p>
       </section>
       <section aria-labelledby="lesson-questions" className="flex flex-col gap-[var(--space-2)]">
         <h3 id="lesson-questions" className={sectionTitle}>
           Discussion questions
         </h3>
-        <ol className="m-0 flex list-decimal flex-col gap-[var(--space-1)] pl-[var(--space-5)] text-[length:var(--text-sm)] text-text">
+        <ol className="m-0 flex list-decimal flex-col gap-[var(--space-1)] pl-[var(--space-5)] text-[length:var(--type-ui)] text-text">
           {scaffold.questions.map((question) => (
             <li key={question}>{question}</li>
           ))}
@@ -114,7 +117,7 @@ function ScaffoldSection({ articleId }: { articleId: string }) {
         {scaffold.keyTerms.length === 0 ? (
           <p className={muted}>No key terms found.</p>
         ) : (
-          <dl className="m-0 flex flex-col gap-[var(--space-2)] text-[length:var(--text-sm)]">
+          <dl className="m-0 flex flex-col gap-[var(--space-2)] text-[length:var(--type-ui)]">
             {scaffold.keyTerms.map((term) => (
               <div key={term.term}>
                 <dt className="font-semibold text-text">{term.term}</dt>
@@ -150,7 +153,7 @@ function FluencySection({ articleId, plainText }: { articleId: string; plainText
       {passage.wordCount < length ? (
         <p className={muted}>This article has {passage.wordCount} words, so the passage is the whole text.</p>
       ) : null}
-      <table aria-label={`${length}-word fluency passage`} className="w-full border-collapse text-[length:var(--text-sm)]">
+      <table aria-label={`${length}-word fluency passage`} className="w-full border-collapse text-[length:var(--type-ui)]">
         <tbody>
           {passage.lines.map((line) => (
             <tr key={line.cumulative} className="border-b border-border last:border-0">
@@ -160,7 +163,7 @@ function FluencySection({ articleId, plainText }: { articleId: string; plainText
           ))}
         </tbody>
       </table>
-      <div className="flex flex-col gap-[var(--space-1)] text-[length:var(--text-sm)] text-text">
+      <div className="flex flex-col gap-[var(--space-1)] text-[length:var(--type-ui)] text-text">
         <p className="m-0">
           <strong>WCPM</strong> = words read in one minute − errors. <strong>Accuracy</strong> = (words read − errors) ÷
           words read.
@@ -250,6 +253,7 @@ function PollEditor({ assignmentId, poll, onSaved }: { assignmentId: string; pol
 }
 
 function CheckForm({ assignmentId, onSaved }: { assignmentId: string; onSaved: () => void }) {
+  const level = useReaderLevel();
   const [blocks] = useState(blockOptions);
   const [afterBlock, setAfterBlock] = useState(String(Math.max(0, Math.floor(blocks.length / 2) - 1)));
   const [question, setQuestion] = useState("");
@@ -271,6 +275,7 @@ function CheckForm({ assignmentId, onSaved }: { assignmentId: string; onSaved: (
         options: optionLines,
         correctIndex: Number(correctIndex),
         explanation: explanation || null,
+        levelKey: level,
       });
       setQuestion("");
       setOptions("");
@@ -285,7 +290,7 @@ function CheckForm({ assignmentId, onSaved }: { assignmentId: string; onSaved: (
 
   return (
     <form onSubmit={add} className="flex flex-col gap-[var(--space-3)]">
-      <Field label="Show after">
+      <Field label="Show after" hint={level === ORIGINAL_LEVEL ? undefined : `Placed in the ${readingLevelLabel(level)} text you're reading.`}>
         <Select value={afterBlock} onChange={(event) => setAfterBlock(event.target.value)}>
           {blocks.map((block) => (
             <option key={block.index} value={String(block.index)}>
@@ -394,10 +399,14 @@ function ActivitiesSection() {
             <ul aria-label="Checks for understanding" className="m-0 flex list-none flex-col gap-[var(--space-2)] p-0">
               {activities.checks.map((check) => (
                 <li key={check.id} className="flex items-start gap-[var(--space-2)] border-b border-border pb-[var(--space-2)]">
-                  <div className="flex min-w-0 flex-1 flex-col gap-[var(--space-1)] text-[length:var(--text-sm)]">
+                  <div className="flex min-w-0 flex-1 flex-col gap-[var(--space-1)] text-[length:var(--type-ui)]">
                     <span className="font-semibold text-text">{check.question}</span>
                     <span className="text-text-muted">
-                      After block {check.afterBlock + 1} · answer: {check.options[check.correctIndex]} ·{" "}
+                      After block {check.afterBlock + 1}
+                      {check.levelKey !== ORIGINAL_LEVEL && isReadingLevelKey(check.levelKey)
+                        ? ` (${readingLevelLabel(check.levelKey)})`
+                        : ""}{" "}
+                      · answer: {check.options[check.correctIndex]} ·{" "}
                       {check.answered === 0 ? "no answers yet" : `${check.correctCount}/${check.answered} correct`}
                     </span>
                   </div>
@@ -449,8 +458,10 @@ export default function LessonSheet({
     <Sheet open={open} onClose={onClose} side="right" label="Apply to your lesson">
       <div className="flex items-center justify-between gap-[var(--space-4)] border-b border-border px-[var(--space-5)] py-[var(--space-4)]">
         <div className="min-w-0">
-          <h2 className="m-0 text-[length:var(--text-lg)] font-semibold text-text">Apply to your lesson</h2>
-          <p className="m-0 truncate text-[length:var(--text-sm)] text-text-muted">{articleTitle}</p>
+          <h2 className="m-0 font-[family-name:var(--font-display)] text-[length:var(--type-section-title)] font-semibold text-text">
+            Apply to your lesson
+          </h2>
+          <p className="m-0 truncate text-[length:var(--type-ui)] text-text-muted">{articleTitle}</p>
         </div>
         <IconButton aria-label="Close lesson tools" onClick={onClose}>
           <X size={18} aria-hidden="true" />

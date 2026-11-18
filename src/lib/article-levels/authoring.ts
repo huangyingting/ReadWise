@@ -12,6 +12,7 @@ import { extractJsonArray } from "@/lib/ai/output/validators";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { deterministicDifficulty } from "@/lib/difficulty";
 import { loadAiProcessableArticleText } from "@/lib/article-library/policy";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 import { LEVEL_NOMINAL_LEXILE, type ArticleLevelKey } from "./levels";
 import {
   DEFAULT_LANGUAGE,
@@ -35,7 +36,12 @@ export async function saveArticleLevel(
   articleId: string,
   levelKey: ArticleLevelKey,
   input: { title: string; text: string },
-  options: { actorId: string | null; source: "manual" | "ai" },
+  options: {
+    actorId: string | null;
+    source: "manual" | "ai";
+    /** Audit row recorded in the same transaction as the save (ADR-0003). */
+    audit?: (level: ArticleLevelSummary) => AuditRequestInput;
+  },
 ): Promise<{ ok: true; level: ArticleLevelSummary } | LevelSaveFailure> {
   const article = await prisma.article.findUnique({ where: { id: articleId }, select: { id: true } });
   if (!article) return { ok: false, status: 404, reason: "not_found" };
@@ -60,23 +66,35 @@ export async function saveArticleLevel(
     if (existing && existing.content !== content) {
       await tx.quizQuestion.deleteMany({ where: { articleId, levelKey } });
     }
-    return tx.articleLevel.upsert({
+    const saved = await tx.articleLevel.upsert({
       where: key,
       create: { articleId, levelKey, language: DEFAULT_LANGUAGE, ...data },
       update: data,
       select: SUMMARY_SELECT,
     });
+    const summary = { ...saved, levelKey };
+    if (options.audit) await recordAuditFromRequest(options.audit(summary), tx);
+    return summary;
   });
-  return { ok: true, level: { ...level, levelKey } };
+  return { ok: true, level };
 }
 
-/** Removes an adapted level and its quiz. Learners' highlights on it remain in their notes. */
-export async function deleteArticleLevel(articleId: string, levelKey: ArticleLevelKey): Promise<boolean> {
-  const [{ count }] = await prisma.$transaction([
-    prisma.articleLevel.deleteMany({ where: { articleId, levelKey, language: DEFAULT_LANGUAGE } }),
-    prisma.quizQuestion.deleteMany({ where: { articleId, levelKey } }),
-  ]);
-  return count > 0;
+/**
+ * Removes an adapted level and its quiz, auditing in the same transaction.
+ * Learners' highlights on it remain in their notes. False when it didn't exist.
+ */
+export async function deleteArticleLevel(
+  articleId: string,
+  levelKey: ArticleLevelKey,
+  audit?: () => AuditRequestInput,
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.articleLevel.deleteMany({ where: { articleId, levelKey, language: DEFAULT_LANGUAGE } });
+    if (count === 0) return false;
+    await tx.quizQuestion.deleteMany({ where: { articleId, levelKey } });
+    if (audit) await recordAuditFromRequest(audit(), tx);
+    return true;
+  });
 }
 
 // ---------------------------------------------------------------------------

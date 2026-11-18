@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-11-17"
+last_updated: "2026-11-18"
 description: "Documents educator reader tools: Educator tools bar, View as student preview, Apply to your lesson scaffolds with deterministic fallback, oral fluency passages and printable rubric, quick assign, and assignment pre-reading polls and Checks for Understanding with privacy, RBAC, APIs, and audit."
 ---
 
@@ -50,9 +50,9 @@ flowchart TD
     optional explanation, placed after a chosen reading block), with class
     results.
 - **View as student** reloads with `?view=student`: the educator bar is
-  replaced by a preview banner, the reader applies the lock of the educator's
-  first locked assignment of the article, and the assignment's poll and checks
-  appear as students see them. Preview responses stay in the browser.
+  replaced by a preview banner, and the reader previews the educator's first
+  assignment of the article: its reading-level lock and its poll and checks,
+  as students see them. Preview responses stay in the browser.
 - **Assign to a class** assigns the article to a managed classroom (optional
   due date) without leaving the reader.
 
@@ -67,7 +67,9 @@ flowchart TD
   listed after the article. The first answer is final; the correct answer and
   explanation are revealed only after answering.
 - Checks are anchored by reading-block index (paragraphs, headings, list items,
-  quotes); on adapted reading levels the index is clamped to the last block.
+  quotes) in the reading level the teacher was reading when adding them
+  (`levelKey`). Only checks placed in the level being read pop up at their
+  section; the rest are still listed after the article.
 
 ## Privacy and authorization
 

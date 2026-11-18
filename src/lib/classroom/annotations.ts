@@ -25,10 +25,11 @@ import {
   type AuditRequestInput,
 } from "@/lib/security/audit";
 import { canManageClassroom } from "./guards";
+import { managedClassroomScope } from "./educator";
 import { assignmentLiveWhere, assignmentVisibleToStudentWhere } from "./targeting";
 import { ANNOTATION_QUOTE_MAX_LENGTH } from "./annotation-limits";
 import { ORIGINAL_LEVEL, type ReadingLevelKey } from "@/lib/article-levels/levels";
-import { getArticleLevelVariant } from "@/lib/article-levels/variants";
+import { articleHasLevel } from "@/lib/article-levels/variants";
 
 type Viewer = { id: string; role?: string | null };
 
@@ -130,11 +131,6 @@ function normalizeAnchor(anchor: AnnotationAnchor) {
   };
 }
 
-/** True when the article has the reading level (the original always exists). */
-async function levelExists(articleId: string, levelKey: ReadingLevelKey): Promise<boolean> {
-  return levelKey === ORIGINAL_LEVEL || (await getArticleLevelVariant(articleId, levelKey)) !== null;
-}
-
 async function membershipRole(userId: string, orgId: string) {
   return prisma.membership.findUnique({
     where: { userId_orgId: { userId, orgId } },
@@ -166,19 +162,11 @@ export function learnerAssignmentsWhere(userId: string) {
   };
 }
 
+/** Live-or-not assignments of an article in active classrooms the viewer manages. */
 export async function teachingAssignments(viewer: Viewer, articleId: string) {
-  const memberships = await prisma.membership.findMany({
-    where: { userId: viewer.id },
-    select: { orgId: true, role: true },
-  });
+  const { memberships, where } = await managedClassroomScope(viewer);
   const rows = await prisma.assignment.findMany({
-    where: {
-      articleId,
-      classroom: {
-        archivedAt: null,
-        OR: [{ teacherId: viewer.id }, { orgId: { in: memberships.map((m) => m.orgId) } }],
-      },
-    },
+    where: { articleId, classroom: where },
     select: { id: true, classroom: { select: { name: true, orgId: true, teacherId: true } } },
     orderBy: { createdAt: "asc" },
     take: MAX_TEACHING_ASSIGNMENTS,
@@ -193,13 +181,11 @@ export async function teachingAssignments(viewer: Viewer, articleId: string) {
 /**
  * Everything the reader needs for classroom annotations on an article: the
  * viewer's teaching and learning assignments, their guided prompts, and the
- * viewer's own responses. Callers must have checked article readability.
+ * viewer's own responses, across every reading level (each item carries its
+ * `levelKey`; the reader paints only the current level's anchors inline).
+ * Callers must have checked article readability.
  */
-export async function getReaderAnnotationContext(
-  viewer: Viewer,
-  articleId: string,
-  levelKey: ReadingLevelKey = ORIGINAL_LEVEL,
-): Promise<ReaderAnnotationContext> {
+export async function getReaderAnnotationContext(viewer: Viewer, articleId: string): Promise<ReaderAnnotationContext> {
   const [teaching, learningRows] = await Promise.all([
     teachingAssignments(viewer, articleId),
     prisma.assignment.findMany({
@@ -215,14 +201,14 @@ export async function getReaderAnnotationContext(
 
   const [guides, responses] = await Promise.all([
     prisma.assignmentAnnotation.findMany({
-      where: { assignmentId: { in: [...names.keys()] }, levelKey },
+      where: { assignmentId: { in: [...names.keys()] } },
       select: GUIDE_SELECT,
       orderBy: [{ startOffset: "asc" }, { createdAt: "asc" }],
     }),
     learning.length === 0
       ? Promise.resolve([])
       : prisma.assignmentAnnotationResponse.findMany({
-          where: { userId: viewer.id, levelKey, assignmentId: { in: learning.map((entry) => entry.assignmentId) } },
+          where: { userId: viewer.id, assignmentId: { in: learning.map((entry) => entry.assignmentId) } },
           select: RESPONSE_SELECT,
           orderBy: { createdAt: "asc" },
         }),
@@ -269,7 +255,7 @@ export async function createGuidedAnnotation(
   if (access.assignment.classroom.archivedAt) return { ok: false, status: 409, reason: "archived" };
   const anchor = normalizeAnchor(input);
   const levelKey = input.levelKey ?? ORIGINAL_LEVEL;
-  if (!anchor || !(await levelExists(access.assignment.articleId, levelKey))) {
+  if (!anchor || !(await articleHasLevel(access.assignment.articleId, levelKey))) {
     return { ok: false, status: 400, reason: "invalid_anchor" };
   }
 
@@ -366,7 +352,7 @@ export async function submitAnnotationResponse(
     guideLevel = guide.levelKey;
   }
   const anchor = input.anchor ? normalizeAnchor(input.anchor) : null;
-  const anchorLevelOk = !input.anchor?.levelKey || (await levelExists(assignment.articleId, input.anchor.levelKey));
+  const anchorLevelOk = !input.anchor?.levelKey || (await articleHasLevel(assignment.articleId, input.anchor.levelKey));
   if (input.anchor && (!anchor || !anchorLevelOk)) return { ok: false, status: 400, reason: "invalid_anchor" };
   const body = input.body.trim();
   if (!anchor && !body) return { ok: false, status: 400, reason: "empty_response" };

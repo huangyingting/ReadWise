@@ -133,7 +133,7 @@ function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
               {due ? ` · Due ${due}` : ""}
             </p>
             {assignment.instructions ? (
-              <p className="whitespace-pre-line text-[length:var(--text-sm)] text-text">
+              <p className="whitespace-pre-line text-[length:var(--type-ui)] text-text">
                 {assignment.instructions}
               </p>
             ) : null}

@@ -169,6 +169,18 @@ test("ORG sharing stays inside the organization; PRIVATE stays with the owner", 
   assert.deepEqual(colleagueLists.shared.map((set) => set.id), [sharedSet.id]);
   assert.equal(colleagueLists.shared[0]?.ownerName, "ts_vis_owner");
   assert.deepEqual((await listTextSetsForViewer(outsider)).shared, []);
+
+  // An owner who leaves the organization loses access to the sets they made there.
+  await prisma.membership.deleteMany({ where: { userId: owner.id, orgId: orgA } });
+  assert.equal(await getTextSetForViewer(privateSet.id, owner), null);
+  assert.equal(await getTextSetForViewer(sharedSet.id, owner), null);
+  assert.deepEqual(await listTextSetsForViewer(owner), { mine: [], shared: [] });
+  assert.deepEqual(await updateTextSet(sharedSet.id, owner, input([a1]), auditFor(owner)), {
+    ok: false,
+    status: 404,
+    reason: "not_found",
+  });
+  assert.ok(await getTextSetForViewer(sharedSet.id, orgAdmin), "the org keeps its shared set");
 });
 
 test("owners edit and reorder; org admins edit shared sets; colleagues cannot", { skip: !enabled }, async () => {

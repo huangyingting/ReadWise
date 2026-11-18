@@ -117,11 +117,7 @@ test("the reader context requires a readable article", async () => {
   const r = await routes();
   const res = await r.reader.GET(getReq(READER), withParams({ id: "a1" }));
   assert.deepEqual(await res.json(), { teaching: [], learning: [], guides: [], responses: [] });
-  assert.deepEqual(calls.at(-1), { fn: "context", args: ["user-1", "a1", "original"] });
-  await r.reader.GET(getReq(`${READER}?level=B1`), withParams({ id: "a1" }));
-  assert.deepEqual(calls.at(-1)?.args[2], "B1", "level-scoped context (#1303)");
-  assert.equal((await r.reader.GET(getReq(`${READER}?level=C1`), withParams({ id: "a1" }))).status, 404, "missing level");
-  assert.equal((await r.reader.GET(getReq(`${READER}?level=Z9`), withParams({ id: "a1" }))).status, 400, "unknown level");
+  assert.deepEqual(calls.at(-1), { fn: "context", args: ["user-1", "a1", undefined] });
 
   articleReadable = false;
   calls = [];

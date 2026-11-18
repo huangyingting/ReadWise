@@ -29,6 +29,7 @@ const MESSAGES: Record<WriteFailure["reason"], string> = {
   not_found: "Not found",
   locked: "This response was submitted and is waiting for your teacher",
   not_reviewable: "Only submitted responses can be reviewed",
+  archived: "Classroom is archived",
 };
 
 export function writeError(failure: WriteFailure): ApiError {

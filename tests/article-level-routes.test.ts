@@ -57,12 +57,20 @@ before(() => {
   });
   mock.module("@/lib/article-levels/authoring", {
     namedExports: {
-      saveArticleLevel: async (articleId: string, level: string, input: unknown, opts: unknown) => {
-        calls.push({ fn: "save", args: [articleId, level, input, opts] });
+      saveArticleLevel: async (
+        articleId: string,
+        level: string,
+        input: unknown,
+        opts: { actorId: string; source: string; audit?: (level: unknown) => Record<string, unknown> },
+      ) => {
+        calls.push({ fn: "save", args: [articleId, level, input, { actorId: opts.actorId, source: opts.source }] });
+        const result = saveResult as { ok: boolean; level?: unknown };
+        if (result.ok && opts.audit) audits.push(opts.audit(result.level));
         return saveResult;
       },
-      deleteArticleLevel: async (articleId: string, level: string) => {
+      deleteArticleLevel: async (articleId: string, level: string, audit?: () => Record<string, unknown>) => {
         calls.push({ fn: "delete", args: [articleId, level] });
+        if (deleted && audit) audits.push(audit());
         return deleted;
       },
     },
@@ -72,7 +80,8 @@ before(() => {
       LEVEL_TITLE_MAX_LENGTH: 300,
       LEVEL_TEXT_MAX_LENGTH: 60_000,
       levelKeysForArticles: async (ids: string[]) => new Map(ids.map((id) => [id, ["B1", "original"]])),
-      getArticleLevelVariant: async () => null,
+      getArticleLevelVariant: async (_articleId: string, level: string) =>
+        level === "A2" ? { levelKey: "A2", title: "T", content: "<p>x</p>", wordCount: 1, lexileApprox: 500, cefrLevel: "A2" } : null,
     },
   });
   mock.module("@/lib/jobs/enqueue", {
@@ -198,4 +207,11 @@ test("readers list levels and fetch level-scoped quizzes", async () => {
 
   articleReadable = false;
   assert.equal((await r.levels.GET(getReq("http://test/api/reader/a1/levels"), withParams({ id: "a1" }))).status, 404);
+});
+
+test("requireArticleLevel resolves the original and rejects missing levels", async () => {
+  const { requireArticleLevel } = await import("@/lib/article-levels/http");
+  assert.equal(await requireArticleLevel("a1", "original"), null);
+  await assert.rejects(requireArticleLevel("a1", "B1"), { name: "ApiError", status: 404 });
+  assert.equal((await requireArticleLevel("a1", "A2"))?.title, "T");
 });

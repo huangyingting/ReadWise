@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-11-17"
+last_updated: "2026-11-18"
 description: "Documents the reading-skill taxonomy on quiz questions, answer rationales, per-question attempt answers, reading-skill learner evidence, content maturity bands, Browse skill/maturity facets, and the classroom Reading skills matrix with CSV export."
 ---
 
@@ -105,8 +105,10 @@ id query before scoring.
 `/teacher/classrooms/[id]` shows a **Reading skills** card: one row per
 enrolled student and a class row, one column per skill, each cell the percent
 correct (badge: ≥ 80% success, ≥ 50% warning, otherwise danger; "—" without
-data). It counts each student's **most recent** attempt per assigned article,
-so retakes replace earlier evidence. `GET /api/classrooms/[id]/skills` returns
+data). Only class work counts — attempts completed after the article was
+assigned in that classroom and after the student joined it — and each
+student's **most recent** such attempt per article, so retakes replace earlier
+evidence. `GET /api/classrooms/[id]/skills` returns
 the same matrix as JSON or CSV (`?format=csv`).
 
 Visibility follows classroom analytics: the classroom's teacher and system

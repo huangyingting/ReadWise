@@ -175,6 +175,13 @@ test("drafts autosave, submission locks assignment work, and returned work is re
   const revising = await saveWriteDraft(s.student.id, article(s.articleId), { ...scope, body: "Revised with evidence." });
   assert.ok(revising.ok);
   assert.equal(revising.submission.status, WriteSubmissionStatus.NEEDS_REVISION, "revising keeps the returned state");
+  const duringRevision = await listAssignmentSubmissions(s.assignmentId, s.teacher);
+  assert.ok(duringRevision.ok);
+  assert.deepEqual(
+    duringRevision.submissions.map((row) => [row.status, row.body, row.wordCount]),
+    [[WriteSubmissionStatus.NEEDS_REVISION, "", 0]],
+    "in-progress revisions stay private",
+  );
   const resubmitted = await submitWriteResponse(s.student.id, article(s.articleId), { ...scope, body: "Revised with evidence." });
   assert.ok(resubmitted.ok);
   assert.equal(resubmitted.submission.revisionCount, 1);
@@ -263,6 +270,15 @@ test("only submitted or graded work is reviewable; deleting the assignment makes
     await reviewWriteSubmission(draft.submission.id, s.teacher, { action: "grade", rubricScores: {} }, audit(s.teacher.id)),
     { ok: false, status: 409, reason: "not_reviewable" },
   );
+
+  const submitted = await submitWriteResponse(s.student.id, article(s.articleId), { assignmentId: s.assignmentId, body: "Final." });
+  assert.ok(submitted.ok);
+  await prisma.classroom.update({ where: { id: s.classroomId }, data: { archivedAt: new Date() } });
+  assert.deepEqual(
+    await reviewWriteSubmission(submitted.submission.id, s.teacher, { action: "grade", rubricScores: {} }, audit(s.teacher.id)),
+    { ok: false, status: 409, reason: "archived" },
+  );
+  await prisma.classroom.update({ where: { id: s.classroomId }, data: { archivedAt: null } });
 
   await prisma.assignment.delete({ where: { id: s.assignmentId } });
   const orphan = await prisma.writeSubmission.findUniqueOrThrow({ where: { id: draft.submission.id } });

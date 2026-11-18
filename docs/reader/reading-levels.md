@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-11-17"
+last_updated: "2026-11-18"
 description: "Documents multi-level article variants: ArticleLevel data, the reader Reading Level switcher, level-scoped quizzes, highlights, and class prompts, teacher level locks on assignments, admin authoring with optional LEVEL_ADAPT generation, APIs, and fallbacks."
 ---
 
@@ -56,7 +56,9 @@ flowchart TD
 | --- | --- |
 | Quiz | Each level has its own question set, generated from that level's text (`POST /api/reader/[id]/quiz?level=`). Attempts record `levelKey` (`/quiz/attempt?level=`). Editing a level's text clears its quiz. |
 | Highlights | Offsets index the level's text; the unique key includes `levelKey`. Reader highlight APIs take `?level=` (GET/POST/PATCH/DELETE); `/notes` links each level highlight back to its level. Rescrapes only re-anchor original-level highlights. |
-| Class prompts and evidence | Prompts and shared evidence store the level they anchor to; the reader shows only the current level's prompts; replies inherit their prompt's level. |
+| Class prompts and evidence | Prompts and shared evidence store the level they anchor to; the reader paints only the current level's prompts and lists the rest in Notes; replies inherit their prompt's level. |
+| Checks for Understanding | Each check stores the level it was placed in; it pops up only on that level and is listed after the article on others. |
+| Printing | `/reader/[id]/print?level=` prints the level's title, text, and quiz (citation stays canonical); the assign form's answer-key preview uses a locked level. |
 | Assignments | `lockedLevelKey` (null = student choice) validated against the article's levels. A quiz completes a locked assignment only at the locked level; completions record `levelKeyRead`. |
 
 ## Authoring

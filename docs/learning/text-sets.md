@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-11-17"
+last_updated: "2026-11-18"
 description: "Documents teacher-curated Text Sets: org-scoped ownership, PRIVATE/ORG sharing with cross-organization isolation, editing/duplication rules, assignment to classrooms as linked unit assignments, unit progress rollups, the student unit view, APIs, and audit."
 ---
 
@@ -41,8 +41,8 @@ System admins pass every check. Otherwise:
 | Action | Who |
 | --- | --- |
 | Create | A membership with `classroom.manage` (Teacher or OrgAdmin) in the set's organization. |
-| View | The owner; for `ORG` sets, any Teacher/OrgAdmin of that organization. |
-| Edit / delete | The owner; for `ORG` sets, an org admin (`org.manage`) of that organization. |
+| View | The owner while still a member of the set's organization; for `ORG` sets, any Teacher/OrgAdmin of that organization. |
+| Edit / delete | The owner while they can still author (Teacher/OrgAdmin) in that organization; for `ORG` sets, an org admin (`org.manage`) of that organization. |
 | Duplicate | Anyone who can view **and** can author in the organization; the copy is `PRIVATE`, owned by them, titled "Copy of …". |
 | Assign | Anyone who can view, into **active** classrooms of the set's organization that they manage (`canManageClassroom`). |
 

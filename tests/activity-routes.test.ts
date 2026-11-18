@@ -113,7 +113,7 @@ async function routes() {
 
 const article = withParams({ id: "a1" });
 const assignment = withParams({ id: "as1" });
-const CHECK = { afterBlock: 2, question: "Q?", options: ["A", "B"], correctIndex: 1, explanation: "Because." };
+const CHECK = { afterBlock: 2, question: "Q?", options: ["A", "B"], correctIndex: 1, explanation: "Because.", levelKey: "B1" };
 
 test("activity routes require a session", async () => {
   authState = "unauth";
@@ -202,7 +202,12 @@ test("teachers manage polls and checks; changes are audited by id", async () => 
   );
 
   calls = [];
-  for (const body of [{ ...CHECK, correctIndex: 9 }, { ...CHECK, options: ["A", "B", "C", "D", "E"] }, { ...CHECK, question: "" }]) {
+  for (const body of [
+    { ...CHECK, correctIndex: 9 },
+    { ...CHECK, options: ["A", "B", "C", "D", "E"] },
+    { ...CHECK, question: "" },
+    { ...CHECK, levelKey: "Z9" },
+  ]) {
     assert.equal((await r.checks.POST(jsonPost("http://test/x", body), assignment)).status, 400);
   }
   assert.equal((await r.poll.PUT(makeJsonRequest("http://test/x", "PUT", { question: "Q" }), assignment)).status, 400);

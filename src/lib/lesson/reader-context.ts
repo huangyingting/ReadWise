@@ -26,13 +26,11 @@ export async function loadEducatorReaderContext(viewer: Viewer, articleId: strin
   if (view !== "student") {
     return { isEducator: true, previewing: false, previewLock: null, classrooms: await listManagedClassrooms(viewer) };
   }
-  const teaching = await teachingAssignments(viewer, articleId);
-  const locked = teaching.length
-    ? await prisma.assignment.findFirst({
-        where: { id: { in: teaching.map((entry) => entry.assignmentId) }, lockedLevelKey: { not: null } },
-        select: { lockedLevelKey: true },
-        orderBy: { createdAt: "asc" },
-      })
+  // The preview follows the first teaching assignment — the same one whose
+  // poll and checks the preview shows.
+  const [assignment] = await teachingAssignments(viewer, articleId);
+  const locked = assignment
+    ? await prisma.assignment.findUnique({ where: { id: assignment.assignmentId }, select: { lockedLevelKey: true } })
     : null;
   return { isEducator: true, previewing: true, previewLock: locked?.lockedLevelKey ?? null, classrooms: [] };
 }

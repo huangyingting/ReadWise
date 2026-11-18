@@ -14,7 +14,7 @@ import { ApiError } from "@/lib/errors/api-error";
 import { type RouteHandler, getReq, withParams } from "./support/route";
 import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
-type Attempt = { id: string; userId: string; articleId: string };
+type Attempt = { id: string; userId: string; articleId: string; completedAt?: Date };
 
 type Member = { userId: string; user: { name: string | null; email: string | null } };
 
@@ -28,6 +28,10 @@ let answers: Array<{ attemptId: string; skillTag: string; correct: boolean }> = 
 let attemptQueries: Array<Record<string, unknown>> = [];
 let answerQueries: Array<Record<string, unknown>> = [];
 
+const JOINED = new Date("2026-01-01T00:00:00Z");
+const ASSIGNED = new Date("2026-01-02T00:00:00Z");
+const COMPLETED = new Date("2026-01-03T00:00:00Z");
+
 let authState: AuthState = "ok";
 let scopedError: ApiError | null = null;
 let scopedResult: { role: string; matrix: unknown } = { role: "teacher", matrix: {} };
@@ -36,12 +40,12 @@ before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
-        classroomMembership: { findMany: async () => members },
-        assignment: { findMany: async () => assignments },
+        classroomMembership: { findMany: async () => members.map((member) => ({ createdAt: JOINED, ...member })) },
+        assignment: { findMany: async () => assignments.map((assignment) => ({ createdAt: ASSIGNED, ...assignment })) },
         quizAttempt: {
           findMany: async (args: Record<string, unknown>) => {
             attemptQueries.push(args);
-            return attempts;
+            return attempts.map((attempt) => ({ completedAt: COMPLETED, ...attempt }));
           },
         },
         quizAttemptAnswer: {

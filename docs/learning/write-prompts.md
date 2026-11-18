@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-11-17"
+last_updated: "2026-11-18"
 description: "Documents Write Prompt constructed responses: prompt resolution (assignment, article default, generic), the reader Write panel with draft autosave, the DRAFT/SUBMITTED/NEEDS_REVISION/GRADED flow, rubric grading and return-for-revision by teachers, privacy of independent writing, APIs, and audit."
 ---
 
@@ -66,15 +66,17 @@ characters, prompts to 1,000.
 Four dimensions scored 1–4: Claim & focus, Textual evidence, Organization,
 Language & conventions. **Grade** requires every dimension; **Return for
 revision** may carry partial scores. Feedback is optional. Only `SUBMITTED` or
-`GRADED` responses can be reviewed (409 otherwise).
+`GRADED` responses can be reviewed (409 otherwise), and not while the
+classroom is archived (409).
 
 ## Privacy and authorization
 
 - Independent writing is visible only to its author — it never appears on a
   teacher page, and reviewing it returns 404.
 - Assignment responses are visible to that classroom's managers (its teacher,
-  an org admin, a system admin) once submitted; drafts never are. Anyone else
-  gets 403; unknown assignments/submissions 404.
+  an org admin, a system admin) once submitted; drafts never are. A response
+  returned for revision is listed without its in-progress text until the
+  learner resubmits. Anyone else gets 403; unknown assignments/submissions 404.
 - Learners only ever read and write their own responses, and only for
   assignments they're part of (otherwise 404).
 - If the assignment is deleted, the response keeps its text but loses the

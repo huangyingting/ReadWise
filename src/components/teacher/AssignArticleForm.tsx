@@ -283,7 +283,9 @@ export default function AssignArticleForm({
           {selected.map((article) => (
             <li key={article.id} className="text-[length:var(--type-label)]">
               <a
-                href={`/reader/${encodeURIComponent(article.id)}/print?mode=answer-key`}
+                href={`/reader/${encodeURIComponent(article.id)}/print?mode=answer-key${
+                  lockedLevelKey && article.id === singleArticleId ? `&level=${lockedLevelKey}` : ""
+                }`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-medium text-primary-text underline-offset-2 hover:underline"

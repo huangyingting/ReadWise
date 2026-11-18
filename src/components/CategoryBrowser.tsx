@@ -271,7 +271,7 @@ export default function CategoryBrowser({
         <div className="flex items-center gap-[var(--space-2)]">
           <label
             htmlFor="browse-level-filter"
-            className="text-text-muted text-[length:var(--text-sm)] whitespace-nowrap"
+            className="text-text-muted text-[length:var(--type-ui)] whitespace-nowrap"
           >
             Level
           </label>
@@ -296,7 +296,7 @@ export default function CategoryBrowser({
         <div className="flex items-center gap-[var(--space-2)]">
           <label
             htmlFor="browse-maturity-filter"
-            className="text-text-muted text-[length:var(--text-sm)] whitespace-nowrap"
+            className="text-text-muted text-[length:var(--type-ui)] whitespace-nowrap"
           >
             Suitable for
           </label>
@@ -320,7 +320,7 @@ export default function CategoryBrowser({
         <div className="flex items-center gap-[var(--space-2)]">
           <label
             htmlFor="browse-skill-filter"
-            className="text-text-muted text-[length:var(--text-sm)] whitespace-nowrap"
+            className="text-text-muted text-[length:var(--type-ui)] whitespace-nowrap"
           >
             Reading skill
           </label>

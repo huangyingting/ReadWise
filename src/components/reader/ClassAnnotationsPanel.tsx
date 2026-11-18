@@ -12,6 +12,8 @@
  *    shared unless the learner submits it here.
  */
 
+import { useReaderLevel } from "./ReaderLevelContext";
+import { isReadingLevelKey, readingLevelLabel } from "@/lib/article-levels/levels";
 import { useState, type SubmitEvent } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { clientErrorMessage } from "@/lib/client-fetch";
@@ -158,6 +160,8 @@ function GuideCard({
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const titleId = `rw-guide-${guide.id}`;
+  // Prompts anchored to another reading level (#1303) are listed but not painted.
+  const onThisLevel = guide.levelKey === useReaderLevel();
 
   async function save(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -222,10 +226,16 @@ function GuideCard({
         size="sm"
         className="rw-note-row-quote"
         aria-label={`Go to passage for prompt ${guide.number}`}
+        disabled={!onThisLevel}
         onClick={() => setMissing(!flashGuide(guide.id))}
       >
         &ldquo;{guide.quote}&rdquo;
       </Button>
+      {!onThisLevel ? (
+        <p className="rw-note-row-note">
+          This passage is in the {isReadingLevelKey(guide.levelKey) ? readingLevelLabel(guide.levelKey) : guide.levelKey} text.
+        </p>
+      ) : null}
       {missing ? <p className="rw-note-row-orphaned m-0">Not found in current text</p> : null}
       {editing ? (
         <form onSubmit={save} className="flex flex-col gap-[var(--space-2)]">

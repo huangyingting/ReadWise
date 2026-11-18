@@ -113,6 +113,12 @@ test("teachers manage polls and checks with ids-only audit; others cannot", { sk
   assert.deepEqual(view.activities.poll?.options, ["Yes", "No", "Not sure"]);
   assert.deepEqual(view.activities.poll?.distribution, [0, 0, 0]);
   assert.equal(view.activities.checks[0].explanation, "Restoration needs help.");
+  assert.equal(view.activities.checks[0].levelKey, "original");
+  assert.deepEqual(
+    await addAssignmentCheck(s.teacher, s.assignmentId, { ...CHECK, levelKey: "B1" }, audit(s.teacher.id)),
+    { ok: false, status: 400, reason: "invalid_activity" },
+    "checks can only be placed in levels the article has",
+  );
   assert.equal(view.activities.assignment.classroomName, "Period 1");
 
   for (const bad of [

@@ -108,13 +108,22 @@ function canAuthorIn(viewer: Viewer, memberships: MembershipRow[], orgId: string
 
 type AccessSet = { organizationId: string; ownerId: string | null; visibility: string };
 
+/**
+ * Owners see their sets while they remain in the set's organization, and edit
+ * them while they can still author there; leaving the org ends both.
+ */
+function isOwnerInOrg(viewer: Viewer, memberships: MembershipRow[], set: AccessSet): boolean {
+  return set.ownerId === viewer.id && membershipIn(memberships, set.organizationId) !== null;
+}
+
 function canView(viewer: Viewer, memberships: MembershipRow[], set: AccessSet): boolean {
-  if (isSystemAdmin(viewer.role) || set.ownerId === viewer.id) return true;
+  if (isSystemAdmin(viewer.role) || isOwnerInOrg(viewer, memberships, set)) return true;
   return set.visibility === "ORG" && canAuthorIn(viewer, memberships, set.organizationId);
 }
 
 function canEdit(viewer: Viewer, memberships: MembershipRow[], set: AccessSet): boolean {
-  if (isSystemAdmin(viewer.role) || set.ownerId === viewer.id) return true;
+  if (isSystemAdmin(viewer.role)) return true;
+  if (set.ownerId === viewer.id && canAuthorIn(viewer, memberships, set.organizationId)) return true;
   return (
     set.visibility === "ORG" &&
     hasOrgCapability(membershipIn(memberships, set.organizationId), CAPABILITIES.orgManage)
@@ -165,14 +174,17 @@ function toSummary(row: SummaryRow): TextSetSummary {
   };
 }
 
-/** The viewer's own sets and sets shared in orgs where they teach. */
+/**
+ * The viewer's own sets and sets shared in orgs where they teach. Sets owned
+ * in an org the viewer has left aren't listed.
+ */
 export async function listTextSetsForViewer(
   viewer: Viewer,
 ): Promise<{ mine: TextSetSummary[]; shared: TextSetSummary[] }> {
   const teachingOrgIds = (await listTextSetOrganizations(viewer)).map((org) => org.id);
   const [mine, shared] = await Promise.all([
     prisma.textSet.findMany({
-      where: { ownerId: viewer.id },
+      where: { ownerId: viewer.id, organization: { memberships: { some: { userId: viewer.id } } } },
       select: SUMMARY_SELECT,
       orderBy: { updatedAt: "desc" },
     }),
