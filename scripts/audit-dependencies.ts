@@ -202,7 +202,7 @@ function hasExactDevOnlyPackage(
 
   return vulnerability.nodes.every((nodePath) => {
     const lockedPackage = lockfile.packages[nodePath];
-    return lockedPackage !== undefined && allowedVersions.has(lockedPackage.version) && lockedPackage.dev === true;
+    return lockedPackage?.version !== undefined && allowedVersions.has(lockedPackage.version) && lockedPackage.dev === true;
   });
 }
 
