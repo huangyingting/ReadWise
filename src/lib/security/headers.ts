@@ -104,7 +104,7 @@ export const SERVER_EXTERNAL_PACKAGES: readonly string[] = [
   "@opentelemetry/sdk-node",
   "@opentelemetry/exporter-trace-otlp-http",
   "@opentelemetry/resources",
-  "@opentelemetry/sdk-trace-base",
+  "@opentelemetry/sdk-trace",
   "@azure/storage-blob",
   "natural",
 ];

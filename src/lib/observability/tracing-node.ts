@@ -35,7 +35,7 @@ async function loadTracingModules() {
     import("@opentelemetry/resources"),
     import("@opentelemetry/semantic-conventions"),
     import("@opentelemetry/exporter-trace-otlp-http"),
-    import("@opentelemetry/sdk-trace-base"),
+    import("@opentelemetry/sdk-trace"),
   ]);
 
   return {
