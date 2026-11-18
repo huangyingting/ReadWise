@@ -30,16 +30,13 @@ export function friendlySignInError(code: string | undefined): string | null {
  * True only for same-origin absolute paths ("/reader/1"). Protocol-relative
  * ("//evil.com"), backslash ("/\evil.com" — browsers treat "\" as "/"),
  * and control-character tricks resolve to another origin and are rejected.
+ * After those checks the input is a plain path, so `new URL` cannot throw.
  */
 function hasRelativePathPrefix(url: string | undefined): url is string {
   if (!url || !url.startsWith("/")) return false;
   if (url.startsWith("//") || url.startsWith("/\\")) return false;
   if (/[\u0000-\u001f\u007f]/.test(url)) return false;
-  try {
-    return new URL(url, "https://readwise.invalid").origin === "https://readwise.invalid";
-  } catch {
-    return false;
-  }
+  return new URL(url, "https://readwise.invalid").origin === "https://readwise.invalid";
 }
 
 /**
