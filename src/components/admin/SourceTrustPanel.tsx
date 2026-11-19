@@ -1,10 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { PanelRetryError, PanelSkeleton } from "@/components/admin/panel-states";
+import { Metric, MetricGrid } from "@/components/admin/MetricGrid";
 import { useRouter } from "next/navigation";
 
-import { Badge, Field, Skeleton, Textarea } from "@/components/ui";
+import { Badge, Field, Textarea } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
 import { getJson, postJson } from "@/lib/client-fetch";
@@ -36,19 +37,6 @@ type Feedback =
   | { kind: "success"; message: string }
   | { kind: "warning"; message: string }
   | { kind: "error"; message: string };
-
-function Metric({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt className="text-text-muted text-[length:var(--text-sm)]">{label}</dt>
-      <dd className="m-0 font-medium">{children}</dd>
-    </div>
-  );
-}
-
-function MetricGrid({ children }: { children: ReactNode }) {
-  return <dl className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)] m-0">{children}</dl>;
-}
 
 /**
  * Source-trust promotion panel (#1100). Client island rendered inside the
@@ -124,16 +112,7 @@ export default function SourceTrustPanel({ sourceId }: { sourceId: string }) {
   );
 
   if (state.status === "loading") {
-    return (
-      <div className="flex flex-col gap-[var(--space-3)]" aria-busy="true">
-        <span className="sr-only" role="status">
-          Loading source trust snapshot
-        </span>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-[var(--space-7)] w-full" />
-        ))}
-      </div>
-    );
+    return <PanelSkeleton label="Loading source trust snapshot" rows={3} />;
   }
 
   if (state.status === "error") {
@@ -270,14 +249,10 @@ function TrustErrorState({ error, onRetry }: { error: AdminFetchErrorState; onRe
     );
   }
   return (
-    <div className="stack" role="alert">
-      <p className="m-0 text-danger-text text-[length:var(--text-sm)]">
-        {error.kind === "notFound" ? "Trust snapshot not found for this source." : error.message}
-      </p>
-      <Button variant="outline" size="sm" onClick={onRetry} className="w-auto">
-        Retry
-      </Button>
-    </div>
+    <PanelRetryError
+      message={error.kind === "notFound" ? "Trust snapshot not found for this source." : error.message}
+      onRetry={onRetry}
+    />
   );
 }
 

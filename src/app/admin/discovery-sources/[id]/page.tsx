@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { CrawlCandidateStatus } from "@prisma/client";
 
@@ -13,6 +12,7 @@ import AdminDiscoverySourceActions from "@/components/AdminDiscoverySourceAction
 import SourceTrustPanel from "@/components/admin/SourceTrustPanel";
 import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { Badge, Card, CardBody, CardTitle } from "@/components/ui";
+import { Metric, MetricGrid } from "@/components/admin/MetricGrid";
 import {
   DiscoverySourceStatusBadge,
   gapBadgeVariant,
@@ -22,23 +22,6 @@ import { formatAgeSeconds, formatDateTime } from "@/lib/display-format";
 
 const DASH = "—";
 const CANDIDATE_STATUSES = Object.values(CrawlCandidateStatus);
-
-function Metric({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt className="text-text-muted text-[length:var(--text-sm)]">{label}</dt>
-      <dd className="m-0 font-medium">{children}</dd>
-    </div>
-  );
-}
-
-function MetricGrid({ children }: { children: ReactNode }) {
-  return (
-    <dl className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)] m-0">
-      {children}
-    </dl>
-  );
-}
 
 function maybeDate(value: Date | null): string {
   return value ? formatDateTime(value) : DASH;

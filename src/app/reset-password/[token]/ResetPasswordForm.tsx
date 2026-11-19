@@ -12,7 +12,7 @@ import {
 } from "@/components/ui";
 import { buttonVariants } from "@/components/ui/Button";
 import { accountAdmissionRequest } from "@/lib/account-admission/client";
-import { AuthNotice } from "@/components/auth/AuthShell";
+import { Notice } from "@/components/ui/Notice";
 
 export default function ResetPasswordForm({ token }: { token: string }) {
   const [pending, setPending] = useState(false);
@@ -50,9 +50,9 @@ export default function ResetPasswordForm({ token }: { token: string }) {
   if (complete) {
     return (
       <Stack gap="4">
-        <AuthNotice tone="success">
+        <Notice tone="success">
           Your password was changed. Other active sessions were signed out.
-        </AuthNotice>
+        </Notice>
         <Link
           href="/signin"
           className={buttonVariants({
@@ -70,7 +70,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
   return (
     <form onSubmit={handleSubmit}>
       <Stack gap="3">
-        {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+        {error ? <Notice tone="danger">{error}</Notice> : null}
         <Field label="New password" hint="Use 12 to 128 characters." required>
           <Input
             name="password"

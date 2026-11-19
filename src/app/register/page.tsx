@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { AuthNotice, AuthShell } from "@/components/auth/AuthShell";
+import { AuthShell } from "@/components/auth/AuthShell";
+import { Notice } from "@/components/ui/Notice";
 import { accountAdmissionMode } from "@/lib/account-admission";
 import RegisterForm from "./RegisterForm";
 
@@ -18,10 +19,10 @@ export default function RegisterPage() {
       {isPublic ? (
         <RegisterForm />
       ) : (
-        <AuthNotice tone="neutral">
+        <Notice tone="neutral">
           ReadWise is currently invitation-only. Use the personal invitation
           link sent by an administrator.
-        </AuthNotice>
+        </Notice>
       )}
     </AuthShell>
   );

@@ -1,16 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
 
-import { Badge, EmptyState, Skeleton } from "@/components/ui";
+import { Badge, EmptyState } from "@/components/ui";
+import { OffsetPagination, PanelErrorState, PanelSkeleton } from "@/components/admin/panel-states";
 import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
+import { useAdminQueue } from "@/components/admin/useAdminQueue";
 import { Input } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { AdminTableWrap } from "@/components/admin";
-import { getJson, postJson } from "@/lib/client-fetch";
+import { postJson } from "@/lib/client-fetch";
 import { formatDateTime } from "@/lib/display-format";
-import { classifyAdminFetchError, type AdminFetchErrorState } from "@/lib/admin/admin-fetch-state";
 import ReviewActionButton from "./ReviewActionButton";
 import CandidateDetailSheet from "./CandidateDetailSheet";
 import {
@@ -48,11 +49,6 @@ type Filters = {
   offset: number;
   limit: number;
 };
-
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; error: AdminFetchErrorState }
-  | { status: "ready"; page: ReviewCandidatePage };
 
 type Feedback =
   | { kind: "none" }
@@ -94,48 +90,27 @@ export default function CandidateReviewQueue({
   initialOffset,
   initialLimit,
 }: CandidateReviewQueueProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-
-  const [filters, setFilters] = useState<Filters>({
-    status: initialStatus,
-    providerKey: initialProviderKey,
-    discoverySourceId: initialDiscoverySourceId,
-    offset: initialOffset,
-    limit: initialLimit || DEFAULT_REVIEW_LIMIT,
-  });
   const [providerDraft, setProviderDraft] = useState(initialProviderKey);
   const [sourceDraft, setSourceDraft] = useState(initialDiscoverySourceId);
 
-  const [data, setData] = useState<LoadState>({ status: "loading" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const clearSelection = useCallback(() => setSelected(new Set()), []);
+  const { filters, data, load, applyFilters, goToOffset } = useAdminQueue<Filters, ReviewCandidatePage>({
+    endpoint: "/api/admin/candidates",
+    initialFilters: {
+      status: initialStatus,
+      providerKey: initialProviderKey,
+      discoverySourceId: initialDiscoverySourceId,
+      offset: initialOffset,
+      limit: initialLimit || DEFAULT_REVIEW_LIMIT,
+    },
+    buildQuery,
+    onLoaded: clearSelection,
+  });
   const [feedback, setFeedback] = useState<Feedback>({ kind: "none" });
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
-
-  const load = useCallback(async (f: Filters) => {
-    setData({ status: "loading" });
-    try {
-      const page = await getJson<ReviewCandidatePage>(`/api/admin/candidates?${buildQuery(f)}`);
-      setData({ status: "ready", page });
-      setSelected(new Set());
-    } catch (err) {
-      setData({ status: "error", error: classifyAdminFetchError(err) });
-    }
-  }, []);
-
-  useEffect(() => {
-    void load(filters);
-  }, [filters, load]);
-
-  const applyFilters = useCallback(
-    (next: Filters) => {
-      setFilters(next);
-      router.replace(`${pathname}?${buildQuery(next)}`, { scroll: false });
-    },
-    [pathname, router],
-  );
 
   const onStatusChange = (status: ReviewQueueStatus) => {
     setFeedback({ kind: "none" });
@@ -151,8 +126,6 @@ export default function CandidateReviewQueue({
       offset: 0,
     });
   };
-
-  const goToOffset = (offset: number) => applyFilters({ ...filters, offset });
 
   // --- Mutations ----------------------------------------------------------
 
@@ -277,10 +250,17 @@ export default function CandidateReviewQueue({
         />
       )}
 
-      {data.status === "loading" && <QueueSkeleton />}
+      {data.status === "loading" && <PanelSkeleton label="Loading review candidates" />}
 
       {data.status === "error" && (
-        <QueueErrorState error={data.error} onRetry={() => void load(filters)} />
+        <PanelErrorState
+          error={data.error}
+          resourceLabel="review queue"
+          capability="sources.manage"
+          forbiddenAction="Reviewing crawl candidates"
+          signInTo="review candidates"
+          onRetry={() => void load(filters)}
+        />
       )}
 
       {data.status === "ready" && (
@@ -317,7 +297,12 @@ export default function CandidateReviewQueue({
             />
           )}
 
-          <QueuePagination page={data.page} onGoto={goToOffset} />
+          <OffsetPagination
+            offset={data.page.offset}
+            limit={data.page.limit}
+            total={data.page.total}
+            onGoto={goToOffset}
+          />
         </>
       )}
 
@@ -340,65 +325,38 @@ function FeedbackBanner({
   onDismiss: () => void;
 }) {
   if (feedback.kind === "none") return null;
+  if (feedback.kind === "success") return <Notice tone="success">{feedback.message}</Notice>;
+  if (feedback.kind === "error") return <Notice tone="danger">{feedback.message}</Notice>;
 
-  if (feedback.kind === "success") {
-    return (
-      <div
-        role="status"
-        className="rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)] text-[length:var(--text-sm)] text-success-text"
-      >
-        {feedback.message}
-      </div>
-    );
-  }
-
-  if (feedback.kind === "error") {
-    return (
-      <div
-        role="alert"
-        className="rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--danger)_8%,transparent)] px-[var(--space-4)] py-[var(--space-3)] text-[length:var(--text-sm)] text-danger-text"
-      >
-        {feedback.message}
-      </div>
-    );
-  }
-
+  const refreshButton = (
+    <Button variant="outline" size="sm" onClick={onRefresh}>
+      Refresh queue
+    </Button>
+  );
   if (feedback.kind === "stale") {
     return (
-      <div
-        role="alert"
-        className="flex flex-wrap items-center justify-between gap-[var(--space-3)] rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--warning)_34%,transparent)] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] px-[var(--space-4)] py-[var(--space-3)] text-[length:var(--text-sm)] text-warning-text"
-      >
-        <span>{feedback.message} The queue may be out of date.</span>
-        <Button variant="outline" size="sm" onClick={onRefresh}>
-          Refresh queue
-        </Button>
-      </div>
+      <Notice tone="warning" action={refreshButton}>
+        {feedback.message} The queue may be out of date.
+      </Notice>
     );
   }
 
   // Partial-batch outcome.
   const { response } = feedback;
-  const stale = batchHasStale(response);
   return (
-    <div
-      role="status"
-      className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] bg-bg-subtle px-[var(--space-4)] py-[var(--space-3)] text-[length:var(--text-sm)]"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-[var(--space-2)]">
-        <strong>{summarizeBatch(response)}</strong>
-        <div className="flex gap-[var(--space-2)]">
-          {stale && (
-            <Button variant="outline" size="sm" onClick={onRefresh}>
-              Refresh queue
-            </Button>
-          )}
+    <Notice
+      tone="neutral"
+      action={
+        <>
+          {batchHasStale(response) && refreshButton}
           <Button variant="ghost" size="sm" onClick={onDismiss}>
             Dismiss
           </Button>
-        </div>
-      </div>
-      <ul className="m-0 flex flex-col gap-[var(--space-1)] p-0 list-none">
+        </>
+      }
+    >
+      <strong className="text-text">{summarizeBatch(response)}</strong>
+      <ul className="m-0 mt-[var(--space-2)] flex flex-col gap-[var(--space-1)] p-0 list-none">
         {response.results.map((item) => {
           const described = describeBatchItem(item);
           return (
@@ -411,7 +369,7 @@ function FeedbackBanner({
           );
         })}
       </ul>
-    </div>
+    </Notice>
   );
 }
 
@@ -566,91 +524,5 @@ function CandidateTable({
         })}
       </tbody>
     </AdminTableWrap>
-  );
-}
-
-function QueuePagination({
-  page,
-  onGoto,
-}: {
-  page: ReviewCandidatePage;
-  onGoto: (offset: number) => void;
-}) {
-  const hasPrev = page.offset > 0;
-  const hasNext = page.offset + page.limit < page.total;
-  if (!hasPrev && !hasNext) return null;
-  const current = Math.floor(page.offset / page.limit) + 1;
-  const totalPages = Math.max(1, Math.ceil(page.total / page.limit));
-  return (
-    <div className="admin-pagination">
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={!hasPrev}
-        onClick={() => onGoto(Math.max(0, page.offset - page.limit))}
-      >
-        ← Previous
-      </Button>
-      <span className="muted">
-        Page {current} of {totalPages}
-      </span>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={!hasNext}
-        onClick={() => onGoto(page.offset + page.limit)}
-      >
-        Next →
-      </Button>
-    </div>
-  );
-}
-
-function QueueSkeleton() {
-  return (
-    <div className="flex flex-col gap-[var(--space-2)]" aria-busy="true">
-      <span className="sr-only" role="status">
-        Loading review candidates
-      </span>
-      {Array.from({ length: 6 }).map((_, i) => (
-        <Skeleton key={i} className="h-[var(--space-8)] w-full" />
-      ))}
-    </div>
-  );
-}
-
-function QueueErrorState({
-  error,
-  onRetry,
-}: {
-  error: AdminFetchErrorState;
-  onRetry: () => void;
-}) {
-  if (error.kind === "forbidden") {
-    return (
-      <EmptyState
-        title="You don't have access"
-        description="Reviewing crawl candidates requires the sources.manage capability. Ask an administrator to grant access."
-      />
-    );
-  }
-  if (error.kind === "unauthorized") {
-    return (
-      <EmptyState
-        title="Please sign in"
-        description="Your session has expired. Sign in again to review candidates."
-        action={{ label: "Sign in", href: "/signin" }}
-      />
-    );
-  }
-  return (
-    <div className="stack" role="alert">
-      <p className="m-0 text-danger-text text-[length:var(--text-sm)]">
-        {error.kind === "notFound" ? "The review queue could not be found." : error.message}
-      </p>
-      <Button variant="outline" size="sm" onClick={onRetry} className="w-auto">
-        Retry
-      </Button>
-    </div>
   );
 }

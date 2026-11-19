@@ -169,16 +169,16 @@ test("describeRecoverOutcome describes the re-admission (not a content restore)"
 
 test("DeletedArticleQueue posts an explicit confirm + reason to the recover endpoint", () => {
   const src = readSrc("src/components/admin/deleted-articles/DeletedArticleQueue.tsx");
-  assert.ok(src.includes("/api/admin/deleted-articles?"));
+  assert.ok(src.includes('endpoint: "/api/admin/deleted-articles"'));
   assert.ok(src.includes("/recover`"));
   assert.ok(src.includes("confirm: true"));
   assert.ok(src.includes("reason"));
-  assert.ok(src.includes("getJson"));
+  assert.ok(src.includes("useAdminQueue"), "loads the queue via the shared admin queue hook");
   assert.ok(src.includes("postJson"));
   assert.ok(src.includes("EmptyState"));
   assert.ok(src.includes("Skeleton"));
-  assert.ok(src.includes('role="alert"'));
-  assert.ok(src.includes("forbidden"));
+  assert.ok(src.includes('<Notice tone="danger"'), "mutation errors render as an alert notice");
+  assert.ok(src.includes("PanelErrorState"), "renders the forbidden/unauthorized/error states");
   // Concurrent-change 409 → refresh & retry affordance.
   assert.ok(src.includes("refresh"));
 });

@@ -174,6 +174,21 @@ test("AdminSecurityEventsPanel is a client island fetching the events route with
   }
 });
 
+test("shared admin queue hook fetches via getJson, classifies errors, and mirrors filters to the URL", () => {
+  const src = readSrc("src/components/admin/useAdminQueue.ts");
+  assert.ok(src.includes("getJson"));
+  assert.ok(src.includes("classifyAdminFetchError"));
+  assert.ok(src.includes("router.replace"));
+});
+
+test("shared admin panel states render deny-by-default and alert error states", () => {
+  const src = readSrc("src/components/admin/panel-states.tsx");
+  assert.ok(src.includes('"forbidden"'), "handles 403");
+  assert.ok(src.includes('"unauthorized"'), "handles 401 with a sign-in action");
+  assert.ok(src.includes('role="alert"'), "generic errors are announced");
+  assert.ok(src.includes("OffsetPagination") && src.includes("PanelPagination"), "page + offset pagers");
+});
+
 // ---------------------------------------------------------------------------
 // AdminAuditLogPanel island — primitives, states, pagination, metadata-only
 // ---------------------------------------------------------------------------
@@ -218,7 +233,7 @@ test("the audit-log DTO helper excludes metadata + userAgent by construction", (
 for (const rel of [
   "src/components/admin/security/AdminSecurityEventsPanel.tsx",
   "src/components/admin/security/AdminAuditLogPanel.tsx",
-  "src/components/admin/security/panel-states.tsx",
+  "src/components/admin/panel-states.tsx",
 ]) {
   test(`${rel} is token-driven (no raw hex, no inline font-size/style)`, () => {
     const src = readSrc(rel).replace(/#\d+/g, "");

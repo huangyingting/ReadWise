@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Wordmark, WordmarkLink } from "@/components/Wordmark";
 import ThemeToggle from "@/components/shell/ThemeToggle";
 import { Card, PageShell, Stack } from "@/components/ui";
@@ -62,36 +62,5 @@ export function AuthShell({
         </Card>
       </div>
     </main>
-  );
-}
-
-export function AuthNotice({
-  tone,
-  children,
-}: {
-  tone: "error" | "success" | "neutral";
-  children: ReactNode;
-}) {
-  const Icon = tone === "success" ? CheckCircle2 : AlertTriangle;
-  return (
-    <div
-      role={tone === "error" ? "alert" : "status"}
-      className={cn(
-        "flex items-start gap-[var(--space-2)] rounded-[var(--radius-md)] border p-[var(--space-3)] text-[length:var(--text-sm)]",
-        tone === "error" &&
-          "border-[color-mix(in_srgb,var(--danger)_28%,transparent)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] text-danger-text",
-        tone === "success" &&
-          "border-[color-mix(in_srgb,var(--success)_30%,transparent)] bg-[color-mix(in_srgb,var(--success)_10%,transparent)] text-success-text",
-        tone === "neutral" &&
-          "border-border bg-bg-subtle text-text-muted",
-      )}
-    >
-      <Icon
-        size={16}
-        aria-hidden
-        className="shrink-0 translate-y-[calc(var(--space-1)/4)]"
-      />
-      <span>{children}</span>
-    </div>
   );
 }

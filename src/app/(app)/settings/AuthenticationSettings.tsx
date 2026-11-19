@@ -17,7 +17,7 @@ import {
   Stack,
 } from "@/components/ui";
 import { accountAdmissionRequest } from "@/lib/account-admission/client";
-import { AuthNotice } from "@/components/auth/AuthShell";
+import { Notice } from "@/components/ui/Notice";
 
 type Provider = {
   id: string;
@@ -119,9 +119,9 @@ export default function AuthenticationSettings({
 
             <form onSubmit={handlePassword}>
               <Stack gap="3">
-                {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+                {error ? <Notice tone="danger">{error}</Notice> : null}
                 {message ? (
-                  <AuthNotice tone="success">{message}</AuthNotice>
+                  <Notice tone="success">{message}</Notice>
                 ) : null}
                 {hasPassword ? (
                   <Field label="Current password" required>
@@ -181,9 +181,9 @@ export default function AuthenticationSettings({
                 </div>
               </div>
               {configuredProviders.length === 0 ? (
-                <AuthNotice tone="neutral">
+                <Notice tone="neutral">
                   No social providers are configured by the operator.
-                </AuthNotice>
+                </Notice>
               ) : (
                 configuredProviders.map((provider) => {
                   const linked = linkedProviders.includes(provider.id);

@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { PanelRetryError, PanelSkeleton } from "@/components/admin/panel-states";
 import { useRouter } from "next/navigation";
 
-import { EmptyState, Skeleton, Spinner } from "@/components/ui";
+import { EmptyState, Spinner } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Field } from "@/components/ui/Field";
@@ -215,31 +216,10 @@ export default function AdminSeriesArticleManager({
         </div>
 
         <div className="flex flex-col gap-[var(--space-5)] overflow-y-auto px-[var(--space-5)] py-[var(--space-4)]">
-          {load.status === "loading" && (
-            <div className="flex flex-col gap-[var(--space-2)]" aria-busy="true">
-              <span className="sr-only" role="status">
-                Loading series articles
-              </span>
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-[var(--space-8)] w-full" />
-              ))}
-            </div>
-          )}
+          {load.status === "loading" && <PanelSkeleton label="Loading series articles" rows={4} />}
 
           {load.status === "error" && (
-            <div className="stack" role="alert">
-              <p className="m-0 text-[length:var(--text-sm)] text-danger-text">
-                {loadErrorMessage(load.error)}
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-auto"
-                onClick={() => void loadDetail()}
-              >
-                Retry
-              </Button>
-            </div>
+            <PanelRetryError message={loadErrorMessage(load.error)} onRetry={() => void loadDetail()} />
           )}
 
           {load.status === "ready" && (

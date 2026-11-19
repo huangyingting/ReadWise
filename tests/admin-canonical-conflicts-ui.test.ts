@@ -353,12 +353,12 @@ test("conflictResolveErrorFrom treats a Type-B kind/candidate mismatch as a refr
 
 test("CanonicalConflictQueue fetches the documented endpoint and renders required states", () => {
   const src = readSrc("src/components/admin/canonical-conflicts/CanonicalConflictQueue.tsx");
-  assert.ok(src.includes("/api/admin/canonical-conflicts?"));
-  assert.ok(src.includes("getJson"));
+  assert.ok(src.includes('endpoint: "/api/admin/canonical-conflicts"'));
+  assert.ok(src.includes("useAdminQueue"), "loads the queue via the shared admin queue hook");
   assert.ok(src.includes("EmptyState"));
   assert.ok(src.includes("Skeleton"));
-  assert.ok(src.includes('role="alert"'));
-  assert.ok(src.includes("forbidden"));
+  assert.ok(src.includes('<Notice tone="danger"'), "mutation errors render as an alert notice");
+  assert.ok(src.includes("PanelErrorState"), "renders the forbidden/unauthorized/error states");
   assert.ok(src.includes("ConflictDetailSheet"));
 });
 

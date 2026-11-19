@@ -19,7 +19,7 @@ import {
   type AuditLogPage,
   type AuditLogRow,
 } from "@/lib/admin/security/audit-log-ui";
-import { PanelErrorState, PanelPagination, PanelSkeleton } from "./panel-states";
+import { PanelErrorState, PanelPagination, PanelSkeleton } from "../panel-states";
 
 const DASH = "—";
 
@@ -123,7 +123,12 @@ export default function AdminAuditLogPanel() {
       {data.status === "loading" && <PanelSkeleton label="Loading audit log" />}
 
       {data.status === "error" && (
-        <PanelErrorState error={data.error} resourceLabel="audit log" onRetry={() => void load(filters)} />
+        <PanelErrorState
+          error={data.error}
+          resourceLabel="audit log"
+          capability="security.view"
+          onRetry={() => void load(filters)}
+        />
       )}
 
       {data.status === "ready" && (

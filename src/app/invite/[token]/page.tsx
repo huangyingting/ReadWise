@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { AuthNotice, AuthShell } from "@/components/auth/AuthShell";
+import { AuthShell } from "@/components/auth/AuthShell";
+import { Notice } from "@/components/ui/Notice";
 import { accountAdmissionMode } from "@/lib/account-admission";
 import InvitationRegistrationForm from "./InvitationRegistrationForm";
 
@@ -22,10 +23,10 @@ export default async function InvitationPage({
       {accountAdmissionMode() === "invitation-only" ? (
         <InvitationRegistrationForm token={token} />
       ) : (
-        <AuthNotice tone="neutral">
+        <Notice tone="neutral">
           This deployment currently uses public registration. Create an account
           from the registration page instead.
-        </AuthNotice>
+        </Notice>
       )}
     </AuthShell>
   );

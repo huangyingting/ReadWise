@@ -10,7 +10,7 @@ import {
   Stack,
 } from "@/components/ui";
 import { accountAdmissionRequest } from "@/lib/account-admission/client";
-import { AuthNotice } from "@/components/auth/AuthShell";
+import { Notice } from "@/components/ui/Notice";
 
 export default function ForgotPasswordForm() {
   const [pending, setPending] = useState(false);
@@ -40,17 +40,17 @@ export default function ForgotPasswordForm() {
 
   if (complete) {
     return (
-      <AuthNotice tone="success">
+      <Notice tone="success">
         If a password account exists for that email, a reset link is on its
         way.
-      </AuthNotice>
+      </Notice>
     );
   }
 
   return (
     <form onSubmit={handleSubmit}>
       <Stack gap="3">
-        {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+        {error ? <Notice tone="danger">{error}</Notice> : null}
         <Field label="Email" required>
           <Input
             name="email"

@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 
-import { Badge, Field, Skeleton, Spinner, Switch, Textarea } from "@/components/ui";
+import { Badge, Field, Switch, Textarea } from "@/components/ui";
+import { AdminDetailSheet, DetailRow, useAdminDetail } from "@/components/admin/AdminDetailSheet";
 import { Button } from "@/components/ui/Button";
-import { Sheet } from "@/components/ui/Sheet";
+import { Notice } from "@/components/ui/Notice";
 import { getJson, postJson } from "@/lib/client-fetch";
 import { formatDateTime } from "@/lib/display-format";
-import { classifyAdminFetchError, type AdminFetchErrorState } from "@/lib/admin/admin-fetch-state";
 import {
   MAX_RESOLVE_REASON,
   classifyConflictResolveError,
@@ -26,25 +26,15 @@ import {
 
 const DASH = "—";
 
-type DetailState =
-  | { status: "loading" }
-  | { status: "error"; error: AdminFetchErrorState }
-  | { status: "ready"; detail: CanonicalConflictDetail };
-
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-[var(--space-1)]">
-      <dt className="text-text-muted text-[length:var(--text-xs)]">{label}</dt>
-      <dd className="m-0 text-[length:var(--text-sm)] break-words">{children}</dd>
-    </div>
-  );
-}
-
 interface ConflictDetailSheetProps {
   conflictId: string | null;
   onClose: () => void;
   /** Called after a state-changing (or idempotent) resolution: reload + banner. */
   onResolved: (message: string) => void;
+}
+
+function fetchConflictDetail(id: string): Promise<CanonicalConflictDetail> {
+  return getJson<CanonicalConflictDetail>(`/api/admin/canonical-conflicts/${encodeURIComponent(id)}`);
 }
 
 /**
@@ -58,73 +48,19 @@ interface ConflictDetailSheetProps {
  * secret, or article content.
  */
 export default function ConflictDetailSheet({ conflictId, onClose, onResolved }: ConflictDetailSheetProps) {
-  const [state, setState] = useState<DetailState>({ status: "loading" });
-
-  const load = useCallback(async (id: string) => {
-    setState({ status: "loading" });
-    try {
-      const detail = await getJson<CanonicalConflictDetail>(
-        `/api/admin/canonical-conflicts/${encodeURIComponent(id)}`,
-      );
-      setState({ status: "ready", detail });
-    } catch (err) {
-      setState({ status: "error", error: classifyAdminFetchError(err) });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (conflictId) void load(conflictId);
-  }, [conflictId, load]);
-
+  const { state, reload } = useAdminDetail(conflictId, fetchConflictDetail);
   return (
-    <Sheet open={conflictId !== null} onClose={onClose} side="right" label="Canonical conflict details">
-      <div className="flex items-center justify-between gap-[var(--space-3)] border-b border-border px-[var(--space-5)] py-[var(--space-4)]">
-        <h2 className="m-0 text-[length:var(--type-section-title)] font-[family-name:var(--font-display)] font-semibold">
-          Conflict details
-        </h2>
-        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close details">
-          Close
-        </Button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-[var(--space-5)] py-[var(--space-4)]">
-        {state.status === "loading" && (
-          <div className="flex flex-col gap-[var(--space-3)]" aria-busy="true">
-            <span className="sr-only" role="status">
-              <Spinner size="sm" /> Loading conflict details
-            </span>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-[var(--space-6)] w-full" />
-            ))}
-          </div>
-        )}
-
-        {state.status === "error" && (
-          <div className="flex flex-col gap-[var(--space-3)]">
-            <p role="alert" className="m-0 text-danger-text text-[length:var(--text-sm)]">
-              {state.error.kind === "forbidden"
-                ? "You don't have access to view this conflict."
-                : state.error.kind === "notFound"
-                  ? "This conflict no longer exists."
-                  : "Couldn't load conflict details."}
-            </p>
-            {conflictId && state.error.kind !== "forbidden" && (
-              <Button variant="outline" size="sm" onClick={() => void load(conflictId)}>
-                Retry
-              </Button>
-            )}
-          </div>
-        )}
-
-        {state.status === "ready" && (
-          <ConflictDetailBody
-            detail={state.detail}
-            onResolved={onResolved}
-            onReload={() => conflictId && void load(conflictId)}
-          />
-        )}
-      </div>
-    </Sheet>
+    <AdminDetailSheet
+      open={conflictId !== null}
+      onClose={onClose}
+      label="Canonical conflict details"
+      title="Conflict details"
+      noun="conflict"
+      state={state}
+      onRetry={reload}
+    >
+      {(detail) => <ConflictDetailBody detail={detail} onResolved={onResolved} onReload={reload} />}
+    </AdminDetailSheet>
   );
 }
 
@@ -499,23 +435,17 @@ function ResolveErrorBanner({
 }) {
   if (error.kind === "stale") {
     return (
-      <div
-        role="alert"
-        className="flex flex-wrap items-center justify-between gap-[var(--space-2)] rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--warning)_34%,transparent)] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)] text-warning-text"
+      <Notice
+        tone="warning"
+        action={
+          <Button variant="outline" size="sm" onClick={onRefresh}>
+            Refresh
+          </Button>
+        }
       >
-        <span>{error.message} Refresh &amp; retry.</span>
-        <Button variant="outline" size="sm" onClick={onRefresh}>
-          Refresh
-        </Button>
-      </div>
+        {error.message} Refresh &amp; retry.
+      </Notice>
     );
   }
-  return (
-    <p
-      role="alert"
-      className="m-0 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--danger)_8%,transparent)] px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)] text-danger-text"
-    >
-      {error.message}
-    </p>
-  );
+  return <Notice tone="danger">{error.message}</Notice>;
 }

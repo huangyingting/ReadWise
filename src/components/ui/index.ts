@@ -75,6 +75,7 @@ export {
   type IconButtonContext,
 } from "./IconButton";
 export { Avatar, type AvatarProps } from "./Avatar";
+export { Notice, type NoticeProps, type NoticeTone } from "./Notice";
 export {
   PageShell,
   pageShellVariants,

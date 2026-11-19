@@ -307,16 +307,16 @@ test("describeSingleReview describes applied (enqueued) vs no-op", () => {
 
 test("CandidateReviewQueue posts to the documented review endpoints", () => {
   const src = readSrc("src/components/admin/candidate-review/CandidateReviewQueue.tsx");
-  assert.ok(src.includes("/api/admin/candidates?"));
+  assert.ok(src.includes('endpoint: "/api/admin/candidates"'));
   assert.ok(src.includes("/review`")); // single: /api/admin/candidates/{id}/review
   assert.ok(src.includes("/api/admin/candidates/review`")); // bounded batch
-  assert.ok(src.includes("getJson"));
+  assert.ok(src.includes("useAdminQueue"), "loads the queue via the shared admin queue hook");
   assert.ok(src.includes("postJson"));
   // Required states present.
   assert.ok(src.includes("EmptyState"));
   assert.ok(src.includes("Skeleton"));
-  assert.ok(src.includes('role="alert"'));
-  assert.ok(src.includes("forbidden"));
+  assert.ok(src.includes('<Notice tone="danger"'), "mutation errors render as an alert notice");
+  assert.ok(src.includes("PanelErrorState"), "renders the forbidden/unauthorized/error states");
 });
 
 test("CandidateDetailSheet fetches the sanitized detail DTO", () => {

@@ -10,7 +10,7 @@ import {
   Stack,
 } from "@/components/ui";
 import { accountAdmissionRequest } from "@/lib/account-admission/client";
-import { AuthNotice } from "@/components/auth/AuthShell";
+import { Notice } from "@/components/ui/Notice";
 
 export default function RegisterForm() {
   const [pending, setPending] = useState(false);
@@ -48,16 +48,16 @@ export default function RegisterForm() {
 
   if (complete) {
     return (
-      <AuthNotice tone="success">
+      <Notice tone="success">
         Check your email for a verification link. The link expires in 24 hours.
-      </AuthNotice>
+      </Notice>
     );
   }
 
   return (
     <form onSubmit={handleSubmit}>
       <Stack gap="3">
-        {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+        {error ? <Notice tone="danger">{error}</Notice> : null}
         <Field label="Name">
           <Input
             name="name"

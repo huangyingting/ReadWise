@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Spinner } from "@/components/ui";
 import { buttonVariants } from "@/components/ui/Button";
 import { accountAdmissionRequest } from "@/lib/account-admission/client";
-import { AuthNotice } from "@/components/auth/AuthShell";
+import { Notice } from "@/components/ui/Notice";
 
 export default function VerifyEmailState({ token }: { token: string }) {
   const [state, setState] = useState<"pending" | "complete" | "error">(
@@ -42,13 +42,13 @@ export default function VerifyEmailState({ token }: { token: string }) {
     );
   }
   if (state === "error") {
-    return <AuthNotice tone="error">{error}</AuthNotice>;
+    return <Notice tone="danger">{error}</Notice>;
   }
   return (
     <>
-      <AuthNotice tone="success">
+      <Notice tone="success">
         Your email is verified and your account is ready.
-      </AuthNotice>
+      </Notice>
       <Link
         href="/onboarding"
         className={buttonVariants({

@@ -19,7 +19,7 @@ import {
   sloStatusEndpoint,
   type SloDashboardResponse,
 } from "@/lib/admin/security/slo-ui";
-import { PanelErrorState, PanelSkeleton } from "./panel-states";
+import { PanelErrorState, PanelSkeleton } from "../panel-states";
 
 type LoadState =
   | { status: "loading" }
@@ -71,6 +71,7 @@ export default function AdminSloDashboardPanel() {
         <PanelErrorState
           error={data.error}
           resourceLabel="SLO status"
+          capability="security.view"
           onRetry={() => void load()}
         />
       )}

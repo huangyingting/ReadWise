@@ -281,6 +281,7 @@ semantics; pure aliases are drift.
 | **Disclosure** | `Disclosure.tsx` | `title`, `description`, `defaultOpen` | Collapsible secondary tools on native `<details>`/`<summary>` |
 | **navItemVariants** | `navItemVariants.ts` | `active` | Class helper for link-based secondary nav (admin rail, view tabs, settings index) |
 | **FormActions** | `FormActions.tsx` | `density`, `align` | Submit/cancel action rows |
+| **Notice** | `Notice.tsx` | `tone`: neutral · success · warning · danger; `action` | Inline status boxes — form errors, mutation outcomes, stale-data warnings with a Refresh action |
 | **EmptyState** | `EmptyState.tsx` | `icon`, `title`, `description`, `action`, `titleAs` | Empty collection/page states |
 | **PanelLoading** | `ReaderToolPanelState.tsx` | `message` | Tool/study-panel loading state |
 | **PanelError** | `ReaderToolPanelState.tsx` | `message` | Tool/study-panel error state |

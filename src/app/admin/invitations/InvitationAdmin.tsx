@@ -14,7 +14,7 @@ import {
 } from "@/components/ui";
 import { AdminTableWrap } from "@/components/admin";
 import { accountAdmissionRequest } from "@/lib/account-admission/client";
-import { AuthNotice } from "@/components/auth/AuthShell";
+import { Notice } from "@/components/ui/Notice";
 
 type Invitation = {
   id: string;
@@ -218,7 +218,7 @@ export default function InvitationAdmin({
         </form>
       </Section>
 
-      {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+      {error ? <Notice tone="danger">{error}</Notice> : null}
 
       {latestLink ? (
         <div className="rounded-[var(--radius-lg)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] bg-[color-mix(in_srgb,var(--success)_8%,transparent)] p-[var(--space-4)]">

@@ -21,7 +21,7 @@ import {
   type SecurityEventsFilters,
   type SecurityEventsResponse,
 } from "@/lib/admin/security/events-ui";
-import { PanelErrorState, PanelSkeleton } from "./panel-states";
+import { PanelErrorState, PanelSkeleton } from "../panel-states";
 
 const DASH = "—";
 
@@ -124,7 +124,12 @@ export default function AdminSecurityEventsPanel() {
       {data.status === "loading" && <PanelSkeleton label="Loading security events" />}
 
       {data.status === "error" && (
-        <PanelErrorState error={data.error} resourceLabel="security events" onRetry={refresh} />
+        <PanelErrorState
+          error={data.error}
+          resourceLabel="security events"
+          capability="security.view"
+          onRetry={refresh}
+        />
       )}
 
       {data.status === "ready" && (

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
 import { Button, Field, FormActions, Input, Stack } from "@/components/ui";
 import { accountAdmissionRequest } from "@/lib/account-admission/client";
-import { AuthNotice } from "@/components/auth/AuthShell";
+import { Notice } from "@/components/ui/Notice";
 
 export default function PasswordSignInForm({
   callbackUrl,
@@ -42,7 +42,7 @@ export default function PasswordSignInForm({
   return (
     <form onSubmit={handleSubmit}>
       <Stack gap="3">
-        {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+        {error ? <Notice tone="danger">{error}</Notice> : null}
         <Field label="Email" required>
           <Input
             name="email"

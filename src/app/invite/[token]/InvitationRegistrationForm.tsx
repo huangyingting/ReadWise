@@ -12,7 +12,7 @@ import {
   Stack,
 } from "@/components/ui";
 import { accountAdmissionRequest } from "@/lib/account-admission/client";
-import { AuthNotice } from "@/components/auth/AuthShell";
+import { Notice } from "@/components/ui/Notice";
 
 type InvitationView = {
   status: "pending" | "accepted" | "revoked" | "expired" | "invalid";
@@ -98,7 +98,7 @@ export default function InvitationRegistrationForm({
   }
 
   if (error && !invitation) {
-    return <AuthNotice tone="error">{error}</AuthNotice>;
+    return <Notice tone="danger">{error}</Notice>;
   }
 
   if (invitation?.status !== "pending") {
@@ -109,19 +109,19 @@ export default function InvitationRegistrationForm({
       invalid: "This invitation is invalid or no longer active.",
     } as const;
     return (
-      <AuthNotice tone="error">
+      <Notice tone="danger">
         {descriptions[invitation?.status ?? "invalid"]}
-      </AuthNotice>
+      </Notice>
     );
   }
 
   return (
     <form onSubmit={handleSubmit}>
       <Stack gap="3">
-        <AuthNotice tone="neutral">
+        <Notice tone="neutral">
           This invitation is for {invitation.maskedEmail}.
-        </AuthNotice>
-        {error ? <AuthNotice tone="error">{error}</AuthNotice> : null}
+        </Notice>
+        {error ? <Notice tone="danger">{error}</Notice> : null}
         <Field label="Name">
           <Input name="name" autoComplete="name" maxLength={120} />
         </Field>
