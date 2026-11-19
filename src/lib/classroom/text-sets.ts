@@ -305,14 +305,17 @@ export async function createTextSet(
   return { ok: true, id };
 }
 
-async function loadForMutation(id: string, viewer: Viewer) {
+/** The text set when the viewer may edit it: 404 if missing or not visible, 403 if read-only. */
+async function loadEditable(id: string, viewer: Viewer) {
   const row = await prisma.textSet.findUnique({
     where: { id },
     select: { id: true, organizationId: true, ownerId: true, visibility: true },
   });
   if (!row) return { ok: false as const, status: 404 as const, reason: "not_found" as const };
   const memberships = await membershipsFor(viewer.id);
-  return { ok: true as const, row, memberships };
+  if (!canView(viewer, memberships, row)) return { ok: false as const, status: 404 as const, reason: "not_found" as const };
+  if (!canEdit(viewer, memberships, row)) return { ok: false as const, status: 403 as const, reason: "forbidden" as const };
+  return { ok: true as const, row };
 }
 
 export async function updateTextSet(
@@ -321,11 +324,9 @@ export async function updateTextSet(
   input: TextSetInput,
   audit: AuditFactory,
 ): Promise<{ ok: true } | TextSetFailure> {
-  const loaded = await loadForMutation(id, viewer);
+  const loaded = await loadEditable(id, viewer);
   if (!loaded.ok) return loaded;
-  const { row, memberships } = loaded;
-  if (!canView(viewer, memberships, row)) return { ok: false, status: 404, reason: "not_found" };
-  if (!canEdit(viewer, memberships, row)) return { ok: false, status: 403, reason: "forbidden" };
+  const { row } = loaded;
   const items = await validateItems(viewer, row.organizationId, input.items);
   if (!Array.isArray(items)) return items;
 
@@ -357,11 +358,9 @@ export async function deleteTextSet(
   viewer: Viewer,
   audit: AuditFactory,
 ): Promise<{ ok: true } | TextSetFailure> {
-  const loaded = await loadForMutation(id, viewer);
+  const loaded = await loadEditable(id, viewer);
   if (!loaded.ok) return loaded;
-  const { row, memberships } = loaded;
-  if (!canView(viewer, memberships, row)) return { ok: false, status: 404, reason: "not_found" };
-  if (!canEdit(viewer, memberships, row)) return { ok: false, status: 403, reason: "forbidden" };
+  const { row } = loaded;
   await prisma.$transaction(async (tx) => {
     await tx.textSet.delete({ where: { id } });
     await recordAuditFromRequest(

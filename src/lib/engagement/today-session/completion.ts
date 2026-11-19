@@ -352,6 +352,31 @@ async function loadLocalTodaySession(
   };
 }
 
+/** True when `articleId` is the session's current primary article. */
+function isCurrentPrimary(session: TodaySessionView, articleId: string): boolean {
+  return session.primaryArticleId != null && session.primaryArticleId === articleId;
+}
+
+/**
+ * Stamps a Today step (never overwriting an existing stamp) and recomputes
+ * completion. `newlyCompleted` is true only when this call set the stamp and
+ * the session still exists — the cue to emit completion events once.
+ */
+async function completeTodayStep(
+  userId: string,
+  localDate: string,
+  session: TodaySessionView,
+  step: "readingCompletedAt" | "comprehensionCompletedAt",
+  now: Date,
+): Promise<{ view: TodaySessionView | null; newlyCompleted: boolean }> {
+  const wasComplete = session[step] != null;
+  if (!wasComplete) {
+    await updateTodaySession(userId, localDate, { [step]: now });
+  }
+  const view = await recomputeTodayCompletion(userId, localDate, now);
+  return { view, newlyCompleted: !wasComplete && view !== null };
+}
+
 /**
  * Mark today's reading step complete for `articleId`. No-op (returns `null`)
  * when there is no Today session for the learner's local day, or when
@@ -364,16 +389,9 @@ export async function markTodayReadingComplete(
 ): Promise<TodaySessionView | null> {
   const now = args.now ?? new Date();
   const { localDate, session } = await loadLocalTodaySession(args, now);
-  if (!session) return null;
-  if (!session.primaryArticleId || session.primaryArticleId !== args.articleId) {
-    return null;
-  }
-  const wasComplete = session.readingCompletedAt != null;
-  if (!wasComplete) {
-    await updateTodaySession(args.userId, localDate, { readingCompletedAt: now });
-  }
-  const view = await recomputeTodayCompletion(args.userId, localDate, now);
-  if (!wasComplete && view) {
+  if (!session || !isCurrentPrimary(session, args.articleId)) return null;
+  const { view, newlyCompleted } = await completeTodayStep(args.userId, localDate, session, "readingCompletedAt", now);
+  if (view && newlyCompleted) {
     await emitTodayReadingComplete(view, "auto");
     // #813 — advance the series enrollment when the just-read primary is the
     // learner's current series article (monotonic + idempotent; best-effort).
@@ -396,12 +414,8 @@ export async function markTodayReadingCompleteManual(
   const now = args.now ?? new Date();
   const { localDate, session } = await loadLocalTodaySession(args, now);
   if (!session || !session.primaryArticleId) return null;
-  const wasComplete = session.readingCompletedAt != null;
-  if (!wasComplete) {
-    await updateTodaySession(args.userId, localDate, { readingCompletedAt: now });
-  }
-  const view = await recomputeTodayCompletion(args.userId, localDate, now);
-  if (!wasComplete && view) {
+  const { view, newlyCompleted } = await completeTodayStep(args.userId, localDate, session, "readingCompletedAt", now);
+  if (view && newlyCompleted) {
     await emitTodayReadingComplete(view, "manual");
     if (view.primaryArticleId) {
       await advanceSeriesEnrollmentSafe(args.userId, view.primaryArticleId, now);
@@ -409,6 +423,7 @@ export async function markTodayReadingCompleteManual(
   }
   return view;
 }
+
 export async function syncTodayReadingFromProgress(args: {
   userId: string;
   articleId: string;
@@ -443,18 +458,15 @@ export async function markTodayComprehensionComplete(
 ): Promise<TodaySessionView | null> {
   const now = args.now ?? new Date();
   const { localDate, session } = await loadLocalTodaySession(args, now);
-  if (!session) return null;
-  if (!session.primaryArticleId || session.primaryArticleId !== args.articleId) {
-    return null;
-  }
-  const wasComplete = session.comprehensionCompletedAt != null;
-  if (!wasComplete) {
-    await updateTodaySession(args.userId, localDate, {
-      comprehensionCompletedAt: now,
-    });
-  }
-  const view = await recomputeTodayCompletion(args.userId, localDate, now);
-  if (!wasComplete && view) await emitTodayComprehensionComplete(view, args.selfRating);
+  if (!session || !isCurrentPrimary(session, args.articleId)) return null;
+  const { view, newlyCompleted } = await completeTodayStep(
+    args.userId,
+    localDate,
+    session,
+    "comprehensionCompletedAt",
+    now,
+  );
+  if (view && newlyCompleted) await emitTodayComprehensionComplete(view, args.selfRating);
   return view;
 }
 
