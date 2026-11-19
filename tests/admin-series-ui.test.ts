@@ -175,13 +175,19 @@ test("slugify converts title to URL-safe slug", () => {
   assert.equal(slugify(""), "");
 });
 
-test("AdminSeriesCreate source uses Sheet and postJson", () => {
+test("AdminSeriesCreate source uses the shared series sheet and postJson", () => {
   const src = readSrc("src/components/AdminSeriesCreate.tsx");
-  assert.ok(src.includes("Sheet"), "Create component must use Sheet");
+  assert.ok(src.includes('<SeriesFormSheet\n        mode="create"'), "Create component must use the create-mode form sheet");
   assert.ok(src.includes("postJson"), "Create component must use postJson");
   assert.ok(src.includes("useMutation"), "Create component must use useMutation");
   assert.ok(src.includes("/api/admin/series"), "Create component must target correct API path");
-  assert.ok(src.includes("slugify"), "Create component must use slugify for auto-slug");
+});
+
+test("SeriesFormSheet renders in a Sheet and auto-slugs titles in create mode", () => {
+  const src = readSrc("src/components/admin/series/SeriesFormSheet.tsx");
+  assert.ok(src.includes("<Sheet"), "Form must render in a Sheet");
+  assert.ok(src.includes("slugify"), "Create mode must auto-slug from the title");
+  assert.ok(src.includes('mode === "edit" && <option value="archived">'), "Only edit mode offers archived");
 });
 
 test("AdminSeriesCreate source has required form fields", () => {
