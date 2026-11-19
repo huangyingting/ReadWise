@@ -15,9 +15,18 @@ import {
   AdminResultCount,
   AdminTableWrap,
   AdminPagination,
-  AdminSortHeader,
+  AdminSortHeaderRow,
+  type AdminTableColumn,
 } from "@/components/admin";
 import { formatShortDate } from "@/lib/display-format";
+
+const MEMBER_COLUMNS: readonly AdminTableColumn[] = [
+  { label: "Member", sortKey: "name" },
+  { label: "Role", sortKey: "role" },
+  { label: "Joined", sortKey: "createdAt" },
+  { label: "Activity", sortKey: "activity" },
+  { label: "Manage" },
+];
 
 type SearchParams = {
   q?: string;
@@ -149,37 +158,12 @@ function MembersTable({
   return (
     <AdminTableWrap ariaLabel="Members table (scrollable)">
       <thead>
-        <tr>
-          <AdminSortHeader
-            label="Member"
-            sortKey="name"
-            currentSort={sort}
-            currentOrder={order}
-            buildHref={buildSortHref}
-          />
-          <AdminSortHeader
-            label="Role"
-            sortKey="role"
-            currentSort={sort}
-            currentOrder={order}
-            buildHref={buildSortHref}
-          />
-          <AdminSortHeader
-            label="Joined"
-            sortKey="createdAt"
-            currentSort={sort}
-            currentOrder={order}
-            buildHref={buildSortHref}
-          />
-          <AdminSortHeader
-            label="Activity"
-            sortKey="activity"
-            currentSort={sort}
-            currentOrder={order}
-            buildHref={buildSortHref}
-          />
-          <th scope="col">Manage</th>
-        </tr>
+        <AdminSortHeaderRow
+          columns={MEMBER_COLUMNS}
+          currentSort={sort}
+          currentOrder={order}
+          buildHref={buildSortHref}
+        />
       </thead>
       <tbody>
         {members.map((member) => {

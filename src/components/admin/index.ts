@@ -3,7 +3,7 @@ export { AdminFilterBar } from "./AdminFilterBar";
 export { AdminResultCount } from "./AdminResultCount";
 export { AdminTableWrap } from "./AdminTableWrap";
 export { AdminPagination } from "./AdminPagination";
-export { AdminSortHeader } from "./AdminSortHeader";
+export { AdminSortHeader, AdminSortHeaderRow, type AdminTableColumn } from "./AdminSortHeader";
 export { AnalyticsTabs } from "./AnalyticsTabs";
 export { BarChart, BarChartRow } from "./BarChart";
 export type { BarChartBucket } from "./BarChart";

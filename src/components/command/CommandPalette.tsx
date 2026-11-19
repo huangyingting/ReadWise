@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Search, SearchX, FileText, X, AlertTriangle } from "lucide-react";
+import { Search, SearchX, FileText, X, AlertTriangle, type LucideIcon } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { setReaderReferrer } from "@/lib/reader-referrer";
 import { EmptyState, IconButton, Input, Spinner } from "@/components/ui";
@@ -208,12 +208,17 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
   const hasActionResults = filteredActions.length > 0;
   const articleGroupHasBorderTop = hasPageResults || hasActionResults;
 
-  const renderPageOrActionRow = (
-    item: PageSelectable | ActionSelectable,
-    showArrow = false,
+  /** One listbox option: icon + label with active styling, plus optional trailing content. */
+  const renderRow = (
+    item: SelectableItem,
+    Icon: LucideIcon,
+    label: ReactNode,
+    {
+      labelClassName = "truncate text-text",
+      trailing,
+    }: { labelClassName?: string; trailing?: (isActive: boolean) => ReactNode } = {},
   ) => {
     const { idx, isActive } = rowStateFor(item.ariaId);
-    const Icon = item.icon;
     return (
       <OptionRow
         key={item.ariaId}
@@ -225,93 +230,49 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
         <Icon
           size={20}
           aria-hidden
-          className={cn(
-            "shrink-0 text-text-subtle",
-            isActive && "text-primary-text",
-          )}
+          className={cn("shrink-0 text-text-subtle", isActive && "text-primary-text")}
         />
         <span
           className={cn(
-            "flex-1 truncate text-[length:var(--text-sm)] text-text",
+            "flex-1 text-[length:var(--text-sm)]",
+            labelClassName,
             isActive && "text-primary-text",
           )}
         >
-          {item.label}
+          {label}
         </span>
-        {showArrow && (
-          <span
-            className={cn(
-              "shrink-0 text-[length:var(--text-xs)] text-text-subtle",
-              isActive && "text-primary-text",
-            )}
-            aria-hidden
-          >
-            →
-          </span>
-        )}
+        {trailing?.(isActive)}
       </OptionRow>
     );
   };
 
-  const renderArticleRow = (item: ArticleSelectable) => {
-    const { idx, isActive } = rowStateFor(item.ariaId);
-    return (
-      <OptionRow
-        key={item.ariaId}
-        item={item}
-        isActive={isActive}
-        onActivate={() => activateItem(item)}
-        onHover={() => moveActiveTo(idx)}
-      >
-        <FileText
-          size={20}
-          aria-hidden
-          className={cn(
-            "shrink-0 text-text-subtle",
-            isActive && "text-primary-text",
-          )}
-        />
-        <span
-          className={cn(
-            "flex-1 truncate text-[length:var(--text-sm)] text-text",
-            isActive && "text-primary-text",
-          )}
-        >
-          {item.article.title}
-        </span>
-        <ArticleMeta article={item.article} />
-      </OptionRow>
-    );
-  };
+  const renderPageOrActionRow = (
+    item: PageSelectable | ActionSelectable,
+    showArrow = false,
+  ) =>
+    renderRow(item, item.icon, item.label, {
+      trailing: showArrow
+        ? (isActive) => (
+            <span
+              className={cn(
+                "shrink-0 text-[length:var(--text-xs)] text-text-subtle",
+                isActive && "text-primary-text",
+              )}
+              aria-hidden
+            >
+              →
+            </span>
+          )
+        : undefined,
+    });
 
-  const renderMoreRow = (item: MoreSelectable) => {
-    const { idx, isActive } = rowStateFor(item.ariaId);
-    return (
-      <OptionRow
-        item={item}
-        isActive={isActive}
-        onActivate={() => activateItem(item)}
-        onHover={() => moveActiveTo(idx)}
-      >
-        <Search
-          size={20}
-          aria-hidden
-          className={cn(
-            "shrink-0 text-text-subtle",
-            isActive && "text-primary-text",
-          )}
-        />
-        <span
-          className={cn(
-            "flex-1 text-[length:var(--text-sm)] text-text-muted",
-            isActive && "text-primary-text",
-          )}
-        >
-          Show more results
-        </span>
-      </OptionRow>
-    );
-  };
+  const renderArticleRow = (item: ArticleSelectable) =>
+    renderRow(item, FileText, item.article.title, {
+      trailing: () => <ArticleMeta article={item.article} />,
+    });
+
+  const renderMoreRow = (item: MoreSelectable) =>
+    renderRow(item, Search, "Show more results", { labelClassName: "text-text-muted" });
 
   // ---- Render ----------------------------------------------------------
   return (

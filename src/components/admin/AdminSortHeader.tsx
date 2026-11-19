@@ -48,3 +48,43 @@ export function AdminSortHeader({
     </th>
   );
 }
+
+export interface AdminTableColumn {
+  label: string;
+  /** Omit for a column that can't be sorted. */
+  sortKey?: string;
+}
+
+/** A table header row: sortable columns link to their sort, the rest are plain headers. */
+export function AdminSortHeaderRow({
+  columns,
+  currentSort,
+  currentOrder,
+  buildHref,
+}: {
+  columns: readonly AdminTableColumn[];
+  currentSort: string;
+  currentOrder: SortOrder;
+  buildHref: (sort: string, order: SortOrder) => string;
+}) {
+  return (
+    <tr>
+      {columns.map(({ label, sortKey }) =>
+        sortKey ? (
+          <AdminSortHeader
+            key={label}
+            label={label}
+            sortKey={sortKey}
+            currentSort={currentSort}
+            currentOrder={currentOrder}
+            buildHref={buildHref}
+          />
+        ) : (
+          <th key={label} scope="col">
+            {label}
+          </th>
+        ),
+      )}
+    </tr>
+  );
+}

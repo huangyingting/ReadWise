@@ -4,6 +4,7 @@ import { useState } from "react";
 import { postJson } from "@/lib/client-fetch";
 import { useMutation } from "@/hooks/useMutation";
 import ConfirmAction from "@/components/ConfirmAction";
+import { ActionOutcome } from "./ActionOutcome";
 
 interface ReopenAssignmentButtonProps {
   assignmentId: string;
@@ -43,16 +44,7 @@ export default function ReopenAssignmentButton({
         disabled={busy}
         className="!min-w-0"
       />
-      {summary ? (
-        <p aria-live="polite" className="m-0 text-[length:var(--text-xs)] text-text-muted">
-          {summary}
-        </p>
-      ) : null}
-      {error ? (
-        <p role="alert" className="m-0 text-[length:var(--text-xs)] text-danger-text">
-          {error}
-        </p>
-      ) : null}
+      <ActionOutcome summary={summary} error={error} />
     </div>
   );
 }

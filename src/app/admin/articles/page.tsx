@@ -21,8 +21,17 @@ import {
   AdminResultCount,
   AdminTableWrap,
   AdminPagination,
-  AdminSortHeader,
+  AdminSortHeaderRow,
+  type AdminTableColumn,
 } from "@/components/admin";
+
+const ARTICLE_COLUMNS: readonly AdminTableColumn[] = [
+  { label: "Title", sortKey: "title" },
+  { label: "Author / Source", sortKey: "author" },
+  { label: "Visibility / Status", sortKey: "status" },
+  { label: "Level", sortKey: "difficulty" },
+  { label: "Actions" },
+];
 
 type SearchParams = {
   q?: string;
@@ -150,45 +159,12 @@ export default async function AdminArticlesPage({
       {result.articles.length > 0 && (
         <AdminTableWrap ariaLabel="Articles table (scrollable)">
           <thead>
-            <tr>
-              <AdminSortHeader
-                label="Title"
-                sortKey="title"
-                currentSort={result.sort}
-                currentOrder={result.order}
-                buildHref={(sort, order) =>
-                  buildHref({ q: query, status, page: 1, sort, order })
-                }
-              />
-              <AdminSortHeader
-                label="Author / Source"
-                sortKey="author"
-                currentSort={result.sort}
-                currentOrder={result.order}
-                buildHref={(sort, order) =>
-                  buildHref({ q: query, status, page: 1, sort, order })
-                }
-              />
-              <AdminSortHeader
-                label="Visibility / Status"
-                sortKey="status"
-                currentSort={result.sort}
-                currentOrder={result.order}
-                buildHref={(sort, order) =>
-                  buildHref({ q: query, status, page: 1, sort, order })
-                }
-              />
-              <AdminSortHeader
-                label="Level"
-                sortKey="difficulty"
-                currentSort={result.sort}
-                currentOrder={result.order}
-                buildHref={(sort, order) =>
-                  buildHref({ q: query, status, page: 1, sort, order })
-                }
-              />
-              <th scope="col">Actions</th>
-            </tr>
+            <AdminSortHeaderRow
+              columns={ARTICLE_COLUMNS}
+              currentSort={result.sort}
+              currentOrder={result.order}
+              buildHref={(sort, order) => buildHref({ q: query, status, page: 1, sort, order })}
+            />
           </thead>
           <tbody>
             {result.articles.map((a) => (
