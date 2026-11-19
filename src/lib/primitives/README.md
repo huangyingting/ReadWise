@@ -36,6 +36,7 @@ boundary.
 | `@/lib/safe-json` | `safeJsonStringify` | **Security-sensitive** — XSS-safe JSON for `<script>` injection |
 | `@/lib/format-relative` | `formatRelative` | ISO → relative time string |
 | `@/lib/list-name-validation` | `validateListName`, `LIST_NAME_MAX_LENGTH` | Reading-list name validation |
+| `@/lib/search-params` | `parseBoundedInt`, `parsePageParam` | Clamped integer `?page=` / `?limit=` / `?offset=` parsing |
 
 ### Client-only
 

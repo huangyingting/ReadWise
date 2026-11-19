@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { parsePageParam } from "@/lib/search-params";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { listAdminJobs, getJobDashboard, type AdminJobRow } from "@/lib/admin/jobs";
@@ -147,7 +148,7 @@ export default async function AdminJobsPage({
   const articleId = (sp.articleId ?? "").trim();
   const reason = (sp.reason ?? "").trim();
   const stuck = sp.stuck === "1";
-  const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
+  const page = parsePageParam(sp.page);
   const hasActiveFilters =
     status.length > 0 ||
     type.length > 0 ||

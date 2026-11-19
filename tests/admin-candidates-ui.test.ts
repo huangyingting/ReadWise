@@ -30,6 +30,7 @@ import {
   batchHasStale,
   blockedActionReason,
   candidateStatusBadge,
+  classifyReviewMutationError,
   conflictStatusBadge,
   dateProvenanceLabel,
   describeBatchItem,
@@ -49,6 +50,7 @@ import {
   type BatchReviewResponse,
   type SingleReviewResponse,
 } from "@/lib/scraper/incremental/candidate-review-ui";
+import { ApiResponseError } from "@/lib/client-fetch";
 import {
   CANDIDATE_REVIEW_ACTIONS,
   REASON_REQUIRED_ACTIONS,
@@ -198,6 +200,18 @@ test("reviewMutationErrorFrom classifies stale, illegal, not-found, validation, 
   assert.equal(reviewMutationErrorFrom(401, {}, "x").kind, "auth");
   assert.equal(reviewMutationErrorFrom(403, {}, "x").kind, "auth");
   assert.equal(reviewMutationErrorFrom(500, {}, "x").kind, "generic");
+});
+
+test("classifyReviewMutationError unwraps an ApiResponseError body", () => {
+  const err = Object.assign(new ApiResponseError(409, "Candidate changed concurrently"), {
+    cause: { reason: "illegal", detail: "has-article" },
+  });
+  assert.deepEqual(classifyReviewMutationError(err), {
+    kind: "illegal",
+    detail: "has-article",
+    message: "Candidate changed concurrently",
+  });
+  assert.equal(classifyReviewMutationError(new Error("boom")).kind, "generic");
 });
 
 // ---------------------------------------------------------------------------

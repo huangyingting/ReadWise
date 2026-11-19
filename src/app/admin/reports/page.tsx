@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { parsePageParam } from "@/lib/search-params";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import {
@@ -36,10 +37,6 @@ function statusVariant(status: ContentReportStatus): BadgeProps["variant"] {
     case ContentReportStatus.DISMISSED:
       return "neutral";
   }
-}
-
-function parsePage(value: string | undefined): number {
-  return Math.max(1, Number.parseInt(value ?? "1", 10) || 1);
 }
 
 function isActionableStatus(status: ContentReportStatus): boolean {
@@ -134,7 +131,7 @@ export default async function AdminReportsPage({
   const status = isReportStatus(rawStatus)
     ? (rawStatus as ContentReportStatus)
     : ContentReportStatus.OPEN;
-  const page = parsePage(sp.page);
+  const page = parsePageParam(sp.page);
 
   const { reports, total, pageCount } = await listContentReports({
     status,

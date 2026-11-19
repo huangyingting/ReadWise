@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { parsePageParam } from "@/lib/search-params";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { listAdminTags } from "@/lib/admin/tags";
@@ -23,10 +24,6 @@ const ADMIN_TAGS_PATH = "/admin/tags";
 const TAG_LINK_CLASS =
   "text-text-subtle hover:text-text text-[length:var(--text-sm)]";
 
-function parsePage(page: string | undefined): number {
-  return Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
-}
-
 function pluralizeArticle(count: number): string {
   return count === 1 ? "article" : "articles";
 }
@@ -48,7 +45,7 @@ export default async function AdminTagsPage({
 
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
-  const page = parsePage(sp.page);
+  const page = parsePageParam(sp.page);
   const hasActiveFilters = query.length > 0;
 
   const result = await listAdminTags({ query, page });

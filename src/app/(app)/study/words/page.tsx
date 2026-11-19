@@ -1,4 +1,5 @@
 import { requireOnboardedSession } from "@/lib/session";
+import { parsePageParam } from "@/lib/search-params";
 import { getFilteredSavedWords, getArticleTitlesForWords, WORDS_PAGE_SIZE } from "@/lib/lexical/saved-words";
 import { articleAccessContextForUser } from "@/lib/article-library";
 import Link from "next/link";
@@ -18,10 +19,6 @@ interface SearchParams {
 
 function parseSavedWordsFilter(filter?: string): SavedWordsFilter {
   return filter === "due" || filter === "new" ? filter : "all";
-}
-
-function parsePageParam(page?: string): number {
-  return Math.max(1, parseInt(page ?? "1", 10) || 1);
 }
 
 function uniqueArticleIds(

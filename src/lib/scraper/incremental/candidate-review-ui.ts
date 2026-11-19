@@ -17,14 +17,15 @@ import type {
   CandidateReviewNoopReason,
 } from "@/lib/scraper/incremental/candidate-review-policy";
 import { REASON_REQUIRED_ACTIONS } from "@/lib/scraper/incremental/candidate-review-policy";
+import { errorBodyReason, type BadgeVariant } from "./review-ui-shared";
 
 // Re-exported so the client components have a single import surface.
 export type { CandidateReviewAction } from "@/lib/scraper/incremental/candidate-review-policy";
 export { REASON_REQUIRED_ACTIONS } from "@/lib/scraper/incremental/candidate-review-policy";
 
-/** The shared `Badge` tone union — kept local so this module stays free of the
- * component graph (it is imported by pure Node tests). Mirrors `BadgeProps["variant"]`. */
-export type BadgeVariant = "neutral" | "primary" | "success" | "warning" | "danger";
+// Shared review-queue presentation helpers, re-exported for one import surface.
+export type { BadgeVariant } from "./review-ui-shared";
+export { conflictStatusBadge } from "./review-ui-shared";
 
 // ---------------------------------------------------------------------------
 // Client DTO shapes (dates serialize to ISO strings over the JSON API)
@@ -128,17 +129,6 @@ export function dateProvenanceLabel(provenance: string): string {
   return DATE_PROVENANCE_LABELS[provenance] ?? provenance;
 }
 
-/** Badge tone per canonical-conflict status shown in the detail view. */
-const CONFLICT_STATUS_BADGE: Record<string, { variant: BadgeVariant; label: string }> = {
-  OPEN: { variant: "warning", label: "Open" },
-  RESOLVED: { variant: "success", label: "Resolved" },
-  DISMISSED: { variant: "neutral", label: "Dismissed" },
-};
-
-export function conflictStatusBadge(status: string): { variant: BadgeVariant; label: string } {
-  return CONFLICT_STATUS_BADGE[status] ?? { variant: "neutral", label: status };
-}
-
 // ---------------------------------------------------------------------------
 // Review action metadata + legality mirror
 // ---------------------------------------------------------------------------
@@ -235,30 +225,15 @@ export type ReviewMutationError =
   | { kind: "auth"; message: string }
   | { kind: "generic"; message: string };
 
-function errorBodyReason(body: unknown): { reason?: string; detail?: string; stale?: boolean } {
-  if (body && typeof body === "object") {
-    const b = body as { reason?: unknown; detail?: unknown; stale?: unknown };
-    return {
-      reason: typeof b.reason === "string" ? b.reason : undefined,
-      detail: typeof b.detail === "string" ? b.detail : undefined,
-      stale: b.stale === true,
-    };
-  }
-  return {};
-}
-
 /** Maps a mutation HTTP status + server body to a {@link ReviewMutationError}. PURE. */
 export function reviewMutationErrorFrom(
   status: number | null,
   body: unknown,
   message: string,
 ): ReviewMutationError {
-  const { reason } = errorBodyReason(body);
+  const { reason, detail } = errorBodyReason(body);
   if (status === 409 && reason === "stale") return { kind: "stale", message };
-  if (status === 409 && reason === "illegal") {
-    const { detail } = errorBodyReason(body);
-    return { kind: "illegal", detail: detail ?? "not-reviewable", message };
-  }
+  if (status === 409 && reason === "illegal") return { kind: "illegal", detail: detail ?? "not-reviewable", message };
   if (status === 404) return { kind: "notFound", message };
   if (status === 400) return { kind: "validation", message };
   if (status === 401 || status === 403) return { kind: "auth", message };

@@ -59,6 +59,9 @@ export function truncateStr(value: string, max: number, indicator = ""): string 
   return value.slice(0, end) + indicator;
 }
 
+// ── URL search params ─────────────────────────────────────────────────────────
+export { parseBoundedInt, parsePageParam } from "@/lib/search-params";
+
 // ── Input validation ──────────────────────────────────────────────────────────
 export {
   validateListName,

@@ -15,6 +15,7 @@
  * fields are widened to the ISO strings the JSON API actually serializes.
  */
 import { ApiResponseError, clientErrorMessage } from "@/lib/client-fetch";
+import { parseBoundedInt } from "@/lib/search-params";
 import type {
   CanonicalConflictDetailDto,
   CanonicalConflictDto,
@@ -30,6 +31,7 @@ import {
   isCanonicalConflictStatus,
   type CanonicalConflictStatusValue,
 } from "./canonical-conflict-status";
+import { errorBodyReason, type BadgeVariant } from "./review-ui-shared";
 
 // Re-exported so the client components share one import surface for the sanitized
 // dependent-data count shape (single source of truth: the backend query module).
@@ -38,9 +40,9 @@ export type { DependentDataCounts };
 // are single-sourced from the pure policy module (runtime-erased `import type`).
 export type { ConflictKind, TypeBCanonicalChoice };
 
-/** The shared `Badge` tone union — kept local so this module stays free of the
- * component graph (it is imported by pure Node tests). Mirrors `BadgeProps["variant"]`. */
-export type BadgeVariant = "neutral" | "primary" | "success" | "warning" | "danger";
+// Shared review-queue presentation helpers, re-exported for one import surface.
+export type { BadgeVariant } from "./review-ui-shared";
+export { conflictStatusBadge } from "./review-ui-shared";
 
 // ---------------------------------------------------------------------------
 // Client DTO shapes (dates serialize to ISO strings over the JSON API)
@@ -89,18 +91,6 @@ export const MAX_CONFLICT_LIMIT = 200;
 
 export const isConflictStatus = isCanonicalConflictStatus;
 
-/** Clamp helper shared by the page's searchParams parsing + the tests. PURE. */
-export function parseBoundedInt(
-  raw: string | undefined,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const n = Number.parseInt(raw ?? "", 10);
-  if (Number.isNaN(n)) return fallback;
-  return Math.min(Math.max(n, min), max);
-}
-
 /** Parses the `status` searchParam, defaulting to OPEN. */
 export function parseConflictStatus(raw: string | undefined): ConflictStatus {
   return raw && isConflictStatus(raw) ? raw : "OPEN";
@@ -126,17 +116,6 @@ export const CONFLICT_STATUS_LABELS: Record<ConflictStatus, string> = {
   RESOLVED: "Resolved",
   DISMISSED: "Dismissed",
 };
-
-/** Badge tone + label per conflict status surfaced in the queue/detail. */
-const CONFLICT_STATUS_BADGE: Record<string, { variant: BadgeVariant; label: string }> = {
-  OPEN: { variant: "warning", label: "Open" },
-  RESOLVED: { variant: "success", label: "Resolved" },
-  DISMISSED: { variant: "neutral", label: "Dismissed" },
-};
-
-export function conflictStatusBadge(status: string): { variant: BadgeVariant; label: string } {
-  return CONFLICT_STATUS_BADGE[status] ?? { variant: "neutral", label: status };
-}
 
 // ---------------------------------------------------------------------------
 // Dependent-data COUNT formatting (never content — only aggregate counts)
@@ -235,18 +214,6 @@ export type ConflictResolveError =
   | { kind: "validation"; message: string }
   | { kind: "auth"; message: string }
   | { kind: "generic"; message: string };
-
-function errorBodyReason(body: unknown): { reason?: string; detail?: string; stale?: boolean } {
-  if (body && typeof body === "object") {
-    const b = body as { reason?: unknown; detail?: unknown; stale?: unknown };
-    return {
-      reason: typeof b.reason === "string" ? b.reason : undefined,
-      detail: typeof b.detail === "string" ? b.detail : undefined,
-      stale: b.stale === true,
-    };
-  }
-  return {};
-}
 
 /**
  * Maps a resolution HTTP status + server body to a {@link ConflictResolveError}.

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { parsePageParam } from "@/lib/search-params";
 import Avatar from "@/components/ui/Avatar";
 import { requireCapability } from "@/lib/session";
 import { ACTIVE_ROLES, CAPABILITIES } from "@/lib/rbac";
@@ -30,10 +31,6 @@ type Member = Awaited<ReturnType<typeof listMembers>>["members"][number];
 
 const ROLE_OPTIONS = ACTIVE_ROLES;
 const SCOPED_ADMIN_ROLES = ["Moderator", "ContentEditor", "SupportAgent"] as const;
-
-function parsePage(value: string | undefined): number {
-  return Math.max(1, Number.parseInt(value ?? "1", 10) || 1);
-}
 
 function buildHref(params: {
   q: string;
@@ -220,7 +217,7 @@ export default async function AdminMembersPage({
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const role = (sp.role ?? "").trim();
-  const page = parsePage(sp.page);
+  const page = parsePageParam(sp.page);
   const requestedSort = (sp.sort ?? "").trim();
   const requestedOrder = sp.order === "asc" ? "asc" : "desc";
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { parsePageParam } from "@/lib/search-params";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import {
@@ -83,7 +84,7 @@ export default async function AdminArticlesPage({
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const status = (sp.status ?? "").trim().toUpperCase();
-  const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
+  const page = parsePageParam(sp.page);
   const requestedSort = (sp.sort ?? "").trim();
   const requestedOrder = sp.order === "asc" ? "asc" : "desc";
   const hasActiveFilters = query.length > 0 || status.length > 0;

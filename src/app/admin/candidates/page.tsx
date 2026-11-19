@@ -1,4 +1,5 @@
 import { requireCapability } from "@/lib/session";
+import { parseBoundedInt } from "@/lib/search-params";
 import { CAPABILITIES } from "@/lib/rbac";
 import { AdminPageHeader } from "@/components/admin";
 import CandidateReviewQueue from "@/components/admin/candidate-review/CandidateReviewQueue";
@@ -19,12 +20,6 @@ type SearchParams = {
 
 function parseStatus(raw: string | undefined): ReviewQueueStatus {
   return raw && isReviewQueueStatus(raw) ? raw : "NEEDS_REVIEW";
-}
-
-function parseBoundedInt(raw: string | undefined, fallback: number, min: number, max: number): number {
-  const n = Number.parseInt(raw ?? "", 10);
-  if (Number.isNaN(n)) return fallback;
-  return Math.min(Math.max(n, min), max);
 }
 
 /**

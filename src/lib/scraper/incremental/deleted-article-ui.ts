@@ -15,11 +15,12 @@
  * fields are widened to the ISO strings the JSON API actually serializes.
  */
 import { ApiResponseError, clientErrorMessage } from "@/lib/client-fetch";
+import { parseBoundedInt } from "@/lib/search-params";
 import type { DeletedCandidateDto } from "@/lib/scraper/incremental/deleted-article-recovery";
+import { errorBodyReason, type BadgeVariant } from "./review-ui-shared";
 
-/** The shared `Badge` tone union — kept local so this module stays free of the
- * component graph (it is imported by pure Node tests). Mirrors `BadgeProps["variant"]`. */
-export type BadgeVariant = "neutral" | "primary" | "success" | "warning" | "danger";
+// Shared review-queue presentation helpers, re-exported for one import surface.
+export type { BadgeVariant } from "./review-ui-shared";
 
 // ---------------------------------------------------------------------------
 // Client DTO shapes (dates serialize to ISO strings over the JSON API)
@@ -51,18 +52,6 @@ export type DeletedCandidatePage = {
 /** Default page size, matching the API default/cap (1–200, default 50). */
 export const DEFAULT_DELETED_LIMIT = 50;
 export const MAX_DELETED_LIMIT = 200;
-
-/** Clamp helper shared by the page's searchParams parsing + the tests. PURE. */
-export function parseBoundedInt(
-  raw: string | undefined,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const n = Number.parseInt(raw ?? "", 10);
-  if (Number.isNaN(n)) return fallback;
-  return Math.min(Math.max(n, min), max);
-}
 
 /** Parses + clamps the `limit` searchParam to the API bounds. */
 export function parseDeletedLimit(raw: string | undefined): number {
@@ -136,17 +125,6 @@ export type RecoverError =
   | { kind: "validation"; message: string }
   | { kind: "auth"; message: string }
   | { kind: "generic"; message: string };
-
-function errorBodyReason(body: unknown): { reason?: string; stale?: boolean } {
-  if (body && typeof body === "object") {
-    const b = body as { reason?: unknown; stale?: unknown };
-    return {
-      reason: typeof b.reason === "string" ? b.reason : undefined,
-      stale: b.stale === true,
-    };
-  }
-  return {};
-}
 
 /**
  * Maps a recovery HTTP status + server body to a {@link RecoverError}. PURE. A

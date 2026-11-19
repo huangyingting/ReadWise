@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { parsePageParam } from "@/lib/search-params";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { listOrganizations } from "@/lib/admin/organizations";
@@ -26,10 +27,6 @@ type SearchParams = {
 type OrganizationRow = Awaited<
   ReturnType<typeof listOrganizations>
 >["organizations"][number];
-
-function parsePage(value: string | undefined): number {
-  return Math.max(1, Number.parseInt(value ?? "1", 10) || 1);
-}
 
 function buildHref(params: {
   q: string;
@@ -125,7 +122,7 @@ export default async function AdminOrganizationsPage({
 
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
-  const page = parsePage(sp.page);
+  const page = parsePageParam(sp.page);
   const requestedSort = (sp.sort ?? "").trim();
   const requestedOrder = sp.order === "asc" ? "asc" : "desc";
 

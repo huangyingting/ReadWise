@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { parsePageParam } from "@/lib/search-params";
 import { isArticleLevelKey, readerLevelHref, readingLevelLabel } from "@/lib/article-levels/levels";
 import { FileText, StickyNote } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
@@ -55,10 +56,6 @@ function groupHighlightsByArticle(highlights: Highlight[]) {
   return groups;
 }
 
-function parsePage(value: string | undefined): number {
-  return Math.max(1, Number.parseInt(value ?? "1", 10) || 1);
-}
-
 function buildNotesHref(params: {
   color?: string | null;
   q?: string;
@@ -93,7 +90,7 @@ export default async function NotesPage({
   const result = await listAllUserHighlightsPage(session.user.id, {
     color: colorFilter,
     query,
-    page: parsePage(pageParam),
+    page: parsePageParam(pageParam),
   });
   const groups = groupHighlightsByArticle(result.highlights);
   const filteredCount = result.total;
