@@ -1,11 +1,13 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
-import { Button, Field, FormActions, Input, Stack } from "@/components/ui";
-import { accountAdmissionRequest } from "@/lib/account-admission/client";
+import { Field, Input, Stack } from "@/components/ui";
 import { Notice } from "@/components/ui/Notice";
+import { AuthSubmitButton, EmailField } from "@/components/auth/AuthFormParts";
+import { useMutation } from "@/hooks/useMutation";
+import { postJson } from "@/lib/client-fetch";
 
 export default function PasswordSignInForm({
   callbackUrl,
@@ -13,45 +15,31 @@ export default function PasswordSignInForm({
   callbackUrl: string;
 }) {
   const router = useRouter();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
+  const { busy, error, run } = useMutation("Sign-in failed.");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPending(true);
-    setError("");
     const form = new FormData(event.currentTarget);
-    try {
-      await accountAdmissionRequest("/api/auth/password/login", {
-        email: String(form.get("email") ?? ""),
-        password: String(form.get("password") ?? ""),
-      });
-      router.push(callbackUrl);
-      router.refresh();
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Sign-in failed.",
-      );
-    } finally {
-      setPending(false);
-    }
+    await run(
+      () =>
+        postJson("/api/auth/password/login", {
+          email: String(form.get("email") ?? ""),
+          password: String(form.get("password") ?? ""),
+        }),
+      {
+        onSuccess: () => {
+          router.push(callbackUrl);
+          router.refresh();
+        },
+      },
+    );
   }
 
   return (
     <form onSubmit={handleSubmit}>
       <Stack gap="3">
         {error ? <Notice tone="danger">{error}</Notice> : null}
-        <Field label="Email" required>
-          <Input
-            name="email"
-            type="email"
-            autoComplete="email"
-            maxLength={320}
-            required
-          />
-        </Field>
+        <EmailField />
         <Field label="Password" required>
           <Input
             name="password"
@@ -61,17 +49,9 @@ export default function PasswordSignInForm({
             required
           />
         </Field>
-        <FormActions align="stretch">
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full"
-            loading={pending}
-            leadingIcon={<LogIn size={18} aria-hidden />}
-          >
-            Sign in
-          </Button>
-        </FormActions>
+        <AuthSubmitButton pending={busy} icon={<LogIn size={18} aria-hidden />}>
+          Sign in
+        </AuthSubmitButton>
       </Stack>
     </form>
   );

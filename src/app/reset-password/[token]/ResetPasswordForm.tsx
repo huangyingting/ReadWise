@@ -3,48 +3,32 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
-import {
-  Button,
-  Field,
-  FormActions,
-  Input,
-  Stack,
-} from "@/components/ui";
+import { Stack } from "@/components/ui";
 import { buttonVariants } from "@/components/ui/Button";
-import { accountAdmissionRequest } from "@/lib/account-admission/client";
 import { Notice } from "@/components/ui/Notice";
+import {
+  AuthSubmitButton,
+  NewPasswordFields,
+  PASSWORD_MISMATCH_MESSAGE,
+  readConfirmedPassword,
+} from "@/components/auth/AuthFormParts";
+import { useMutation } from "@/hooks/useMutation";
+import { postJson } from "@/lib/client-fetch";
 
 export default function ResetPasswordForm({ token }: { token: string }) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
+  const { busy, error, setError, run } = useMutation("The password could not be reset.");
   const [complete, setComplete] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
-    const form = new FormData(event.currentTarget);
-    const password = String(form.get("password") ?? "");
-    if (password !== String(form.get("confirmPassword") ?? "")) {
-      setError("Passwords do not match.");
+    const password = readConfirmedPassword(new FormData(event.currentTarget));
+    if (password === null) {
+      setError(PASSWORD_MISMATCH_MESSAGE);
       return;
     }
-
-    setPending(true);
-    try {
-      await accountAdmissionRequest("/api/auth/password/reset", {
-        token,
-        password,
-      });
-      setComplete(true);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "The password could not be reset.",
-      );
-    } finally {
-      setPending(false);
-    }
+    await run(() => postJson("/api/auth/password/reset", { token, password }), {
+      onSuccess: () => setComplete(true),
+    });
   }
 
   if (complete) {
@@ -71,37 +55,10 @@ export default function ResetPasswordForm({ token }: { token: string }) {
     <form onSubmit={handleSubmit}>
       <Stack gap="3">
         {error ? <Notice tone="danger">{error}</Notice> : null}
-        <Field label="New password" hint="Use 12 to 128 characters." required>
-          <Input
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            minLength={12}
-            maxLength={128}
-            required
-          />
-        </Field>
-        <Field label="Confirm new password" required>
-          <Input
-            name="confirmPassword"
-            type="password"
-            autoComplete="new-password"
-            minLength={12}
-            maxLength={128}
-            required
-          />
-        </Field>
-        <FormActions align="stretch">
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full"
-            loading={pending}
-            leadingIcon={<KeyRound size={18} aria-hidden />}
-          >
-            Change password
-          </Button>
-        </FormActions>
+        <NewPasswordFields label="New password" confirmLabel="Confirm new password" />
+        <AuthSubmitButton pending={busy} icon={<KeyRound size={18} aria-hidden />}>
+          Change password
+        </AuthSubmitButton>
       </Stack>
     </form>
   );

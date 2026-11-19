@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Spinner } from "@/components/ui";
 import { buttonVariants } from "@/components/ui/Button";
-import { accountAdmissionRequest } from "@/lib/account-admission/client";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 import { Notice } from "@/components/ui/Notice";
 
 export default function VerifyEmailState({ token }: { token: string }) {
@@ -15,17 +15,13 @@ export default function VerifyEmailState({ token }: { token: string }) {
 
   useEffect(() => {
     let active = true;
-    accountAdmissionRequest("/api/auth/verify-email", { token })
+    postJson("/api/auth/verify-email", { token })
       .then(() => {
         if (active) setState("complete");
       })
       .catch((requestError) => {
         if (!active) return;
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Email verification failed.",
-        );
+        setError(clientErrorMessage(requestError, "Email verification failed."));
         setState("error");
       });
     return () => {

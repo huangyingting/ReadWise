@@ -13,7 +13,7 @@ import {
   Stack,
 } from "@/components/ui";
 import { AdminTableWrap } from "@/components/admin";
-import { accountAdmissionRequest } from "@/lib/account-admission/client";
+import { clientErrorMessage, deleteJson, postJson } from "@/lib/client-fetch";
 import { Notice } from "@/components/ui/Notice";
 
 type Invitation = {
@@ -98,7 +98,7 @@ export default function InvitationAdmin({
     const form = new FormData(formElement);
     const rawExpiry = String(form.get("expiresAt") ?? "");
     try {
-      const result = await accountAdmissionRequest<InvitationMutation>(
+      const result = await postJson<InvitationMutation>(
         "/api/admin/invitations",
         {
           email: String(form.get("email") ?? ""),
@@ -110,11 +110,7 @@ export default function InvitationAdmin({
       showMutation(result);
       formElement.reset();
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "The invitation could not be created.",
-      );
+      setError(clientErrorMessage(requestError, "The invitation could not be created."));
     } finally {
       setPending(false);
     }
@@ -124,17 +120,13 @@ export default function InvitationAdmin({
     setRowPending(id);
     setError("");
     try {
-      const result = await accountAdmissionRequest<InvitationMutation>(
+      const result = await postJson<InvitationMutation>(
         `/api/admin/invitations/${encodeURIComponent(id)}/rotate`,
         {},
       );
       showMutation(result);
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "The invitation link could not be rotated.",
-      );
+      setError(clientErrorMessage(requestError, "The invitation link could not be rotated."));
     } finally {
       setRowPending(null);
     }
@@ -144,18 +136,12 @@ export default function InvitationAdmin({
     setRowPending(id);
     setError("");
     try {
-      const result = await accountAdmissionRequest<InvitationMutation>(
+      const result = await deleteJson<InvitationMutation>(
         `/api/admin/invitations/${encodeURIComponent(id)}`,
-        undefined,
-        "DELETE",
       );
       mergeInvitation(result.invitation);
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "The invitation could not be revoked.",
-      );
+      setError(clientErrorMessage(requestError, "The invitation could not be revoked."));
     } finally {
       setRowPending(null);
     }

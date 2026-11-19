@@ -49,5 +49,5 @@ test("Account Invitation management explains revoke and retention semantics", ()
   assert.match(invitationAdminSource, /Invitation history/);
   assert.match(invitationAdminSource, /can be rotated or revoked/);
   assert.match(invitationAdminSource, /retention maintenance removes them/);
-  assert.match(invitationAdminSource, /"DELETE"/);
+  assert.match(invitationAdminSource, /deleteJson<InvitationMutation>\(/);
 });

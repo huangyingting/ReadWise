@@ -3,16 +3,17 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus } from "lucide-react";
-import {
-  Button,
-  Field,
-  FormActions,
-  Input,
-  Spinner,
-  Stack,
-} from "@/components/ui";
-import { accountAdmissionRequest } from "@/lib/account-admission/client";
+import { Field, Input, Spinner, Stack } from "@/components/ui";
 import { Notice } from "@/components/ui/Notice";
+import {
+  AuthSubmitButton,
+  EmailField,
+  NewPasswordFields,
+  PASSWORD_MISMATCH_MESSAGE,
+  readConfirmedPassword,
+} from "@/components/auth/AuthFormParts";
+import { useMutation } from "@/hooks/useMutation";
+import { clientErrorMessage, postJson } from "@/lib/client-fetch";
 
 type InvitationView = {
   status: "pending" | "accepted" | "revoked" | "expired" | "invalid";
@@ -28,26 +29,16 @@ export default function InvitationRegistrationForm({
   const router = useRouter();
   const [invitation, setInvitation] = useState<InvitationView | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
+  const { busy, error, setError, run } = useMutation("The invitation could not be accepted.");
 
   useEffect(() => {
     let active = true;
-    accountAdmissionRequest<{ invitation: InvitationView }>(
-      "/api/auth/invitation",
-      { token },
-    )
+    postJson<{ invitation: InvitationView }>("/api/auth/invitation", { token })
       .then((response) => {
         if (active) setInvitation(response.invitation);
       })
       .catch((requestError) => {
-        if (active) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : "The invitation could not be checked.",
-          );
-        }
+        if (active) setError(clientErrorMessage(requestError, "The invitation could not be checked."));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -55,37 +46,31 @@ export default function InvitationRegistrationForm({
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [token, setError]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
     const form = new FormData(event.currentTarget);
-    const password = String(form.get("password") ?? "");
-    if (password !== String(form.get("confirmPassword") ?? "")) {
-      setError("Passwords do not match.");
+    const password = readConfirmedPassword(form);
+    if (password === null) {
+      setError(PASSWORD_MISMATCH_MESSAGE);
       return;
     }
-
-    setPending(true);
-    try {
-      await accountAdmissionRequest("/api/auth/register", {
-        token,
-        name: String(form.get("name") ?? ""),
-        email: String(form.get("email") ?? ""),
-        password,
-      });
-      router.push("/onboarding");
-      router.refresh();
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "The invitation could not be accepted.",
-      );
-    } finally {
-      setPending(false);
-    }
+    await run(
+      () =>
+        postJson("/api/auth/register", {
+          token,
+          name: String(form.get("name") ?? ""),
+          email: String(form.get("email") ?? ""),
+          password,
+        }),
+      {
+        onSuccess: () => {
+          router.push("/onboarding");
+          router.refresh();
+        },
+      },
+    );
   }
 
   if (loading) {
@@ -125,50 +110,14 @@ export default function InvitationRegistrationForm({
         <Field label="Name">
           <Input name="name" autoComplete="name" maxLength={120} />
         </Field>
-        <Field
+        <EmailField
           label="Invited email"
           hint="Enter the full email address that received this invitation."
-          required
-        >
-          <Input
-            name="email"
-            type="email"
-            autoComplete="email"
-            maxLength={320}
-            required
-          />
-        </Field>
-        <Field label="Password" hint="Use 12 to 128 characters." required>
-          <Input
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            minLength={12}
-            maxLength={128}
-            required
-          />
-        </Field>
-        <Field label="Confirm password" required>
-          <Input
-            name="confirmPassword"
-            type="password"
-            autoComplete="new-password"
-            minLength={12}
-            maxLength={128}
-            required
-          />
-        </Field>
-        <FormActions align="stretch">
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full"
-            loading={pending}
-            leadingIcon={<UserPlus size={18} aria-hidden />}
-          >
-            Accept invitation
-          </Button>
-        </FormActions>
+        />
+        <NewPasswordFields />
+        <AuthSubmitButton pending={busy} icon={<UserPlus size={18} aria-hidden />}>
+          Accept invitation
+        </AuthSubmitButton>
       </Stack>
     </form>
   );

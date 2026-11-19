@@ -16,7 +16,12 @@ import {
   Input,
   Stack,
 } from "@/components/ui";
-import { accountAdmissionRequest } from "@/lib/account-admission/client";
+import { clientErrorMessage, putJson } from "@/lib/client-fetch";
+import {
+  NewPasswordFields,
+  PASSWORD_MISMATCH_MESSAGE,
+  readConfirmedPassword,
+} from "@/components/auth/AuthFormParts";
 import { Notice } from "@/components/ui/Notice";
 
 type Provider = {
@@ -50,24 +55,18 @@ export default function AuthenticationSettings({
     setError("");
     setMessage("");
     const form = new FormData(formElement);
-    const password = String(form.get("password") ?? "");
-    if (password !== String(form.get("confirmPassword") ?? "")) {
-      setError("Passwords do not match.");
+    const password = readConfirmedPassword(form);
+    if (password === null) {
+      setError(PASSWORD_MISMATCH_MESSAGE);
       return;
     }
 
     setPending(true);
     try {
-      const result = await accountAdmissionRequest<{ created: boolean }>(
-        "/api/account/auth-methods",
-        {
-          currentPassword: hasPassword
-            ? String(form.get("currentPassword") ?? "")
-            : undefined,
-          password,
-        },
-        "PUT",
-      );
+      const result = await putJson<{ created: boolean }>("/api/account/auth-methods", {
+        currentPassword: hasPassword ? String(form.get("currentPassword") ?? "") : undefined,
+        password,
+      });
       setHasPassword(true);
       setMessage(
         result.created
@@ -76,11 +75,7 @@ export default function AuthenticationSettings({
       );
       formElement.reset();
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "The password could not be saved.",
-      );
+      setError(clientErrorMessage(requestError, "The password could not be saved."));
     } finally {
       setPending(false);
     }
@@ -134,30 +129,7 @@ export default function AuthenticationSettings({
                     />
                   </Field>
                 ) : null}
-                <Field
-                  label={hasPassword ? "New password" : "Password"}
-                  hint="Use 12 to 128 characters."
-                  required
-                >
-                  <Input
-                    name="password"
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={12}
-                    maxLength={128}
-                    required
-                  />
-                </Field>
-                <Field label="Confirm password" required>
-                  <Input
-                    name="confirmPassword"
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={12}
-                    maxLength={128}
-                    required
-                  />
-                </Field>
+                <NewPasswordFields label={hasPassword ? "New password" : "Password"} />
                 <FormActions align="start">
                   <Button
                     type="submit"
