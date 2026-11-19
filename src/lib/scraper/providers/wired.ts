@@ -1,11 +1,14 @@
-import type { DiscoveredUrl, Provider, UrlExtractorResult } from "@/lib/scraper/types";
+import type { Provider, UrlExtractorResult } from "@/lib/scraper/types";
 import {
+  addArticleCandidates,
   candidateCap,
   categoryFromRules,
-  extractorResultUrl,
+  discoveredFromSitemapEntry,
   hrefsFromHtml,
   parseSitemapEntries,
   rssUrlExtractor,
+  urlWithoutQueryOrHash,
+  type ArticleUrlRules,
 } from "./shared";
 
 const WIRED_SITEMAP_INDEX = "https://www.wired.com/sitemap.xml";
@@ -29,22 +32,13 @@ const WIRED_NON_EDITORIAL_SLUG_RE =
   /(?:^|-)(?:coupon|coupons|promo|promos|discount|deals?|sale)(?:-|$)|(?:coupon|promo)-codes?(?:-|$)|testing-products-/i;
 const wiredRssFallback = rssUrlExtractor([WIRED_RSS_FEED]);
 
-function normalizeCandidateUrl(raw: string, baseUrl?: string): string | null {
-  try {
-    const url = new URL(raw, baseUrl);
-    url.hash = "";
-    url.search = "";
-    return url.href;
-  } catch {
-    return null;
-  }
-}
-
 export function isWiredArticleUrl(url: string): boolean {
   if (!WIRED_ARTICLE_URL_RE.test(url)) return false;
   const slug = new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? "";
   return !WIRED_NON_EDITORIAL_SLUG_RE.test(slug);
 }
+
+const WIRED_URLS: ArticleUrlRules = { normalize: urlWithoutQueryOrHash, isArticleUrl: isWiredArticleUrl };
 
 function sitemapTimestamp(url: string): number {
   const match = url.match(/sitemap-(\d{4})-(\d{2})\.xml$/i);
@@ -56,40 +50,6 @@ function newestMonthlySitemapsFirst(urls: string[]): string[] {
   return [...new Set(urls)]
     .filter((url) => WIRED_MONTHLY_SITEMAP_RE.test(url))
     .sort((a, b) => sitemapTimestamp(b) - sitemapTimestamp(a));
-}
-
-function discoveredFromSitemapEntry(
-  entry: { url: string; lastModified?: string },
-  sourceUrl: string,
-): DiscoveredUrl | null {
-  const url = normalizeCandidateUrl(entry.url);
-  if (!url || !isWiredArticleUrl(url)) return null;
-  return {
-    url,
-    source: "sitemap",
-    discoveredAt: new Date().toISOString(),
-    sourceUrl,
-    ...(entry.lastModified ? { lastModified: entry.lastModified } : {}),
-  };
-}
-
-function addArticleCandidates(
-  urls: UrlExtractorResult[],
-  seen: Set<string>,
-  candidates: readonly UrlExtractorResult[],
-  cap: number,
-  baseUrl?: string,
-): number {
-  let added = 0;
-  for (const candidate of candidates) {
-    if (urls.length >= cap) break;
-    const normalized = normalizeCandidateUrl(extractorResultUrl(candidate), baseUrl);
-    if (!normalized || !isWiredArticleUrl(normalized) || seen.has(normalized)) continue;
-    seen.add(normalized);
-    urls.push(typeof candidate === "string" ? normalized : { ...candidate, url: normalized });
-    added++;
-  }
-  return added;
 }
 
 async function collectSitemapEntries(
@@ -108,7 +68,7 @@ async function collectSitemapEntries(
 
   for (const entry of entries) {
     if (urls.length >= cap) break;
-    const discovered = discoveredFromSitemapEntry(entry, sourceUrl);
+    const discovered = discoveredFromSitemapEntry(entry, sourceUrl, WIRED_URLS);
     if (!discovered) continue;
     if (seen.has(discovered.url)) continue;
     seen.add(discovered.url);
@@ -140,13 +100,13 @@ async function wiredUrlExtractor({
   }
 
   if (urls.length < cap) {
-    addArticleCandidates(urls, seen, await wiredRssFallback({ limit, fetch }), cap);
+    addArticleCandidates(urls, seen, await wiredRssFallback({ limit, fetch }), cap, WIRED_URLS);
   }
 
   for (const seed of WIRED_SEEDS) {
     if (urls.length >= cap) break;
     try {
-      addArticleCandidates(urls, seen, hrefsFromHtml(await fetch(seed), seed), cap, seed);
+      addArticleCandidates(urls, seen, hrefsFromHtml(await fetch(seed), seed), cap, WIRED_URLS, seed);
     } catch {
       // Category pages are supplementary; sitemap/RSS discovery remains authoritative.
     }

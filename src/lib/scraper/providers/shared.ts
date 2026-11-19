@@ -23,6 +23,66 @@ export function extractorResultUrl(candidate: UrlExtractorResult): string {
   return typeof candidate === "string" ? candidate : candidate.url;
 }
 
+/** How a provider normalizes a raw link and recognizes an article URL. */
+export type ArticleUrlRules = {
+  normalize: (raw: string, baseUrl?: string) => string | null;
+  isArticleUrl: (url: string) => boolean;
+};
+
+/** `raw` resolved against `baseUrl` without query string or fragment; null when unparseable. */
+export function urlWithoutQueryOrHash(raw: string, baseUrl?: string): string | null {
+  try {
+    const url = new URL(raw, baseUrl);
+    url.hash = "";
+    url.search = "";
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Appends candidates whose normalized URL is an article, skipping duplicates,
+ * until `urls` holds `cap` entries. Object candidates keep their metadata with
+ * the normalized URL. Returns how many were added.
+ */
+export function addArticleCandidates(
+  urls: UrlExtractorResult[],
+  seen: Set<string>,
+  candidates: readonly UrlExtractorResult[],
+  cap: number,
+  rules: ArticleUrlRules,
+  baseUrl?: string,
+): number {
+  let added = 0;
+  for (const candidate of candidates) {
+    if (urls.length >= cap) break;
+    const normalized = rules.normalize(extractorResultUrl(candidate), baseUrl);
+    if (!normalized || !rules.isArticleUrl(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    urls.push(typeof candidate === "string" ? normalized : { ...candidate, url: normalized });
+    added++;
+  }
+  return added;
+}
+
+/** A sitemap entry as a discovered article URL, or null when it isn't one. */
+export function discoveredFromSitemapEntry(
+  entry: SitemapEntry,
+  sourceUrl: string,
+  rules: ArticleUrlRules,
+): DiscoveredUrl | null {
+  const url = rules.normalize(entry.url);
+  if (!url || !rules.isArticleUrl(url)) return null;
+  return {
+    url,
+    source: "sitemap",
+    discoveredAt: new Date().toISOString(),
+    sourceUrl,
+    ...(entry.lastModified ? { lastModified: entry.lastModified } : {}),
+  };
+}
+
 export const COMMON_READING_SOURCE_CLEANUP = {
   dropClassKeywords: [
     "advert",
@@ -74,6 +134,23 @@ function normalizeAbsoluteUrl(raw: string, baseUrl: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Distinct anchor hrefs in `html`, each passed through `normalize` (unparseable ones dropped). */
+export function uniqueLinksFromHtml(
+  html: string,
+  baseUrl: string,
+  normalize: (raw: string, baseUrl: string) => string | null,
+): string[] {
+  const seen = new Set<string>();
+  const links: string[] = [];
+  for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)) {
+    const url = normalize(match[1] ?? "", baseUrl);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    links.push(url);
+  }
+  return links;
 }
 
 export function hrefsFromHtml(html: string, baseUrl: string): string[] {

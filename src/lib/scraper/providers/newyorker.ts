@@ -1,11 +1,14 @@
 import type { DiscoveredUrl, Provider, UrlExtractorResult } from "@/lib/scraper/types";
 import {
+  addArticleCandidates,
   candidateCap,
   categoryFromRules,
-  extractorResultUrl,
+  discoveredFromSitemapEntry,
   hrefsFromHtml,
   parseSitemapEntries,
   rssUrlExtractor,
+  urlWithoutQueryOrHash,
+  type ArticleUrlRules,
 } from "./shared";
 
 const NEW_YORKER_BASE_URL = "https://www.newyorker.com";
@@ -30,20 +33,11 @@ const NEW_YORKER_SEEDS = [
 ] as const;
 const newYorkerRssFallback = rssUrlExtractor([NEW_YORKER_RSS_FEED]);
 
-function normalizeCandidateUrl(raw: string, baseUrl?: string): string | null {
-  try {
-    const url = new URL(raw, baseUrl);
-    url.hash = "";
-    url.search = "";
-    return url.href;
-  } catch {
-    return null;
-  }
-}
-
 export function isNewYorkerArticleUrl(url: string): boolean {
   return NEW_YORKER_ARTICLE_URL_RE.test(url);
 }
+
+const NEW_YORKER_URLS: ArticleUrlRules = { normalize: urlWithoutQueryOrHash, isArticleUrl: isNewYorkerArticleUrl };
 
 function sitemapTimestamp(url: string): number {
   const match = url.match(NEW_YORKER_MONTHLY_SITEMAP_RE);
@@ -82,37 +76,6 @@ export function newYorkerMonthlySitemapUrls(now = new Date()): string[] {
   return urls;
 }
 
-function discoveredFromSitemapEntry(
-  entry: { url: string; lastModified?: string },
-  sourceUrl: string,
-): DiscoveredUrl | null {
-  const url = normalizeCandidateUrl(entry.url);
-  if (!url || !isNewYorkerArticleUrl(url)) return null;
-  return {
-    url,
-    source: "sitemap",
-    discoveredAt: new Date().toISOString(),
-    sourceUrl,
-    ...(entry.lastModified ? { lastModified: entry.lastModified } : {}),
-  };
-}
-
-function addArticleCandidates(
-  urls: UrlExtractorResult[],
-  seen: Set<string>,
-  candidates: readonly UrlExtractorResult[],
-  cap: number,
-  baseUrl?: string,
-): void {
-  for (const candidate of candidates) {
-    if (urls.length >= cap) break;
-    const normalized = normalizeCandidateUrl(extractorResultUrl(candidate), baseUrl);
-    if (!normalized || !isNewYorkerArticleUrl(normalized) || seen.has(normalized)) continue;
-    seen.add(normalized);
-    urls.push(typeof candidate === "string" ? normalized : { ...candidate, url: normalized });
-  }
-}
-
 async function fetchSitemapEntries(
   sourceUrl: string,
   fetch: Parameters<NonNullable<Provider["urlExtractor"]>>[0]["fetch"],
@@ -126,7 +89,7 @@ async function fetchSitemapEntries(
 
   const discovered: DiscoveredUrl[] = [];
   for (const entry of entries) {
-    const candidate = discoveredFromSitemapEntry(entry, sourceUrl);
+    const candidate = discoveredFromSitemapEntry(entry, sourceUrl, NEW_YORKER_URLS);
     if (candidate) discovered.push(candidate);
   }
   return discovered;
@@ -139,7 +102,7 @@ async function collectSitemapEntries(
   fetch: Parameters<NonNullable<Provider["urlExtractor"]>>[0]["fetch"],
   cap: number,
 ): Promise<void> {
-  addArticleCandidates(urls, seen, await fetchSitemapEntries(sourceUrl, fetch), cap);
+  addArticleCandidates(urls, seen, await fetchSitemapEntries(sourceUrl, fetch), cap, NEW_YORKER_URLS);
 }
 
 async function collectAllMonthlySitemapEntries(
@@ -155,7 +118,7 @@ async function collectAllMonthlySitemapEntries(
       batch.map((sourceUrl) => fetchSitemapEntries(sourceUrl, fetch)),
     );
     for (const entries of entriesBySource) {
-      addArticleCandidates(urls, seen, entries, cap);
+      addArticleCandidates(urls, seen, entries, cap, NEW_YORKER_URLS);
     }
   }
 }
@@ -196,13 +159,13 @@ async function newYorkerUrlExtractor({
   }
 
   if (urls.length < cap) {
-    addArticleCandidates(urls, seen, await newYorkerRssFallback({ limit, fetch }), cap);
+    addArticleCandidates(urls, seen, await newYorkerRssFallback({ limit, fetch }), cap, NEW_YORKER_URLS);
   }
 
   for (const seed of NEW_YORKER_SEEDS) {
     if (urls.length >= cap) break;
     try {
-      addArticleCandidates(urls, seen, hrefsFromHtml(await fetch(seed), seed), cap, seed);
+      addArticleCandidates(urls, seen, hrefsFromHtml(await fetch(seed), seed), cap, NEW_YORKER_URLS, seed);
     } catch {
       // Section pages supplement the archive; an unavailable page is non-fatal.
     }

@@ -33,6 +33,7 @@ import {
   candidateIngestDedupeKey,
   enqueueJobInTx,
 } from "@/lib/jobs";
+import { adminQueueWindow } from "./admin-queue-window";
 
 // Re-export the Article-delete stamp from its dependency-light leaf so callers can
 // import all deletion-governance helpers from this module.
@@ -202,8 +203,7 @@ export async function listDeletedCandidates(
   };
   if (filter.providerKey) where.providerKey = filter.providerKey;
 
-  const offset = Math.max(0, filter.offset ?? 0);
-  const limit = Math.min(Math.max(1, filter.limit ?? 50), 200);
+  const { offset, limit } = adminQueueWindow(filter);
 
   const [total, rows] = await Promise.all([
     prisma.crawlCandidate.count({ where }),

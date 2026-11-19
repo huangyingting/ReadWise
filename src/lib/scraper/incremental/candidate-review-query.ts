@@ -20,6 +20,7 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { adminQueueWindow } from "./admin-queue-window";
 
 /** The two operator-facing review statuses a candidate-review list may filter on. */
 export const REVIEW_QUEUE_STATUSES = [
@@ -152,8 +153,7 @@ export async function listReviewCandidates(
   filter: ReviewCandidateFilter = {},
 ): Promise<ReviewCandidatePage> {
   const where = whereFromFilter(filter);
-  const offset = Math.max(0, filter.offset ?? 0);
-  const limit = Math.min(Math.max(1, filter.limit ?? 50), 200);
+  const { offset, limit } = adminQueueWindow(filter);
 
   const [total, rows] = await Promise.all([
     prisma.crawlCandidate.count({ where }),

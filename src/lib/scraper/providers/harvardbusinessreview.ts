@@ -1,5 +1,11 @@
 import type { DiscoveredUrl, Provider, UrlExtractorResult } from "@/lib/scraper/types";
-import { candidateCap, categoryFromRules, extractorResultUrl, hrefsFromHtml } from "./shared";
+import {
+  addArticleCandidates,
+  candidateCap,
+  categoryFromRules,
+  hrefsFromHtml,
+  type ArticleUrlRules,
+} from "./shared";
 
 const HBR_BASE_URL = "https://hbr.org";
 const HBR_LATEST_SERVICE = `${HBR_BASE_URL}/service/components/external-list/latest`;
@@ -132,6 +138,11 @@ export function isHarvardBusinessReviewArticleUrl(url: string): boolean {
   return !HBR_EXCLUDED_URL_FRAGMENTS.some((fragment) => url.toLowerCase().includes(fragment));
 }
 
+const HBR_URLS: ArticleUrlRules = {
+  normalize: normalizeCandidateUrl,
+  isArticleUrl: isHarvardBusinessReviewArticleUrl,
+};
+
 function discovered(
   url: string,
   source: DiscoveredUrl["source"],
@@ -150,27 +161,6 @@ function discovered(
       ? { publishedAt: new Date(parsedPublishedAt).toISOString() }
       : {}),
   };
-}
-
-function addArticleCandidates(
-  urls: UrlExtractorResult[],
-  seen: Set<string>,
-  candidates: readonly UrlExtractorResult[],
-  cap: number,
-  baseUrl?: string,
-): number {
-  let added = 0;
-  for (const candidate of candidates) {
-    if (urls.length >= cap) break;
-    const normalized = normalizeCandidateUrl(extractorResultUrl(candidate), baseUrl);
-    if (!normalized || !isHarvardBusinessReviewArticleUrl(normalized) || seen.has(normalized)) {
-      continue;
-    }
-    seen.add(normalized);
-    urls.push(typeof candidate === "string" ? normalized : { ...candidate, url: normalized });
-    added++;
-  }
-  return added;
 }
 
 function archiveTocSortValue(path: string): number {
@@ -271,7 +261,7 @@ async function collectLatestServiceEntries(
       break;
     }
     if (entries.length === 0) break;
-    addArticleCandidates(urls, seen, entries, cap);
+    addArticleCandidates(urls, seen, entries, cap, HBR_URLS);
     if (entries.length < HBR_LATEST_PAGE_SIZE) break;
   }
 }
@@ -291,7 +281,7 @@ async function collectHtmlPage(
   } catch {
     return;
   }
-  addArticleCandidates(urls, seen, extractArticleLinksFromHtml(html, pageUrl), cap, pageUrl);
+  addArticleCandidates(urls, seen, extractArticleLinksFromHtml(html, pageUrl), cap, HBR_URLS, pageUrl);
   for (const archivePath of extractArchiveTocPaths(html)) archivePaths.add(archivePath);
   for (const scriptUrl of extractPageScriptUrls(html)) scriptUrls.add(scriptUrl);
 }
@@ -336,6 +326,7 @@ async function collectArchivePages(
         seen,
         extractArticleLinksFromHtml(page.html, page.sourceUrl),
         cap,
+        HBR_URLS,
         page.sourceUrl,
       );
     }

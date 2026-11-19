@@ -26,6 +26,7 @@ import {
   type BaselineIdentityGroup,
 } from "./baseline-backfill";
 import { classifyConflictKind, type ConflictKind } from "./canonical-conflict-policy";
+import { adminQueueWindow } from "./admin-queue-window";
 
 /** The sanitized identity of a conflict (versioned hash keys — never URLs). */
 export type ConflictIdentity = {
@@ -299,8 +300,7 @@ export async function listCanonicalConflicts(
   filter: CanonicalConflictFilter = {},
 ): Promise<CanonicalConflictPage> {
   const where = whereFromFilter(filter);
-  const offset = Math.max(0, filter.offset ?? 0);
-  const limit = Math.min(Math.max(1, filter.limit ?? 50), 200);
+  const { offset, limit } = adminQueueWindow(filter);
 
   const [total, rows] = await Promise.all([
     prisma.canonicalConflict.count({ where }),

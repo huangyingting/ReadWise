@@ -1,6 +1,6 @@
 import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
 import { parseRssUrls } from "@/lib/scraper/rss";
-import { categoryFromRules, excludes, parseSitemapLocs } from "./shared";
+import { categoryFromRules, excludes, parseSitemapLocs, uniqueLinksFromHtml } from "./shared";
 
 const NOEMA_SITEMAP_INDEX_URL = "https://www.noemamag.com/sitemap_index.xml";
 const NOEMA_MAX_RSS_PAGES = 500;
@@ -66,17 +66,6 @@ function normalizeDiscoveredUrl(raw: string, baseUrl: string): string | null {
   }
 }
 
-function parseHtmlLinks(html: string, baseUrl: string): string[] {
-  const seen = new Set<string>();
-  const links: string[] = [];
-  for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)) {
-    const url = normalizeDiscoveredUrl(match[1] ?? "", baseUrl);
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    links.push(url);
-  }
-  return links;
-}
 
 async function noemaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise<string[]> {
   const candidates = createCandidateCollector(limit);
@@ -121,7 +110,7 @@ async function noemaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise
       const pageUrl = noemaTopicPageUrl(seed, page);
       let topicUrls: string[];
       try {
-        topicUrls = parseHtmlLinks(await fetch(pageUrl), pageUrl);
+        topicUrls = uniqueLinksFromHtml(await fetch(pageUrl), pageUrl, normalizeDiscoveredUrl);
       } catch {
         break;
       }

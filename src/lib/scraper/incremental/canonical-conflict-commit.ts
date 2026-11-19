@@ -74,8 +74,10 @@ import {
   classifyConflictKind,
   decideConflictResolution,
   decideTypeBResolution,
+  type ConflictResolveDecision,
   type ConflictResolveIllegalReason,
   type ConflictResolveNoopReason,
+  type ConflictResolveTypeBDecision,
   type ConflictResolveTypeBIllegalReason,
   type TypeBCanonicalChoice,
 } from "./canonical-conflict-policy";
@@ -156,6 +158,16 @@ class ConflictRaceError extends Error {
 /** True when a thrown error is a unique conflict on the candidate canonical slot. */
 function isCanonicalUniqueConflict(error: unknown): boolean {
   return isUniqueConflictOn(error, "canonicalKey") || isUniqueConflictOn(error, "provisionalKey");
+}
+
+/** The outcome for a policy decision that refuses (illegal) or skips (noop) resolution. */
+function unappliedOutcome(
+  conflictId: string,
+  decision: Exclude<ConflictResolveDecision | ConflictResolveTypeBDecision, { kind: "apply" }>,
+): ConflictResolveOutcome {
+  return decision.kind === "illegal"
+    ? { ok: false, reason: "illegal", conflictId, illegal: decision.reason, status: decision.status }
+    : { ok: true, kind: "noop", conflictId, reason: decision.reason, status: decision.status };
 }
 
 type ResolveParams = {
@@ -242,12 +254,7 @@ export async function resolveCanonicalConflict(
     participantArticleIds,
   });
 
-  if (decision.kind === "illegal") {
-    return { ok: false, reason: "illegal", conflictId, illegal: decision.reason, status: decision.status };
-  }
-  if (decision.kind === "noop") {
-    return { ok: true, kind: "noop", conflictId, reason: decision.reason, status: decision.status };
-  }
+  if (decision.kind !== "apply") return unappliedOutcome(conflictId, decision);
 
   return convergeConflictTx(conflict.id, () =>
     runResolveTx(conflict, survivingArticleId, decision.loserArticleIds, resolvedBy, now, migrate),
@@ -302,12 +309,7 @@ async function resolveTypeBConflict(
     challengerCandidateId: challenger?.id ?? null,
   });
 
-  if (decision.kind === "illegal") {
-    return { ok: false, reason: "illegal", conflictId, illegal: decision.reason, status: decision.status };
-  }
-  if (decision.kind === "noop") {
-    return { ok: true, kind: "noop", conflictId, reason: decision.reason, status: decision.status };
-  }
+  if (decision.kind !== "apply") return unappliedOutcome(conflictId, decision);
 
   // `incumbentCandidateId` is non-null for a Type-B conflict (guarded by the policy).
   const incumbentCandidateId = conflict.incumbentCandidateId as string;

@@ -1,5 +1,5 @@
 import type { Provider } from "@/lib/scraper/types";
-import { excludes, lookupSection } from "./shared";
+import { excludes, lookupSection, uniqueLinksFromHtml, urlWithoutQueryOrHash } from "./shared";
 
 const SMITHSONIAN_SITEMAP_INDEX = "https://www.smithsonianmag.com/sitemap.xml";
 const SMITHSONIAN_CATEGORIES = [
@@ -39,16 +39,6 @@ function parseLocs(xml: string): string[] {
     .filter(Boolean);
 }
 
-function normalizeDiscoveredUrl(raw: string, base?: string): string | null {
-  try {
-    const url = new URL(raw, base);
-    url.hash = "";
-    url.search = "";
-    return url.href;
-  } catch {
-    return null;
-  }
-}
 
 function articleSitemapYear(url: string): number | null {
   const match = url.match(/\/sitemap-articles-(\d{4})-\d{2}\.xml$/i);
@@ -64,17 +54,6 @@ function sectionForUrl(url: string): string | null {
   }
 }
 
-function parseCategoryArticleLinks(html: string, baseUrl: string): string[] {
-  const seen = new Set<string>();
-  const links: string[] = [];
-  for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)) {
-    const url = normalizeDiscoveredUrl(match[1] ?? "", baseUrl);
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    links.push(url);
-  }
-  return links;
-}
 
 function parseMaxCategoryPage(html: string): number {
   const pages = [...html.matchAll(/[?&]page=(\d+)/gi)]
@@ -148,6 +127,17 @@ function articleSitemapEntries(
     .sort((a, b) => b.year - a.year || b.url.localeCompare(a.url));
 }
 
+/** Shared state threaded through the Smithsonian sitemap and category collectors. */
+type SmithsonianCollectorArgs = {
+  fetch: (url: string) => Promise<string>;
+  options: SmithsonianDiscoveryOptions;
+  excluded: Set<string>;
+  urls: string[];
+  seen: Set<string>;
+  sitemapYears: Map<string, number>;
+  candidateCap: number;
+};
+
 async function collectSitemapUrls({
   fetch,
   options,
@@ -156,15 +146,7 @@ async function collectSitemapUrls({
   seen,
   sitemapYears,
   candidateCap,
-}: {
-  fetch: (url: string) => Promise<string>;
-  options: SmithsonianDiscoveryOptions;
-  excluded: Set<string>;
-  urls: string[];
-  seen: Set<string>;
-  sitemapYears: Map<string, number>;
-  candidateCap: number;
-}): Promise<void> {
+}: SmithsonianCollectorArgs): Promise<void> {
   let sitemapLocs: string[];
   try {
     sitemapLocs = await fetchLocs(fetch, SMITHSONIAN_SITEMAP_INDEX);
@@ -183,7 +165,7 @@ async function collectSitemapUrls({
 
     for (const raw of locs) {
       if (urls.length >= candidateCap) break;
-      const url = normalizeDiscoveredUrl(raw);
+      const url = urlWithoutQueryOrHash(raw);
       if (!url) continue;
       sitemapYears.set(url, sitemap.year);
       if (!shouldKeepSitemapUrl(url, sitemap.year, options, excluded)) continue;
@@ -231,15 +213,7 @@ async function collectCategoryArchiveUrls({
   seen,
   sitemapYears,
   candidateCap,
-}: {
-  fetch: (url: string) => Promise<string>;
-  options: SmithsonianDiscoveryOptions;
-  excluded: Set<string>;
-  urls: string[];
-  seen: Set<string>;
-  sitemapYears: Map<string, number>;
-  candidateCap: number;
-}): Promise<void> {
+}: SmithsonianCollectorArgs): Promise<void> {
   for (const category of SMITHSONIAN_CATEGORIES) {
     if (urls.length >= candidateCap) break;
     const pageHtmls = await fetchCategoryPages(
@@ -250,7 +224,7 @@ async function collectCategoryArchiveUrls({
 
     for (const { url: baseUrl, html } of pageHtmls) {
       if (urls.length >= candidateCap) break;
-      for (const link of parseCategoryArticleLinks(html, baseUrl)) {
+      for (const link of uniqueLinksFromHtml(html, baseUrl, urlWithoutQueryOrHash)) {
         if (!shouldKeepCategoryUrl(link, sitemapYears, options, excluded)) continue;
         addUrl(urls, seen, link, candidateCap);
       }

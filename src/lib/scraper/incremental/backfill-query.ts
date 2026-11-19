@@ -26,6 +26,7 @@ import { CrawlCandidateStatus, Prisma, BackfillRunStatus } from "@prisma/client"
 import { prisma } from "@/lib/prisma";
 
 import type { EffectiveBackfillBounds } from "./backfill-policy";
+import { adminQueueWindow } from "./admin-queue-window";
 
 /**
  * The concrete backfill-run statuses an admin may filter the list by. Mirrors the
@@ -307,8 +308,7 @@ export async function listBackfillRuns(filter: BackfillRunFilter = {}): Promise<
   if (filter.status) where.status = filter.status;
   if (filter.providerKey) where.providerKey = filter.providerKey;
 
-  const offset = Math.max(0, filter.offset ?? 0);
-  const limit = Math.min(Math.max(1, filter.limit ?? 50), 200);
+  const { offset, limit } = adminQueueWindow(filter);
 
   const [total, rows] = await Promise.all([
     prisma.backfillRun.count({ where }),
