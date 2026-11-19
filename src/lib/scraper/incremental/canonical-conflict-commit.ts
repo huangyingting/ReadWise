@@ -361,6 +361,20 @@ async function afterRace(conflictId: string): Promise<ConflictResolveOutcome> {
   return { ok: false, reason: "stale", conflictId, status: fresh.status };
 }
 
+/** Flips the still-OPEN conflict to RESOLVED; a lost race throws {@link ConflictRaceError}. */
+async function claimOpenConflict(
+  tx: Prisma.TransactionClient,
+  conflictId: string,
+  resolvedBy: string,
+  now: Date,
+): Promise<void> {
+  const claimed = await tx.canonicalConflict.updateMany({
+    where: { id: conflictId, status: CanonicalConflictStatus.OPEN },
+    data: { status: CanonicalConflictStatus.RESOLVED, resolvedAt: now, resolvedBy, updatedAt: now },
+  });
+  if (claimed.count === 0) throw new ConflictRaceError();
+}
+
 async function runResolveTx(
   conflict: ConflictRow,
   survivingArticleId: string,
@@ -371,11 +385,7 @@ async function runResolveTx(
 ): Promise<ConflictResolveOutcome> {
   return prisma.$transaction(async (tx) => {
     // (1) Claim the conflict under the lock — only ONE resolver can win.
-    const claimed = await tx.canonicalConflict.updateMany({
-      where: { id: conflict.id, status: CanonicalConflictStatus.OPEN },
-      data: { status: CanonicalConflictStatus.RESOLVED, resolvedAt: now, resolvedBy, updatedAt: now },
-    });
-    if (claimed.count === 0) throw new ConflictRaceError();
+    await claimOpenConflict(tx, conflict.id, resolvedBy, now);
 
     // Re-validate the survivor still exists as a public Article under the lock.
     const survivor = await tx.article.findUnique({
@@ -463,11 +473,7 @@ async function runTypeBResolveTx(
 ): Promise<ConflictResolveOutcome> {
   return prisma.$transaction(async (tx) => {
     // (1) Claim the conflict under the lock — only ONE resolver can win.
-    const claimed = await tx.canonicalConflict.updateMany({
-      where: { id: conflict.id, status: CanonicalConflictStatus.OPEN },
-      data: { status: CanonicalConflictStatus.RESOLVED, resolvedAt: now, resolvedBy, updatedAt: now },
-    });
-    if (claimed.count === 0) throw new ConflictRaceError();
+    await claimOpenConflict(tx, conflict.id, resolvedBy, now);
 
     // (2) Re-read the incumbent + parked challenger under the lock.
     const incumbent = await tx.crawlCandidate.findUnique({
