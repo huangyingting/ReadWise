@@ -5,7 +5,7 @@ import { ArticleStatus, Prisma } from "@prisma/client";
 import { assertSafeUrl, ssrfFailureDetails } from "@/lib/scraper/ssrf";
 import { scrapeUrl } from "@/lib/scraper";
 import type { ScrapedArticle } from "@/lib/scraper/types";
-import { heuristicDifficulty } from "@/lib/difficulty";
+import { applyDeterministicDifficulty, type ImportDb } from "@/lib/import/persistence";
 import {
   findOwnedArticleBySourceUrl,
   privateImportedArticleCreateFields,
@@ -15,16 +15,6 @@ import { recordSecurityEvent, SECURITY_EVENT_TYPES, type SecurityEventInput } fr
 import { clientIp } from "@/lib/security/client-ip";
 import { recordEvent, ANALYTICS_EVENT_TYPES, type AnalyticsEventInput } from "@/lib/analytics/events";
 import { assertWithinDailyQuota } from "@/lib/import/quota";
-
-/**
- * Minimal Prisma client shape needed for the import transaction.
- *
- * Using a narrow interface avoids the union-overload issue with PrismaClient's
- * full `$transaction` signature and keeps the dep type easy to stub in tests.
- */
-type ImportDb = {
-  $transaction<R>(fn: (tx: any) => Promise<R>): Promise<R>;
-};
 
 /**
  * Injectable dependencies for URL import orchestration (REF-086).
@@ -252,26 +242,4 @@ async function resolveDuplicateOnConflict(
     err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
   if (!isP2002 || !sourceUrl) return null;
   return findOwned(sourceUrl, userId);
-}
-
-/** Runs deterministic difficulty and persists it. Non-fatal. */
-async function applyDeterministicDifficulty(
-  articleId: string,
-  content: string,
-  client: Pick<Prisma.TransactionClient, "article"> = prisma,
-): Promise<void> {
-  try {
-    const {
-      level: difficulty,
-      score: difficultyScore,
-      lexileApprox,
-      version: difficultyVersion,
-    } = heuristicDifficulty(content);
-    await client.article.update({
-      where: { id: articleId },
-      data: { difficulty, difficultyScore, lexileApprox, difficultyVersion },
-    });
-  } catch {
-    // Non-fatal — difficulty can be computed lazily by the reader.
-  }
 }

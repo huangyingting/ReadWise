@@ -56,18 +56,16 @@ export function createAlphanumericKey(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-export function extractTextTokens(text: string): TextToken[] {
+function extractTokens(text: string, regex: RegExp): TextToken[] {
   const tokens: TextToken[] = [];
-  const regex = createWordRegex();
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(text)) !== null) {
     const value = match[0];
     const start = match.index ?? 0;
-    const end = start + value.length;
     tokens.push({
       start,
-      end,
+      end: start + value.length,
       value,
       normalized: createComparableKey(value),
     });
@@ -76,24 +74,12 @@ export function extractTextTokens(text: string): TextToken[] {
   return tokens;
 }
 
+export function extractTextTokens(text: string): TextToken[] {
+  return extractTokens(text, createWordRegex());
+}
+
 export function extractSpeechBoundaryTokens(text: string): TextToken[] {
-  const tokens: TextToken[] = [];
-  const regex = createSpeechBoundaryRegex();
-  let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(text)) !== null) {
-    const value = match[0];
-    const start = match.index ?? 0;
-    const end = start + value.length;
-    tokens.push({
-      start,
-      end,
-      value,
-      normalized: createComparableKey(value),
-    });
-  }
-
-  return tokens;
+  return extractTokens(text, createSpeechBoundaryRegex());
 }
 
 function millisecondsToSeconds(milliseconds: number): number {

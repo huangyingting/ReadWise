@@ -41,6 +41,17 @@ export type SubRow = {
   failureCount?: number;
 };
 
+/** Groups `{ userId, ...subscription }` rows into each user's subscriptions. */
+export function groupSubscriptionsByUser(subscriptions: Array<SubRow & { userId: string }>): Map<string, SubRow[]> {
+  const subsByUser = new Map<string, SubRow[]>();
+  for (const sub of subscriptions) {
+    const list = subsByUser.get(sub.userId) ?? [];
+    list.push(sub);
+    subsByUser.set(sub.userId, list);
+  }
+  return subsByUser;
+}
+
 function pushSubscriptionFor(sub: SubRow) {
   return { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } };
 }

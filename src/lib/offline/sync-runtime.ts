@@ -711,15 +711,12 @@ async function currentQueuedMutations(
   return current;
 }
 
-function flushDeps(generation: PurgeGeneration): FlushDeps {
+/**
+ * Send / remove / update for one purge generation, each fenced on the record
+ * the drain inspected so a stale drain never touches a newer record.
+ */
+function fencedQueueOps(generation: PurgeGeneration): Pick<FlushDeps, "send" | "remove" | "update"> {
   return {
-    // The generic engine handles every NON-Today mutation; Today mutations are
-    // drained separately by `replayTodayMutations` so a 409 becomes a conflict
-    // (not a resolved no-op as `classifyStatus` would otherwise treat it).
-    list: async () =>
-      (await currentQueuedMutations(generation)).filter(
-        (m) => !isTodayMutationType(m.type),
-      ),
     send: (mutation) =>
       sendQueuedMutationForGeneration(generation, mutation),
     remove: async (mutation) => {
@@ -744,30 +741,23 @@ function flushDeps(generation: PurgeGeneration): FlushDeps {
   };
 }
 
+function flushDeps(generation: PurgeGeneration): FlushDeps {
+  return {
+    // The generic engine handles every NON-Today mutation; Today mutations are
+    // drained separately by `replayTodayMutations` so a 409 becomes a conflict
+    // (not a resolved no-op as `classifyStatus` would otherwise treat it).
+    list: async () =>
+      (await currentQueuedMutations(generation)).filter(
+        (m) => !isTodayMutationType(m.type),
+      ),
+    ...fencedQueueOps(generation),
+  };
+}
+
 /** Browser-wired deps for the Today replay handler. */
 function todayReplayDeps(generation: PurgeGeneration): TodayReplayDeps {
   return {
-    send: (mutation) =>
-      sendQueuedMutationForGeneration(generation, mutation),
-    remove: async (mutation) => {
-      await removeQueuedMutationForGeneration(
-        mutation.clientMutationId,
-        mutation.purgeGeneration,
-        mutation.actorId,
-        mutation.createdAt,
-        mutation.queueRevision,
-      );
-    },
-    update: async (mutation, patch) => {
-      await updateQueuedMutationForGeneration(
-        mutation.clientMutationId,
-        mutation.purgeGeneration,
-        mutation.actorId,
-        mutation.createdAt,
-        mutation.queueRevision,
-        patch,
-      );
-    },
+    ...fencedQueueOps(generation),
     onConflict: (info) => notifyTodayConflict(info),
   };
 }

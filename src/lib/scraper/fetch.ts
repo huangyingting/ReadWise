@@ -18,6 +18,7 @@ import { fetchHtmlWithStrategies } from "@/lib/scraper/fetch-strategies";
 import { redactUrlForLog } from "@/lib/scraper/url-redaction";
 import { createLogger } from "@/lib/observability/logger";
 import { gunzipSync } from "node:zlib";
+import { parseRetryAfterMs, telemetryHost } from "@/lib/http/http-meta";
 
 const log = createLogger("scraper.fetch");
 
@@ -48,28 +49,6 @@ export class FetchHttpError extends Error {
     this.status = status;
     this.url = url;
     this.retryAfterMs = retryAfterMs;
-  }
-}
-
-/**
- * Parses a `Retry-After` header value (seconds or HTTP-date) into ms.
- * Returns null when the header is absent or unparseable.
- */
-function parseRetryAfterMs(header: string | null): number | null {
-  if (!header) return null;
-  const seconds = parseFloat(header);
-  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
-  const date = Date.parse(header);
-  if (!Number.isNaN(date)) return Math.max(0, date - Date.now());
-  return null;
-}
-
-function spanHostFor(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    // keep "unknown" — never put a raw/invalid URL on a span attribute
-    return "unknown";
   }
 }
 
@@ -223,7 +202,7 @@ async function performSafeFetch<T>(
   timeoutMs: number,
   consume: (res: FetchResponse, finalUrl: string) => Promise<T>,
 ): Promise<SafeFetchResult<T>> {
-  const host = spanHostFor(url);
+  const host = telemetryHost(url);
   return withSpan("scraper.fetch", { "readwise.provider": "scraper", "readwise.host": host }, async () => {
     const controller = new AbortController();
     const abortFromCaller = () => controller.abort(init.signal?.reason);

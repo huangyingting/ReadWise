@@ -24,7 +24,7 @@ import {
 import { reminder as reminderCopy } from "@/lib/copy/push";
 import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { isPushConfigured } from "./provider";
-import { type SubRow, sendToSubs, type PushPayload } from "./delivery";
+import { type SubRow, groupSubscriptionsByUser, sendToSubs, type PushPayload } from "./delivery";
 import { reminderNotificationTag } from "./notification-idempotency";
 
 const log = createLogger("push");
@@ -235,18 +235,6 @@ function skippedUserReminder(
   dueCount = 0,
 ): PushReminderUserResult {
   return { userId, dueCount, sent: 0, skipped: true, suppressed: false, reason };
-}
-
-type UserSubscription = SubRow & { userId: string };
-
-function groupSubscriptionsByUser(subscriptions: UserSubscription[]): Map<string, SubRow[]> {
-  const subsByUser = new Map<string, SubRow[]>();
-  for (const sub of subscriptions) {
-    const list = subsByUser.get(sub.userId) ?? [];
-    list.push(sub);
-    subsByUser.set(sub.userId, list);
-  }
-  return subsByUser;
 }
 
 type ReminderContent = {

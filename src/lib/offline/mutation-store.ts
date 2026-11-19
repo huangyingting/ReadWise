@@ -88,86 +88,106 @@ export interface EnqueueMutationInput {
   dependsOnClientMutationIds?: string[] | null;
 }
 
+/** Returned by store work that decided not to write (nothing to commit). */
+const NO_WRITE = Symbol("no-write");
+
+/**
+ * Runs `work` in one transaction on the mutations store and closes the
+ * database. Read-write work resolves only after the transaction commits.
+ * Resolves `fallback` when IndexedDB is unavailable, anything fails, or the
+ * work returned {@link NO_WRITE}.
+ */
+async function withMutationStore<T>(
+  mode: IDBTransactionMode,
+  fallback: T,
+  work: (store: IDBObjectStore) => Promise<T | typeof NO_WRITE>,
+): Promise<T> {
+  if (!isIndexedDbAvailable()) return fallback;
+  try {
+    const db = await openDb();
+    try {
+      const tx = db.transaction(STORE_MUTATIONS, mode);
+      // Listen before any request runs so the commit can't be missed; the
+      // no-op catch only marks it handled for paths that never await it.
+      const committed = mode === "readwrite" ? waitForTransaction(tx) : null;
+      committed?.catch(() => {});
+      const result = await work(tx.objectStore(STORE_MUTATIONS));
+      if (result === NO_WRITE) return fallback;
+      await committed;
+      return result;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return fallback;
+  }
+}
+
+async function readQueuedMutation(
+  store: IDBObjectStore,
+  clientMutationId: string,
+): Promise<QueuedMutation | null> {
+  return ((await requestResult(store.get(clientMutationId))) as QueuedMutation | undefined) ?? null;
+}
+
+/**
+ * Reads one record and, when it exists and `accept` approves it, applies
+ * `write`. Resolves true only after that write commits.
+ */
+function rewriteQueuedMutation(
+  clientMutationId: string,
+  accept: (existing: QueuedMutation) => boolean,
+  write: (store: IDBObjectStore, existing: QueuedMutation) => void,
+): Promise<boolean> {
+  return withMutationStore("readwrite", false, async (store) => {
+    const existing = await readQueuedMutation(store, clientMutationId);
+    if (!existing || !accept(existing)) return NO_WRITE;
+    write(store, existing);
+    return true;
+  });
+}
+
+/** Stores `existing` with `patch` applied and its queue revision bumped. */
+function putPatched(store: IDBObjectStore, existing: QueuedMutation, patch: Partial<QueuedMutation>): void {
+  store.put({
+    ...existing,
+    ...patch,
+    clientMutationId: existing.clientMutationId,
+    queueRevision: (existing.queueRevision ?? 0) + 1,
+  });
+}
+
+const always = () => true;
+
 /**
  * Append a mutation to the offline queue. When `dedupeKey` is supplied, any
  * existing queued mutation with the same key is removed first so only the
  * latest survives (e.g. the newest scroll progress / note edit). Returns true
  * only after the IndexedDB transaction commits.
  */
-export async function enqueueMutation(
-  input: EnqueueMutationInput,
-): Promise<boolean> {
-  if (!isIndexedDbAvailable()) return false;
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readwrite");
-    const store = tx.objectStore(STORE_MUTATIONS);
-
+export function enqueueMutation(input: EnqueueMutationInput): Promise<boolean> {
+  return withMutationStore("readwrite", false, async (store) => {
     if (input.dedupeKey) {
       await deleteExistingDedupeMatches(store, input.dedupeKey);
     }
-
     store.put(queuedMutationFromInput(input));
-    await waitForTransaction(tx);
-    db.close();
     return true;
-  } catch {
-    return false;
-  }
+  });
 }
 
 /** Replace the payload of an existing queued mutation after a committed write. */
-export async function replaceQueuedMutationPayload(
+export function replaceQueuedMutationPayload(
   clientMutationId: string,
   payload: unknown,
 ): Promise<boolean> {
-  if (!isIndexedDbAvailable()) return false;
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readwrite");
-    const store = tx.objectStore(STORE_MUTATIONS);
-    const existing =
-      ((await requestResult(store.get(clientMutationId))) as
-        | QueuedMutation
-        | undefined) ?? null;
-    if (!existing) {
-      db.close();
-      return false;
-    }
-    store.put({
-      ...existing,
-      payload,
-      queueRevision: (existing.queueRevision ?? 0) + 1,
-    });
-    await waitForTransaction(tx);
-    db.close();
-    return true;
-  } catch {
-    return false;
-  }
+  return rewriteQueuedMutation(clientMutationId, always, (store, existing) =>
+    putPatched(store, existing, { payload }),
+  );
 }
 
 /** Remove a queued mutation, reporting whether an existing record was committed away. */
-export async function discardQueuedMutation(
-  clientMutationId: string,
-): Promise<boolean> {
-  if (!isIndexedDbAvailable()) return false;
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readwrite");
-    const store = tx.objectStore(STORE_MUTATIONS);
-    const existing = await requestResult(store.get(clientMutationId));
-    if (!existing) {
-      db.close();
-      return false;
-    }
-    store.delete(clientMutationId);
-    await waitForTransaction(tx);
-    db.close();
-    return true;
-  } catch {
-    return false;
-  }
+export function discardQueuedMutation(clientMutationId: string): Promise<boolean> {
+  return rewriteQueuedMutation(clientMutationId, always, (store) => store.delete(clientMutationId));
 }
 
 /**
@@ -175,70 +195,36 @@ export async function discardQueuedMutation(
  * inspected. A stale drain must never delete a newer record that reused the
  * same logical key after an account transition.
  */
-export async function removeQueuedMutationForGeneration(
+export function removeQueuedMutationForGeneration(
   clientMutationId: string,
   purgeGeneration: string | null | undefined,
   actorId: string | undefined,
   createdAt?: string,
   queueRevision?: number,
 ): Promise<boolean> {
-  if (!isIndexedDbAvailable()) return false;
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readwrite");
-    const store = tx.objectStore(STORE_MUTATIONS);
-    const existing =
-      ((await requestResult(store.get(clientMutationId))) as
-        | QueuedMutation
-        | undefined) ?? null;
-    if (
-      !existing ||
-      existing.purgeGeneration !== purgeGeneration ||
-      existing.actorId !== actorId ||
-      (createdAt !== undefined && existing.createdAt !== createdAt) ||
-      (queueRevision !== undefined &&
-        existing.queueRevision !== queueRevision)
-    ) {
-      db.close();
-      return false;
-    }
-    store.delete(clientMutationId);
-    await waitForTransaction(tx);
-    db.close();
-    return true;
-  } catch {
-    return false;
-  }
+  return rewriteQueuedMutation(
+    clientMutationId,
+    (existing) =>
+      existing.purgeGeneration === purgeGeneration &&
+      existing.actorId === actorId &&
+      (createdAt === undefined || existing.createdAt === createdAt) &&
+      (queueRevision === undefined || existing.queueRevision === queueRevision),
+    (store) => store.delete(clientMutationId),
+  );
 }
 
 /** Return all queued mutations (unordered; callers sort via sortQueue). */
-export async function listQueuedMutations(): Promise<QueuedMutation[]> {
-  if (!isIndexedDbAvailable()) return [];
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readonly");
-    const store = tx.objectStore(STORE_MUTATIONS);
-    const all = ((await requestResult(store.getAll())) as QueuedMutation[]) ?? [];
-    db.close();
-    return all;
-  } catch {
-    return [];
-  }
+export function listQueuedMutations(): Promise<QueuedMutation[]> {
+  return withMutationStore(
+    "readonly",
+    [],
+    async (store) => ((await requestResult(store.getAll())) as QueuedMutation[]) ?? [],
+  );
 }
 
 /** Number of mutations currently queued (includes failed). */
-export async function countQueuedMutations(): Promise<number> {
-  if (!isIndexedDbAvailable()) return 0;
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readonly");
-    const store = tx.objectStore(STORE_MUTATIONS);
-    const count = await requestResult(store.count());
-    db.close();
-    return count;
-  } catch {
-    return 0;
-  }
+export function countQueuedMutations(): Promise<number> {
+  return withMutationStore("readonly", 0, (store) => requestResult(store.count()));
 }
 
 /** Whether every durable row can be safely adopted by the current account. */
@@ -247,55 +233,26 @@ export async function queuedMutationsBelongTo(
   purgeGeneration: string,
 ): Promise<boolean> {
   if (!isIndexedDbAvailable()) return true;
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readonly");
-    const records =
-      ((await requestResult(
-        tx.objectStore(STORE_MUTATIONS).getAll(),
-      )) as QueuedMutation[]) ?? [];
-    db.close();
+  return withMutationStore("readonly", false, async (store) => {
+    const records = ((await requestResult(store.getAll())) as QueuedMutation[]) ?? [];
     return records.every(
-      (record) =>
-        record.actorId === actorId &&
-        record.purgeGeneration === purgeGeneration,
+      (record) => record.actorId === actorId && record.purgeGeneration === purgeGeneration,
     );
-  } catch {
-    return false;
-  }
+  });
 }
 
-/** Apply a partial patch to a queued mutation (status / retryCount / lastError). */
+/** Apply a partial patch to a queued mutation (status / retryCount / lastError). Best-effort. */
 export async function updateQueuedMutation(
   clientMutationId: string,
   patch: Partial<QueuedMutation>,
 ): Promise<void> {
-  if (!isIndexedDbAvailable()) return;
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readwrite");
-    const store = tx.objectStore(STORE_MUTATIONS);
-    const existing =
-      ((await requestResult(store.get(clientMutationId))) as
-        | QueuedMutation
-        | undefined) ?? null;
-    if (existing) {
-      store.put({
-        ...existing,
-        ...patch,
-        clientMutationId,
-        queueRevision: (existing.queueRevision ?? 0) + 1,
-      });
-    }
-    await waitForTransaction(tx);
-    db.close();
-  } catch {
-    // Best-effort.
-  }
+  await rewriteQueuedMutation(clientMutationId, always, (store, existing) =>
+    putPatched(store, existing, patch),
+  );
 }
 
 /** Update a record only while it still belongs to the inspected owner fence. */
-export async function updateQueuedMutationForGeneration(
+export function updateQueuedMutationForGeneration(
   clientMutationId: string,
   purgeGeneration: string | null | undefined,
   actorId: string | undefined,
@@ -303,66 +260,29 @@ export async function updateQueuedMutationForGeneration(
   queueRevision: number | undefined,
   patch: Partial<QueuedMutation>,
 ): Promise<boolean> {
-  if (!isIndexedDbAvailable()) return false;
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readwrite");
-    const store = tx.objectStore(STORE_MUTATIONS);
-    const existing =
-      ((await requestResult(store.get(clientMutationId))) as
-        | QueuedMutation
-        | undefined) ?? null;
-    if (
-      !existing ||
-      existing.purgeGeneration !== purgeGeneration ||
-      existing.actorId !== actorId ||
-      existing.createdAt !== createdAt ||
-      existing.queueRevision !== queueRevision
-    ) {
-      db.close();
-      return false;
-    }
-    store.put({
-      ...existing,
-      ...patch,
-      clientMutationId,
-      queueRevision: (existing.queueRevision ?? 0) + 1,
-    });
-    await waitForTransaction(tx);
-    db.close();
-    return true;
-  } catch {
-    return false;
-  }
+  return rewriteQueuedMutation(
+    clientMutationId,
+    (existing) =>
+      existing.purgeGeneration === purgeGeneration &&
+      existing.actorId === actorId &&
+      existing.createdAt === createdAt &&
+      existing.queueRevision === queueRevision,
+    (store, existing) => putPatched(store, existing, patch),
+  );
 }
 
-/** Remove a delivered (or discarded) mutation from the queue. */
-export async function removeQueuedMutation(
-  clientMutationId: string,
-): Promise<void> {
-  if (!isIndexedDbAvailable()) return;
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readwrite");
-    tx.objectStore(STORE_MUTATIONS).delete(clientMutationId);
-    await waitForTransaction(tx);
-    db.close();
-  } catch {
-    // Best-effort.
-  }
+/** Remove a delivered (or discarded) mutation from the queue. Best-effort. */
+export async function removeQueuedMutation(clientMutationId: string): Promise<void> {
+  await withMutationStore("readwrite", undefined, async (store) => {
+    store.delete(clientMutationId);
+  });
 }
 
 /** Clear every queued mutation and report whether privacy cleanup completed. */
 export async function clearQueuedMutations(): Promise<boolean> {
   if (!isIndexedDbAvailable()) return true;
-  try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_MUTATIONS, "readwrite");
-    tx.objectStore(STORE_MUTATIONS).clear();
-    await waitForTransaction(tx);
-    db.close();
+  return withMutationStore("readwrite", false, async (store) => {
+    store.clear();
     return true;
-  } catch {
-    return false;
-  }
+  });
 }

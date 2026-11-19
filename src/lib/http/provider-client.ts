@@ -24,6 +24,7 @@
 
 import { createLogger } from "@/lib/observability/logger";
 import { jitteredExponentialBackoff } from "@/lib/backoff";
+import { parseRetryAfterMs, telemetryHost } from "@/lib/http/http-meta";
 
 const log = createLogger("http.provider");
 
@@ -87,27 +88,6 @@ function resolveProviderFetchOptions(opts?: ProviderFetchOptions): ResolvedProvi
     sleep:
       opts?.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))),
   };
-}
-
-function hostFromUrl(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "unknown";
-  }
-}
-
-/**
- * Parses a `Retry-After` header value (seconds or HTTP-date) into ms.
- * Returns null when the header is absent or unparseable.
- */
-function parseRetryAfterMs(header: string | null): number | null {
-  if (!header) return null;
-  const seconds = parseFloat(header);
-  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
-  const date = Date.parse(header);
-  if (!Number.isNaN(date)) return Math.max(0, date - Date.now());
-  return null;
 }
 
 /**
@@ -184,7 +164,7 @@ export async function providerFetch(
 ): Promise<Response> {
   const { timeoutMs, maxRetries, backoffBaseMs, backoffMaxMs, provider, sleep } =
     resolveProviderFetchOptions(opts);
-  const host = hostFromUrl(url);
+  const host = telemetryHost(url);
 
   let attempt = 0;
 

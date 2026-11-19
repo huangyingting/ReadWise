@@ -1,10 +1,10 @@
 import type { Session } from "next-auth";
 import { ApiError } from "@/lib/errors/api-error";
 import { prisma } from "@/lib/prisma";
-import { ArticleStatus, Prisma } from "@prisma/client";
+import { ArticleStatus } from "@prisma/client";
 import { sanitizeArticleHtml } from "@/lib/content-pipeline";
 import { countWords } from "@/lib/article-library/mapper";
-import { heuristicDifficulty } from "@/lib/difficulty";
+import { applyDeterministicDifficulty, type ImportDb } from "@/lib/import/persistence";
 import { privateImportedArticleCreateFields } from "@/lib/article-library/policy";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { recordEvent, ANALYTICS_EVENT_TYPES, type AnalyticsEventInput } from "@/lib/analytics/events";
@@ -14,16 +14,6 @@ import { assertWithinDailyQuota } from "@/lib/import/quota";
 export const MIN_IMPORT_WORDS = 50;
 /** Max length for pasted text body. */
 export const MAX_TEXT_BYTES = 200_000;
-
-/**
- * Minimal Prisma client shape needed for the import transaction.
- *
- * Using a narrow interface avoids the union-overload issue with PrismaClient's
- * full `$transaction` signature and keeps the dep type easy to stub in tests.
- */
-type ImportDb = {
-  $transaction<R>(fn: (tx: any) => Promise<R>): Promise<R>;
-};
 
 /**
  * Injectable dependencies for text import orchestration (REF-086).
@@ -153,26 +143,4 @@ function buildSanitizedTextContent(text: string): string {
     .join("\n");
 
   return sanitizeArticleHtml(rawHtml);
-}
-
-/** Runs deterministic difficulty and persists it. Non-fatal. */
-async function applyDeterministicDifficulty(
-  articleId: string,
-  content: string,
-  client: Pick<Prisma.TransactionClient, "article"> = prisma,
-): Promise<void> {
-  try {
-    const {
-      level: difficulty,
-      score: difficultyScore,
-      lexileApprox,
-      version: difficultyVersion,
-    } = heuristicDifficulty(content);
-    await client.article.update({
-      where: { id: articleId },
-      data: { difficulty, difficultyScore, lexileApprox, difficultyVersion },
-    });
-  } catch {
-    // Non-fatal — difficulty can be computed lazily by the reader.
-  }
 }
