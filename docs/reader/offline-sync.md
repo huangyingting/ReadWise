@@ -286,9 +286,9 @@ genuine conflict, not a resolved no-op):
 1. Validate `localDate`/`timezone` and that the payload carries **only** allowed
    fields — a malformed/content-bearing payload is marked `failed`, never sent.
 2. `2xx` (including idempotent no-ops) → remove from the queue.
-3. `409` → mark the mutation **`conflict`** and emit the content-free
-   `today_offline_conflict` event (`{ mutationType, statusCode }` only) for the
-   analytics + the non-blocking toast.
+3. `409` → mark the mutation **`conflict`** and notify
+   `subscribeTodayConflicts` listeners with `{ mutationType, statusCode }` only;
+   Today shows a non-blocking notice. No analytics event is recorded.
 4. Network error / `5xx` / `408` / `429` → increment `retryCount` (existing
    exponential back-off); flag `failed` once retries are exhausted.
 5. Other `4xx` → permanent `failed`.

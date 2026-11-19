@@ -303,5 +303,3 @@ export function ReadingPlacementCard({
     </Card>
   );
 }
-
-export default ReadingPlacementCard;

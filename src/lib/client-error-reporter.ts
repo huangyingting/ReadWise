@@ -93,9 +93,3 @@ export function reportClientError({
     // The reporter must never throw.
   }
 }
-
-/** Visible for testing only — resets module-level state between tests. */
-export function _resetReporter(): void {
-  _count = 0;
-  _seen.clear();
-}

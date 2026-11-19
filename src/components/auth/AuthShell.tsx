@@ -6,12 +6,6 @@ import ThemeToggle from "@/components/shell/ThemeToggle";
 import { Card, PageShell, Stack } from "@/components/ui";
 import { cn, focusRing } from "@/lib/cn";
 
-export const authTextLinkClasses = cn(
-  "rounded-[var(--radius-xs)] font-medium text-primary underline underline-offset-2 transition-colors",
-  "[transition-duration:var(--duration-fast)] hover:text-primary-hover",
-  focusRing,
-);
-
 export function AuthShell({
   title,
   description,

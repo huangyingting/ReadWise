@@ -142,13 +142,10 @@ async function refreshPending(): Promise<void> {
 // Today offline conflict pub/sub (#811)
 // ---------------------------------------------------------------------------
 
-/** Analytics + UI event name for a Today offline-replay conflict. */
-export const TODAY_OFFLINE_CONFLICT_EVENT = "today_offline_conflict";
-
 /**
  * Content-free description of a Today offline conflict: the mutation TYPE and
- * the HTTP STATUS only — never any payload content. Used both for the
- * non-blocking conflict toast and the `today_offline_conflict` analytics event.
+ * the HTTP STATUS only — never any payload content. Delivered to
+ * {@link subscribeTodayConflicts} listeners (the non-blocking conflict notice).
  */
 export interface TodayConflictInfo {
   mutationType: string;
@@ -534,7 +531,7 @@ export interface TodayReplayDeps {
     mutation: QueuedMutation,
     patch: Partial<QueuedMutation>,
   ) => Promise<void>;
-  /** Emits the content-free `today_offline_conflict` event on a 409. */
+  /** Notified with content-free {@link TodayConflictInfo} on a 409. */
   onConflict?: (info: TodayConflictInfo) => void;
   maxRetries?: number;
 }
@@ -554,8 +551,8 @@ export type TodayReplayOutcome =
  *   1. Validate `localDate`/`timezone` and that the payload carries ONLY allowed
  *      fields — a malformed/content-bearing payload is marked `failed`, never sent.
  *   2. `2xx` → delivered (incl. idempotent no-ops): remove from the queue.
- *   3. `409` → conflict: mark the mutation `conflict` and emit the content-free
- *      `today_offline_conflict` event (ids + status only) for the toast/analytics.
+ *   3. `409` → conflict: mark the mutation `conflict` and notify conflict
+ *      subscribers (type + status only) so the UI shows a non-blocking notice.
  *   4. Network error / `5xx` / `408` / `429` → increment `retryCount` (existing
  *      exponential back-off); flag `failed` once retries are exhausted.
  *   5. Other `4xx` → permanent `failed`.

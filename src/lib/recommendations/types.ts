@@ -9,7 +9,6 @@ import type { ArticleCardSource } from "@/lib/article-library";
 import type { EnglishLevel } from "@/lib/leveling/cefr-primitives";
 import type { Skill } from "@/lib/learning/types";
 import type { GoalPath } from "@/lib/learning/goal-path";
-import { WEAK_REEXPOSURE_FAMILIARITY } from "@/lib/learning/primitives";
 
 // ---------------------------------------------------------------------------
 // Candidate and score types
@@ -110,12 +109,6 @@ export const COMPONENT_WEIGHTS: Record<keyof ScoreComponents, number> = {
 // ---------------------------------------------------------------------------
 // Weak-word re-exposure booster tuning (#808)
 // ---------------------------------------------------------------------------
-
-/**
- * Familiarity at/above which a word is considered "known" and no longer drives
- * re-exposure. Words below this are "weak" and worth meeting again in context.
- */
-export const WEAK_WORD_FAMILIARITY_MAX = WEAK_REEXPOSURE_FAMILIARITY;
 
 /**
  * Distinct weak-word overlap count that earns the full booster. Beyond this the

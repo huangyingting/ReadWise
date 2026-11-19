@@ -51,8 +51,6 @@ export type ShortcutGroup = {
   shortcuts: ShortcutKey[];
 };
 
-const MAC_PLATFORM_RE = /Mac|iPhone|iPod|iPad/;
-
 const RUNTIME_OWNERS = {
   commandPalette: "CommandPaletteProvider",
   userMenu: "UserMenu",
@@ -64,12 +62,6 @@ const RUNTIME_OWNERS = {
 
 function referenceShortcut(keys: string[], description: string): ShortcutKey {
   return { keys, description, scope: "reference-only" };
-}
-
-/** Platform-aware modifier label (⌘ on Mac, Ctrl elsewhere). */
-export function cmdKey(): string {
-  if (typeof navigator === "undefined") return "Ctrl";
-  return MAC_PLATFORM_RE.test(navigator.platform ?? "") ? "⌘" : "Ctrl";
 }
 
 /** All shortcut groups shown in the reference panel. */
