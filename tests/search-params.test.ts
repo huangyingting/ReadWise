@@ -9,6 +9,7 @@ test("parseBoundedInt clamps numeric params and falls back for missing or non-nu
   assert.equal(parseBoundedInt(undefined, 50, 1, 200), 50);
   assert.equal(parseBoundedInt("abc", 50, 1, 200), 50);
   assert.equal(parseBoundedInt("12px", 50, 1, 200), 12);
+  assert.equal(parseBoundedInt(null, 0, 1, 10), 1, "an out-of-range fallback is clamped too");
 });
 
 test("parsePageParam defaults to page 1 and never goes below it", () => {

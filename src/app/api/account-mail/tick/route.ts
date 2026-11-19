@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { ApiError, createPublicHandler } from "@/lib/api-handler";
 import {
@@ -6,6 +5,8 @@ import {
   claimAccountMail,
 } from "@/lib/account-admission/account-mail-outbox";
 import { accountMailWorkflowConfig } from "@/lib/runtime-config/account-admission";
+import { hasValidBearerToken } from "@/lib/security/request-auth";
+import { readBoundedText } from "@/lib/security/request-body";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -14,42 +15,7 @@ const NO_STORE_HEADERS = {
   "cache-control": "no-store",
 };
 
-function hasValidBearerToken(request: Request, secret: string): boolean {
-  const received = Buffer.from(request.headers.get("authorization") ?? "");
-  const expected = Buffer.from(`Bearer ${secret}`);
-  return (
-    received.length === expected.length &&
-    timingSafeEqual(received, expected)
-  );
-}
-
-function contentLengthTooLarge(request: Request): boolean {
-  const value = request.headers.get("content-length");
-  if (!value) return false;
-  const length = Number(value);
-  return Number.isFinite(length) && length > 4096;
-}
-
-async function readBoundedBody(
-  request: Request,
-  maxBytes: number,
-): Promise<string> {
-  if (!request.body) return "";
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    totalBytes += value.byteLength;
-    if (totalBytes > maxBytes) {
-      await reader.cancel();
-      throw new ApiError(413, "Account mail request is too large.");
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
+const MAX_REQUEST_BYTES = 4096;
 
 /** @api-auth bearer */
 export const POST = createPublicHandler({}, async ({ req }) => {
@@ -70,11 +36,10 @@ export const POST = createPublicHandler({}, async ({ req }) => {
       { headers: NO_STORE_HEADERS },
     );
   }
-  if (contentLengthTooLarge(req)) {
+  const text = await readBoundedText(req, MAX_REQUEST_BYTES);
+  if (text === null) {
     throw new ApiError(413, "Account mail request is too large.");
   }
-
-  const text = await readBoundedBody(req, 4096);
 
   let input: unknown;
   try {

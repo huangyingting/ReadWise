@@ -4,12 +4,17 @@ import { CAPABILITIES } from "@/lib/rbac";
 import { object, optional, string } from "@/lib/validation";
 import {
   accountAdmissionMode,
-  accountAdmissionSecretLink,
   createAccountInvitation,
   enforceAccountAdmissionRateLimit,
   listAccountInvitations,
 } from "@/lib/account-admission";
 import { AccountAdmissionError } from "@/lib/account-admission/errors";
+import {
+  invitationAcceptUrl,
+  invitationGrantAuditMetadata,
+  invitationView,
+  requestedInvitationExpiry,
+} from "@/lib/account-admission/invitation-http";
 import {
   AUDIT_ACTIONS,
   recordAuditFromRequest,
@@ -20,19 +25,6 @@ const createInvitationBody = object({
   expiresAt: optional(string({ min: 1, max: 100 })),
 });
 
-function requestedExpiry(value: string | undefined): Date | undefined {
-  if (!value) return undefined;
-  const expiresAt = new Date(value);
-  if (!Number.isFinite(expiresAt.getTime())) {
-    throw new AccountAdmissionError(
-      400,
-      "invalid_expiry",
-      "Invitation expiry must be a valid date.",
-    );
-  }
-  return expiresAt;
-}
-
 function requireInvitationMode(): void {
   if (accountAdmissionMode() !== "invitation-only") {
     throw new AccountAdmissionError(
@@ -41,30 +33,6 @@ function requireInvitationMode(): void {
       "Account invitations are disabled in public registration mode.",
     );
   }
-}
-
-function invitationView(invitation: {
-  id: string;
-  email: string;
-  status: string;
-  expiresAt: Date;
-  createdAt: Date;
-}) {
-  return {
-    id: invitation.id,
-    email: invitation.email,
-    status: invitation.status,
-    expiresAt: invitation.expiresAt,
-    createdAt: invitation.createdAt,
-    acceptedAt:
-      "acceptedAt" in invitation && invitation.acceptedAt instanceof Date
-        ? invitation.acceptedAt
-        : null,
-    revokedAt:
-      "revokedAt" in invitation && invitation.revokedAt instanceof Date
-        ? invitation.revokedAt
-        : null,
-  };
 }
 
 export const GET = createCapabilityHandler(
@@ -87,9 +55,8 @@ export const POST = createCapabilityHandler(
     const grant = await createAccountInvitation({
       email: body.email,
       invitedById: session.user.id,
-      expiresAt: requestedExpiry(body.expiresAt),
+      expiresAt: requestedInvitationExpiry(body.expiresAt),
     });
-    const delivery = grant.delivery;
     await recordAuditFromRequest({
       req,
       session,
@@ -97,30 +64,14 @@ export const POST = createCapabilityHandler(
       action: AUDIT_ACTIONS.adminAccountInvitationCreate,
       targetType: "account_invitation",
       targetId: grant.invitation.id,
-      metadata: {
-        queued: delivery.queued,
-        deliveryOutcome: delivery.queued ? "queued" : delivery.reason,
-        expiresAt: grant.invitation.expiresAt.toISOString(),
-      },
+      metadata: invitationGrantAuditMetadata(grant),
     });
-    const acceptUrl = accountAdmissionSecretLink(
-      "/invite",
-      grant.token,
-      req.url,
-    );
-    if (!acceptUrl) {
-      throw new AccountAdmissionError(
-        503,
-        "public_url_unavailable",
-        "The public application URL is unavailable.",
-      );
-    }
     return NextResponse.json(
       {
         ok: true,
         invitation: invitationView(grant.invitation),
-        acceptUrl,
-        delivery,
+        acceptUrl: invitationAcceptUrl(grant, req.url),
+        delivery: grant.delivery,
       },
       { status: 201 },
     );

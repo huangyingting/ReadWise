@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { ApiError, createPublicHandler } from "@/lib/api-handler";
 import {
@@ -6,6 +5,7 @@ import {
   runRetentionMaintenance,
 } from "@/lib/retention/maintenance";
 import { retentionWorkerConfig } from "@/lib/runtime-config/maintenance";
+import { hasValidBearerToken } from "@/lib/security/request-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -13,15 +13,6 @@ export const maxDuration = 300;
 const NO_STORE_HEADERS = {
   "cache-control": "no-store",
 };
-
-function hasValidBearerToken(request: Request, secret: string): boolean {
-  const received = Buffer.from(request.headers.get("authorization") ?? "");
-  const expected = Buffer.from(`Bearer ${secret}`);
-  return (
-    received.length === expected.length &&
-    timingSafeEqual(received, expected)
-  );
-}
 
 /** @api-auth bearer */
 export const POST = createPublicHandler({}, async ({ req }) => {

@@ -30,6 +30,7 @@ import { withSpan, setSpanAttributes, recordSpanError } from "@/lib/observabilit
 import { captureError } from "@/lib/observability/errors";
 import { AUDIT_ACTIONS, auditRequestInfo, tryRecordAuditLog } from "@/lib/security/audit";
 import { checkSameOrigin, isStateChangingMethod } from "@/lib/security/csrf";
+import { readBoundedText } from "@/lib/security/request-body";
 import { clientIp } from "@/lib/security/client-ip";
 import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security/events";
 import { OFFLINE_ACTOR_HEADER } from "@/lib/offline-sync";
@@ -108,32 +109,10 @@ export const MAX_JSON_BODY_BYTES = 2 * 1024 * 1024;
 
 type JsonBodyResult = { ok: true; value: unknown } | { ok: false; status: 400 | 413 };
 
-/**
- * Parse a JSON request body without buffering more than
- * {@link MAX_JSON_BODY_BYTES}. A declared Content-Length is rejected up front;
- * the stream is also counted so chunked bodies cannot bypass the cap.
- */
+/** Parse a JSON request body without buffering more than {@link MAX_JSON_BODY_BYTES}. */
 async function readJsonBody(req: Request): Promise<JsonBodyResult> {
-  const declared = Number(req.headers.get("content-length"));
-  if (declared > MAX_JSON_BODY_BYTES) return { ok: false, status: 413 };
-  if (!req.body) return { ok: false, status: 400 };
-
-  const reader = req.body.getReader();
-  const decoder = new TextDecoder();
-  let text = "";
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_JSON_BODY_BYTES) {
-      await reader.cancel();
-      return { ok: false, status: 413 };
-    }
-    text += decoder.decode(value, { stream: true });
-  }
-  text += decoder.decode();
-
+  const text = await readBoundedText(req, MAX_JSON_BODY_BYTES);
+  if (text === null) return { ok: false, status: 413 };
   try {
     return { ok: true, value: JSON.parse(text) };
   } catch {

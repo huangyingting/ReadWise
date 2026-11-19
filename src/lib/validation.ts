@@ -5,6 +5,8 @@
  * NEVER trusted — it always passes through a schema before a handler sees it.
  */
 
+import { parseBoundedInt } from "@/lib/search-params";
+
 export type ValidationResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: string };
@@ -206,6 +208,14 @@ export function queryString(
   return raw === null ? fallback : raw;
 }
 
+/** Query parser for a picker's `?q=` search term, truncated to `maxLength` characters. */
+export function searchTermQuery(maxLength = 100) {
+  return (params: URLSearchParams) => ({
+    ok: true as const,
+    value: { q: queryString(params, "q").slice(0, maxLength) },
+  });
+}
+
 /** Reads an integer query param, clamped to `[min, max]`, defaulting to `fallback`. */
 export function queryInt(
   params: URLSearchParams,
@@ -213,9 +223,7 @@ export function queryInt(
   opts: { fallback: number; min?: number; max?: number },
 ): number {
   const { fallback, min = -Infinity, max = Infinity } = opts;
-  const parsed = Number.parseInt(params.get(name) ?? "", 10);
-  const value = Number.isFinite(parsed) ? parsed : fallback;
-  return clamp(value, min, max);
+  return parseBoundedInt(params.get(name), fallback, min, max);
 }
 
 /**

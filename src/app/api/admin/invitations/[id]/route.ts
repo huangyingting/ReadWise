@@ -6,6 +6,7 @@ import {
   enforceAccountAdmissionRateLimit,
   revokeAccountInvitation,
 } from "@/lib/account-admission";
+import { invitationView } from "@/lib/account-admission/invitation-http";
 import {
   AUDIT_ACTIONS,
   recordAuditFromRequest,
@@ -28,15 +29,7 @@ export const DELETE = createCapabilityHandler(
     });
     return NextResponse.json({
       ok: true,
-      invitation: {
-        id: invitation.id,
-        email: invitation.email,
-        status: invitation.status,
-        expiresAt: invitation.expiresAt,
-        createdAt: invitation.createdAt,
-        acceptedAt: invitation.acceptedAt,
-        revokedAt: invitation.revokedAt,
-      },
+      invitation: invitationView(invitation),
     });
   },
 );

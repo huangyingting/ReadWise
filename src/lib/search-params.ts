@@ -7,17 +7,16 @@
 
 /**
  * Parses an integer search param and clamps it into `[min, max]`. Missing or
- * non-numeric values return `fallback`.
+ * non-numeric values use `fallback` (also clamped).
  */
 export function parseBoundedInt(
-  raw: string | undefined,
+  raw: string | null | undefined,
   fallback: number,
   min: number,
   max: number,
 ): number {
   const n = Number.parseInt(raw ?? "", 10);
-  if (Number.isNaN(n)) return fallback;
-  return Math.min(Math.max(n, min), max);
+  return Math.min(Math.max(Number.isNaN(n) ? fallback : n, min), max);
 }
 
 /** Parses a 1-based `?page=` param; anything missing or below 1 is page 1. */

@@ -11,6 +11,8 @@
  *   - `audit`            — durable audit log with metadata redaction
  *   - `rate-limit`       — fixed-window rate limiter + shared DB store (RW-026)
  *   - `headers`          — security header/CSP policy for next.config (REF-060)
+ *   - `request-auth`     — constant-time bearer-secret check for worker routes
+ *   - `request-body`     — bounded request-body reads (413 instead of buffering)
  *
  * **Throwing vs best-effort:** `checkRateLimit*` and `checkSameOrigin` (when
  * the CSRF check fails and enforcement is on) throw `ApiError` and block the
@@ -46,3 +48,5 @@ export {
   enforceRateLimitPolicy,
 } from "@/lib/security/rate-limit/index";
 export * from "@/lib/security/headers";
+export * from "@/lib/security/request-auth";
+export * from "@/lib/security/request-body";
