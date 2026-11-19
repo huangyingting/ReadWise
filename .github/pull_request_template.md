@@ -38,6 +38,10 @@
 
 ---
 
+## Documentation
+
+- [ ] Docs under `docs/<subsystem>/` updated for changed behavior (or not needed), and `npm run docs:check` passes
+
 ## Testing
 
 <!-- How was this tested? Which commands were run? -->

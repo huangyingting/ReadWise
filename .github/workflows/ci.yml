@@ -104,6 +104,12 @@ jobs:
           fi
           echo "✅  API catalog is up to date — no drift detected."
 
+      # Docs structure check: frontmatter, flat layout, links, and generated
+      # docs indexes (see docs/platform/documentation-governance.md).
+      # Fix: run `npm run docs:index` locally and commit the result.
+      - name: Docs structure check
+        run: npm run docs:check
+
   # ---------------------------------------------------------------------------
   # Tier 2 — Unit tests. These are DB-free (they mock @/lib/prisma), so no
   # migration step is needed; only the generated client.

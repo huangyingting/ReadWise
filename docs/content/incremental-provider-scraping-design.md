@@ -1,8 +1,8 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
-description: "Design for stateful incremental provider ingestion: the governing invariant, the durable discovery ledger data model (DiscoverySource, CrawlCandidate, UrlAlias, DiscoveryObservation, CanonicalConflict), its enums, uniqueness constraints, cascade/retention decisions, versioned URL normalization / public article identity (Phase 1.2), and the idempotent baseline seed / conflict isolation from existing public Articles (Phase 1.3), the SSRF-safe discovery fetch seam exposing response metadata / conditional requests / typed outcomes (Phase 1.4), and the atomic paged discovery commit + candidate classification (Phase 1.5). Later phases are stubbed."
+last_updated: "2026-11-19"
+description: "Stateful incremental provider ingestion (Phases 1.1-3.5): discovery ledger data model, URL identity, leased scheduling, baseline/shadow lifecycle, rate governor, candidate review and source trust, backfill, force-rescrape, and canonical-conflict and deleted-article governance."
 ---
 
 # Incremental provider scraping design

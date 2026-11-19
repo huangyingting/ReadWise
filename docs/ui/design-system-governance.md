@@ -1,8 +1,8 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-10-11"
-description: "Documents design-system ownership, token/primitive governance, typography roles, borderless surface rules, layout patterns, import rules, density variants, and visual regression boundaries. Captures current token usage, shared UI primitives, ESLint drift checks, density rules, focus states, and CI screenshot plan."
+last_updated: "2026-11-19"
+description: "Design-system governance: token and primitive ownership, typography roles, borderless surfaces, layout patterns, density variants, import rules, ESLint drift checks, focus states, and visual regression boundaries."
 ---
 
 # Design-System Governance & Visual Regression Plan

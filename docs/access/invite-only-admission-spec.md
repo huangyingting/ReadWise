@@ -1,3 +1,10 @@
+---
+type: "design"
+status: "accepted"
+last_updated: "2026-11-19"
+description: "Cross-repository NextAuth invite-only admission specification with ReadWise as the reference implementation: fail-closed admission, hashed single-use tokens, atomic claims, data model, flows, and an audit of sibling repositories."
+---
+
 # Unified Design Specification: NextAuth + Invite-Only Account Admission Module
 
 **Status:** Canonical Reference Specification  

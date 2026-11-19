@@ -1,8 +1,8 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
-description: "Documents the Learning/Engagement-owned gamification read model and its relationship to DailyActivity, SRS due counts, and dashboard UI. GET /api/gamification/summary combines streak stats, daily-goal progress, last-seven-day activity, shield count, and due flashcards without duplicating private content."
+last_updated: "2026-11-19"
+description: "Learning/Engagement gamification read model: GET /api/gamification/summary combines streaks, daily-goal progress, last-seven-day activity, shields, and due flashcards from DailyActivity and SRS without duplicating private content."
 ---
 
 # Gamification summary, streaks, and dashboard widgets

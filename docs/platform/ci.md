@@ -1,7 +1,7 @@
 ---
 type: "testing"
 status: "current"
-last_updated: "2026-07-31"
+last_updated: "2026-11-19"
 description: "Documents CI quality gates, production container builds, native coverage, test tiers, isolated Playwright configuration, UI audit sharding/artifacts, generated-doc drift checks, and release-readiness automation."
 ---
 
@@ -27,7 +27,7 @@ flowchart TD
 
 | Job (check name) | What it runs | Local command |
 | --- | --- | --- |
-| **Fast checks (typecheck + lint)** | `tsc --noEmit` + `eslint .` + API catalog drift check | `npm run typecheck && npm run lint` |
+| **Fast checks (typecheck + lint)** | `tsc --noEmit` + `eslint .` + API catalog drift check + docs structure check | `npm run typecheck && npm run lint && npm run docs:check` |
 | **Unit tests** | DB-free Node built-in test runner (`tests/**`) | `npm test` |
 | **Build** | Production Next.js build | `npm run build` |
 | **Container builds (web + worker)** | PostgreSQL production web and worker Docker targets, including non-root runtime checks | `docker build --target runner --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma . && docker build --target worker --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma .` |
@@ -231,6 +231,15 @@ table is produced, or the include filters match no measured file. When a file
 appears in both provider reports, the gate selects the higher complete-run row;
 it never combines partial line hits into a synthetic percentage. The static
 denominator and route inventory run over the union of measured files.
+
+## Docs structure gate
+
+The **Docs structure check** step in **Fast checks** runs `npm run docs:check`
+(also covered by `tests/docs-structure.test.ts`). It fails when a document under
+`docs/` has invalid frontmatter, no `# Title`, a broken relative link, or sits
+outside a flat `docs/<subsystem>/` folder, or when a generated index in a
+`README.md` is stale. Fix with `npm run docs:index` and commit the regenerated
+files; see [`documentation-governance.md`](./documentation-governance.md).
 
 ## API catalog drift gate
 

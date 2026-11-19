@@ -13,7 +13,7 @@ Project rules for AI coding agents.
 - Never log or persist secrets, credentials, tokens, cookies, prompts, article text, selected text, definitions, translations, or user-private content in metadata.
 - When schemas change, keep SQLite/PostgreSQL intent, migrations, fixtures, tests, and docs aligned; consider cascades, visibility, and retention.
 - Do not run destructive git commands, commit, or create branches unless asked.
-- If editing docs, keep them in flat `docs/<subsystem>/` directories and update `docs/README.md` when coverage changes.
+- If editing docs, follow `docs/platform/documentation-governance.md`: keep them in flat `docs/<subsystem>/` directories with the required frontmatter and `# Title`, then run `npm run docs:index` (indexes are generated; never hand-edit the generated blocks).
 
 ## UI / Design System v1
 
@@ -32,7 +32,7 @@ Project rules for AI coding agents.
 
 Before handoff, verify only touched files or nearest behavior when reliable.
 
-- Docs only: check diagnostics plus Markdown links/path references.
+- Docs only: run `npm run docs:check` (frontmatter, layout, links, index freshness) and check path references in prose.
 - Lint/format modified lintable files only.
 - Typecheck with the smallest reliable scope; run full typecheck for shared types, routes, Prisma/generated types, or cross-module contracts.
 - Run tests for modified test files or nearest focused tests; broaden only for shared behavior.

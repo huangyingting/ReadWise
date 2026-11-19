@@ -1,8 +1,8 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-19"
-description: "Documents the client-side Azure Speech pronunciation-assessment flow, token exchange route, persistence route, and Learning mastery side effects. Audio assessment runs in the browser with a short-lived Speech token; the server stores bounded scores and reference text only, never raw audio or SDK word/phoneme payloads."
+last_updated: "2026-11-19"
+description: "Browser-side Azure Speech pronunciation assessment with a short-lived token, attempt persistence (bounded scores and reference text only, never audio), history, and Learning mastery side effects."
 ---
 
 # Pronunciation practice

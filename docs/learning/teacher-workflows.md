@@ -1,8 +1,8 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-11-17"
-description: "Documents learner/teacher assignment workflows built on Access-owned organizations, classrooms, memberships, and Assignment models. Teacher UI creates classrooms, manages rosters, assigns accessible articles, and views classroom analytics; student UI tracks assigned reading completion without changing Article Library access rules."
+last_updated: "2026-11-19"
+description: "Teacher and student assignment workflows on Access-owned organizations, classrooms, memberships, and assignments: classroom and roster management, assigning readable articles, completion tracking, and classroom analytics boundaries."
 ---
 
 # Teacher workflows and assignments

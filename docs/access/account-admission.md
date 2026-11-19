@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-11-17"
+last_updated: "2026-11-19"
 description: "Documents invitation-only and public account admission, password registration and recovery, encrypted GitHub Actions email queueing, explicit social-account linking, admin invitation operations, bootstrap, rate limits, and retention."
 ---
 
@@ -10,6 +10,10 @@ description: "Documents invitation-only and public account admission, password r
 Account Admission decides whether a person may create a new global ReadWise
 User. It is separate from sign-in: an existing User may authenticate with a
 Password Credential and any explicitly Linked Social Accounts.
+
+The cross-repository design these rules implement is recorded in
+[`invite-only-admission-spec.md`](./invite-only-admission-spec.md); this
+document is the source of truth for ReadWise's current behavior.
 
 ## Admission flow
 

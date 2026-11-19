@@ -1,8 +1,8 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-19"
-description: "Documents the admin security surface, in-memory security event buffer, durable AuditLog table, and their relationship to observability and security controls. Operators use /admin/security for recent security events and /api/admin/audit-logs for durable filtered history; both surfaces expose metadata only and rely on shared redaction."
+last_updated: "2026-11-19"
+description: "Admin security surface: the in-memory security event buffer at /admin/security, the durable AuditLog read API, retention, and metadata-only, redacted investigation rules."
 ---
 
 # Security event and audit-log operations
