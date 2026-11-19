@@ -904,11 +904,13 @@ function extractQueryParamNames(
 
   addTimezoneQueryHelperNames(names, configWindow);
   addTimezoneQueryHelperNames(names, handlerWindow);
+  addSearchTermQueryHelperNames(names, configWindow);
 
   for (const queryWindow of collectQueryConfigWindows(configWindow, fullSource)) {
     addRegexCaptures(names, helperRe, queryWindow);
     addRegexCaptures(names, getterRe, queryWindow);
     addTimezoneQueryHelperNames(names, queryWindow);
+    addSearchTermQueryHelperNames(names, queryWindow);
     addQueryParamsFromForwardedHelperCalls(names, queryWindow, fullSource);
   }
 
@@ -924,6 +926,11 @@ function addTimezoneQueryHelperNames(names: Set<string>, source: string): void {
   while ((match = timezoneHelperRe.exec(source)) !== null) {
     names.add(match[1] ?? "timezone");
   }
+}
+
+/** `searchTermQuery()` (from `@/lib/validation`) parses the `q` search term. */
+function addSearchTermQueryHelperNames(names: Set<string>, source: string): void {
+  if (/\bsearchTermQuery\s*\(/.test(source)) names.add("q");
 }
 
 function collectQueryConfigWindows(configWindow: string, fullSource: string): string[] {
