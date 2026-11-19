@@ -14,12 +14,18 @@
  * personal data (exported with the account, never audited or logged).
  */
 import { prisma } from "@/lib/prisma";
-import { recordAuditFromRequest, AUDIT_ACTIONS, type AuditAction, type AuditRequestInput } from "@/lib/security/audit";
-import { assignmentAccess, learnerAssignmentsWhere, teachingAssignments } from "./annotations";
+import { AUDIT_ACTIONS } from "@/lib/security/audit";
+import {
+  NOT_FOUND,
+  learnerAssignmentsWhere,
+  recordAssignmentAudit,
+  requireManagedAssignment,
+  teachingAssignments,
+  type AssignmentAuditFactory,
+  type Viewer,
+} from "./assignment-access";
 import { ORIGINAL_LEVEL } from "@/lib/article-levels/levels";
 import { articleHasLevel } from "@/lib/article-levels/variants";
-
-type Viewer = { id: string; role?: string | null };
 
 export const POLL_OPTIONS_MIN = 2;
 export const POLL_OPTIONS_MAX = 5;
@@ -63,10 +69,6 @@ export type ActivityFailure =
   | { ok: false; status: 404; reason: "not_found" }
   | { ok: false; status: 409; reason: "already_answered" | "archived" };
 
-type AuditFactory = (entry: { action: AuditAction; targetId: string; metadata: Record<string, unknown> }) => AuditRequestInput;
-
-const NOT_FOUND = { ok: false, status: 404, reason: "not_found" } as const;
-const FORBIDDEN = { ok: false, status: 403, reason: "forbidden" } as const;
 
 function parseOptions(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((option): option is string => typeof option === "string") : [];
@@ -259,20 +261,12 @@ export type AssignmentActivitiesView = {
   }>;
 };
 
-async function managed(viewer: Viewer, assignmentId: string, forWrite: boolean) {
-  const access = await assignmentAccess(assignmentId, viewer);
-  if (!access) return NOT_FOUND;
-  if (!access.manages) return FORBIDDEN;
-  if (forWrite && access.assignment.classroom.archivedAt) return { ok: false, status: 409, reason: "archived" } as const;
-  return { ok: true, assignment: access.assignment } as const;
-}
-
 /** Poll and checks with aggregate results, for the classroom's managers. */
 export async function getAssignmentActivities(
   viewer: Viewer,
   assignmentId: string,
 ): Promise<{ ok: true; activities: AssignmentActivitiesView } | ActivityFailure> {
-  const access = await managed(viewer, assignmentId, false);
+  const access = await requireManagedAssignment(viewer, assignmentId, { forWrite: false });
   if (!access.ok) return access;
   const [poll, checks] = await Promise.all([
     prisma.assignmentPoll.findUnique({ where: { assignmentId }, select: POLL_SELECT }),
@@ -308,27 +302,14 @@ function cleanOptions(options: string[], min: number, max: number): string[] | n
   return cleaned.length >= min && cleaned.length <= max && new Set(cleaned).size === cleaned.length ? cleaned : null;
 }
 
-async function audit(
-  factory: AuditFactory,
-  action: AuditAction,
-  targetId: string,
-  assignment: { id: string; classroom: { id: string } },
-  tx: Parameters<typeof recordAuditFromRequest>[1],
-) {
-  await recordAuditFromRequest(
-    factory({ action, targetId, metadata: { assignmentId: assignment.id, classroomId: assignment.classroom.id } }),
-    tx,
-  );
-}
-
 /** Creates or replaces the assignment's poll; existing votes are cleared when it changes. */
 export async function saveAssignmentPoll(
   viewer: Viewer,
   assignmentId: string,
   input: { question: string; options: string[] },
-  auditFactory: AuditFactory,
+  auditFactory: AssignmentAuditFactory,
 ): Promise<{ ok: true; pollId: string } | ActivityFailure> {
-  const access = await managed(viewer, assignmentId, true);
+  const access = await requireManagedAssignment(viewer, assignmentId, { forWrite: true });
   if (!access.ok) return access;
   const options = cleanOptions(input.options, POLL_OPTIONS_MIN, POLL_OPTIONS_MAX);
   const question = input.question.trim();
@@ -342,7 +323,7 @@ export async function saveAssignmentPoll(
       update: { question, options },
       select: { id: true },
     });
-    await audit(auditFactory, AUDIT_ACTIONS.assignmentPollSaved, poll.id, access.assignment, tx);
+    await recordAssignmentAudit(auditFactory, AUDIT_ACTIONS.assignmentPollSaved, poll.id, access.assignment, tx);
     return poll.id;
   });
   return { ok: true, pollId };
@@ -352,15 +333,15 @@ export async function saveAssignmentPoll(
 export async function deleteAssignmentPoll(
   viewer: Viewer,
   assignmentId: string,
-  auditFactory: AuditFactory,
+  auditFactory: AssignmentAuditFactory,
 ): Promise<{ ok: true } | ActivityFailure> {
-  const access = await managed(viewer, assignmentId, true);
+  const access = await requireManagedAssignment(viewer, assignmentId, { forWrite: true });
   if (!access.ok) return access;
   const poll = await prisma.assignmentPoll.findUnique({ where: { assignmentId }, select: { id: true } });
   if (!poll) return NOT_FOUND;
   await prisma.$transaction(async (tx) => {
     await tx.assignmentPoll.delete({ where: { id: poll.id } });
-    await audit(auditFactory, AUDIT_ACTIONS.assignmentPollDeleted, poll.id, access.assignment, tx);
+    await recordAssignmentAudit(auditFactory, AUDIT_ACTIONS.assignmentPollDeleted, poll.id, access.assignment, tx);
   });
   return { ok: true };
 }
@@ -378,9 +359,9 @@ export async function addAssignmentCheck(
     /** Reading level the teacher placed the check in (#1303); defaults to the original. */
     levelKey?: string | null;
   },
-  auditFactory: AuditFactory,
+  auditFactory: AssignmentAuditFactory,
 ): Promise<{ ok: true; checkId: string } | ActivityFailure> {
-  const access = await managed(viewer, assignmentId, true);
+  const access = await requireManagedAssignment(viewer, assignmentId, { forWrite: true });
   if (!access.ok) return access;
   const options = cleanOptions(input.options, CHECK_OPTIONS_MIN, CHECK_OPTIONS_MAX);
   const question = input.question.trim();
@@ -412,7 +393,7 @@ export async function addAssignmentCheck(
       },
       select: { id: true },
     });
-    await audit(auditFactory, AUDIT_ACTIONS.assignmentCheckCreated, check.id, access.assignment, tx);
+    await recordAssignmentAudit(auditFactory, AUDIT_ACTIONS.assignmentCheckCreated, check.id, access.assignment, tx);
     return check.id;
   });
   return { ok: true, checkId };
@@ -422,15 +403,15 @@ export async function addAssignmentCheck(
 export async function deleteAssignmentCheck(
   viewer: Viewer,
   checkId: string,
-  auditFactory: AuditFactory,
+  auditFactory: AssignmentAuditFactory,
 ): Promise<{ ok: true } | ActivityFailure> {
   const check = await prisma.assignmentCheck.findUnique({ where: { id: checkId }, select: { assignmentId: true } });
   if (!check) return NOT_FOUND;
-  const access = await managed(viewer, check.assignmentId, true);
+  const access = await requireManagedAssignment(viewer, check.assignmentId, { forWrite: true });
   if (!access.ok) return access;
   await prisma.$transaction(async (tx) => {
     await tx.assignmentCheck.delete({ where: { id: checkId } });
-    await audit(auditFactory, AUDIT_ACTIONS.assignmentCheckDeleted, checkId, access.assignment, tx);
+    await recordAssignmentAudit(auditFactory, AUDIT_ACTIONS.assignmentCheckDeleted, checkId, access.assignment, tx);
   });
   return { ok: true };
 }

@@ -16,7 +16,7 @@
  * can always be reopened. Teacher reviews are audited with ids, action, and
  * rubric totals only — never the response text or feedback.
  */
-import { Prisma, WriteSubmissionStatus, type MembershipRole } from "@prisma/client";
+import { Prisma, WriteSubmissionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   recordAuditFromRequest,
@@ -24,8 +24,7 @@ import {
   type AuditAction,
   type AuditRequestInput,
 } from "@/lib/security/audit";
-import { canManageClassroom } from "./guards";
-import { assignmentLiveWhere, assignmentVisibleToStudentWhere } from "./targeting";
+import { learnerAssignmentsWhere, requireManagedAssignment, type Viewer } from "./assignment-access";
 import {
   INDEPENDENT_WRITE_SCOPE,
   countWords,
@@ -35,7 +34,6 @@ import {
   type RubricScores,
 } from "./writing-rubric";
 
-type Viewer = { id: string; role?: string | null };
 type ArticleRef = { id: string; title: string };
 
 export type WriteSubmissionView = {
@@ -93,11 +91,7 @@ async function articleDefaultPrompt(article: ArticleRef): Promise<string> {
 
 async function studentAssignmentsFor(userId: string, article: ArticleRef, articlePrompt: string) {
   const rows = await prisma.assignment.findMany({
-    where: {
-      articleId: article.id,
-      classroom: { archivedAt: null, members: { some: { userId } } },
-      AND: [assignmentVisibleToStudentWhere(userId), assignmentLiveWhere(new Date())],
-    },
+    where: { articleId: article.id, ...learnerAssignmentsWhere(userId) },
     select: { id: true, writePrompt: true, classroom: { select: { name: true } } },
     orderBy: { createdAt: "asc" },
   });
@@ -214,25 +208,6 @@ export function submitWriteResponse(userId: string, article: ArticleRef, input: 
 // Teacher review
 // ---------------------------------------------------------------------------
 
-async function managedAssignment(assignmentId: string, viewer: Viewer) {
-  const assignment = await prisma.assignment.findUnique({
-    where: { id: assignmentId },
-    select: {
-      id: true,
-      writePrompt: true,
-      article: { select: { id: true, title: true } },
-      classroom: { select: { id: true, name: true, orgId: true, teacherId: true, archivedAt: true } },
-    },
-  });
-  if (!assignment) return null;
-  const membership = await prisma.membership.findUnique({
-    where: { userId_orgId: { userId: viewer.id, orgId: assignment.classroom.orgId } },
-    select: { role: true },
-  });
-  const allowed = canManageClassroom(viewer, assignment.classroom, membership as { role: MembershipRole } | null);
-  return { assignment, allowed };
-}
-
 export type AssignmentSubmissionRow = WriteSubmissionView & {
   student: { id: string; name: string | null; email: string | null };
 };
@@ -253,10 +228,10 @@ export async function listAssignmentSubmissions(
     }
   | WriteFailure
 > {
-  const managed = await managedAssignment(assignmentId, viewer);
-  if (!managed) return { ok: false, status: 404, reason: "not_found" };
-  if (!managed.allowed) return { ok: false, status: 403, reason: "forbidden" };
+  const managed = await requireManagedAssignment(viewer, assignmentId, { forWrite: false });
+  if (!managed.ok) return managed;
   const { assignment } = managed;
+  const article = { id: assignment.articleId, title: assignment.article.title };
   const rows = await prisma.writeSubmission.findMany({
     where: { assignmentId, status: { not: WriteSubmissionStatus.DRAFT } },
     select: { ...VIEW_SELECT, user: { select: { id: true, name: true, email: true } } },
@@ -268,9 +243,9 @@ export async function listAssignmentSubmissions(
       id: assignment.id,
       classroomId: assignment.classroom.id,
       classroomName: assignment.classroom.name,
-      articleId: assignment.article.id,
-      articleTitle: assignment.article.title,
-      prompt: assignment.writePrompt?.trim() || (await articleDefaultPrompt(assignment.article)),
+      articleId: article.id,
+      articleTitle: article.title,
+      prompt: assignment.writePrompt?.trim() || (await articleDefaultPrompt(article)),
     },
     // A returned response is being revised: its text is in progress, so it
     // stays private (like a draft) until the learner resubmits.
@@ -304,11 +279,9 @@ export async function reviewWriteSubmission(
     select: { id: true, assignmentId: true, status: true },
   });
   if (!submission?.assignmentId) return { ok: false, status: 404, reason: "not_found" };
-  const managed = await managedAssignment(submission.assignmentId, viewer);
-  if (!managed) return { ok: false, status: 404, reason: "not_found" };
-  if (!managed.allowed) return { ok: false, status: 403, reason: "forbidden" };
   // Archived classrooms are read-only, as for prompts and activities.
-  if (managed.assignment.classroom.archivedAt) return { ok: false, status: 409, reason: "archived" };
+  const managed = await requireManagedAssignment(viewer, submission.assignmentId, { forWrite: true });
+  if (!managed.ok) return managed;
   if (submission.status !== WriteSubmissionStatus.SUBMITTED && submission.status !== WriteSubmissionStatus.GRADED) {
     return { ok: false, status: 409, reason: "not_reviewable" };
   }

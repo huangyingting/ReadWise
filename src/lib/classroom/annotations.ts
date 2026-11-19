@@ -15,23 +15,22 @@
  * Teacher prompt changes are audited with ids only (never prompt text);
  * learner responses are personal content and are never audited or logged.
  */
-import type { MembershipRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { validateAnchor } from "@/lib/annotations";
+import { AUDIT_ACTIONS } from "@/lib/security/audit";
 import {
-  recordAuditFromRequest,
-  AUDIT_ACTIONS,
-  type AuditAction,
-  type AuditRequestInput,
-} from "@/lib/security/audit";
-import { canManageClassroom } from "./guards";
-import { managedClassroomScope } from "./educator";
-import { assignmentLiveWhere, assignmentVisibleToStudentWhere } from "./targeting";
+  NOT_FOUND,
+  learnerAssignmentsWhere,
+  recordAssignmentAudit,
+  requireManagedAssignment,
+  teachingAssignments,
+  type AssignmentAuditFactory,
+  type ManagedAccessFailure,
+  type Viewer,
+} from "./assignment-access";
 import { ANNOTATION_QUOTE_MAX_LENGTH } from "./annotation-limits";
 import { ORIGINAL_LEVEL, type ReadingLevelKey } from "@/lib/article-levels/levels";
 import { articleHasLevel } from "@/lib/article-levels/variants";
-
-type Viewer = { id: string; role?: string | null };
 
 export type AnnotationAnchor = {
   quote: string;
@@ -85,15 +84,7 @@ export type ReaderAnnotationContext = {
 
 export type AnnotationFailure =
   | { ok: false; status: 400; reason: "invalid_anchor" | "empty_response" }
-  | { ok: false; status: 403; reason: "forbidden" }
-  | { ok: false; status: 404; reason: "not_found" }
-  | { ok: false; status: 409; reason: "archived" };
-
-type AuditFactory = (entry: { action: AuditAction; targetId: string; metadata: Record<string, unknown> }) => AuditRequestInput;
-
-const NOT_FOUND = { ok: false, status: 404, reason: "not_found" } as const;
-const FORBIDDEN = { ok: false, status: 403, reason: "forbidden" } as const;
-const MAX_TEACHING_ASSIGNMENTS = 50;
+  | ManagedAccessFailure;
 
 const GUIDE_SELECT = {
   id: true,
@@ -129,53 +120,6 @@ function normalizeAnchor(anchor: AnnotationAnchor) {
     prefix: anchor.prefix ?? "",
     suffix: anchor.suffix ?? "",
   };
-}
-
-async function membershipRole(userId: string, orgId: string) {
-  return prisma.membership.findUnique({
-    where: { userId_orgId: { userId, orgId } },
-    select: { role: true },
-  }) as Promise<{ role: MembershipRole } | null>;
-}
-
-/** Loads an assignment and whether the viewer manages its classroom. */
-export async function assignmentAccess(assignmentId: string, viewer: Viewer) {
-  const assignment = await prisma.assignment.findUnique({
-    where: { id: assignmentId },
-    select: {
-      id: true,
-      articleId: true,
-      article: { select: { title: true } },
-      classroom: { select: { id: true, name: true, orgId: true, teacherId: true, archivedAt: true } },
-    },
-  });
-  if (!assignment) return null;
-  const membership = await membershipRole(viewer.id, assignment.classroom.orgId);
-  return { assignment, manages: canManageClassroom(viewer, assignment.classroom, membership) };
-}
-
-/** Live assignments the learner is enrolled in as a student (targeting applies). */
-export function learnerAssignmentsWhere(userId: string) {
-  return {
-    classroom: { archivedAt: null, members: { some: { userId, role: "Student" as const } } },
-    AND: [assignmentVisibleToStudentWhere(userId), assignmentLiveWhere(new Date())],
-  };
-}
-
-/** Live-or-not assignments of an article in active classrooms the viewer manages. */
-export async function teachingAssignments(viewer: Viewer, articleId: string) {
-  const { memberships, where } = await managedClassroomScope(viewer);
-  const rows = await prisma.assignment.findMany({
-    where: { articleId, classroom: where },
-    select: { id: true, classroom: { select: { name: true, orgId: true, teacherId: true } } },
-    orderBy: { createdAt: "asc" },
-    take: MAX_TEACHING_ASSIGNMENTS,
-  });
-  return rows
-    .filter((row) =>
-      canManageClassroom(viewer, row.classroom, memberships.find((m) => m.orgId === row.classroom.orgId) ?? null),
-    )
-    .map((row) => ({ assignmentId: row.id, classroomName: row.classroom.name }));
 }
 
 /**
@@ -229,30 +173,15 @@ export async function getReaderAnnotationContext(viewer: Viewer, articleId: stri
 // Teacher prompts
 // ---------------------------------------------------------------------------
 
-async function recordPromptAudit(
-  audit: AuditFactory,
-  action: AuditAction,
-  guideId: string,
-  assignment: { id: string; classroom: { id: string } },
-  tx: Parameters<typeof recordAuditFromRequest>[1],
-) {
-  await recordAuditFromRequest(
-    audit({ action, targetId: guideId, metadata: { assignmentId: assignment.id, classroomId: assignment.classroom.id } }),
-    tx,
-  );
-}
-
 /** Pins a guided prompt to an assignment the viewer manages. */
 export async function createGuidedAnnotation(
   viewer: Viewer,
   assignmentId: string,
   input: AnnotationAnchor & { prompt: string },
-  audit: AuditFactory,
+  audit: AssignmentAuditFactory,
 ): Promise<{ ok: true; guide: GuidedAnnotationView } | AnnotationFailure> {
-  const access = await assignmentAccess(assignmentId, viewer);
-  if (!access) return NOT_FOUND;
-  if (!access.manages) return FORBIDDEN;
-  if (access.assignment.classroom.archivedAt) return { ok: false, status: 409, reason: "archived" };
+  const access = await requireManagedAssignment(viewer, assignmentId, { forWrite: true });
+  if (!access.ok) return access;
   const anchor = normalizeAnchor(input);
   const levelKey = input.levelKey ?? ORIGINAL_LEVEL;
   if (!anchor || !(await articleHasLevel(access.assignment.articleId, levelKey))) {
@@ -264,7 +193,7 @@ export async function createGuidedAnnotation(
       data: { assignmentId, authorId: viewer.id, ...anchor, levelKey, prompt: input.prompt },
       select: GUIDE_SELECT,
     });
-    await recordPromptAudit(audit, AUDIT_ACTIONS.assignmentAnnotationCreated, row.id, access.assignment, tx);
+    await recordAssignmentAudit(audit, AUDIT_ACTIONS.assignmentAnnotationCreated, row.id, access.assignment, tx);
     return row;
   });
   return { ok: true, guide: { ...guide, classroomName: access.assignment.classroom.name, canEdit: true } };
@@ -273,11 +202,7 @@ export async function createGuidedAnnotation(
 async function managedGuide(guideId: string, viewer: Viewer) {
   const guide = await prisma.assignmentAnnotation.findUnique({ where: { id: guideId }, select: { assignmentId: true } });
   if (!guide) return NOT_FOUND;
-  const access = await assignmentAccess(guide.assignmentId, viewer);
-  if (!access) return NOT_FOUND;
-  if (!access.manages) return FORBIDDEN;
-  if (access.assignment.classroom.archivedAt) return { ok: false, status: 409, reason: "archived" } as const;
-  return { ok: true, assignment: access.assignment } as const;
+  return requireManagedAssignment(viewer, guide.assignmentId, { forWrite: true });
 }
 
 /** Edits a guided prompt's text. */
@@ -285,13 +210,13 @@ export async function updateGuidedAnnotation(
   viewer: Viewer,
   guideId: string,
   prompt: string,
-  audit: AuditFactory,
+  audit: AssignmentAuditFactory,
 ): Promise<{ ok: true; guide: GuidedAnnotationView } | AnnotationFailure> {
   const managed = await managedGuide(guideId, viewer);
   if (!managed.ok) return managed;
   const guide = await prisma.$transaction(async (tx) => {
     const row = await tx.assignmentAnnotation.update({ where: { id: guideId }, data: { prompt }, select: GUIDE_SELECT });
-    await recordPromptAudit(audit, AUDIT_ACTIONS.assignmentAnnotationUpdated, guideId, managed.assignment, tx);
+    await recordAssignmentAudit(audit, AUDIT_ACTIONS.assignmentAnnotationUpdated, guideId, managed.assignment, tx);
     return row;
   });
   return { ok: true, guide: { ...guide, classroomName: managed.assignment.classroom.name, canEdit: true } };
@@ -301,13 +226,13 @@ export async function updateGuidedAnnotation(
 export async function deleteGuidedAnnotation(
   viewer: Viewer,
   guideId: string,
-  audit: AuditFactory,
+  audit: AssignmentAuditFactory,
 ): Promise<{ ok: true } | AnnotationFailure> {
   const managed = await managedGuide(guideId, viewer);
   if (!managed.ok) return managed;
   await prisma.$transaction(async (tx) => {
     await tx.assignmentAnnotation.delete({ where: { id: guideId } });
-    await recordPromptAudit(audit, AUDIT_ACTIONS.assignmentAnnotationDeleted, guideId, managed.assignment, tx);
+    await recordAssignmentAudit(audit, AUDIT_ACTIONS.assignmentAnnotationDeleted, guideId, managed.assignment, tx);
   });
   return { ok: true };
 }
@@ -400,9 +325,8 @@ export async function getAssignmentAnnotationReview(
   assignmentId: string,
   viewer: Viewer,
 ): Promise<{ ok: true; review: AssignmentAnnotationReview } | AnnotationFailure> {
-  const access = await assignmentAccess(assignmentId, viewer);
-  if (!access) return NOT_FOUND;
-  if (!access.manages) return FORBIDDEN;
+  const access = await requireManagedAssignment(viewer, assignmentId, { forWrite: false });
+  if (!access.ok) return access;
   const { assignment } = access;
   const [guides, responses] = await Promise.all([
     prisma.assignmentAnnotation.findMany({

@@ -78,7 +78,8 @@ classroom is archived (409).
   returned for revision is listed without its in-progress text until the
   learner resubmits. Anyone else gets 403; unknown assignments/submissions 404.
 - Learners only ever read and write their own responses, and only for
-  assignments they're part of (otherwise 404).
+  assignments in classrooms where they are a Student member (otherwise 404;
+  co-teachers who are classroom members can't respond as students).
 - If the assignment is deleted, the response keeps its text but loses the
   assignment link, so it becomes private to the learner.
 - Response text and feedback are personal content: included in the learner's

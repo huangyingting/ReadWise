@@ -29,6 +29,7 @@ flowchart TD
 | Scaffolds | `src/lib/lesson/scaffold.ts`, `scaffold-fallback.ts`, `lesson-scaffold` prompt | Cached AI scaffolds; deterministic fallback. |
 | Fluency | `src/lib/lesson/fluency.ts` | 100/150/200-word passages, WCPM/accuracy helpers, rubric. |
 | Activities | `src/lib/classroom/activities.ts`, `activities-http.ts` | Polls, checks, votes, answers, teacher results. |
+| Assignment access | `src/lib/classroom/assignment-access.ts` | Shared by activities, annotations, and Write Prompts: managed access (404 → 403 → 409 archived for writes), student-only live assignments, id-only teacher audit rows. |
 | Data | `ArticleLessonScaffold`, `AssignmentPoll`, `AssignmentPollVote`, `AssignmentCheck`, `AssignmentCheckAnswer` | |
 | UI | `EducatorTools` (bar, preview banner, quick assign), `LessonSheet`, `ReaderActivities` (poll cards, checkpoints) | |
 

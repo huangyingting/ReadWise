@@ -5,7 +5,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { isEducator, listManagedClassrooms } from "@/lib/classroom/educator";
-import { teachingAssignments } from "@/lib/classroom/annotations";
+import { teachingAssignments } from "@/lib/classroom/assignment-access";
 
 type Viewer = { id: string; role?: string | null };
 

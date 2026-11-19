@@ -227,6 +227,22 @@ test("independent writing stays private and can be reopened", { skip: !enabled }
   );
 });
 
+test("teacher-role classroom members cannot respond to assignments as students", { skip: !enabled }, async () => {
+  requirePostgres();
+  const s = await setup("wr_coteach");
+  await prisma.classroomMembership.create({
+    data: { classroomId: s.classroomId, userId: s.teacher.id, role: "Teacher" },
+  });
+
+  const context = await getWriteContext(s.teacher.id, article(s.articleId));
+  assert.ok(context.ok);
+  assert.deepEqual(context.context.assignments, [], "only Student members are offered the assignment");
+  assert.deepEqual(
+    await submitWriteResponse(s.teacher.id, article(s.articleId), { assignmentId: s.assignmentId, body: "Teacher answer." }),
+    { ok: false, status: 404, reason: "not_found" },
+  );
+});
+
 test("teachers see submitted work only for classrooms they manage", { skip: !enabled }, async () => {
   requirePostgres();
   const s = await setup("wr_idor");
