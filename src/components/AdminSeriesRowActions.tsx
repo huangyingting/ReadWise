@@ -184,12 +184,8 @@ export default function AdminSeriesRowActions({ series }: { series: SeriesRowDat
           }
           onConfirm={handleDelete}
           loading={busy && activePanel === "delete"}
-          disabled={busy || (series.status === "active" && series.articleCount > 0)}
-          disabledTitle={
-            series.status === "active" && series.articleCount > 0
-              ? "Archive first to delete an active series"
-              : undefined
-          }
+          disabled={busy || !canDelete}
+          disabledTitle={canDelete ? undefined : "Archive first to delete an active series"}
           open={activePanel === "delete"}
           onOpenChange={(v) => {
             clearError();

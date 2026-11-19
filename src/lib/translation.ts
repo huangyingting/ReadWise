@@ -5,11 +5,7 @@ import { chunkForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import type { ArticleAccessContext } from "@/lib/article-library";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
-import {
-  languageLabel,
-  isSupportedLanguage,
-  SUPPORTED_LANGUAGES,
-} from "@/lib/supported-languages";
+import { languageLabel } from "@/lib/supported-languages";
 import { t } from "@/lib/i18n";
 import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
 

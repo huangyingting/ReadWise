@@ -58,7 +58,6 @@ type ClassroomMember = Awaited<ReturnType<typeof listClassroomMembers>>[number];
 type AssignmentMeta = Awaited<ReturnType<typeof listClassroomAssignmentMeta>>[number];
 type AssignmentMetaMap = Map<string, AssignmentMeta>;
 type StudentCandidate = Awaited<ReturnType<typeof searchClassroomStudentCandidates>>[number];
-type AssignableArticle = Awaited<ReturnType<typeof searchAssignableArticleOptions>>[number];
 type SearchParams = {
   assignmentId?: string;
   studentId?: string;

@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/prisma";
 import { runSerializableTransaction } from "@/lib/database/serializable-transaction";
 import { AccountAdmissionError } from "./errors";
 import { queueRegistrationVerificationEmail } from "./email";

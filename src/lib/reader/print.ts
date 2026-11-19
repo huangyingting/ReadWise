@@ -13,8 +13,6 @@
  * caller gets `restricted: true`), and any `rightsNote` is carried onto the
  * page.
  */
-import type { Article } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import { isEducator } from "@/lib/classroom/educator";
 import {
   articleAccessContextForUser,

@@ -93,7 +93,7 @@ function gate(name: ExitGateName, passed: boolean, detail: string): GateResult {
  * when EVERY gate passes.
  */
 export function evaluateExitGates(snapshot: ExitGateSnapshot): ExitGateVerdict {
-  const { metrics, reconciliation } = snapshot;
+  const { reconciliation } = snapshot;
 
   const results: GateResult[] = [
     gate(

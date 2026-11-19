@@ -8,7 +8,7 @@
  */
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, normalize, posix, sep } from "node:path";
+import { join, normalize, sep } from "node:path";
 
 // ---------------------------------------------------------------------------
 // Types

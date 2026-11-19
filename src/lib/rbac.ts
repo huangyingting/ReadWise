@@ -129,9 +129,6 @@ type _AssertActiveRolesMatchPrisma = Expect<Equals<ActiveRole, PrismaRoleName>>;
  */
 export const SYSTEM_ROLE = "System" as const;
 
-// No planned global system roles remain; scoped admin roles are active DB roles.
-const PLANNED_SYSTEM_ROLES = [] as const;
-
 /**
  * Tenant-level (organization/classroom) roles. These are SEPARATE from global
  * system roles by design (an org admin is not a ReadWise system admin). They are
@@ -179,12 +176,6 @@ export type RoleName =
   | TenantRole
   | "Member"
   | "Student";
-
-/** Roles that are documented but not yet assignable (kept module-private). */
-const PLANNED_ROLES: readonly RoleName[] = [
-  ...PLANNED_SYSTEM_ROLES,
-  ...TENANT_ROLES,
-];
 
 /** Capabilities every authenticated reader holds. */
 const BASE_READER_CAPABILITIES: readonly Capability[] = [

@@ -35,7 +35,6 @@ import {
   emitTodayReadingComplete,
   emitTodaySessionComplete,
   emitTodayWordReviewComplete,
-  type TodayReadingMethod,
 } from "./analytics";
 import type {
   TodayCompletionTier,

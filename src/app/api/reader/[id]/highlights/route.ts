@@ -13,7 +13,7 @@ import type { HighlightColor } from "@/lib/annotations";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { createHighlightBody, type CreateHighlightBody } from "@/lib/reader/schemas";
-import { nullable, number, object, optional, string } from "@/lib/validation";
+import { nullable, number, object, string } from "@/lib/validation";
 import { levelQuery, parseLevelParam, requireArticleLevel } from "@/lib/article-levels/http";
 
 const anchorIdentity = {

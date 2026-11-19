@@ -11,7 +11,6 @@
 
 import { removeAccount } from "@/lib/account-lifecycle/account-removal";
 import { runSerializableTransaction } from "@/lib/database/serializable-transaction";
-import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 import { type DomainResult, type DomainOk, ok, notFound, conflict } from "@/lib/result";

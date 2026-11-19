@@ -30,7 +30,7 @@ import {
   effectiveStudentIds,
 } from "@/lib/classroom/targeting";
 import { isPushConfigured } from "./provider";
-import { type SubRow, groupSubscriptionsByUser, sendToSubs, type PushPayload } from "./delivery";
+import { groupSubscriptionsByUser, sendToSubs, type PushPayload } from "./delivery";
 import { reminderNotificationTag } from "./notification-idempotency";
 
 const log = createLogger("push");

@@ -4,7 +4,6 @@ import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import {
   ENGLISH_LEVELS,
   levelRank,
-  levelsAtOrBelow,
   isDifficultyLevel,
   type EnglishLevel,
 } from "@/lib/leveling/cefr-primitives";

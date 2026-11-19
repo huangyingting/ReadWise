@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/prisma";
 import { runSeed, DEFAULT_SEED_LIMIT, type SeedOptions, type SeedStats } from "@/lib/seed";
 import { PROVIDERS } from "@/lib/scraper/providers";
 import { isAiConfigured } from "@/lib/ai";

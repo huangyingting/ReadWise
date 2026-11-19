@@ -9,7 +9,6 @@ import { prisma } from "@/lib/prisma";
 import { getStreakSummary } from "@/lib/engagement";
 import {
 	fillWeekBuckets,
-	isoWeek,
 	lastNWeeks,
 	type WeekBucket,
 } from "@/lib/aggregation";

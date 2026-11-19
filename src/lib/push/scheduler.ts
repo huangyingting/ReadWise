@@ -24,7 +24,7 @@ import {
 import { reminder as reminderCopy } from "@/lib/copy/push";
 import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { isPushConfigured } from "./provider";
-import { type SubRow, groupSubscriptionsByUser, sendToSubs, type PushPayload } from "./delivery";
+import { groupSubscriptionsByUser, sendToSubs, type PushPayload } from "./delivery";
 import { reminderNotificationTag } from "./notification-idempotency";
 
 const log = createLogger("push");

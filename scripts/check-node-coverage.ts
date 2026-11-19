@@ -7,12 +7,7 @@ import {
   discoverEligibleFiles,
   discoverRoutes,
   mergeWithCoverage,
-  normalizePath,
   parseCoverageDebt,
-  type CoverageDebtConfig,
-  type DiscoveryResult,
-  type RouteInventoryResult,
-  type StaticDenominatorResult,
 } from "./coverage-static-discovery";
 
 export type CoverageRow = {
@@ -502,7 +497,6 @@ function runStaticDenominator(
   );
 
   // Build route inventory
-  const routeDebtSet = new Set(debt.routeDebt.map((d) => d.route));
   const coveredRoutesInTests = new Set(
     rows.filter((row) => row.file.startsWith("src/app/api/")).map((row) => row.file),
   );

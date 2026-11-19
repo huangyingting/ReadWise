@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 
-import { prisma } from "@/lib/prisma";
 import { closeBrowser } from "@/lib/scraper/fetch-browser";
 import { PROVIDERS, getProvider, providerForUrl } from "@/lib/scraper/providers";
 import { extractArticle } from "@/lib/scraper/extract";

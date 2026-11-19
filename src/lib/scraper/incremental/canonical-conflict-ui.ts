@@ -31,7 +31,7 @@ import {
   isCanonicalConflictStatus,
   type CanonicalConflictStatusValue,
 } from "./canonical-conflict-status";
-import { errorBodyReason, type BadgeVariant } from "./review-ui-shared";
+import { errorBodyReason } from "./review-ui-shared";
 
 // Re-exported so the client components share one import surface for the sanitized
 // dependent-data count shape (single source of truth: the backend query module).

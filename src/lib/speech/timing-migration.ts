@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
-import type { SpeechWord } from "./timing";
 import {
   createSpeechTimingPayloadV2,
   legacySpeechWordsToTimingPayloadV1,

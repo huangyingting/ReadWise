@@ -2,7 +2,6 @@ import {
   retentionMaintenanceOptions,
   runRetentionMaintenance,
   type RetentionOptions,
-  type RetentionRunResult,
 } from "@/lib/retention/maintenance";
 import { isMain, parseFlag, parsePositiveInt, runCli, shouldDryRun } from "./lib/cli";
 
